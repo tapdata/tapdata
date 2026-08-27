@@ -3,6 +3,7 @@ package com.tapdata.tm.dql.repository;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecoveryCallbackResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
@@ -278,6 +279,78 @@ class DqlEventRepositoryTest {
         Document update = updateCaptor.getValue().getUpdateObject();
         assertEquals(attempt, update.get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS));
         assertTtlRefreshed(update.get("$set", Document.class));
+    }
+
+    @Test
+    @DisplayName("repeated event start is recognized without appending another attempt")
+    void repeatedStartEventIsIdempotent() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 0L, null));
+        DqlEventEntity event = new DqlEventEntity();
+        event.setEventId("DQL-1");
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("A-1");
+        attempt.setBatchId("DQLB-1");
+        attempt.setResult(DqlRecoveryAttemptResultEnum.RUNNING.name());
+        event.setRecoveryAttempts(List.of(attempt));
+        when(mongoTemplate.findOne(any(Query.class), eq(DqlEventEntity.class))).thenReturn(event);
+
+        DqlRecoveryAttemptDto repeated = new DqlRecoveryAttemptDto();
+        repeated.setAttemptId("A-1");
+        repeated.setBatchId("DQLB-1");
+        repeated.setResult(DqlRecoveryAttemptResultEnum.RUNNING.name());
+
+        assertEquals(DqlRecoveryCallbackResultEnum.DUPLICATE,
+                repository.startEventIdempotent("DQL-1", "DQLB-1", repeated));
+        verify(mongoTemplate).findOne(any(Query.class), eq(DqlEventEntity.class));
+    }
+
+    @Test
+    @DisplayName("repeated terminal event result is recognized without changing the event")
+    void repeatedCompleteEventIsIdempotent() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 0L, null));
+        DqlEventEntity event = new DqlEventEntity();
+        event.setEventId("DQL-1");
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("A-1");
+        attempt.setBatchId("DQLB-1");
+        attempt.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+        event.setRecoveryAttempts(List.of(attempt));
+        when(mongoTemplate.findOne(any(Query.class), eq(DqlEventEntity.class))).thenReturn(event);
+
+        assertEquals(DqlRecoveryCallbackResultEnum.DUPLICATE,
+                repository.completeEventIdempotent("DQL-1", "DQLB-1", attempt));
+        verify(mongoTemplate).findOne(any(Query.class), eq(DqlEventEntity.class));
+    }
+
+    @Test
+    @DisplayName("same attempt id with a different terminal result is rejected")
+    void conflictingCompleteEventIsRejected() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 0L, null));
+        DqlEventEntity event = new DqlEventEntity();
+        event.setEventId("DQL-1");
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("A-1");
+        attempt.setBatchId("DQLB-1");
+        attempt.setResult(DqlRecoveryAttemptResultEnum.FAILED.name());
+        event.setRecoveryAttempts(List.of(attempt));
+        when(mongoTemplate.findOne(any(Query.class), eq(DqlEventEntity.class))).thenReturn(event);
+
+        DqlRecoveryAttemptDto conflicting = new DqlRecoveryAttemptDto();
+        conflicting.setAttemptId("A-1");
+        conflicting.setBatchId("DQLB-1");
+        conflicting.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+
+        assertEquals(DqlRecoveryCallbackResultEnum.CONFLICT,
+                repository.completeEventIdempotent("DQL-1", "DQLB-1", conflicting));
     }
 
     @Test

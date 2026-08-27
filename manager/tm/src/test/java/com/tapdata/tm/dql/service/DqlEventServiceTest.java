@@ -7,6 +7,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlErrorTypeEnum;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
+import com.tapdata.tm.dql.DqlRecoveryCallbackResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
@@ -550,7 +551,8 @@ class DqlEventServiceTest {
         batch.setEventIds(List.of("DQL-64f000-000001"));
         batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
         when(batchRepository.findByBatchId("DQLB-20260825-000001")).thenReturn(batch);
-        when(eventRepository.completeEvent(eq("DQL-64f000-000001"), eq("DQLB-20260825-000001"), any())).thenReturn(true);
+        when(eventRepository.completeEventIdempotent(eq("DQL-64f000-000001"), eq("DQLB-20260825-000001"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.APPLIED);
         DqlRecoveryResultReportVo report = new DqlRecoveryResultReportVo();
         report.setBatchId("DQLB-20260825-000001");
         report.setEventId("DQL-64f000-000001");
@@ -560,7 +562,7 @@ class DqlEventServiceTest {
 
         service.report(TASK_ID, report);
 
-        verify(eventRepository).completeEvent(eq("DQL-64f000-000001"), eq("DQLB-20260825-000001"), any());
+        verify(eventRepository).completeEventIdempotent(eq("DQL-64f000-000001"), eq("DQLB-20260825-000001"), any());
         verify(batchRepository).increaseSuccess("DQLB-20260825-000001");
     }
 

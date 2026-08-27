@@ -3,6 +3,7 @@ package com.tapdata.tm.dql.service;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecoveryCallbackResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.DqlRecoveryReportTypeEnum;
@@ -289,37 +290,56 @@ public class DqlRecoveryBatchService {
     }
 
     private void handleEventResult(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {
-        requireRunningBatch(batch);
         requireEventReport(batch, report);
         DqlRecoveryAttemptResultEnum result = Optional.ofNullable(DqlRecoveryAttemptResultEnum.parse(report.getResult()))
                 .orElseThrow(() -> new BizException("IllegalArgument", "result"));
         if (result == DqlRecoveryAttemptResultEnum.RUNNING) {
             throw new BizException("IllegalArgument", "result");
         }
+        if (requireEventCallbackBatchState(batch, report, result, false)) {
+            return;
+        }
         DqlRecoveryAttemptDto attempt = attempt(batch, report, result);
         if (result == DqlRecoveryAttemptResultEnum.SUCCESS) {
-            if (eventRepository.completeEvent(report.getEventId(), batch.getBatchId(), attempt)) {
+            DqlRecoveryCallbackResultEnum transition = eventRepository.completeEventIdempotent(
+                    report.getEventId(), batch.getBatchId(), attempt);
+            if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
                 batchRepository.increaseSuccess(batch.getBatchId());
-            } else {
+            } else if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
+                throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
+            } else if (transition == DqlRecoveryCallbackResultEnum.NOT_IN_BATCH) {
                 throw new BizException("DqlRecovery.EventNotInBatch", report.getEventId());
             }
         } else if (result == DqlRecoveryAttemptResultEnum.SKIPPED) {
-            if (eventRepository.failEvent(report.getEventId(), batch.getBatchId(), attempt)) {
+            DqlRecoveryCallbackResultEnum transition = eventRepository.failEventIdempotent(
+                    report.getEventId(), batch.getBatchId(), attempt);
+            if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
                 batchRepository.increaseSkipped(batch.getBatchId());
-            } else {
+            } else if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
+                throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
+            } else if (transition == DqlRecoveryCallbackResultEnum.NOT_IN_BATCH) {
                 throw new BizException("DqlRecovery.EventNotInBatch", report.getEventId());
             }
         } else {
-            if (eventRepository.failEvent(report.getEventId(), batch.getBatchId(), attempt)) {
+            DqlRecoveryCallbackResultEnum transition = eventRepository.failEventIdempotent(
+                    report.getEventId(), batch.getBatchId(), attempt);
+            if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
                 batchRepository.increaseFailed(batch.getBatchId());
                 alarmService.notifyRecoveryFailed(batch);
-            } else {
+            } else if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
+                throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
+            } else if (transition == DqlRecoveryCallbackResultEnum.NOT_IN_BATCH) {
                 throw new BizException("DqlRecovery.EventNotInBatch", report.getEventId());
             }
         }
     }
 
     private void finishBatch(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {
+        DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (actual == DqlRecoveryBatchStatusEnum.SUCCESS
+                || actual == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
+            return;
+        }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.RUNNING);
         try {
             int selected = Optional.ofNullable(batch.getSelectedCount()).orElse(0);
@@ -343,6 +363,9 @@ public class DqlRecoveryBatchService {
     }
 
     private void failBatch(DqlRecoveryBatchDto batch, String message) {
+        if (DqlRecoveryBatchStatusEnum.FAILED.name().equalsIgnoreCase(batch.getStatus())) {
+            return;
+        }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.CREATED,
                 DqlRecoveryBatchStatusEnum.DISPATCHED, DqlRecoveryBatchStatusEnum.RUNNING);
         try {
@@ -355,21 +378,63 @@ public class DqlRecoveryBatchService {
     }
 
     private void handleBatchStarted(DqlRecoveryBatchDto batch) {
+        DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (actual == DqlRecoveryBatchStatusEnum.RUNNING) {
+            return;
+        }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.DISPATCHED);
         batchRepository.markRunning(batch.getBatchId());
     }
 
     private void handleEventStarted(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {
-        requireRunningBatch(batch);
         requireEventReport(batch, report);
+        if (requireEventCallbackBatchState(batch, report, DqlRecoveryAttemptResultEnum.RUNNING, true)) {
+            return;
+        }
         DqlRecoveryAttemptDto attempt = attempt(batch, report, DqlRecoveryAttemptResultEnum.RUNNING);
-        if (!eventRepository.startEvent(report.getEventId(), batch.getBatchId(), attempt)) {
+        DqlRecoveryCallbackResultEnum transition = eventRepository.startEventIdempotent(
+                report.getEventId(), batch.getBatchId(), attempt);
+        if (transition == DqlRecoveryCallbackResultEnum.NOT_IN_BATCH) {
             throw new BizException("DqlRecovery.EventNotInBatch", report.getEventId());
+        }
+        if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
+            throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
         }
     }
 
-    private void requireRunningBatch(DqlRecoveryBatchDto batch) {
-        requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.RUNNING);
+    private boolean requireEventCallbackBatchState(DqlRecoveryBatchDto batch,
+                                                   DqlRecoveryResultReportVo report,
+                                                   DqlRecoveryAttemptResultEnum result,
+                                                   boolean started) {
+        DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (actual == DqlRecoveryBatchStatusEnum.RUNNING) {
+            return false;
+        }
+        if (isTerminal(actual) && duplicateEventCallback(batch, report, result, started)) {
+            return true;
+        }
+        throw new BizException("DqlRecovery.InvalidBatchState", batch.getBatchId());
+    }
+
+    private boolean duplicateEventCallback(DqlRecoveryBatchDto batch,
+                                            DqlRecoveryResultReportVo report,
+                                            DqlRecoveryAttemptResultEnum result,
+                                            boolean started) {
+        DqlEventDto event = eventRepository.findByEventId(report.getEventId());
+        if (event == null || event.getRecoveryAttempts() == null) {
+            return false;
+        }
+        return event.getRecoveryAttempts().stream()
+                .filter(attempt -> StringUtils.equals(batch.getBatchId(), attempt.getBatchId()))
+                .filter(attempt -> StringUtils.equals(report.getAttemptId(), attempt.getAttemptId()))
+                .anyMatch(attempt -> started || StringUtils.equals(result.name(), attempt.getResult()));
+    }
+
+    private boolean isTerminal(DqlRecoveryBatchStatusEnum status) {
+        return status == DqlRecoveryBatchStatusEnum.SUCCESS
+                || status == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED
+                || status == DqlRecoveryBatchStatusEnum.FAILED
+                || status == DqlRecoveryBatchStatusEnum.CANCELED;
     }
 
     private void requireBatchStatus(DqlRecoveryBatchDto batch, DqlRecoveryBatchStatusEnum... expected) {

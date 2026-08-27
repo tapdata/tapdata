@@ -5,6 +5,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecoveryCallbackResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
@@ -61,7 +62,8 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryBatchService service = service(eventRepository, batchRepository, alarmService);
         DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
         when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
-        when(eventRepository.failEvent(eq("DQL-1"), eq("DQLB-1"), any())).thenReturn(true);
+        when(eventRepository.failEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.APPLIED);
 
         DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
         report.setResult(DqlRecoveryAttemptResultEnum.SKIPPED.name());
@@ -97,14 +99,15 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
         batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
         when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
-        when(eventRepository.startEvent(eq("DQL-1"), eq("DQLB-1"), any(DqlRecoveryAttemptDto.class))).thenReturn(true);
+        when(eventRepository.startEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any(DqlRecoveryAttemptDto.class)))
+                .thenReturn(DqlRecoveryCallbackResultEnum.APPLIED);
         DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_STARTED");
         report.setStartedAt(1787580100000L);
 
         service.report(TASK_ID, report);
 
         ArgumentCaptor<DqlRecoveryAttemptDto> attempt = ArgumentCaptor.forClass(DqlRecoveryAttemptDto.class);
-        verify(eventRepository).startEvent(eq("DQL-1"), eq("DQLB-1"), attempt.capture());
+        verify(eventRepository).startEventIdempotent(eq("DQL-1"), eq("DQLB-1"), attempt.capture());
         assertEquals(DqlRecoveryAttemptResultEnum.RUNNING.name(), attempt.getValue().getResult());
         assertEquals(new java.util.Date(1787580100000L), attempt.getValue().getStartedAt());
         org.junit.jupiter.api.Assertions.assertNull(attempt.getValue().getFinishedAt());
@@ -119,7 +122,8 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
         batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
         when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
-        when(eventRepository.completeEvent(eq("DQL-1"), eq("DQLB-1"), any())).thenReturn(false);
+        when(eventRepository.completeEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.NOT_IN_BATCH);
         DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
         report.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
 
@@ -164,6 +168,119 @@ class DqlRecoveryBatchServiceTest {
 
         verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null);
         verify(alarmService, never()).notifyBatchPartialFailed(any(DqlRecoveryBatchDto.class));
+    }
+
+    @Test
+    @DisplayName("duplicate event result does not increment counters or raise another alarm")
+    void duplicateEventResultDoesNotChangeCounters() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, alarmService);
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(eventRepository.completeEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.DUPLICATE);
+        DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
+        report.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+
+        service.report(TASK_ID, report);
+
+        verify(batchRepository, never()).increaseSuccess("DQLB-1");
+        verify(alarmService, never()).notifyRecoveryFailed(any(DqlRecoveryBatchDto.class));
+    }
+
+    @Test
+    @DisplayName("duplicate event result after batch completion is a no-op")
+    void duplicateEventResultAfterBatchCompletionIsIdempotent() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.SUCCESS.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        DqlEventDto event = new DqlEventDto();
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setBatchId("DQLB-1");
+        attempt.setAttemptId("A-1");
+        attempt.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+        event.setRecoveryAttempts(List.of(attempt));
+        when(eventRepository.findByEventId("DQL-1")).thenReturn(event);
+        DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
+        report.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+
+        service.report(TASK_ID, report);
+
+        verify(eventRepository).findByEventId("DQL-1");
+        verify(eventRepository, never()).completeEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any());
+        verify(batchRepository, never()).increaseSuccess("DQLB-1");
+    }
+
+    @Test
+    @DisplayName("conflicting event result is rejected for the same attempt")
+    void conflictingEventResultIsRejected() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(eventRepository.completeEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.CONFLICT);
+        DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
+        report.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, report));
+
+        assertEquals("DqlRecovery.AttemptConflict", exception.getErrorCode());
+        verify(batchRepository, never()).increaseSuccess("DQLB-1");
+    }
+
+    @Test
+    @DisplayName("repeated batch started callback is a no-op after the batch is running")
+    void repeatedBatchStartedIsIdempotent() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_STARTED"));
+
+        verify(batchRepository, never()).markRunning("DQLB-1");
+    }
+
+    @Test
+    @DisplayName("repeated finished callback is a no-op after terminal success")
+    void repeatedFinishedCallbackIsIdempotent() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.SUCCESS.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
+
+        verify(batchRepository, never()).finish(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("repeated failed callback is a no-op after terminal failure")
+    void repeatedFailedCallbackIsIdempotent() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, alarmService);
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.FAILED.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FAILED"));
+
+        verify(eventRepository, never()).releaseBatchLocks(anyString(), any(DqlEventStatusEnum.class));
+        verify(batchRepository, never()).finish(anyString(), any(), any());
+        verify(alarmService, never()).notifyRecoveryFailed(any(DqlRecoveryBatchDto.class));
     }
 
     @Test

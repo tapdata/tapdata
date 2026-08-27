@@ -4,6 +4,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecoveryCallbackResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
@@ -351,6 +352,16 @@ public class DqlEventRepository {
         return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
     }
 
+    /**
+     * Completes an event while treating a previously applied attempt as a no-op.
+     */
+    public DqlRecoveryCallbackResultEnum completeEventIdempotent(String eventId,
+                                                                  String batchId,
+                                                                  DqlRecoveryAttemptDto attempt) {
+        return updateTerminalEventIdempotent(eventId, batchId, attempt,
+                DqlRecoveryAttemptResultEnum.SUCCESS, DqlEventStatusEnum.RECOVERED);
+    }
+
     public boolean failEvent(String eventId, String batchId, DqlRecoveryAttemptDto attempt) {
         Query query = batchEventQuery(eventId, batchId);
         Date now = new Date();
@@ -369,6 +380,21 @@ public class DqlEventRepository {
     }
 
     /**
+     * Fails an event while treating a previously applied attempt as a no-op.
+     */
+    public DqlRecoveryCallbackResultEnum failEventIdempotent(String eventId,
+                                                              String batchId,
+                                                              DqlRecoveryAttemptDto attempt) {
+        DqlRecoveryAttemptResultEnum result = DqlRecoveryAttemptResultEnum.parse(attempt == null ? null : attempt.getResult());
+        if (result == null || result == DqlRecoveryAttemptResultEnum.RUNNING
+                || result == DqlRecoveryAttemptResultEnum.SUCCESS) {
+            return DqlRecoveryCallbackResultEnum.NOT_IN_BATCH;
+        }
+        return updateTerminalEventIdempotent(eventId, batchId, attempt, result,
+                DqlEventStatusEnum.RECOVERY_FAILED);
+    }
+
+    /**
      * Records that the recovery engine has started processing an event.
      * Ownership remains guarded by the current batch lock and the event stays
      * in REPROCESSING until a terminal result is reported.
@@ -381,6 +407,111 @@ public class DqlEventRepository {
                 .set(DqlEventDto.FIELD_TTL_AT, now);
         update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
         return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
+    }
+
+    /**
+     * Records an event start once for the same batch and attempt.
+     */
+    public DqlRecoveryCallbackResultEnum startEventIdempotent(String eventId,
+                                                               String batchId,
+                                                               DqlRecoveryAttemptDto attempt) {
+        if (StringUtils.isBlank(eventId) || StringUtils.isBlank(batchId)
+                || attempt == null || StringUtils.isBlank(attempt.getAttemptId())) {
+            return DqlRecoveryCallbackResultEnum.NOT_IN_BATCH;
+        }
+        Query query = batchEventQuery(eventId, batchId);
+        query.addCriteria(Criteria.where(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
+                .not()
+                .elemMatch(attemptIdentityCriteria(batchId, attempt.getAttemptId())));
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+        update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        UpdateResult result = mongoTemplate.updateFirst(query, update, entityClass);
+        if (modified(result)) {
+            return DqlRecoveryCallbackResultEnum.APPLIED;
+        }
+        return classifyEventTransition(eventId, batchId, attempt.getAttemptId(), null, true);
+    }
+
+    private DqlRecoveryCallbackResultEnum updateTerminalEventIdempotent(String eventId,
+                                                                         String batchId,
+                                                                         DqlRecoveryAttemptDto attempt,
+                                                                         DqlRecoveryAttemptResultEnum result,
+                                                                         DqlEventStatusEnum status) {
+        if (StringUtils.isBlank(eventId) || StringUtils.isBlank(batchId)
+                || attempt == null || StringUtils.isBlank(attempt.getAttemptId())) {
+            return DqlRecoveryCallbackResultEnum.NOT_IN_BATCH;
+        }
+        Query query = batchEventQuery(eventId, batchId);
+        query.addCriteria(Criteria.where(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
+                .not()
+                .elemMatch(attemptIdentityCriteria(batchId, attempt.getAttemptId())
+                        .and(DqlRecoveryAttemptDto.FIELD_RESULT).in(terminalAttemptResults())));
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlEventDto.FIELD_STATUS, status.name())
+                .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_TIME, attempt.getFinishedAt())
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_USER_ID, attempt.getOperatorId())
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_USER_NAME, attempt.getOperatorName())
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, result.name())
+                .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+        update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        UpdateResult updateResult = mongoTemplate.updateFirst(query, update, entityClass);
+        if (modified(updateResult)) {
+            return DqlRecoveryCallbackResultEnum.APPLIED;
+        }
+        return classifyEventTransition(eventId, batchId, attempt.getAttemptId(), result, false);
+    }
+
+    private DqlRecoveryCallbackResultEnum classifyEventTransition(String eventId,
+                                                                   String batchId,
+                                                                   String attemptId,
+                                                                   DqlRecoveryAttemptResultEnum expectedResult,
+                                                                   boolean start) {
+        DqlEventEntity event = mongoTemplate.findOne(
+                Query.query(Criteria.where(DqlEventDto.FIELD_EVENT_ID).is(eventId)), entityClass);
+        if (event == null || event.getRecoveryAttempts() == null) {
+            return DqlRecoveryCallbackResultEnum.NOT_IN_BATCH;
+        }
+        List<DqlRecoveryAttemptDto> matches = event.getRecoveryAttempts().stream()
+                .filter(item -> StringUtils.equals(batchId, item.getBatchId()))
+                .filter(item -> StringUtils.equals(attemptId, item.getAttemptId()))
+                .toList();
+        if (matches.isEmpty()) {
+            return DqlRecoveryCallbackResultEnum.NOT_IN_BATCH;
+        }
+        if (start) {
+            return DqlRecoveryCallbackResultEnum.DUPLICATE;
+        }
+        boolean expected = matches.stream().anyMatch(item -> StringUtils.equals(
+                expectedResult.name(), item.getResult()));
+        if (expected) {
+            return DqlRecoveryCallbackResultEnum.DUPLICATE;
+        }
+        boolean terminal = matches.stream().anyMatch(item -> terminalAttemptResults().contains(item.getResult()));
+        return terminal ? DqlRecoveryCallbackResultEnum.CONFLICT : DqlRecoveryCallbackResultEnum.NOT_IN_BATCH;
+    }
+
+    private Criteria attemptIdentityCriteria(String batchId, String attemptId) {
+        return Criteria.where(DqlRecoveryAttemptDto.FIELD_BATCH_ID).is(batchId)
+                .and(DqlRecoveryAttemptDto.FIELD_ATTEMPT_ID).is(attemptId);
+    }
+
+    private List<String> terminalAttemptResults() {
+        return List.of(
+                DqlRecoveryAttemptResultEnum.SUCCESS.name(),
+                DqlRecoveryAttemptResultEnum.FAILED.name(),
+                DqlRecoveryAttemptResultEnum.SKIPPED.name(),
+                DqlRecoveryAttemptResultEnum.TIMEOUT.name());
+    }
+
+    private boolean modified(UpdateResult result) {
+        return result != null && result.getModifiedCount() > 0;
     }
 
     public long releaseBatchLocks(String batchId, DqlEventStatusEnum targetStatus) {

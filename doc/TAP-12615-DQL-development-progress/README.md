@@ -59,7 +59,7 @@
 | D04 | 已完成 | `steps/D04-event-lock-and-batch-compensation.md` |
 | D05 | 已完成 | `steps/D05-recovery-message-dispatch.md` |
 | D06 | 已完成 | `steps/D06-recovery-callback-state-machine.md` |
-| D07 | 部分完成 | 待补充 |
+| D07 | 已完成 | `steps/D07-recovery-callback-idempotency.md` |
 | D08 | 未开始 | 待补充 |
 | D09 | 部分完成 | 待补充 |
 | D10 | 部分完成 | 待补充 |

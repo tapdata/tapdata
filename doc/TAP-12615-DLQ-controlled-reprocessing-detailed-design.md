@@ -1091,6 +1091,14 @@ TM 处理时必须校验：
 - `BATCH_FAILED` 允许活动批次进入 `FAILED`，释放当前批次事件锁和任务租约。
 - 终态批次、非当前批次事件和未对账批次不得被回调覆盖；重复回调的 attempt 判重和计数幂等由 D07 处理。
 
+D07 的幂等边界如下：
+
+- 事件回调以 `batch_id + event_id + attempt_id` 作为一次回放尝试的身份。Repository 使用带 `event_id`、`status=REPROCESSING`、`current_batch_id=batch_id` 和“尚无相同 attempt”条件的原子更新。
+- 原子更新成功返回 `APPLIED`，Service 才更新批次 success/failed/skipped 计数；条件更新未命中后读取已有 attempt，精确匹配时返回 `DUPLICATE`，同一 attempt 的不同终态返回 `CONFLICT`，事件不属于当前批次返回 `NOT_IN_BATCH`。
+- `DUPLICATE` 不追加 attempt、不增加 `recovery_count`、批次计数或失败告警；`CONFLICT` 和 `NOT_IN_BATCH` 拒绝回调。
+- `BATCH_STARTED` 重复收到 RUNNING 回调、`BATCH_FINISHED` 重复收到终态回调、`BATCH_FAILED` 重复收到 FAILED 回调均直接幂等返回。终态批次中能够匹配已保存 attempt 的事件回调也直接返回，不再次执行事件写入。
+- 为兼容已有调用方，Repository 的旧 boolean 事件迁移方法保留；D06 之后的回调 Service 统一使用带幂等结果枚举的新方法。
+
 ## 8. Engine 捕获详细设计
 
 ### 8.1 捕获入口和分类前置
