@@ -108,7 +108,7 @@
 | C03 | 已完成 | 实现预览、脱敏和身份生成工具 | 生成安全 `payloadPreview`、`eventKey`、`payloadHash`、`recordIdentity` 和 `eventIdentity` | C02 | 主键、唯一索引、全字段 hash 和未知身份四类测试通过；敏感字段不出现在预览 |
 | C04 | 已完成 | 实现 `DlqExceptionClassifier` | 按异常链、错误码、节点、阶段、事件和任务上下文输出 scope、decision、errorType、reason 和 confidence；当前仅提供纯分类工具，不接入捕获链路 | A04、C01 | 分类规则表中的每条规则至少有一个测试；未知错误不直接默认为记录级 |
 | C05 | 已完成 | 实现 `DlqStormGuard` | 在 Engine 公共模块按任务、节点、表、错误码和归一化消息建立线程安全窗口计数，支持数量及批次比例阈值，并返回保护元数据 | A05、C04 | 阈值内允许有限未知单记录入库；触发后停止继续写 DQL 并返回任务级路由；定向测试通过 |
-| C06 | 未开始 | 实现 `DqlEventReporter` | 封装 TM 上报、超时、重试边界和结果处理；上报失败必须转任务错误路径 | C01-C05、B08 | TM 不可用或返回错误时当前记录不被 skip；重复响应视为上报成功 |
+| C06 | 已完成 | 实现 `DqlEventReporter` | 封装 TM 上报、超时、重试边界和结果处理；上报失败必须转任务错误路径 | C01-C05、B08 | TM 不可用或返回错误时当前记录不被 skip；重复响应视为上报成功 |
 | C07 | 未开始 | 改造目标写入异常捕获 | 在批量拆单前做共享异常分类，单条失败后再次分类；只有 `RECORD_DLQ` 才上报并 skip | C04-C06 | 目标约束错误进入 DQL；网络/连接异常不拆成大量 DQL，仍进入 `TaskRetryService` |
 | C08 | 未开始 | 新增 `SkipErrorProcessAspect` | 在处理节点 catch 分支暴露输入事件和异常，并由 `SkipErrorEventAspectTask` 注册处理 | C04-C06 | JS 单条转换失败可被拦截；初始化、资源和共享异常仍进入 `errorHandle` |
 | C09 | 未开始 | 覆盖 JS 和自定义处理节点 | 识别 `TapCodeException`、`ScriptException` 和携带输入记录的异常链，区分单记录执行失败与引擎初始化失败 | C08 | JavaScript 单记录失败进入 DQL；脚本初始化失败不会进入 DQL |
