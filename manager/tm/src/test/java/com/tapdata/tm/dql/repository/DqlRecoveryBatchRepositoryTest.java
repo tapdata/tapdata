@@ -57,6 +57,22 @@ class DqlRecoveryBatchRepositoryTest {
     }
 
     @Test
+    @DisplayName("create defaults status and counters")
+    void createDefaultsStatusAndCounters() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.save(any(DqlRecoveryBatchEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DqlRecoveryBatchDto saved = repository.create(new DqlRecoveryBatchDto());
+
+        assertEquals(DqlRecoveryBatchStatusEnum.CREATED.name(), saved.getStatus());
+        assertEquals(0, saved.getSelectedCount());
+        assertEquals(0, saved.getSuccessCount());
+        assertEquals(0, saved.getFailedCount());
+        assertEquals(0, saved.getSkippedCount());
+    }
+
+    @Test
     @DisplayName("finishing batch refreshes ttl in the same update")
     void finishRefreshesTtl() {
         MongoTemplate mongoTemplate = mongoTemplate();
@@ -86,7 +102,52 @@ class DqlRecoveryBatchRepositoryTest {
         verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
         Document query = queryCaptor.getValue().getQueryObject();
         assertEquals("DQLB-1", query.get("batch_id"));
-        assertEquals(List.of(DqlRecoveryBatchStatusEnum.CREATED.name()), query.get("status"));
+        assertEquals(List.of(DqlRecoveryBatchStatusEnum.CREATED.name()),
+                query.get("status", Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("active batch query filters task and non-terminal states")
+    void activeBatchQueryFiltersTaskAndNonTerminalStates() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.findOne(any(Query.class), eq(DqlRecoveryBatchEntity.class))).thenReturn(null);
+
+        repository.findActiveByTaskId("TASK-1");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).findOne(queryCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("TASK-1", query.get("task_id"));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()), query.get("status", Document.class).get("$in"));
+        assertEquals(-1, queryCaptor.getValue().getSortObject().get("created"));
+    }
+
+    @Test
+    @DisplayName("counter update only targets active batch")
+    void counterUpdateOnlyTargetsActiveBatch() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        repository.increaseSuccess("DQLB-1");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertEquals(1, update.get("$inc", Document.class).get("success_count"));
+        assertEquals(update.get("$set", Document.class).get("updated"),
+                update.get("$set", Document.class).get("ttl_at"));
     }
 
     private MongoTemplate mongoTemplate() {

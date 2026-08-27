@@ -17,10 +17,18 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class DqlRecoveryBatchRepository {
+    private static final List<DqlRecoveryBatchStatusEnum> ACTIVE_STATUSES = List.of(
+            DqlRecoveryBatchStatusEnum.CREATED,
+            DqlRecoveryBatchStatusEnum.DISPATCHED,
+            DqlRecoveryBatchStatusEnum.RUNNING
+    );
     private final MongoTemplate mongoTemplate;
     private final Class<DqlRecoveryBatchEntity> entityClass;
     private final String collectionName;
@@ -58,6 +66,11 @@ public class DqlRecoveryBatchRepository {
         dto.setCreated(Optional.ofNullable(dto.getCreated()).orElse(now));
         dto.setUpdated(now);
         dto.setTtlAt(Optional.ofNullable(dto.getTtlAt()).orElse(dto.getCreated()));
+        dto.setStatus(Optional.ofNullable(dto.getStatus()).orElse(DqlRecoveryBatchStatusEnum.CREATED.name()));
+        dto.setSelectedCount(Optional.ofNullable(dto.getSelectedCount()).orElse(0));
+        dto.setSuccessCount(Optional.ofNullable(dto.getSuccessCount()).orElse(0));
+        dto.setFailedCount(Optional.ofNullable(dto.getFailedCount()).orElse(0));
+        dto.setSkippedCount(Optional.ofNullable(dto.getSkippedCount()).orElse(0));
         DqlRecoveryBatchEntity saved = mongoTemplate.save(convert(dto));
         return convert(saved);
     }
@@ -67,6 +80,16 @@ public class DqlRecoveryBatchRepository {
             return null;
         }
         Query query = Query.query(Criteria.where(DqlRecoveryBatchDto.FIELD_BATCH_ID).is(batchId));
+        return convert(mongoTemplate.findOne(query, entityClass));
+    }
+
+    /** Returns the newest non-terminal batch for a task, if one exists. */
+    public DqlRecoveryBatchDto findActiveByTaskId(String taskId) {
+        if (StringUtils.isBlank(taskId)) {
+            return null;
+        }
+        Query query = batchQueryByTask(taskId, ACTIVE_STATUSES)
+                .with(Sort.by(Sort.Order.desc(DqlRecoveryBatchDto.FIELD_CREATED)));
         return convert(mongoTemplate.findOne(query, entityClass));
     }
 
@@ -116,10 +139,7 @@ public class DqlRecoveryBatchRepository {
         if (message != null) {
             update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
         }
-        mongoTemplate.updateFirst(batchQuery(batchId,
-                DqlRecoveryBatchStatusEnum.CREATED,
-                DqlRecoveryBatchStatusEnum.DISPATCHED,
-                DqlRecoveryBatchStatusEnum.RUNNING), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId, ACTIVE_STATUSES), update, entityClass);
     }
 
     private void increase(String batchId, String field) {
@@ -128,18 +148,25 @@ public class DqlRecoveryBatchRepository {
                 .inc(field, 1)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
-        mongoTemplate.updateFirst(batchQuery(batchId,
-                DqlRecoveryBatchStatusEnum.CREATED,
-                DqlRecoveryBatchStatusEnum.DISPATCHED,
-                DqlRecoveryBatchStatusEnum.RUNNING), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId, ACTIVE_STATUSES), update, entityClass);
     }
 
     private Query batchQuery(String batchId, DqlRecoveryBatchStatusEnum... statuses) {
         Criteria criteria = Criteria.where(DqlRecoveryBatchDto.FIELD_BATCH_ID).is(batchId);
         if (statuses != null && statuses.length > 0) {
-            criteria.and(DqlRecoveryBatchDto.FIELD_STATUS).in(
-                    java.util.Arrays.stream(statuses).map(Enum::name).toList());
+            criteria.and(DqlRecoveryBatchDto.FIELD_STATUS).in(Arrays.stream(statuses).map(Enum::name).toList());
         }
+        return Query.query(criteria);
+    }
+
+    private Query batchQuery(String batchId, List<DqlRecoveryBatchStatusEnum> statuses) {
+        return batchQuery(batchId, statuses.toArray(new DqlRecoveryBatchStatusEnum[0]));
+    }
+
+    private Query batchQueryByTask(String taskId, List<DqlRecoveryBatchStatusEnum> statuses) {
+        Criteria criteria = Criteria.where(DqlRecoveryBatchDto.FIELD_TASK_ID).is(taskId)
+                .and(DqlRecoveryBatchDto.FIELD_STATUS).in(
+                        statuses.stream().map(Enum::name).collect(Collectors.toList()));
         return Query.query(criteria);
     }
 

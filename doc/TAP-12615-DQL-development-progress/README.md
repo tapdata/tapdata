@@ -21,6 +21,7 @@
 | A05 | 已完成 | `steps/A05-configuration-and-poc-contract.md` |
 | B01 | 已完成 | `steps/B01-domain-contract.md` |
 | B02 | 已完成 | `steps/B02-event-repository.md` |
+| B03 | 已完成 | `steps/B03-batch-repository.md` |
 
 ## 里程碑进度
 
