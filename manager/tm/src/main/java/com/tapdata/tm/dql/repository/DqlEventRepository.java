@@ -335,6 +335,53 @@ public class DqlEventRepository {
         return result.getModifiedCount();
     }
 
+    /**
+     * Moves all still-running events for a batch to recovery failure when the batch times out.
+     * The synthetic attempt id is stable for the batch, so a retried scan cannot append another
+     * timeout attempt to an event that was already compensated.
+     */
+    public long timeoutEvents(String batchId, List<String> eventIds, Date now) {
+        if (StringUtils.isBlank(batchId) || now == null) {
+            return 0;
+        }
+        String attemptId = "TIMEOUT-" + batchId;
+        Criteria criteria = Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
+                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name())
+                .and(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
+                .not()
+                .elemMatch(attemptIdentityCriteria(batchId, attemptId));
+        if (eventIds != null && !eventIds.isEmpty()) {
+            criteria.and(DqlEventDto.FIELD_EVENT_ID).in(eventIds);
+        }
+        Query query = Query.query(criteria);
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId(attemptId);
+        attempt.setBatchId(batchId);
+        attempt.setStartedAt(now);
+        attempt.setFinishedAt(now);
+        attempt.setResult(DqlRecoveryAttemptResultEnum.TIMEOUT.name());
+        attempt.setMessage("Recovery batch timed out");
+        Update update = new Update()
+                .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.RECOVERY_FAILED.name())
+                .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_TIME, now)
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, DqlRecoveryAttemptResultEnum.TIMEOUT.name())
+                .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+        update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        return mongoTemplate.updateMulti(query, update, entityClass).getModifiedCount();
+    }
+
+    public long countReprocessingByBatchId(String batchId) {
+        if (StringUtils.isBlank(batchId)) {
+            return 0;
+        }
+        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
+                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name()));
+        return mongoTemplate.count(query, entityClass);
+    }
+
     public boolean completeEvent(String eventId, String batchId, DqlRecoveryAttemptDto attempt) {
         Query query = batchEventQuery(eventId, batchId);
         Date now = new Date();

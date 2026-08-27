@@ -282,6 +282,56 @@ class DqlEventRepositoryTest {
     }
 
     @Test
+    @DisplayName("timing out current batch events appends a stable timeout attempt and releases their locks")
+    void timeoutEventsAppendsTimeoutAttempt() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(2L, 2L, null));
+        Date now = new Date(1787580200000L);
+
+        assertEquals(2L, repository.timeoutEvents("DQLB-1", List.of("DQL-1", "DQL-2"), now));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateMulti(queryCaptor.capture(), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        assertEquals(DqlEventStatusEnum.REPROCESSING.name(), query.get(DqlEventDto.FIELD_STATUS));
+        assertEquals(List.of("DQL-1", "DQL-2"),
+                query.get(DqlEventDto.FIELD_EVENT_ID, Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlEventStatusEnum.RECOVERY_FAILED.name(), set.get(DqlEventDto.FIELD_STATUS));
+        assertNull(set.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        assertEquals(DqlRecoveryAttemptResultEnum.TIMEOUT.name(), set.get(DqlEventDto.FIELD_LAST_RECOVERY_RESULT));
+        assertEquals(1, updateCaptor.getValue().getUpdateObject()
+                .get("$inc", Document.class).get(DqlEventDto.FIELD_RECOVERY_COUNT));
+        DqlRecoveryAttemptDto attempt = (DqlRecoveryAttemptDto) updateCaptor.getValue().getUpdateObject()
+                .get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS);
+        assertEquals("TIMEOUT-DQLB-1", attempt.getAttemptId());
+        assertEquals("DQLB-1", attempt.getBatchId());
+        assertEquals(DqlRecoveryAttemptResultEnum.TIMEOUT.name(), attempt.getResult());
+        assertEquals(now, attempt.getStartedAt());
+        assertEquals(now, attempt.getFinishedAt());
+    }
+
+    @Test
+    @DisplayName("counting current batch reprocessing events uses both ownership and status")
+    void countReprocessingEventsUsesBatchOwnership() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.count(any(Query.class), eq(DqlEventEntity.class))).thenReturn(1L);
+
+        assertEquals(1L, repository.countReprocessingByBatchId("DQLB-1"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).count(queryCaptor.capture(), eq(DqlEventEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        assertEquals(DqlEventStatusEnum.REPROCESSING.name(), query.get(DqlEventDto.FIELD_STATUS));
+    }
+
+    @Test
     @DisplayName("repeated event start is recognized without appending another attempt")
     void repeatedStartEventIsIdempotent() {
         MongoTemplate mongoTemplate = mongoTemplate();

@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
 @Service
 public class DqlRecoveryBatchService {
     private static final int DEFAULT_BATCH_MAX_SIZE = 200;
+    private static final long DEFAULT_BATCH_TIMEOUT_MILLIS = 30 * 60 * 1000L;
+    private static final String RECOVERY_BATCH_TIMEOUT_MESSAGE = "Recovery batch timed out";
     private static final String[] TASK_FIELDS = {"name", "status", "version", "agentId"};
 
     private final DqlEventRepository eventRepository;
@@ -271,6 +273,42 @@ public class DqlRecoveryBatchService {
         }
     }
 
+    /**
+     * Compensates active batches that have not received progress within the batch timeout.
+     * The repository methods use conditional updates so a concurrent callback wins for any
+     * event it completed before the timeout scan.
+     */
+    public int timeoutExpiredBatches(Date now) {
+        Date current = now == null ? new Date() : now;
+        Date deadline = new Date(current.getTime() - DEFAULT_BATCH_TIMEOUT_MILLIS);
+        List<DqlRecoveryBatchDto> timedOut = Optional.ofNullable(batchRepository.findTimedOut(deadline))
+                .orElse(List.of());
+        int finalized = 0;
+        for (DqlRecoveryBatchDto batch : timedOut) {
+            if (batch == null || StringUtils.isBlank(batch.getBatchId())) {
+                continue;
+            }
+            long timedOutEvents = eventRepository.timeoutEvents(
+                    batch.getBatchId(), batchEventIds(batch), current);
+            if (timedOutEvents > 0) {
+                batchRepository.increaseFailed(batch.getBatchId(), Math.toIntExact(timedOutEvents));
+            }
+            if (eventRepository.countReprocessingByBatchId(batch.getBatchId()) > 0) {
+                continue;
+            }
+            DqlRecoveryBatchDto latest = Optional.ofNullable(batchRepository.findByBatchId(batch.getBatchId()))
+                    .orElse(batch);
+            DqlRecoveryBatchStatusEnum timeoutStatus = timeoutStatus(latest);
+            if (batchRepository.finishTimedOut(
+                    latest.getBatchId(), timeoutStatus, RECOVERY_BATCH_TIMEOUT_MESSAGE)) {
+                alarmService.notifyRecoveryFailed(latest);
+                releaseTaskLock(latest);
+                finalized++;
+            }
+        }
+        return finalized;
+    }
+
     public DqlRecoveryBatchDto detail(String batchId, UserDetail user) {
         checkMenuPermission(user);
         DqlRecoveryBatchDto batch = batchRepository.findByBatchId(batchId);
@@ -494,6 +532,13 @@ public class DqlRecoveryBatchService {
     private boolean isReprocessable(DqlEventDto event) {
         DqlEventStatusEnum status = DqlEventStatusEnum.parse(event.getStatus());
         return status != null && status.reprocessable() && !Boolean.FALSE.equals(event.getPayloadComplete());
+    }
+
+    private DqlRecoveryBatchStatusEnum timeoutStatus(DqlRecoveryBatchDto batch) {
+        int success = Optional.ofNullable(batch.getSuccessCount()).orElse(0);
+        return success > 0
+                ? DqlRecoveryBatchStatusEnum.PARTIAL_FAILED
+                : DqlRecoveryBatchStatusEnum.FAILED;
     }
 
     private String previewBlockedReason(DqlEventDto event,

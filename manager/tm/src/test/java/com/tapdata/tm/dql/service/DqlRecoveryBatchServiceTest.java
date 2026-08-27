@@ -284,6 +284,80 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
+    @DisplayName("timeout scan marks all unresolved events failed and releases the task lock")
+    void timeoutScanFailsAllUnresolvedEvents() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository, alarmService,
+                taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1", "DQL-2"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        when(batchRepository.findTimedOut(any())).thenReturn(List.of(batch));
+        when(eventRepository.timeoutEvents(eq("DQLB-1"), eq(List.of("DQL-1", "DQL-2")), any()))
+                .thenReturn(2L);
+        when(eventRepository.countReprocessingByBatchId("DQLB-1")).thenReturn(0L);
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(batchRepository.finishTimedOut("DQLB-1", DqlRecoveryBatchStatusEnum.FAILED,
+                "Recovery batch timed out")).thenReturn(true);
+
+        assertEquals(1, service.timeoutExpiredBatches(new java.util.Date(1787582000000L)));
+
+        verify(batchRepository).increaseFailed("DQLB-1", 2);
+        verify(batchRepository).finishTimedOut("DQLB-1", DqlRecoveryBatchStatusEnum.FAILED,
+                "Recovery batch timed out");
+        verify(alarmService).notifyRecoveryFailed(batch);
+        verify(taskLockRepository).release(TASK_ID, "DQLB-1");
+    }
+
+    @Test
+    @DisplayName("timeout scan summarizes a partially completed batch as partial failure")
+    void timeoutScanSummarizesPartialFailure() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository, alarmService,
+                mock(DqlRecoveryTaskLockRepository.class), mock(MessageQueueServiceImpl.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1", "DQL-2"));
+        batch.setSuccessCount(1);
+        when(batchRepository.findTimedOut(any())).thenReturn(List.of(batch));
+        when(eventRepository.timeoutEvents(eq("DQLB-1"), eq(List.of("DQL-1", "DQL-2")), any()))
+                .thenReturn(1L);
+        when(eventRepository.countReprocessingByBatchId("DQLB-1")).thenReturn(0L);
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(batchRepository.finishTimedOut("DQLB-1", DqlRecoveryBatchStatusEnum.PARTIAL_FAILED,
+                "Recovery batch timed out")).thenReturn(true);
+
+        assertEquals(1, service.timeoutExpiredBatches(new java.util.Date(1787582000000L)));
+
+        verify(batchRepository).finishTimedOut("DQLB-1", DqlRecoveryBatchStatusEnum.PARTIAL_FAILED,
+                "Recovery batch timed out");
+        verify(alarmService).notifyRecoveryFailed(batch);
+    }
+
+    @Test
+    @DisplayName("timeout scan leaves the batch active while events are still owned by it")
+    void timeoutScanWaitsForRemainingReprocessingEvents() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository, alarmService,
+                taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        when(batchRepository.findTimedOut(any())).thenReturn(List.of(batch));
+        when(eventRepository.timeoutEvents(eq("DQLB-1"), eq(List.of("DQL-1")), any())).thenReturn(0L);
+        when(eventRepository.countReprocessingByBatchId("DQLB-1")).thenReturn(1L);
+
+        assertEquals(0, service.timeoutExpiredBatches(new java.util.Date(1787582000000L)));
+
+        verify(batchRepository, never()).finishTimedOut(anyString(), any(), anyString());
+        verify(taskLockRepository, never()).release(anyString(), anyString());
+        verify(alarmService, never()).notifyRecoveryFailed(any(DqlRecoveryBatchDto.class));
+    }
+
+    @Test
     @DisplayName("blocked preview events expose the frontend message and identifying context")
     void blockedPreviewEventsExposeFrontendContract() throws Exception {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);

@@ -1957,12 +1957,12 @@ POC 报告中的业务对账：
 
 新增 TM 定时任务 `DqlRecoveryBatchTimeoutScheduler`：
 
-- 扫描 `DISPATCHED`、`RUNNING` 且超过超时时间的批次。
-- 查询批次中事件当前状态。
-- 对仍为 `REPROCESSING` 的事件追加 `TIMEOUT` attempt，状态改为 `RECOVERY_FAILED`。
-- 汇总批次为 `FAILED` 或 `PARTIAL_FAILED`。
-- 释放任务锁。
-- 触发重处理失败告警。
+- 默认每 30 秒触发一次，使用 ShedLock 保证多实例 TM 只有一个扫描器执行；批次超时时间默认 1800 秒。
+- Repository 只筛选 `DISPATCHED`、`RUNNING` 且 `updated <= now - timeout` 的批次，按更新时间升序处理。
+- 对仍为 `REPROCESSING` 且 `current_batch_id` 匹配的事件执行条件 `updateMulti`，追加稳定的 `TIMEOUT-{batchId}` attempt，状态改为 `RECOVERY_FAILED`，清空事件锁，增加 `recovery_count` 并刷新 TTL。
+- 事件条件更新完成后再次确认当前批次不再拥有 `REPROCESSING` 事件；仍有事件未收敛时保留批次和任务锁，等待下一轮扫描。
+- 全部未完成事件超时且没有成功事件时批次为 `FAILED`；已有成功事件并伴随超时/失败时批次为 `PARTIAL_FAILED`。
+- 批次终态使用活动状态条件更新；只有终态更新成功才释放任务锁和触发重处理失败告警。重复扫描和并发回调由事件/批次条件更新保证不重复补偿。
 
 ## 18. 前后兼容
 

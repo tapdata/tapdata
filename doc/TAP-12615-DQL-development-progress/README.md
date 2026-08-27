@@ -60,7 +60,7 @@
 | D05 | 已完成 | `steps/D05-recovery-message-dispatch.md` |
 | D06 | 已完成 | `steps/D06-recovery-callback-state-machine.md` |
 | D07 | 已完成 | `steps/D07-recovery-callback-idempotency.md` |
-| D08 | 未开始 | 待补充 |
+| D08 | 已完成 | `steps/D08-recovery-batch-timeout.md` |
 | D09 | 部分完成 | 待补充 |
 | D10 | 部分完成 | 待补充 |
 
