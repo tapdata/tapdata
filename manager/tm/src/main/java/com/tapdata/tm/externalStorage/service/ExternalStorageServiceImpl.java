@@ -83,6 +83,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 	@Override
 	public <T extends BaseDto> ExternalStorageDto save(ExternalStorageDto externalStorage, UserDetail userDetail) {
+		restoreMaskedSensitiveFields(externalStorage);
 		ExternalStorageDto result;
 		if (externalStorage.getId() != null) {
 			Query query = new Query(Criteria.where("_id").is(externalStorage.getId()));
@@ -336,12 +337,37 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		return newList;
 	}
 
+	private void restoreMaskedSensitiveFields(ExternalStorageDto externalStorage) {
+		if (null == externalStorage || null == externalStorage.getId()) {
+			return;
+		}
+		boolean masked = ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass());
+		if (!masked) {
+			return;
+		}
+		ExternalStorageEntity oldExternalStorage = repository.findById(externalStorage.getId().toHexString()).orElse(null);
+		if (null == oldExternalStorage) {
+			return;
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())) {
+			externalStorage.setSslCA(oldExternalStorage.getSslCA());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())) {
+			externalStorage.setSslKey(oldExternalStorage.getSslKey());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())) {
+			externalStorage.setSslPass(oldExternalStorage.getSslPass());
+		}
+	}
+
 	private ExternalStorageDto maskPasswordIfNeed(ExternalStorageDto externalStorageDto) {
 		if (null == externalStorageDto) {
 			return null;
 		}
 		if (!isAgentReq()) {
-			externalStorageDto.setUri(externalStorageDto.maskUriPassword());
+			externalStorageDto.maskSensitiveData();
 		}
 		return externalStorageDto;
 	}
