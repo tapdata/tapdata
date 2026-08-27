@@ -88,7 +88,7 @@
 | F03 | 已完成（待集成验证） | `steps/F03-dql-alarm-templates.md` |
 | F04 | 已完成（待集成验证） | `steps/F04-alarm-trigger-integration.md` |
 | F05 | 已完成（待集成验证） | `steps/F05-dql-runtime-configuration.md` |
-| F06 | 部分完成 | 待生成 |
+| F06 | 已完成（待集成验证） | `steps/F06-initialization-compatibility.md` |
 | F07 | 未开始 | 待生成 |
 
 ## 回归记录

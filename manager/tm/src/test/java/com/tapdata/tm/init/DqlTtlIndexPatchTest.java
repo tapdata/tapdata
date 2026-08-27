@@ -66,6 +66,34 @@ class DqlTtlIndexPatchTest {
         assertTrue(PatchVersion.valueOf(finalVersion.getVersion()).compareTo(PatchVersion.valueOf("4.22-7")) >= 0);
     }
 
+    @Test
+    @DisplayName("re-executing 4.22-7 does not recreate matching DQL TTL indexes")
+    void rerunningPatchWithMatchingIndexesIsIdempotent() throws Exception {
+        PatchesRunner runner = new PatchesRunner();
+        VersionService versionService = mock(VersionService.class);
+        MongoTemplate mongoTemplate = mongoTemplateWithDqlIndexes();
+        when(versionService.findOne(any(Query.class))).thenReturn(new VersionDto(
+                VersionDto.DAAS_SCRIPT_VERSION_KEY, "4.22-6"));
+        when(mongoTemplate.executeCommand(anyString())).thenReturn(new Document("ok", 1));
+        UnitTestUtils.injectField(PatchesRunner.class, runner, "versionService", versionService);
+        UnitTestUtils.injectField(PatchesRunner.class, runner, "productList", List.of("idaas"));
+        UnitTestUtils.injectField(PatchesRunner.class, runner, "mongodbUri", "mongodb://localhost/tapdata");
+
+        try (MockedStatic<SpringContextHelper> springContext = mockStatic(SpringContextHelper.class);
+             MockedStatic<InitLogMap> initLogMap = mockStatic(InitLogMap.class)) {
+            springContext.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(mongoTemplate);
+            runner.run(mock(ApplicationArguments.class));
+            initLogMap.verify(() -> InitLogMap.complete(PatchesRunner.class));
+        }
+
+        ArgumentCaptor<String> commandCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, atLeastOnce()).executeCommand(commandCaptor.capture());
+        assertTrue(commandCaptor.getAllValues().stream()
+                .map(Document::parse)
+                .noneMatch(command -> command.containsKey("createIndexes")
+                        || command.containsKey("dropIndexes")));
+    }
+
     private void assertTtlIndex(List<Document> commands, String collectionName, String indexName) {
         Document command = commands.stream()
                 .filter(candidate -> collectionName.equals(candidate.getString("createIndexes")))
@@ -91,5 +119,28 @@ class DqlTtlIndexPatchTest {
         when(indexes.iterator()).thenReturn(cursor);
         when(cursor.hasNext()).thenReturn(false);
         return mongoTemplate;
+    }
+
+    @SuppressWarnings("unchecked")
+    private MongoTemplate mongoTemplateWithDqlIndexes() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockIndexes(mongoTemplate, "dql_events", "idx_dql_event_ttl");
+        mockIndexes(mongoTemplate, "dql_recovery_batches", "idx_dql_batch_ttl");
+        return mongoTemplate;
+    }
+
+    private void mockIndexes(MongoTemplate mongoTemplate, String collectionName, String indexName) {
+        MongoCollection<Document> collection = mock(MongoCollection.class);
+        ListIndexesIterable<Document> indexes = mock(ListIndexesIterable.class);
+        MongoCursor<Document> cursor = mock(MongoCursor.class);
+        when(mongoTemplate.getCollection(collectionName)).thenReturn(collection);
+        when(collection.listIndexes()).thenReturn(indexes);
+        when(indexes.iterator()).thenReturn(cursor);
+        when(cursor.hasNext()).thenReturn(true, false);
+        when(cursor.next()).thenReturn(new Document()
+                .append("key", new Document("ttl_at", 1))
+                .append("expireAfterSeconds", 1_209_600L)
+                .append("name", indexName)
+                .append("background", true));
     }
 }

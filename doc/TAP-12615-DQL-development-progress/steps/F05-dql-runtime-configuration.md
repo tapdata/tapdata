@@ -31,7 +31,7 @@ F05 已完成。DQL 的 14 个运行时配置项由 `tm-common` 中的 `DqlRunti
 
 `dql.event.enabled`、`dql.event.errorDetails.maxLength`、`dql.event.payload.maxBytes`、`dql.event.preview.fieldMaxLength`、`dql.event.preview.maxDepth`、`dql.event.preview.maxItems`、`dql.recovery.batch.maxSize`、`dql.recovery.eventTimeoutSeconds`、`dql.recovery.batchTimeoutSeconds`、`dql.recovery.continueOnEventFailure`、`dql.unknown.guard.windowSeconds`、`dql.unknown.guard.maxEvents`、`dql.unknown.guard.maxBatchRatio`、`dql.unknown.guard.decision`。
 
-配置均为 `System`、全局、非用户可见且关闭热加载；新任务或新批次读取最新值，运行中的任务/Coordinator 不被中途切换的配置影响。初始化只使用 `$setOnInsert.value` 写入默认值，升级不会覆盖已有用户设置。
+配置均为 `System`、全局、非用户可见且关闭热加载。Engine 任务启动及 recovery Handler/Coordinator 创建时形成不可变快照；TM 的上报安全校验和新预览/批次/超时扫描操作按当前 Settings 读取并校验，因此配置变更不会中途替换已创建的 Engine 回放策略。初始化只使用 `$setOnInsert.value` 写入默认值，升级不会覆盖已有用户设置。
 
 ## 验证记录
 
