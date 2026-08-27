@@ -90,6 +90,16 @@ public final class DqlSourceBoundaryInjector implements DqlReplaySourceNode {
         sourceBoundary().enqueueBarrier(event);
     }
 
+    @Override
+    public void prepareForRecovery(long timeoutMillis) throws InterruptedException {
+        sourceBoundary().prepareForRecovery(timeoutMillis);
+    }
+
+    @Override
+    public void restoreAfterRecovery() {
+        sourceBoundary().restoreAfterRecovery();
+    }
+
     private List<Node> sourceNodes() {
         List<Node> sourceNodes = dag.getSourceNodes();
         if (sourceNodes == null) {

@@ -11,6 +11,17 @@ public interface DqlReplaySourceNode extends AutoCloseable {
     void enqueue(TapdataDqlRecoveryEvent event);
 
     /**
+     * Hook for a live source adapter to pause normal source admission and
+     * enter recovery-only mode. Paused-task runners keep the no-op default.
+     */
+    default void prepareForRecovery(long timeoutMillis) throws InterruptedException {
+    }
+
+    /** Restores normal source admission after success or failure. */
+    default void restoreAfterRecovery() {
+    }
+
+    /**
      * Sends the queue barrier behind a recovery DATA event. A concrete source
      * must override this when it supports end-to-end target completion.
      */

@@ -228,11 +228,11 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 **Interfaces:**
 - Produces: best-effort BATCH_FAILED reporting with deterministic cleanup for task stop, restart, version mismatch, runner init failure, source-gate resume failure and callback failure.
 
-- [ ] **Step 1: Write the failing test** — cover each failure source and assert cleanup executes once, no local executor/latch remains, and a failed batch report is attempted.
-- [ ] **Step 2: Run test to verify it fails** — run the focused compensation test and observe missing cleanup/reporting.
-- [ ] **Step 3: Write minimal implementation** — make compensation idempotent with an atomic guard, execute cleanup in reverse lifecycle order, preserve the original failure as the report message, and never throw from cleanup over the original exception.
-- [ ] **Step 4: Run test to verify it passes** — run compensation, handler, coordinator and existing stop/reset/delete message regressions.
-- [ ] **Step 5: Commit** — record failure matrix and commit `feat(TAP-12615): compensate failed dql recovery batches`.
+- [x] **Step 1: Write the failing test** — added tests for runner initialization, source-gate restoration, callback/reporting failure, reverse cleanup, duplicate compensation and late resource registration.
+- [x] **Step 2: Run test to verify it fails** — the initial focused test failed at compilation because the compensator did not exist; a later integration compile also caught and fixed an exception-handler brace error.
+- [x] **Step 3: Write minimal implementation** — added an independently guarded cleanup/reporting compensator, source lifecycle hooks, coordinator cleanup wiring and handler BATCH_FAILED best-effort reporting. Cleanup failures never replace the original batch failure.
+- [x] **Step 4: Run test to verify it passes** — compensation, source gate, coordinator and handler tests passed (20/20). The legacy `DataSyncEventHandlerTest` stop/reset/delete regression was attempted but its two static-mock cases fail before production code because this build uses Mockito's non-inline MockMaker; this baseline limitation is recorded in the E09 step record.
+- [x] **Step 5: Commit** — record the failure matrix and commit `feat(TAP-12615): compensate failed dql recovery batches`.
 
 ### Task 9: E10 Engine replay regression
 

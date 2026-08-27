@@ -6,6 +6,7 @@ import com.tapdata.entity.TapdataEvent;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DqlSourceReadGateTest {
@@ -47,5 +48,19 @@ class DqlSourceReadGateTest {
 
         gate.release(normalEvent);
         assertTrue(gate.awaitDrained(100, java.util.concurrent.TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void restoresOpenStateAfterRecoveryPreparation() throws Exception {
+        DqlSourceReadGate gate = new DqlSourceReadGate();
+        TapdataEvent normalEvent = new TapdataEvent();
+
+        gate.prepareForRecovery(100);
+        assertEquals(DqlSourceReadGate.State.RECOVERY_ONLY, gate.getState());
+
+        gate.restoreAfterRecovery();
+
+        assertEquals(DqlSourceReadGate.State.OPEN, gate.getState());
+        assertTrue(gate.allow(normalEvent));
     }
 }

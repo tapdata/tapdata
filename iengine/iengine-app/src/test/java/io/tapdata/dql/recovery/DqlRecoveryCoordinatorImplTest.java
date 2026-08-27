@@ -191,6 +191,75 @@ class DqlRecoveryCoordinatorImplTest {
         assertEquals("BATCH_FINISHED", reports.get(reports.size() - 1).getType());
     }
 
+    @Test
+    void reportsBatchFailureWhenPausedRunnerInitializationFails() throws Exception {
+        List<DqlRecoveryReport> reports = new ArrayList<>();
+        DqlRecoveryReportSender reportSender = (command, report) -> reports.add(report);
+        DqlRecoveryCoordinatorImpl coordinator = new DqlRecoveryCoordinatorImpl(
+                eventId -> completeSnapshot(),
+                event -> {
+                },
+                (eventId, timeoutMillis) -> DqlRecoveryBarrier.Outcome.SUCCESS,
+                reportSender,
+                () -> false,
+                1000L,
+                executor,
+                command -> {
+                    throw new IllegalStateException("runner init failed");
+                }
+        );
+
+        coordinator.start(command("event-1"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        assertEquals(List.of("BATCH_FAILED"), reportTypes(reports));
+        assertEquals("runner init failed", reports.get(0).getMessage());
+    }
+
+    @Test
+    void restoresLiveSourceBoundaryAndReportsFailureWhenRestorationFails() throws Exception {
+        List<DqlRecoveryReport> reports = new ArrayList<>();
+        List<String> lifecycle = new ArrayList<>();
+        DqlReplaySourceNode sourceBoundary = new DqlReplaySourceNode() {
+            @Override
+            public void enqueue(com.tapdata.entity.TapdataDqlRecoveryEvent event) {
+                lifecycle.add("enqueue");
+            }
+
+            @Override
+            public void prepareForRecovery(long timeoutMillis) {
+                lifecycle.add("prepare");
+            }
+
+            @Override
+            public void restoreAfterRecovery() {
+                lifecycle.add("restore");
+                throw new IllegalStateException("source gate restore failed");
+            }
+        };
+        DqlRecoveryBarrier successBarrier = (eventId, timeoutMillis) -> DqlRecoveryBarrier.Outcome.SUCCESS;
+        DqlRecoveryCoordinatorImpl coordinator = new DqlRecoveryCoordinatorImpl(
+                eventId -> completeSnapshot(),
+                event -> {
+                    throw new AssertionError("live recovery must use the source boundary");
+                },
+                successBarrier,
+                (command, report) -> reports.add(report),
+                () -> false,
+                1000L,
+                executor,
+                command -> null,
+                command -> sourceBoundary
+        );
+
+        coordinator.start(command("event-1"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        assertEquals(List.of("prepare", "enqueue", "restore"), lifecycle);
+        assertEquals("BATCH_FAILED", reports.get(reports.size() - 1).getType());
+        assertEquals("source gate restore failed", reports.get(reports.size() - 1).getMessage());
+    }
+
     private DqlRecoveryCoordinatorImpl coordinator(DqlRecoveryEventSource source,
                                                     DqlRecoveryEventSink sink,
                                                     DqlRecoveryBarrier barrier,

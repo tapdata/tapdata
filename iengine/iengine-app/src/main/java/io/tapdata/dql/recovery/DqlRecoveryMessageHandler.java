@@ -68,8 +68,21 @@ public class DqlRecoveryMessageHandler {
             // the batch remains claimed even if its callback later fails.
             if (!coordinatorStarted) {
                 batchRegistry.release(command.getBatchId());
+            } else {
+                new DqlRecoveryFailureCompensator(
+                        message -> reportBatchFailed(command, message)
+                ).compensate(exception);
             }
             return DqlRecoveryHandleResult.rejected(safeMessage(exception));
+        }
+    }
+
+    private void reportBatchFailed(DqlRecoveryMessageDto command, String message) {
+        try {
+            reportSender.reportBatchFailed(command, message, System.currentTimeMillis());
+        } catch (RuntimeException ignored) {
+            // TM callback failure is best effort; the accepted batch remains
+            // claimed and can converge through the TM timeout scanner.
         }
     }
 

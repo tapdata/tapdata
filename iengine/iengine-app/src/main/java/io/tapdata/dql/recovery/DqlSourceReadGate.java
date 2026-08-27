@@ -102,6 +102,26 @@ public final class DqlSourceReadGate {
     }
 
     /**
+     * Moves a live source through the drain boundary before recovery starts.
+     * A timeout leaves the gate recoverable by {@link #restoreAfterRecovery()}.
+     */
+    public void prepareForRecovery(long timeoutMillis) throws InterruptedException {
+        beginPausing();
+        if (!awaitDrained(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            throw new IllegalStateException("source events did not drain before DQL recovery");
+        }
+        enterRecoveryOnly();
+    }
+
+    /** Restores normal source admission after both successful and failed recovery. */
+    public void restoreAfterRecovery() {
+        if (getState() == State.RECOVERY_ONLY) {
+            beginResuming();
+        }
+        close();
+    }
+
+    /**
      * Returns whether the event may enter the source queue. A normal event is
      * tracked as in-flight until {@link #release(TapdataEvent)} is called.
      */

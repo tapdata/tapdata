@@ -140,6 +140,9 @@ class DqlRecoveryMessageHandlerTest {
         assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, failed.getOutcome());
         assertEquals(DqlRecoveryHandleResult.Outcome.DUPLICATE, duplicate.getOutcome());
         verify(coordinator).start(org.mockito.ArgumentMatchers.any());
+        verify(reporter).reportBatchFailed(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("TM unavailable"),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     private DqlRecoveryTaskContextProvider contextProvider() {

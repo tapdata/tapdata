@@ -76,7 +76,7 @@
 | E06 | 已完成 | `steps/E06-source-boundary-injection.md` |
 | E07 | 已完成 | `steps/E07-recovery-barrier.md` |
 | E08 | 已完成 | `steps/E08-recovery-capture-guard.md` |
-| E09 | 未开始 | 待生成 |
+| E09 | 已完成 | `steps/E09-recovery-compensation.md` |
 | E10 | 未开始 | 待生成 |
 
 ## 回归记录

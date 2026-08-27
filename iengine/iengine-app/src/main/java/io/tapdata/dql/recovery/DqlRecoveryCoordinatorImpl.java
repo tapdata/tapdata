@@ -158,16 +158,25 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                               List<String> orderedEventIds,
                               AtomicBoolean terminal) {
         DqlRecoveryOnlyRunner recoveryOnlyRunner = null;
+        DqlRecoveryFailureCompensator compensator = new DqlRecoveryFailureCompensator(
+                failure -> failBatchOnce(command, terminal, failure));
         try {
             recoveryOnlyRunner = recoveryOnlyRunnerFactory.open(command);
             DqlRecoveryEventSink sink;
             DqlReplaySourceNode sourceBoundary = null;
             if (recoveryOnlyRunner != null) {
+                compensator.addCleanup(recoveryOnlyRunner::close);
                 sink = recoveryOnlyRunner::replay;
                 sourceBoundary = recoveryOnlyRunner;
             } else {
                 sourceBoundary = sourceBoundaryFactory.open(command);
                 sink = sourceBoundary == null ? eventSink : sourceBoundary::enqueue;
+                if (sourceBoundary != null) {
+                    // Register restoration before preparation so a partially
+                    // entered source gate is also given a recovery attempt.
+                    compensator.addCleanup(sourceBoundary::restoreAfterRecovery);
+                    sourceBoundary.prepareForRecovery(barrierTimeoutMillis);
+                }
             }
             DqlRecoveryBarrier batchBarrier = barrierFactory.open(command, sourceBoundary);
             if (batchBarrier == null) {
@@ -183,21 +192,22 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                     continue;
                 }
                 if (!executionPolicy.continueAfterFailure()) {
-                    failBatchOnce(command, terminal, result.message());
+                    compensator.compensate(new IllegalStateException(result.message()));
                     return;
                 }
             }
-            finishBatchOnce(command, terminal);
-        } catch (RuntimeException exception) {
-            failBatchOnce(command, terminal, message(exception));
-        } finally {
-            if (recoveryOnlyRunner != null) {
-                try {
-                    recoveryOnlyRunner.close();
-                } catch (RuntimeException exception) {
-                    failBatchOnce(command, terminal, message(exception));
-                }
+            Throwable cleanupFailure = compensator.cleanup();
+            if (cleanupFailure != null) {
+                compensator.compensate(cleanupFailure);
+                return;
             }
+            finishBatchOnce(command, terminal);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            compensator.compensate(exception);
+        } catch (RuntimeException exception) {
+            compensator.compensate(exception);
+        } finally {
             activeBatches.remove(command.getBatchId(), terminal);
             signalIdle();
         }
@@ -209,10 +219,9 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                               DqlRecoveryBarrier batchBarrier) {
         String attemptId = UUID.randomUUID().toString();
         long startedAt = System.currentTimeMillis();
-        reportSender.reportEventStarted(command, eventId, attemptId, startedAt);
-
         EventExecutionResult result;
         try {
+            reportSender.reportEventStarted(command, eventId, attemptId, startedAt);
             DqlPayloadSnapshot snapshot = eventSource.load(eventId);
             if (snapshot == null) {
                 throw new IllegalStateException("DQL event payload was not found: " + eventId);
@@ -237,15 +246,20 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
             result = EventExecutionResult.failureResult(message(exception), "FAILED");
         }
 
-        reportSender.reportEventResult(
-                command,
-                eventId,
-                attemptId,
-                result.result(),
-                result.message(),
-                startedAt,
-                System.currentTimeMillis()
-        );
+        try {
+            reportSender.reportEventResult(
+                    command,
+                    eventId,
+                    attemptId,
+                    result.result(),
+                    result.message(),
+                    startedAt,
+                    System.currentTimeMillis()
+            );
+        } catch (RuntimeException exception) {
+            batchBarrier.cancel(eventId);
+            throw exception;
+        }
         return result;
     }
 
@@ -261,7 +275,12 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
 
     private void finishBatchOnce(DqlRecoveryMessageDto command, AtomicBoolean terminal) {
         if (terminal.compareAndSet(false, true)) {
-            reportSender.reportBatchFinished(command, null, System.currentTimeMillis());
+            try {
+                reportSender.reportBatchFinished(command, null, System.currentTimeMillis());
+            } catch (RuntimeException exception) {
+                terminal.compareAndSet(true, false);
+                throw exception;
+            }
         }
     }
 
@@ -283,7 +302,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         }
     }
 
-    private String message(RuntimeException exception) {
+    private String message(Throwable exception) {
         return StringUtils.defaultIfBlank(exception.getMessage(), exception.getClass().getSimpleName());
     }
 
