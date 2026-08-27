@@ -5,7 +5,7 @@
 - Jira：TAP-12615
 - 主题：TapData 异常事件（DLQ）与受控重处理 POC
 - 编写日期：2026-08-25
-- 更新日期：2026-08-26
+- 更新日期：2026-08-27
 - 文档类型：详细设计
 - 基础文档：`doc/TAP-12615-DLQ-controlled-reprocessing-design.md`
 
@@ -1920,6 +1920,16 @@ POC 报告中的业务对账：
 | 事件状态不可恢复 | 返回具体事件原因 |
 | Agent 不在线 | 批次进入等待或失败，按超时策略补偿 |
 | Engine 回调重复 | 幂等处理，不重复增加 `recovery_count` |
+
+上述错误均通过统一 `ResponseMessage` 返回。DQL HTTP 接口同时使用以下状态表达交互语义，业务原因仍由 `code` 和可展示的 `message` 传递；列表和汇总在无任务数据权限时返回空结果或零计数，不以权限错误打断查询。
+
+| 场景 | 错误码示例 | HTTP 状态 |
+| --- | --- | ---: |
+| 参数、Payload、路由或跨任务校验失败 | `IllegalArgument`、`DqlEvent.InvalidPayload`、`DqlEvent.InvalidRouteDecision`、`DqlRecovery.CrossTaskNotAllowed` | 400 |
+| 菜单或任务数据无权限 | `NoPermission` | 403 |
+| 事件、任务或批次不存在 | `DqlEvent.NotFound`、`Task.NotFound`、`DqlRecovery.BatchNotFound` | 404 |
+| 状态不可重处理或锁冲突 | `DqlRecovery.EventNotReprocessable`、`DqlRecovery.EventLockFailed` | 409 |
+| 未分类服务端异常 | `SystemError` | 500 |
 
 ### 17.3 批次超时扫描
 

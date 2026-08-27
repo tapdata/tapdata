@@ -3,7 +3,7 @@
 |版本|更新时间|
 |---|---|
 |V1|2026-08-26|
-|V1|2026-08-27|
+|V2|2026-08-27|
 
 本文依据 TAP\-12753 当前前端实现整理，供后端生成和联调异常事件 API。接口根路径暂定为 `/api/dql-events`，其中 DQL 指 Dead Letter Queue。前端已支持模拟数据模式，以下字段、枚举和行为应视为前后端联调契约。
 
@@ -217,7 +217,30 @@ attemptId、batchId、startedAt、finishedAt?、result、message?、errorMessage
 
 - 列表、汇总和批次读取接口需要处理权限隔离，不能通过 eventId 或 batchId 跨任务读取。
 
+## 7.1 统一错误响应与 HTTP 语义
+
+所有 DQL 接口失败时仍使用统一的 `ResponseMessage` 响应封装。前端应读取 `code` 和可直接展示的 `message`，业务数据保持为空；`reqId`、`ts` 等公共字段按现有封装返回。
+
+```json
+{
+  "code": "DqlRecovery.EventNotReprocessable",
+  "message": "Selected exception events cannot be reprocessed: ...",
+  "data": null
+}
+```
+
+HTTP 状态用于表达可恢复的交互语义，具体业务原因通过 `code` 和 `message` 传递：
+
+|场景|错误码示例|HTTP 状态|前端处理建议|
+|---|---|---:|---|
+|请求参数或 Payload/路由校验失败|`IllegalArgument`、`DqlEvent.InvalidPayload`、`DqlEvent.InvalidRouteDecision`、`DqlRecovery.CrossTaskNotAllowed`|400|提示 `message`，修正参数或重新预览。|
+|无异常事件菜单或任务数据权限|`NoPermission`|403|禁止当前操作并提示无权限。|
+|事件、任务或重处理批次不存在|`DqlEvent.NotFound`、`Task.NotFound`、`DqlRecovery.BatchNotFound`|404|关闭详情或移除失效记录后刷新列表。|
+|事件状态不可重处理、批次或事件锁冲突|`DqlRecovery.EventNotReprocessable`、`DqlRecovery.EventLockFailed`|409|提示状态已变化，重新获取详情或重新预览。|
+|未分类的服务端异常|`SystemError`|500|提示稍后重试并使用 `reqId` 定位问题。|
+
+列表、汇总在无任务数据权限时按第 7 节权限隔离规则返回空结果或零计数；只有菜单权限、任务归属或显式资源访问失败时才返回 `NoPermission`。前端不应依赖尚未冻结的内部错误码集合来判断流程，只需优先按 HTTP 状态处理，并展示服务端返回的 `message`。
+
 # 8\. 联调建议
 
-建议先完成列表和汇总，验证筛选、分页和状态计数一致性；再接详情，确认重放历史能返回运行态与失败错误；最后接预览和提交。详情处于 REPROCESSING 时，前端会每 3 秒刷新详情。服务端如需统一响应封装，可由请求层解包，但业务 data 必须保持本文结构。对于参数校验、资源不存在、状态冲突，建议分别返回清晰的 400、404、409 语义和可展示 message。
-
+建议先完成列表和汇总，验证筛选、分页和状态计数一致性；再接详情，确认重放历史能返回运行态与失败错误；最后接预览和提交。详情处于 REPROCESSING 时，前端会每 3 秒刷新详情。服务端如需统一响应封装，可由请求层解包，但业务 data 必须保持本文结构；错误响应按第 7.1 节的 HTTP 状态和可展示 message 处理。

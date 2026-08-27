@@ -1,6 +1,7 @@
 package com.tapdata.tm.dql.service;
 
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -97,6 +98,6 @@ public class DqlEventPermissionService {
     }
 
     private <T> T throwNoPermission() {
-        throw new RuntimeException(EX_CODE_NO_PERMISSION);
+        throw new BizException(EX_CODE_NO_PERMISSION);
     }
 }
