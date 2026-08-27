@@ -9,6 +9,7 @@ import com.tapdata.tm.dql.DqlRecoveryReportTypeEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
@@ -184,7 +185,9 @@ public class DqlRecoveryBatchService {
         batch.setTaskId(preview.getTaskId());
         batch.setTaskName(preview.getTaskName());
         batch.setTaskStatusBefore(taskContext == null ? null : taskContext.task().getStatus());
-        batch.setTaskVersion(taskContext == null ? null : taskContext.task().getVersion());
+        batch.setTaskVersion(taskContext == null
+                ? (events.isEmpty() ? null : events.get(0).getTaskVersion())
+                : taskContext.task().getVersion());
         batch.setAgentId(taskContext == null
                 ? (events.isEmpty() ? null : events.get(0).getAgentId())
                 : taskContext.task().getAgentId());
@@ -229,9 +232,9 @@ public class DqlRecoveryBatchService {
             throw new BizException("DqlRecovery.EventLockFailed", batch.getBatchId());
         }
         try {
-            dispatch(batch);
             batchRepository.updateStatus(batch.getBatchId(), DqlRecoveryBatchStatusEnum.DISPATCHED, null);
             batch.setStatus(DqlRecoveryBatchStatusEnum.DISPATCHED.name());
+            dispatch(batch);
             return batch;
         } catch (RuntimeException e) {
             try {
@@ -356,12 +359,8 @@ public class DqlRecoveryBatchService {
         if (messageQueueService == null || StringUtils.isBlank(batch.getAgentId())) {
             return;
         }
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("type", "dqlRecovery");
-        payload.put("taskId", batch.getTaskId());
-        payload.put("batchId", batch.getBatchId());
-        payload.put("eventIds", batch.getOrderedEventIds());
-        messageQueueService.sendPipeMessage(payload, "tm", batch.getAgentId());
+        DqlRecoveryMessageDto message = DqlRecoveryMessageDto.fromBatch(batch);
+        messageQueueService.sendPipeMessage(message.toPayload(), "tm", batch.getAgentId());
     }
 
     private boolean isReprocessable(DqlEventDto event) {

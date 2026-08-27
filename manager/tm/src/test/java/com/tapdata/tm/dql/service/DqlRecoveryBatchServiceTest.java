@@ -9,6 +9,7 @@ import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
@@ -24,6 +25,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -40,6 +42,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -345,6 +348,7 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryBatchService service = new DqlRecoveryBatchService(
                 eventRepository, batchRepository, permissionService, messageQueueService, mock(DqlEventAlarmService.class));
         DqlEventDto event = event("DQL-1", TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        event.setTaskVersion(8L);
         when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
         when(batchRepository.create(any(DqlRecoveryBatchDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString())).thenReturn(1L);
@@ -354,12 +358,19 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryBatchDto result = service.start(request, user());
 
         assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(), result.getStatus());
-        verify(batchRepository).updateStatus(anyString(), eq(DqlRecoveryBatchStatusEnum.DISPATCHED), eq(null));
         ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
         verify(messageQueueService).sendPipeMessage(payload.capture(), eq("tm"), eq("agent-1"));
-        assertEquals("dqlRecovery", payload.getValue().get("type"));
+        assertEquals(DqlRecoveryMessageDto.TYPE, payload.getValue().get("type"));
         assertEquals(TASK_ID, payload.getValue().get("taskId"));
-        assertEquals(List.of("DQL-1"), payload.getValue().get("eventIds"));
+        assertEquals(8L, payload.getValue().get("taskVersion"));
+        assertEquals(List.of("DQL-1"), payload.getValue().get("orderedEventIds"));
+        assertEquals("user-id", payload.getValue().get("operatorId"));
+        assertEquals("Harsen", payload.getValue().get("operatorName"));
+        assertEquals(DqlRecoveryMessageDto.MODE_AUTO, payload.getValue().get("mode"));
+        assertFalse(payload.getValue().containsKey("opType"));
+        InOrder order = inOrder(batchRepository, messageQueueService);
+        order.verify(batchRepository).updateStatus(anyString(), eq(DqlRecoveryBatchStatusEnum.DISPATCHED), eq(null));
+        order.verify(messageQueueService).sendPipeMessage(any(), eq("tm"), eq("agent-1"));
     }
 
     @Test
@@ -403,7 +414,7 @@ class DqlRecoveryBatchServiceTest {
         assertEquals(List.of("DQL-1", "DQL-2", "DQL-3"), result.getOrderedEventIds());
         ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
         verify(messageQueueService).sendPipeMessage(payload.capture(), eq("tm"), eq("agent-1"));
-        assertEquals(List.of("DQL-1", "DQL-2", "DQL-3"), payload.getValue().get("eventIds"));
+        assertEquals(List.of("DQL-1", "DQL-2", "DQL-3"), payload.getValue().get("orderedEventIds"));
     }
 
     @Test

@@ -1361,6 +1361,10 @@ TM 下发 `MessageQueueDto`：
 }
 ```
 
+TM 使用 `tm-common` 中独立的 `DqlRecoveryMessageDto` 生成上述 `data`，固定 `type=dqlRecovery`、`mode=AUTO`，携带 `taskVersion`、`orderedEventIds`、`operatorId` 和 `operatorName`。`orderedEventIds` 是 D02 固化的唯一可信顺序；消息不使用 `eventIds`，也不扩展 `DataSyncMq.opType`。
+
+发起顺序为：事件全部锁定后先将批次更新为 `DISPATCHED`，再调用 `MessageQueueService.sendPipeMessage` 发送到批次记录中的 `agentId`。批次状态更新或消息发送失败时，沿用 D04 的事件原始状态补偿和任务锁释放语义。
+
 `mode` 由 Engine 根据任务运行态确认实际执行方式：
 
 - `LIVE_TASK`：运行中任务，使用现有 TaskClient。
