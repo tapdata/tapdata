@@ -1,6 +1,7 @@
 package com.tapdata.tm.dql.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.annotation.IgnoreRequestBodyLog;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.dql.dto.DqlEventDto;
@@ -47,6 +48,7 @@ public class DqlEventController extends BaseController {
      */
     @Operation(summary = "Engine reports a DLQ exception event")
     @PostMapping({"/api/task/{taskId}/dql-events/report", "/api/Task/{taskId}/dql-events/report"})
+    @IgnoreRequestBodyLog
     public ResponseMessage<DqlEventReportResultVo> report(@PathVariable("taskId") String taskId,
                                                           @RequestBody DqlEventReportVo request) {
         return success(eventService.report(taskId, request));
@@ -57,6 +59,7 @@ public class DqlEventController extends BaseController {
      */
     @Operation(summary = "Engine reports a successful record write after DLQ skip")
     @PostMapping({"/api/task/{taskId}/dql-events/record-success/report", "/api/Task/{taskId}/dql-events/record-success/report"})
+    @IgnoreRequestBodyLog
     public ResponseMessage<DqlRecordSuccessReportResultVo> reportRecordSuccess(@PathVariable("taskId") String taskId,
                                                                                @RequestBody DqlRecordSuccessReportVo request) {
         return success(eventService.reportRecordSuccess(taskId, request));
@@ -142,6 +145,7 @@ public class DqlEventController extends BaseController {
      */
     @Operation(summary = "Engine reports DLQ recovery result")
     @PostMapping({"/api/task/{taskId}/dql-events/recovery/report", "/api/Task/{taskId}/dql-events/recovery/report"})
+    @IgnoreRequestBodyLog
     public ResponseMessage<Boolean> reportRecovery(@PathVariable("taskId") String taskId,
                                                    @RequestBody DqlRecoveryResultReportVo request) {
         recoveryBatchService.report(taskId, request);

@@ -1,5 +1,6 @@
 package com.tapdata.tm.dql.controller;
 
+import com.tapdata.tm.base.annotation.IgnoreRequestBodyLog;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -29,6 +30,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -37,6 +39,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DqlEventControllerTest {
+
+    @Test
+    @DisplayName("engine callback endpoints suppress generic request body logging")
+    void engineCallbacksSuppressRequestBodyLogging() throws Exception {
+        assertTrue(DqlEventController.class
+                .getMethod("report", String.class, DqlEventReportVo.class)
+                .isAnnotationPresent(IgnoreRequestBodyLog.class));
+        assertTrue(DqlEventController.class
+                .getMethod("reportRecordSuccess", String.class, DqlRecordSuccessReportVo.class)
+                .isAnnotationPresent(IgnoreRequestBodyLog.class));
+        assertTrue(DqlEventController.class
+                .getMethod("reportRecovery", String.class, DqlRecoveryResultReportVo.class)
+                .isAnnotationPresent(IgnoreRequestBodyLog.class));
+    }
 
     @Test
     @DisplayName("report uses task id from path instead of request body")

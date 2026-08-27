@@ -24,6 +24,7 @@
 | B03 | 已完成 | `steps/B03-batch-repository.md` |
 | B04 | 已完成 | `steps/B04-ttl-lifecycle.md` |
 | B05 | 已完成 | `steps/B05-ttl-index-initialization.md` |
+| B06 | 已完成 | `steps/B06-report-validation-and-safety.md` |
 
 ## 回归记录
 

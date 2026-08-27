@@ -3,11 +3,9 @@ package com.tapdata.tm.dql.service;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.dql.DqlExceptionScopeEnum;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlErrorTypeEnum;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
-import com.tapdata.tm.dql.DqlRouteDecisionEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -36,33 +34,42 @@ import java.util.stream.Collectors;
 
 @Service
 public class DqlEventService {
-    private static final int ERROR_DETAILS_MAX_LENGTH = 4000;
     static final String OVERWRITE_RISK_MESSAGE = "该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作";
 
     private final DqlEventRepository eventRepository;
     private final DqlEventAlarmService alarmService;
     private final DqlEventPermissionService permissionService;
     private final DqlRecoveryBatchRepository batchRepository;
+    private final DqlReportValidationService reportValidationService;
 
     public DqlEventService(DqlEventRepository eventRepository, DqlEventAlarmService alarmService) {
-        this(eventRepository, alarmService, null, null);
+        this(eventRepository, alarmService, null, null, new DqlReportValidationService());
     }
 
     public DqlEventService(DqlEventRepository eventRepository,
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService) {
-        this(eventRepository, alarmService, permissionService, null);
+        this(eventRepository, alarmService, permissionService, null, new DqlReportValidationService());
+    }
+
+    public DqlEventService(DqlEventRepository eventRepository,
+                           DqlEventAlarmService alarmService,
+                           DqlEventPermissionService permissionService,
+                           DqlRecoveryBatchRepository batchRepository) {
+        this(eventRepository, alarmService, permissionService, batchRepository, new DqlReportValidationService());
     }
 
     @Autowired
     public DqlEventService(DqlEventRepository eventRepository,
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService,
-                           DqlRecoveryBatchRepository batchRepository) {
+                           DqlRecoveryBatchRepository batchRepository,
+                           DqlReportValidationService reportValidationService) {
         this.eventRepository = eventRepository;
         this.alarmService = alarmService;
         this.permissionService = permissionService;
         this.batchRepository = batchRepository;
+        this.reportValidationService = reportValidationService;
     }
 
     public DqlEventReportResultVo report(String taskId, DqlEventReportVo report) {
@@ -72,7 +79,7 @@ public class DqlEventService {
         if (StringUtils.isBlank(taskId)) {
             throw new BizException("IllegalArgument", "taskId");
         }
-        validateRouteMetadata(report);
+        DqlReportValidationService.ValidationResult validationResult = reportValidationService.validateAndSecure(taskId, report);
         fillRecordIdentity(report);
         if (StringUtils.isBlank(report.getEventIdentity())) {
             report.setEventIdentity(generateIdentity(taskId, report));
@@ -83,7 +90,7 @@ public class DqlEventService {
         }
 
         Long captureSeq = Optional.ofNullable(report.getCaptureSeq()).orElseGet(() -> eventRepository.nextCaptureSeq(taskId));
-        DqlEventDto dto = convert(taskId, report, captureSeq);
+        DqlEventDto dto = convert(taskId, report, captureSeq, validationResult);
         DqlEventDto saved = eventRepository.upsert(dto);
         alarmService.notifyEventCreated(saved);
         return reportResult(saved, false);
@@ -122,23 +129,6 @@ public class DqlEventService {
         summary.setRecoveryFailed(eventRepository.countByStatus(query, DqlEventStatusEnum.RECOVERY_FAILED));
         summary.setNotReprocessable(eventRepository.countByStatus(query, DqlEventStatusEnum.NOT_REPROCESSABLE));
         return summary;
-    }
-
-    private void validateRouteMetadata(DqlEventReportVo report) {
-        if (StringUtils.isBlank(report.getExceptionScope())) {
-            report.setExceptionScope(DqlExceptionScopeEnum.RECORD.name());
-        } else if (DqlExceptionScopeEnum.RECORD != DqlExceptionScopeEnum.parse(report.getExceptionScope())) {
-            throw new BizException("DqlEvent.InvalidRouteDecision", "exceptionScope");
-        } else {
-            report.setExceptionScope(DqlExceptionScopeEnum.RECORD.name());
-        }
-        if (StringUtils.isBlank(report.getRouteDecision())) {
-            report.setRouteDecision(DqlRouteDecisionEnum.RECORD_DLQ.name());
-        } else if (DqlRouteDecisionEnum.RECORD_DLQ != DqlRouteDecisionEnum.parse(report.getRouteDecision())) {
-            throw new BizException("DqlEvent.InvalidRouteDecision", "routeDecision");
-        } else {
-            report.setRouteDecision(DqlRouteDecisionEnum.RECORD_DLQ.name());
-        }
     }
 
     /**
@@ -196,7 +186,10 @@ public class DqlEventService {
         event.setRecoveryAttempts(null);
     }
 
-    private DqlEventDto convert(String taskId, DqlEventReportVo report, Long captureSeq) {
+    private DqlEventDto convert(String taskId,
+                                DqlEventReportVo report,
+                                Long captureSeq,
+                                DqlReportValidationService.ValidationResult validationResult) {
         Date now = new Date();
         DqlEventDto dto = new DqlEventDto();
         dto.setEventId(Optional.ofNullable(report.getEventId()).filter(StringUtils::isNotBlank).orElseGet(() -> buildEventId(taskId, captureSeq)));
@@ -239,7 +232,8 @@ public class DqlEventService {
         dto.setRouteDecision(report.getRouteDecision());
         dto.setClassificationReason(report.getClassificationReason());
         dto.setClassificationConfidence(report.getClassificationConfidence());
-        dto.setErrorDetails(truncateErrorDetails(report.getErrorDetails(), dto));
+        dto.setErrorDetails(report.getErrorDetails());
+        dto.setErrorDetailsTruncated(validationResult.errorDetailsTruncated());
         dto.setRawErrorRef(report.getRawErrorRef());
         dto.setStatus(Boolean.FALSE.equals(dto.getPayloadComplete())
                 ? DqlEventStatusEnum.NOT_REPROCESSABLE.name()
@@ -250,15 +244,6 @@ public class DqlEventService {
         dto.setUpdated(now);
         dto.setTtlAt(now);
         return dto;
-    }
-
-    private String truncateErrorDetails(String errorDetails, DqlEventDto dto) {
-        if (errorDetails == null || errorDetails.length() <= ERROR_DETAILS_MAX_LENGTH) {
-            dto.setErrorDetailsTruncated(false);
-            return errorDetails;
-        }
-        dto.setErrorDetailsTruncated(true);
-        return errorDetails.substring(0, ERROR_DETAILS_MAX_LENGTH);
     }
 
     private DqlEventReportResultVo reportResult(DqlEventDto event, boolean duplicate) {

@@ -192,6 +192,34 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("report persists the secured summary and not reprocessable status for oversized payload")
+    void reportPersistsSecuredOversizedPayloadSummary() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setCaptureSeq(7L);
+        report.setPayloadSize(1_048_577L);
+        report.setPayloadPreview(Map.of("password", "must-not-leak", "id", 1001));
+        report.setErrorDetails("token=must-not-leak\n" + "x".repeat(4001));
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DqlEventReportResultVo result = service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlEventDto> captor = forClass(DqlEventDto.class);
+        verify(eventRepository).upsert(captor.capture());
+        DqlEventDto saved = captor.getValue();
+        assertEquals(DqlEventStatusEnum.NOT_REPROCESSABLE.name(), result.getStatus());
+        assertEquals(DqlEventStatusEnum.NOT_REPROCESSABLE.name(), saved.getStatus());
+        assertNull(saved.getPayloadData());
+        assertFalse(saved.getPayloadComplete());
+        assertEquals("******", saved.getPayloadPreview().get("password"));
+        assertEquals(4000, saved.getErrorDetails().length());
+        assertFalse(saved.getErrorDetails().contains("must-not-leak"));
+        assertTrue(saved.getErrorDetailsTruncated());
+    }
+
+    @Test
     @DisplayName("summary counts each DLQ status using the same query object")
     void summaryCountsStatuses() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
