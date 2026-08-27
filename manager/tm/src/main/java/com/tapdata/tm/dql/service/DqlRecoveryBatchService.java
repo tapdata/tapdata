@@ -51,8 +51,14 @@ public class DqlRecoveryBatchService {
 
     public DqlRecoveryPreviewVo preview(DqlRecoveryRequestVo request, UserDetail user) {
         List<String> eventIds = requireEventIds(request);
+        checkMenuPermission(user);
         List<DqlEventDto> events = eventRepository.findByEventIds(eventIds);
         Set<String> taskIds = events.stream().map(DqlEventDto::getTaskId).collect(Collectors.toSet());
+        if (permissionService != null) {
+            taskIds.stream()
+                    .sorted(Comparator.nullsFirst(String::compareTo))
+                    .forEach(taskId -> permissionService.checkTaskVisible(taskId, user));
+        }
         if (taskIds.size() > 1) {
             throw new BizException("DqlRecovery.CrossTaskNotAllowed", "eventIds");
         }
@@ -61,10 +67,6 @@ public class DqlRecoveryBatchService {
             DqlEventDto first = events.get(0);
             preview.setTaskId(first.getTaskId());
             preview.setTaskName(first.getTaskName());
-            if (permissionService != null) {
-                permissionService.checkMenuVisible(user);
-                permissionService.checkTaskVisible(first.getTaskId(), user);
-            }
         }
 
         Map<String, DqlEventDto> eventMap = events.stream().collect(Collectors.toMap(DqlEventDto::getEventId, event -> event, (a, b) -> a, LinkedHashMap::new));
@@ -163,15 +165,21 @@ public class DqlRecoveryBatchService {
     }
 
     public DqlRecoveryBatchDto detail(String batchId, UserDetail user) {
+        checkMenuPermission(user);
         DqlRecoveryBatchDto batch = batchRepository.findByBatchId(batchId);
         if (batch == null) {
             throw new BizException("DqlRecovery.BatchNotFound", batchId);
         }
         if (permissionService != null) {
-            permissionService.checkMenuVisible(user);
             permissionService.checkTaskVisible(batch.getTaskId(), user);
         }
         return batch;
+    }
+
+    private void checkMenuPermission(UserDetail user) {
+        if (permissionService != null) {
+            permissionService.checkMenuVisible(user);
+        }
     }
 
     private void handleEventResult(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {

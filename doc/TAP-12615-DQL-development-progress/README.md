@@ -28,6 +28,7 @@
 | B07 | 已完成 | `steps/B07-event-identity-and-deduplication.md` |
 | B08 | 已完成 | `steps/B08-engine-report-api.md` |
 | B09 | 已完成 | `steps/B09-query-api.md` |
+| B10 | 已完成 | `steps/B10-task-data-permission.md` |
 
 ## 回归记录
 

@@ -98,7 +98,6 @@ public enum DataPermissionMenuEnums {
 	public static Map<String, String> initExceptionEventsPermissionName() {
 		Map<String, String> allDataPermissionName = new HashMap<>();
 		allDataPermissionName.put(DataPermissionActionEnums.View.name(), "v2_exception_events");
-		allDataPermissionName.put(DataPermissionActionEnums.Edit.name(), "v2_exception_events_Edit");
 		return allDataPermissionName;
 	}
 }

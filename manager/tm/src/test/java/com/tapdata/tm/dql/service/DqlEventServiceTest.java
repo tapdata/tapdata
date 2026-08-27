@@ -26,16 +26,21 @@ import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.TaskService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.query.Query;
+import org.bson.types.ObjectId;
 
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,6 +54,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -351,6 +357,31 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("summary uses one task permission scope for total and every status count")
+    void summaryUsesPermissionScopeForAllCounts() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        UserDetail user = user();
+        DqlEventService service = new DqlEventService(
+                eventRepository,
+                mock(DqlEventAlarmService.class),
+                permissionService
+        );
+        DqlEventQueryVo query = new DqlEventQueryVo();
+        Set<String> visibleTaskIds = Set.of(TASK_ID);
+        when(permissionService.resolveVisibleTaskIds(any(DqlEventQueryVo.class), eq(user))).thenReturn(visibleTaskIds);
+        when(eventRepository.count(any(DqlEventQueryVo.class), eq(visibleTaskIds))).thenReturn(42L);
+        when(eventRepository.countByStatus(any(DqlEventQueryVo.class), any(DqlEventStatusEnum.class), eq(visibleTaskIds)))
+                .thenReturn(1L);
+
+        DqlEventSummaryVo summary = service.summary(query, user);
+
+        assertEquals(42L, summary.getTotal());
+        verify(eventRepository).count(any(DqlEventQueryVo.class), eq(visibleTaskIds));
+        verify(eventRepository, times(5)).countByStatus(any(DqlEventQueryVo.class), any(DqlEventStatusEnum.class), eq(visibleTaskIds));
+    }
+
+    @Test
     @DisplayName("preview rejects selected events from different tasks")
     void previewRejectsCrossTaskEvents() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
@@ -366,6 +397,107 @@ class DqlEventServiceTest {
         BizException exception = assertThrows(BizException.class, () -> service.preview(request, user()));
 
         assertEquals("DqlRecovery.CrossTaskNotAllowed", exception.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("preview checks every selected task before exposing cross-task data")
+    void previewChecksEverySelectedTaskBeforeCrossTaskError() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        UserDetail user = user();
+        DqlRecoveryBatchService service = new DqlRecoveryBatchService(
+                eventRepository,
+                mock(DqlRecoveryBatchRepository.class),
+                permissionService,
+                mock(MessageQueueServiceImpl.class),
+                mock(DqlEventAlarmService.class)
+        );
+        String otherTaskId = "64f000000000000000000002";
+        when(eventRepository.findByEventIds(List.of("DQL-1", "DQL-2")))
+                .thenReturn(List.of(
+                        event("DQL-1", TASK_ID, 2L, DqlEventStatusEnum.PENDING),
+                        event("DQL-2", otherTaskId, 1L, DqlEventStatusEnum.PENDING)
+                ));
+        doAnswer(invocation -> {
+            if (otherTaskId.equals(invocation.getArgument(0))) {
+                throw new RuntimeException("NoPermission");
+            }
+            return null;
+        }).when(permissionService).checkTaskVisible(any(String.class), eq(user));
+        DqlRecoveryRequestVo request = new DqlRecoveryRequestVo();
+        request.setEventIds(List.of("DQL-1", "DQL-2"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> service.preview(request, user));
+
+        assertEquals("NoPermission", exception.getMessage());
+        verify(permissionService).checkTaskVisible(eq(TASK_ID), eq(user));
+        verify(permissionService).checkTaskVisible(eq(otherTaskId), eq(user));
+    }
+
+    @Test
+    @DisplayName("detail checks menu permission before looking up an event")
+    void detailChecksMenuPermissionBeforeLookup() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        UserDetail user = user();
+        doThrow(new RuntimeException("NoPermission")).when(permissionService).checkMenuVisible(user);
+        DqlEventService service = new DqlEventService(
+                eventRepository,
+                mock(DqlEventAlarmService.class),
+                permissionService
+        );
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> service.detail("DQL-hidden", user));
+
+        assertEquals("NoPermission", exception.getMessage());
+        verify(eventRepository, never()).findByEventId(any(String.class));
+    }
+
+    @Test
+    @DisplayName("detail checks the event task permission after lookup")
+    void detailChecksEventTaskPermission() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        UserDetail user = user();
+        DqlEventDto event = event("DQL-hidden", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        when(eventRepository.findByEventId("DQL-hidden")).thenReturn(event);
+        doThrow(new RuntimeException("NoPermission")).when(permissionService).checkTaskVisible(TASK_ID, user);
+        DqlEventService service = new DqlEventService(
+                eventRepository,
+                mock(DqlEventAlarmService.class),
+                permissionService
+        );
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> service.detail("DQL-hidden", user));
+
+        assertEquals("NoPermission", exception.getMessage());
+        verify(permissionService).checkMenuVisible(user);
+        verify(permissionService).checkTaskVisible(TASK_ID, user);
+    }
+
+    @Test
+    @DisplayName("recovery preview checks menu permission before looking up selected events")
+    void recoveryPreviewChecksMenuPermissionBeforeLookup() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        UserDetail user = user();
+        doThrow(new RuntimeException("NoPermission")).when(permissionService).checkMenuVisible(user);
+        DqlRecoveryBatchService service = new DqlRecoveryBatchService(
+                eventRepository,
+                mock(DqlRecoveryBatchRepository.class),
+                permissionService,
+                mock(MessageQueueServiceImpl.class),
+                mock(DqlEventAlarmService.class)
+        );
+        DqlRecoveryRequestVo request = new DqlRecoveryRequestVo();
+        request.setEventIds(List.of("DQL-hidden"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> service.preview(request, user));
+
+        assertEquals("NoPermission", exception.getMessage());
+        verify(eventRepository, never()).findByEventIds(any());
     }
 
     @Test
@@ -493,6 +625,37 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("page passes only the user's visible task range to the repository")
+    void pageUsesVisibleTaskRange() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        UserDetail user = user();
+        TaskEntity visibleTask = new TaskEntity();
+        visibleTask.setId(new ObjectId(TASK_ID));
+        when(taskService.findAll(any(Query.class), eq(user))).thenReturn(List.of(visibleTask));
+        DqlEventPermissionService permissionService = new DqlEventPermissionService(taskService) {
+            @Override
+            public void checkMenuVisible(UserDetail ignored) {
+            }
+
+            @Override
+            public void checkTaskVisible(String ignored, UserDetail ignoredUser) {
+            }
+        };
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class), permissionService);
+        DqlEventQueryVo query = new DqlEventQueryVo();
+        when(eventRepository.page(eq(query), eq(Set.of(TASK_ID)))).thenReturn(Page.empty());
+
+        Page<DqlEventListVo> result = service.page(query, user);
+
+        assertTrue(result.getItems().isEmpty());
+        assertEquals(0L, result.getTotal());
+        verify(taskService).findAll(any(Query.class), eq(user));
+        verify(eventRepository).page(eq(query), eq(Set.of(TASK_ID)));
+        verify(eventRepository, never()).page(eq(query));
+    }
+
+    @Test
     @DisplayName("page response omits full payload and attempt history from list items")
     void pageOmitsPayloadAndAttempts() throws Exception {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
@@ -532,6 +695,55 @@ class DqlEventServiceTest {
         assertNotNull(detail.getCurrentBatch());
         assertEquals("DQLB-20260826-000001", detail.getCurrentBatch().getBatchId());
         assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), detail.getCurrentBatch().getStatus());
+    }
+
+    @Test
+    @DisplayName("batch detail checks menu permission before looking up a batch")
+    void batchDetailChecksMenuPermissionBeforeLookup() {
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        UserDetail user = user();
+        doThrow(new RuntimeException("NoPermission")).when(permissionService).checkMenuVisible(user);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = new DqlRecoveryBatchService(
+                mock(DqlEventRepository.class),
+                batchRepository,
+                permissionService,
+                mock(MessageQueueServiceImpl.class),
+                mock(DqlEventAlarmService.class)
+        );
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> service.detail("DQLB-hidden", user));
+
+        assertEquals("NoPermission", exception.getMessage());
+        verify(batchRepository, never()).findByBatchId(any(String.class));
+    }
+
+    @Test
+    @DisplayName("batch detail checks the batch task permission after lookup")
+    void batchDetailChecksTaskPermission() {
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        UserDetail user = user();
+        DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+        batch.setBatchId("DQLB-hidden");
+        batch.setTaskId(TASK_ID);
+        when(batchRepository.findByBatchId("DQLB-hidden")).thenReturn(batch);
+        doThrow(new RuntimeException("NoPermission")).when(permissionService).checkTaskVisible(TASK_ID, user);
+        DqlRecoveryBatchService service = new DqlRecoveryBatchService(
+                mock(DqlEventRepository.class),
+                batchRepository,
+                permissionService,
+                mock(MessageQueueServiceImpl.class),
+                mock(DqlEventAlarmService.class)
+        );
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> service.detail("DQLB-hidden", user));
+
+        assertEquals("NoPermission", exception.getMessage());
+        verify(permissionService).checkMenuVisible(user);
+        verify(permissionService).checkTaskVisible(TASK_ID, user);
     }
 
     @Test

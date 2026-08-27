@@ -25,6 +25,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -85,6 +86,38 @@ class DqlEventRepositoryTest {
 
         verify(mongoTemplate).createCollection("dql_events");
         verify(indexOperations, times(7)).createIndex(any(IndexDefinition.class));
+    }
+
+    @Test
+    @DisplayName("query scope adds a task id filter without changing the frontend query")
+    void queryScopeAddsTaskIdFilter() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.count(any(Query.class), eq(DqlEventEntity.class))).thenReturn(0L);
+
+        repository.count(new DqlEventQueryVo(), Set.of("64f000000000000000000001"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).count(queryCaptor.capture(), eq(DqlEventEntity.class));
+        Document taskClause = (Document) ((List<?>) queryCaptor.getValue().getQueryObject().get("$and")).get(0);
+        assertEquals(Set.of("64f000000000000000000001"),
+                taskClause.get(DqlEventDto.FIELD_TASK_ID, Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("empty query scope cannot match any event")
+    void emptyQueryScopeCannotMatchAnyEvent() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.count(any(Query.class), eq(DqlEventEntity.class))).thenReturn(0L);
+
+        repository.count(new DqlEventQueryVo(), Set.of());
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).count(queryCaptor.capture(), eq(DqlEventEntity.class));
+        Document taskClause = (Document) ((List<?>) queryCaptor.getValue().getQueryObject().get("$and")).get(0);
+        assertEquals(List.of("__NO_VISIBLE_TASK__"),
+                taskClause.get(DqlEventDto.FIELD_TASK_ID, Document.class).get("$in"));
     }
 
     @Test

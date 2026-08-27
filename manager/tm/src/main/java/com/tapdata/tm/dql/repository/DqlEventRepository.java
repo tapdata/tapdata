@@ -27,6 +27,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -273,7 +274,11 @@ public class DqlEventRepository {
     }
 
     public Page<DqlEventDto> page(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo) {
-        Query query = new Query(buildCriteria(queryVo));
+        return page(queryVo, null);
+    }
+
+    public Page<DqlEventDto> page(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo, Collection<String> visibleTaskIds) {
+        Query query = new Query(buildCriteria(queryVo, visibleTaskIds));
         long count = mongoTemplate.count(query, entityClass);
         if (count == 0) {
             return Page.empty();
@@ -287,16 +292,26 @@ public class DqlEventRepository {
     }
 
     public long count(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo) {
-        return mongoTemplate.count(new Query(buildCriteria(queryVo)), entityClass);
+        return count(queryVo, null);
+    }
+
+    public long count(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo, Collection<String> visibleTaskIds) {
+        return mongoTemplate.count(new Query(buildCriteria(queryVo, visibleTaskIds)), entityClass);
     }
 
     public long countByStatus(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo, DqlEventStatusEnum status) {
+        return countByStatus(queryVo, status, null);
+    }
+
+    public long countByStatus(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo,
+                              DqlEventStatusEnum status,
+                              Collection<String> visibleTaskIds) {
         com.tapdata.tm.dql.vo.DqlEventQueryVo scoped = new com.tapdata.tm.dql.vo.DqlEventQueryVo();
         if (queryVo != null) {
             BeanUtils.copyProperties(queryVo, scoped);
         }
         scoped.setStatus(status.name());
-        return count(scoped);
+        return count(scoped, visibleTaskIds);
     }
 
     public long lockEvents(List<String> eventIds, String batchId) {
@@ -381,40 +396,49 @@ public class DqlEventRepository {
     }
 
     private Criteria buildCriteria(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo) {
-        if (queryVo == null) {
-            return new Criteria();
-        }
+        return buildCriteria(queryVo, null);
+    }
+
+    private Criteria buildCriteria(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo, Collection<String> visibleTaskIds) {
         List<Criteria> criteria = new ArrayList<>();
-        addEquals(criteria, DqlEventDto.FIELD_TASK_ID, queryVo.getTaskId());
-        addRegex(criteria, DqlEventDto.FIELD_TASK_NAME, queryVo.getTaskName());
-        addRegex(criteria, DqlEventDto.FIELD_SOURCE_TABLE, queryVo.getSourceTable());
-        addRegex(criteria, DqlEventDto.FIELD_TARGET_TABLE, queryVo.getTargetTable());
-        addEquals(criteria, DqlEventDto.FIELD_DML_TYPE, queryVo.getDmlType());
-        addEquals(criteria, DqlEventDto.FIELD_ERROR_TYPE, queryVo.getErrorType());
-        addEquals(criteria, DqlEventDto.FIELD_STATUS, queryVo.getStatus());
-        if (queryVo.getStartTime() != null || queryVo.getEndTime() != null) {
-            Criteria failedAt = Criteria.where(DqlEventDto.FIELD_FAILED_AT);
-            if (queryVo.getStartTime() != null) {
-                failedAt.gte(queryVo.getStartTime());
-            }
-            if (queryVo.getEndTime() != null) {
-                failedAt.lte(queryVo.getEndTime());
-            }
-            criteria.add(failedAt);
+        if (visibleTaskIds != null) {
+            Collection<String> scopedTaskIds = visibleTaskIds.isEmpty()
+                    ? List.of("__NO_VISIBLE_TASK__")
+                    : visibleTaskIds;
+            criteria.add(Criteria.where(DqlEventDto.FIELD_TASK_ID).in(scopedTaskIds));
         }
-        if (StringUtils.isNotBlank(queryVo.getKeyword())) {
-            String regex = Pattern.quote(queryVo.getKeyword());
-            criteria.add(new Criteria().orOperator(
-                    Criteria.where(DqlEventDto.FIELD_EVENT_ID).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_TASK_NAME).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_SOURCE_TABLE).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_TARGET_TABLE).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_ERROR_CODE).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_RECORD_IDENTITY).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_ROUTE_DECISION).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_CLASSIFICATION_REASON).regex(regex, "i"),
-                    Criteria.where(DqlEventDto.FIELD_ERROR_DETAILS).regex(regex, "i")
-            ));
+        if (queryVo != null) {
+            addEquals(criteria, DqlEventDto.FIELD_TASK_ID, queryVo.getTaskId());
+            addRegex(criteria, DqlEventDto.FIELD_TASK_NAME, queryVo.getTaskName());
+            addRegex(criteria, DqlEventDto.FIELD_SOURCE_TABLE, queryVo.getSourceTable());
+            addRegex(criteria, DqlEventDto.FIELD_TARGET_TABLE, queryVo.getTargetTable());
+            addEquals(criteria, DqlEventDto.FIELD_DML_TYPE, queryVo.getDmlType());
+            addEquals(criteria, DqlEventDto.FIELD_ERROR_TYPE, queryVo.getErrorType());
+            addEquals(criteria, DqlEventDto.FIELD_STATUS, queryVo.getStatus());
+            if (queryVo.getStartTime() != null || queryVo.getEndTime() != null) {
+                Criteria failedAt = Criteria.where(DqlEventDto.FIELD_FAILED_AT);
+                if (queryVo.getStartTime() != null) {
+                    failedAt.gte(queryVo.getStartTime());
+                }
+                if (queryVo.getEndTime() != null) {
+                    failedAt.lte(queryVo.getEndTime());
+                }
+                criteria.add(failedAt);
+            }
+            if (StringUtils.isNotBlank(queryVo.getKeyword())) {
+                String regex = Pattern.quote(queryVo.getKeyword());
+                criteria.add(new Criteria().orOperator(
+                        Criteria.where(DqlEventDto.FIELD_EVENT_ID).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_TASK_NAME).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_SOURCE_TABLE).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_TARGET_TABLE).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_ERROR_CODE).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_RECORD_IDENTITY).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_ROUTE_DECISION).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_CLASSIFICATION_REASON).regex(regex, "i"),
+                        Criteria.where(DqlEventDto.FIELD_ERROR_DETAILS).regex(regex, "i")
+                ));
+            }
         }
         if (criteria.isEmpty()) {
             return new Criteria();

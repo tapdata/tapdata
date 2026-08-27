@@ -21,6 +21,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -149,8 +150,10 @@ public class DqlEventService {
     }
 
     public Page<DqlEventListVo> page(DqlEventQueryVo query, UserDetail user) {
-        checkQueryPermission(query, user);
-        Page<DqlEventDto> page = eventRepository.page(query);
+        Collection<String> visibleTaskIds = resolveQueryTaskIds(query, user);
+        Page<DqlEventDto> page = permissionService == null
+                ? eventRepository.page(query)
+                : eventRepository.page(query, visibleTaskIds);
         if (page == null) {
             return Page.empty();
         }
@@ -161,11 +164,12 @@ public class DqlEventService {
     }
 
     public DqlEventDetailVo detail(String eventId, UserDetail user) {
+        checkMenuPermission(user);
         DqlEventDto event = eventRepository.findByEventId(eventId);
         if (event == null) {
             throw new BizException("DqlEvent.NotFound", eventId);
         }
-        checkEventPermission(event, user);
+        checkEventTaskPermission(event, user);
         DqlEventDetailVo detail = webMapper.toDetail(event);
         if (StringUtils.isNotBlank(event.getCurrentBatchId()) && batchRepository != null) {
             detail.setCurrentBatch(batchRepository.findByBatchId(event.getCurrentBatchId()));
@@ -175,14 +179,23 @@ public class DqlEventService {
 
     public DqlEventSummaryVo summary(DqlEventQueryVo query, UserDetail user) {
         DqlEventQueryVo summaryQuery = summaryQuery(query);
-        checkQueryPermission(summaryQuery, user);
+        Collection<String> visibleTaskIds = resolveQueryTaskIds(summaryQuery, user);
         DqlEventSummaryVo summary = new DqlEventSummaryVo();
-        summary.setTotal(eventRepository.count(summaryQuery));
-        summary.setPending(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.PENDING));
-        summary.setReprocessing(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.REPROCESSING));
-        summary.setRecovered(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERED));
-        summary.setRecoveryFailed(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERY_FAILED));
-        summary.setNotReprocessable(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.NOT_REPROCESSABLE));
+        if (permissionService == null) {
+            summary.setTotal(eventRepository.count(summaryQuery));
+            summary.setPending(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.PENDING));
+            summary.setReprocessing(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.REPROCESSING));
+            summary.setRecovered(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERED));
+            summary.setRecoveryFailed(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERY_FAILED));
+            summary.setNotReprocessable(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.NOT_REPROCESSABLE));
+        } else {
+            summary.setTotal(eventRepository.count(summaryQuery, visibleTaskIds));
+            summary.setPending(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.PENDING, visibleTaskIds));
+            summary.setReprocessing(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.REPROCESSING, visibleTaskIds));
+            summary.setRecovered(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERED, visibleTaskIds));
+            summary.setRecoveryFailed(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERY_FAILED, visibleTaskIds));
+            summary.setNotReprocessable(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.NOT_REPROCESSABLE, visibleTaskIds));
+        }
         return summary;
     }
 
@@ -220,21 +233,25 @@ public class DqlEventService {
         return result;
     }
 
-    private void checkQueryPermission(DqlEventQueryVo query, UserDetail user) {
+    private Collection<String> resolveQueryTaskIds(DqlEventQueryVo query, UserDetail user) {
         if (permissionService == null) {
-            return;
+            return null;
         }
-        permissionService.checkMenuVisible(user);
-        if (query != null && StringUtils.isNotBlank(query.getTaskId())) {
-            permissionService.checkTaskVisible(query.getTaskId(), user);
-        }
+        Collection<String> taskIds = permissionService.resolveVisibleTaskIds(query, user);
+        return taskIds == null ? List.of() : taskIds;
     }
 
-    private void checkEventPermission(DqlEventDto event, UserDetail user) {
+    private void checkMenuPermission(UserDetail user) {
         if (permissionService == null) {
             return;
         }
         permissionService.checkMenuVisible(user);
+    }
+
+    private void checkEventTaskPermission(DqlEventDto event, UserDetail user) {
+        if (permissionService == null) {
+            return;
+        }
         permissionService.checkTaskVisible(event.getTaskId(), user);
     }
 
