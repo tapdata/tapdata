@@ -63,7 +63,7 @@ public final class FieldTypeUtil {
             }
         }
         List<Path> paths = modulesDto.getPaths();
-        if (CollectionUtils.isEmpty(paths)) {
+        if (CollectionUtils.isNotEmpty(paths)) {
             for (Path path : paths) {
                 List<Field> fieldsInPath = path.getFields();
                 if (CollectionUtils.isNotEmpty(fieldsInPath)) {
