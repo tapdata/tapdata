@@ -42,7 +42,7 @@
 | TTL 生命周期 | 已完成（待集成验证） | 两个集合已增加 `ttl_at`；创建及重处理活动会刷新；`4.22-7.json` 创建 14 天 TTL 索引 | 需要在真实初始化流程中验证索引安装；历史数据是否回填需上线前决策 |
 | 权限 | 部分完成 | 已有 `ExceptionEvents` 菜单权限及权限服务；B10 已落实 View-only 定义和任务范围校验 | 权限资源初始化脚本和端到端验证待补 |
 | 告警 | 部分完成 | 已增加部分 DQL 告警 key，存在 `DqlEventAlarmService` | 告警服务仍需接入真实发送逻辑；Storm Guard 告警、模板和默认设置待补 |
-| Engine 捕获 | 部分完成 | 已建立 Engine 侧 DQL 公共模型、TM Client、I/U/D Payload 往返序列化，以及预览、脱敏和身份生成工具；分类、保护、上报编排和处理节点捕获尚未接入 | 需要继续完成分类、风暴保护、捕获和上报闭环，并与现有任务级重试语义联调 |
+| Engine 捕获 | 部分完成 | 已建立 Engine 侧 DQL 公共模型、TM Client、I/U/D Payload 往返序列化，以及预览、脱敏、身份生成和异常分类工具；分类器尚未接入捕获、风暴保护和上报编排 | 需要继续完成风暴保护、捕获和上报闭环，并与现有任务级重试语义联调 |
 | Engine 重处理 | 未开始 | 未发现 `dqlRecovery` handler、恢复事件、协调器和 source gate 实现 | 需要完整开发运行中及暂停任务两种回放模式 |
 | 集成与 POC | 未开始 | 已有部分 TM 单元测试 | 缺少 Engine、TM/Engine 端到端、故障注入和一致性证明 |
 
@@ -106,7 +106,7 @@
 | C01 | 已完成 | 建立 Engine DQL 公共模型和 TM Client | 在 `iengine-common` 定义分类结果、上报请求/响应、后续成功请求、Payload 快照及错误类型映射；Client 复用现有 HTTP 鉴权、重试和错误映射 | A03、B08 | Engine 可调用 TM Mock 接口并正确处理成功、重复、空响应和输入错误；契约字段与路径测试通过 |
 | C02 | 已完成 | 实现 Payload 序列化 | 在 `iengine-common` 实现 Insert、Update、Delete 的 `TapRecordEvent` 完整快照和 `tap-record-event-json-v1` 往返转换；使用允许列表、class/type 一致性和反序列化二次大小校验保护回放 | A03、A05 | I/U/D 往返序列化测试通过；按 UTF-8 JSON 字节数执行 1 MiB 默认上限，超限快照移除完整 Payload 并标记 `payloadComplete=false` |
 | C03 | 已完成 | 实现预览、脱敏和身份生成工具 | 生成安全 `payloadPreview`、`eventKey`、`payloadHash`、`recordIdentity` 和 `eventIdentity` | C02 | 主键、唯一索引、全字段 hash 和未知身份四类测试通过；敏感字段不出现在预览 |
-| C04 | 未开始 | 实现 `DlqExceptionClassifier` | 按异常链、错误码、节点、阶段、事件和任务上下文输出 scope、decision、errorType、reason 和 confidence | A04、C01 | 分类规则表中的每条规则至少有一个测试；未知错误不直接默认为记录级 |
+| C04 | 已完成 | 实现 `DlqExceptionClassifier` | 按异常链、错误码、节点、阶段、事件和任务上下文输出 scope、decision、errorType、reason 和 confidence；当前仅提供纯分类工具，不接入捕获链路 | A04、C01 | 分类规则表中的每条规则至少有一个测试；未知错误不直接默认为记录级 |
 | C05 | 未开始 | 实现 `DlqStormGuard` | 按任务、节点、表、错误码和归一化消息建立窗口计数，支持数量及批次比例阈值 | A05、C04 | 阈值内允许有限未知单记录入库；触发后停止继续写 DQL 并返回任务级路由 |
 | C06 | 未开始 | 实现 `DqlEventReporter` | 封装 TM 上报、超时、重试边界和结果处理；上报失败必须转任务错误路径 | C01-C05、B08 | TM 不可用或返回错误时当前记录不被 skip；重复响应视为上报成功 |
 | C07 | 未开始 | 改造目标写入异常捕获 | 在批量拆单前做共享异常分类，单条失败后再次分类；只有 `RECORD_DLQ` 才上报并 skip | C04-C06 | 目标约束错误进入 DQL；网络/连接异常不拆成大量 DQL，仍进入 `TaskRetryService` |

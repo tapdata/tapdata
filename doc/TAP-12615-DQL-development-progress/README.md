@@ -39,6 +39,7 @@
 | C01 | 已完成 | `steps/C01-engine-dql-model-and-tm-client.md` |
 | C02 | 已完成 | `steps/C02-engine-payload-serialization.md` |
 | C03 | 已完成 | `steps/C03-engine-preview-and-identity.md` |
+| C04 | 已完成 | `steps/C04-engine-exception-classifier.md` |
 
 ## 回归记录
 
