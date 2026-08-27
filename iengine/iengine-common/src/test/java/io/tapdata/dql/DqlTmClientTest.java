@@ -14,6 +14,7 @@ import io.tapdata.dql.model.DqlExceptionScope;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
+import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlRouteDecision;
 import io.tapdata.exception.ManagementException;
 import org.junit.jupiter.api.DisplayName;
@@ -102,6 +103,22 @@ class DqlTmClientTest {
         assertEquals("tap-record-event-json-v1", operator.calls.get(0).payload().get("payloadFormat"));
         assertFalse(operator.calls.get(0).payload().containsKey("payload"));
         assertEquals("task/task-1/dql-events/record-success/report", operator.calls.get(1).resource());
+    }
+
+    @Test
+    @DisplayName("recovery callbacks use the dedicated TM endpoint and keep the batch contract")
+    void recoveryReportUsesContractPath() {
+        RecordingMongoOperator operator = new RecordingMongoOperator();
+        DqlTmClient client = new DqlTmClient(operator);
+        operator.respond("task/task-1/dql-events/recovery/report", Boolean.TRUE);
+
+        Boolean acknowledged = client.reportRecovery(TASK_ID, DqlRecoveryReport.batchStarted("batch-1", 100L));
+
+        assertTrue(acknowledged);
+        assertEquals("task/task-1/dql-events/recovery/report", operator.calls.get(0).resource());
+        assertEquals("batch-1", operator.calls.get(0).payload().get("batchId"));
+        assertEquals("BATCH_STARTED", operator.calls.get(0).payload().get("type"));
+        assertEquals(100L, operator.calls.get(0).payload().get("startedAt"));
     }
 
     @Test

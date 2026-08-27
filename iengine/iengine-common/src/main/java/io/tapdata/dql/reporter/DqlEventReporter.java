@@ -5,6 +5,7 @@ import io.tapdata.dql.model.DqlEventReport;
 import io.tapdata.dql.model.DqlEventReportResult;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
+import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlRouteDecision;
 import org.apache.commons.lang3.StringUtils;
 
@@ -50,6 +51,31 @@ public class DqlEventReporter {
                 throw new DqlEventReportException(taskId, "TM acknowledgement was empty");
             }
             return result;
+        } catch (DqlEventReportException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new DqlEventReportException(taskId, exception);
+        }
+    }
+
+    /**
+     * Reports recovery lifecycle progress to TM. Recovery callbacks have a
+     * separate state machine from capture reports, so they use a dedicated
+     * request model and acknowledgement validation.
+     */
+    public Boolean reportRecovery(String taskId, DqlRecoveryReport report) {
+        if (StringUtils.isBlank(taskId)) {
+            throw new IllegalArgumentException("taskId must not be blank");
+        }
+        if (report == null) {
+            throw new IllegalArgumentException("report must not be null");
+        }
+        try {
+            Boolean acknowledged = tmClient.reportRecovery(taskId, report);
+            if (!Boolean.TRUE.equals(acknowledged)) {
+                throw new DqlEventReportException(taskId, "TM recovery acknowledgement was not successful");
+            }
+            return acknowledged;
         } catch (DqlEventReportException exception) {
             throw exception;
         } catch (RuntimeException exception) {

@@ -1439,6 +1439,8 @@ TM 下发 `MessageQueueDto`：
 
 TM 使用 `tm-common` 中独立的 `DqlRecoveryMessageDto` 生成上述 `data`，固定 `type=dqlRecovery`、`mode=AUTO`，携带 `taskVersion`、`orderedEventIds`、`operatorId` 和 `operatorName`。`orderedEventIds` 是 D02 固化的唯一可信顺序；消息不使用 `eventIds`，也不扩展 `DataSyncMq.opType`。
 
+E01 在 Engine 侧将 pipe Map 解析为该 DTO，并拒绝类型、任务标识、版本、事件列表、模式不合法的消息。Handler 初始化时校验本机 Agent 与 TM 中任务的版本和 Agent 归属；WebSocket 框架虽然按消息反射创建 Handler，但批次 claim 使用进程级并发注册表，确保重复消息不会因 Handler 实例重建而再次启动协调器。批次成功启动后发送 `BATCH_STARTED`；协调器启动前失败允许 TM 重试，协调器已接收但回调失败时保留 claim，避免重复启动，后续由回调幂等和超时补偿收敛。
+
 发起顺序为：事件全部锁定后先将批次更新为 `DISPATCHED`，再调用 `MessageQueueService.sendPipeMessage` 发送到批次记录中的 `agentId`。批次状态更新或消息发送失败时，沿用 D04 的事件原始状态补偿和任务锁释放语义。
 
 `mode` 由 Engine 根据任务运行态确认实际执行方式：

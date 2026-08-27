@@ -64,6 +64,21 @@
 | D09 | 已完成 | `steps/D09-recovery-batch-detail-and-audit.md` |
 | D10 | 已完成 | `steps/D10-tm-recovery-regression.md` |
 
+### 阶段 E：Engine 重处理执行
+
+| 步骤 | 状态 | 总结文档 |
+| --- | --- | --- |
+| E01 | 已完成 | `steps/E01-recovery-message-handler.md` |
+| E02 | 未开始 | 待生成 |
+| E03 | 未开始 | 待生成 |
+| E04 | 未开始 | 待生成 |
+| E05 | 未开始 | 待生成 |
+| E06 | 未开始 | 待生成 |
+| E07 | 未开始 | 待生成 |
+| E08 | 未开始 | 待生成 |
+| E09 | 未开始 | 待生成 |
+| E10 | 未开始 | 待生成 |
+
 ## 回归记录
 
 | 日期 | 范围 | 记录文档 |
@@ -78,6 +93,6 @@
 | M1 TM 基础能力 | 已完成 | `milestones/M1-tm-foundation.md` |
 | M2 Engine 捕获闭环 | 未开始 | 待生成 |
 | M3 TM 批次控制 | 已完成（待集成验证） | `milestones/M3-tm-recovery-batch-control.md` |
-| M4 Engine 回放闭环 | 未开始 | 待生成 |
+| M4 Engine 回放闭环 | 部分完成 | 待生成 |
 | M5 告警与初始化 | 未开始 | 待生成 |
 | M6 POC 验收 | 未开始 | 待生成 |

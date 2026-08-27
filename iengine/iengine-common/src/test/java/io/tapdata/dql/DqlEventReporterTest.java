@@ -8,6 +8,7 @@ import io.tapdata.dql.model.DqlEventReport;
 import io.tapdata.dql.model.DqlEventReportResult;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
+import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlRouteDecision;
 import io.tapdata.dql.reporter.DqlEventReportException;
 import io.tapdata.dql.reporter.DqlEventReporter;
@@ -54,6 +55,18 @@ class DqlEventReporterTest {
 
         assertSame(expected, actual);
         assertEquals(1, client.successReportCalls);
+    }
+
+    @Test
+    @DisplayName("recovery reporter requires a successful TM acknowledgement")
+    void reportsRecovery() {
+        RecordingDqlTmClient client = new RecordingDqlTmClient(Boolean.TRUE);
+        DqlEventReporter reporter = new DqlEventReporter(client);
+
+        Boolean acknowledged = reporter.reportRecovery(TASK_ID, DqlRecoveryReport.batchStarted("batch-1", 100L));
+
+        assertTrue(acknowledged);
+        assertEquals(1, client.recoveryReportCalls);
     }
 
     @Test
@@ -141,14 +154,17 @@ class DqlEventReporterTest {
     private static class RecordingDqlTmClient extends DqlTmClient {
         private final DqlEventReportResult response;
         private final DqlRecordSuccessReportResult successResponse;
+        private final Boolean recoveryResponse;
         private final RuntimeException failure;
         private int reportCalls;
         private int successReportCalls;
+        private int recoveryReportCalls;
 
         private RecordingDqlTmClient(DqlEventReportResult response) {
             super(new NoopMongoOperator());
             this.response = response;
             this.successResponse = null;
+            this.recoveryResponse = null;
             this.failure = null;
         }
 
@@ -156,6 +172,15 @@ class DqlEventReporterTest {
             super(new NoopMongoOperator());
             this.response = null;
             this.successResponse = response;
+            this.recoveryResponse = null;
+            this.failure = null;
+        }
+
+        private RecordingDqlTmClient(Boolean response) {
+            super(new NoopMongoOperator());
+            this.response = null;
+            this.successResponse = null;
+            this.recoveryResponse = response;
             this.failure = null;
         }
 
@@ -163,6 +188,7 @@ class DqlEventReporterTest {
             super(new NoopMongoOperator());
             this.response = null;
             this.successResponse = null;
+            this.recoveryResponse = null;
             this.failure = failure;
         }
 
@@ -182,6 +208,15 @@ class DqlEventReporterTest {
                 throw failure;
             }
             return successResponse;
+        }
+
+        @Override
+        public Boolean reportRecovery(String taskId, DqlRecoveryReport report) {
+            recoveryReportCalls++;
+            if (failure != null) {
+                throw failure;
+            }
+            return recoveryResponse;
         }
     }
 
