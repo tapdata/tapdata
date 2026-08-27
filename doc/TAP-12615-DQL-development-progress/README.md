@@ -61,7 +61,7 @@
 | D06 | 已完成 | `steps/D06-recovery-callback-state-machine.md` |
 | D07 | 已完成 | `steps/D07-recovery-callback-idempotency.md` |
 | D08 | 已完成 | `steps/D08-recovery-batch-timeout.md` |
-| D09 | 部分完成 | 待补充 |
+| D09 | 已完成 | `steps/D09-recovery-batch-detail-and-audit.md` |
 | D10 | 部分完成 | 待补充 |
 
 ## 回归记录

@@ -38,6 +38,7 @@ public class DqlRecoveryMessageDto implements Serializable {
         message.setOrderedEventIds(batch.getOrderedEventIds());
         message.setOperatorId(batch.getOperatorId());
         message.setOperatorName(batch.getOperatorName());
+        message.setMode(Objects.requireNonNullElse(batch.getMode(), MODE_AUTO));
         return message;
     }
 

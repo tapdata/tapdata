@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
 import java.util.List;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 
 @Data
 @Document("dql_recovery_batches")
@@ -22,6 +23,8 @@ public class DqlRecoveryBatchEntity extends Entity {
     private String taskName;
     @Field(DqlRecoveryBatchDto.FIELD_TASK_STATUS_BEFORE)
     private String taskStatusBefore;
+    @Field(DqlRecoveryBatchDto.FIELD_TASK_STATUS_AFTER)
+    private String taskStatusAfter;
     @Field(DqlRecoveryBatchDto.FIELD_TASK_VERSION)
     private Long taskVersion;
     @Field(DqlRecoveryBatchDto.FIELD_AGENT_ID)
@@ -34,6 +37,22 @@ public class DqlRecoveryBatchEntity extends Entity {
     private String operatorId;
     @Field(DqlRecoveryBatchDto.FIELD_OPERATOR_NAME)
     private String operatorName;
+    @Field(DqlRecoveryBatchDto.FIELD_MODE)
+    private String mode;
+    @Field(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_RESULT)
+    private String sourceReadPauseResult;
+    @Field(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_MESSAGE)
+    private String sourceReadPauseMessage;
+    @Field(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_AT)
+    private Date sourceReadPauseAt;
+    @Field(DqlRecoveryBatchDto.FIELD_SOURCE_READ_RESUME_RESULT)
+    private String sourceReadResumeResult;
+    @Field(DqlRecoveryBatchDto.FIELD_SOURCE_READ_RESUME_MESSAGE)
+    private String sourceReadResumeMessage;
+    @Field(DqlRecoveryBatchDto.FIELD_SOURCE_READ_RESUME_AT)
+    private Date sourceReadResumeAt;
+    @Field(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES)
+    private List<DqlRecoveryAuditEntryDto> auditEntries;
     private String status;
     @Field(DqlRecoveryBatchDto.FIELD_SELECTED_COUNT)
     private Integer selectedCount;

@@ -9,6 +9,7 @@ import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.DqlRecoveryReportTypeEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -44,6 +45,16 @@ public class DqlRecoveryBatchService {
     private static final int DEFAULT_BATCH_MAX_SIZE = 200;
     private static final long DEFAULT_BATCH_TIMEOUT_MILLIS = 30 * 60 * 1000L;
     private static final String RECOVERY_BATCH_TIMEOUT_MESSAGE = "Recovery batch timed out";
+    private static final String AUDIT_BATCH_CREATED = "BATCH_CREATED";
+    private static final String AUDIT_BATCH_DISPATCHED = "BATCH_DISPATCHED";
+    private static final String AUDIT_BATCH_STARTED = "BATCH_STARTED";
+    private static final String AUDIT_EVENT_STARTED = "EVENT_STARTED";
+    private static final String AUDIT_EVENT_RESULT = "EVENT_RESULT";
+    private static final String AUDIT_BATCH_FINISHED = "BATCH_FINISHED";
+    private static final String AUDIT_BATCH_FAILED = "BATCH_FAILED";
+    private static final String AUDIT_BATCH_TIMEOUT = "BATCH_TIMEOUT";
+    private static final String AUDIT_SOURCE_READ_PAUSE = "SOURCE_READ_PAUSE";
+    private static final String AUDIT_SOURCE_READ_RESUME = "SOURCE_READ_RESUME";
     private static final String[] TASK_FIELDS = {"name", "status", "version", "agentId"};
 
     private final DqlEventRepository eventRepository;
@@ -169,6 +180,7 @@ public class DqlRecoveryBatchService {
         if (!Boolean.TRUE.equals(request.getConfirm())) {
             throw new BizException("IllegalArgument", "confirm");
         }
+        String mode = requireMode(request.getMode());
         DqlRecoveryPreviewVo preview = preview(request, user, false);
         if (!preview.isCanSubmit()) {
             throw new BizException("DqlRecovery.EventNotReprocessable", preview.getMessage());
@@ -188,6 +200,7 @@ public class DqlRecoveryBatchService {
         batch.setTaskId(preview.getTaskId());
         batch.setTaskName(preview.getTaskName());
         batch.setTaskStatusBefore(taskContext == null ? null : taskContext.task().getStatus());
+        batch.setTaskStatusAfter(batch.getTaskStatusBefore());
         batch.setTaskVersion(taskContext == null
                 ? (events.isEmpty() ? null : events.get(0).getTaskVersion())
                 : taskContext.task().getVersion());
@@ -198,11 +211,20 @@ public class DqlRecoveryBatchService {
         batch.setOrderedEventIds(orderedEventIds);
         batch.setOperatorId(user == null ? null : user.getUserId());
         batch.setOperatorName(user == null ? null : user.getUsername());
+        batch.setMode(mode);
         batch.setStatus(DqlRecoveryBatchStatusEnum.CREATED.name());
         batch.setSelectedCount(orderedEventIds.size());
         batch.setSuccessCount(0);
         batch.setFailedCount(0);
         batch.setSkippedCount(0);
+        batch.setAuditEntries(new ArrayList<>(List.of(auditEntry(
+                AUDIT_BATCH_CREATED,
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                null,
+                null,
+                null,
+                batch.getOperatorId(),
+                batch.getOperatorName()))));
         try {
             batch = batchRepository.create(batch);
             if (batch == null || StringUtils.isBlank(batch.getBatchId())) {
@@ -220,6 +242,7 @@ public class DqlRecoveryBatchService {
             try {
                 eventRepository.releaseBatchLocks(batch.getBatchId(), originalEventStatuses);
                 batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.CANCELED, e.getMessage());
+                appendAudit(batch, DqlRecoveryBatchStatusEnum.CANCELED.name(), AUDIT_BATCH_FAILED, null, null, e.getMessage());
             } finally {
                 releaseTaskLock(preview.getTaskId(), batchId);
             }
@@ -229,6 +252,8 @@ public class DqlRecoveryBatchService {
             try {
                 eventRepository.releaseBatchLocks(batch.getBatchId(), originalEventStatuses);
                 batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.CANCELED, "Failed to lock selected events");
+                appendAudit(batch, DqlRecoveryBatchStatusEnum.CANCELED.name(), AUDIT_BATCH_FAILED,
+                        null, null, "Failed to lock selected events");
             } finally {
                 releaseTaskLock(preview.getTaskId(), batchId);
             }
@@ -238,11 +263,15 @@ public class DqlRecoveryBatchService {
             batchRepository.updateStatus(batch.getBatchId(), DqlRecoveryBatchStatusEnum.DISPATCHED, null);
             batch.setStatus(DqlRecoveryBatchStatusEnum.DISPATCHED.name());
             dispatch(batch);
+            appendAudit(batch, DqlRecoveryBatchStatusEnum.DISPATCHED.name(), AUDIT_BATCH_DISPATCHED,
+                    null, null, null);
             return batch;
         } catch (RuntimeException e) {
             try {
                 eventRepository.releaseBatchLocks(batch.getBatchId(), originalEventStatuses);
                 batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.FAILED, e.getMessage());
+                appendAudit(batch, DqlRecoveryBatchStatusEnum.FAILED.name(), AUDIT_BATCH_FAILED,
+                        null, null, e.getMessage());
             } finally {
                 releaseTaskLock(preview.getTaskId(), batchId);
             }
@@ -301,6 +330,8 @@ public class DqlRecoveryBatchService {
             DqlRecoveryBatchStatusEnum timeoutStatus = timeoutStatus(latest);
             if (batchRepository.finishTimedOut(
                     latest.getBatchId(), timeoutStatus, RECOVERY_BATCH_TIMEOUT_MESSAGE)) {
+                appendAudit(latest, timeoutStatus.name(), AUDIT_BATCH_TIMEOUT,
+                        null, null, RECOVERY_BATCH_TIMEOUT_MESSAGE);
                 alarmService.notifyRecoveryFailed(latest);
                 releaseTaskLock(latest);
                 finalized++;
@@ -318,7 +349,37 @@ public class DqlRecoveryBatchService {
         if (permissionService != null) {
             permissionService.checkTaskVisible(batch.getTaskId(), user);
         }
+        normalizeDetail(batch);
         return batch;
+    }
+
+    /**
+     * Records a source-read gate result for a batch. The result is written to
+     * the detail fields and its audit entry in one repository update so the
+     * detail API never exposes a gate result without the corresponding trace.
+     */
+    public void recordSourceReadResult(String batchId,
+                                       boolean pause,
+                                       String result,
+                                       String message,
+                                       Long occurredAt) {
+        if (StringUtils.isBlank(batchId)) {
+            throw new BizException("IllegalArgument", "batchId");
+        }
+        if (StringUtils.isBlank(result)) {
+            throw new BizException("IllegalArgument", "result");
+        }
+        Date at = occurredAt == null ? new Date() : new Date(occurredAt);
+        DqlRecoveryAuditEntryDto entry = auditEntry(
+                pause ? AUDIT_SOURCE_READ_PAUSE : AUDIT_SOURCE_READ_RESUME,
+                result,
+                null,
+                null,
+                message,
+                null,
+                null);
+        entry.setOccurredAt(at);
+        batchRepository.recordSourceReadResult(batchId, pause, result, message, at, entry);
     }
 
     private void checkMenuPermission(UserDetail user) {
@@ -343,6 +404,8 @@ public class DqlRecoveryBatchService {
                     report.getEventId(), batch.getBatchId(), attempt);
             if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
                 batchRepository.increaseSuccess(batch.getBatchId());
+                appendAudit(batch, result.name(), AUDIT_EVENT_RESULT,
+                        report.getEventId(), report.getAttemptId(), report.getMessage());
             } else if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
                 throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
             } else if (transition == DqlRecoveryCallbackResultEnum.NOT_IN_BATCH) {
@@ -353,6 +416,8 @@ public class DqlRecoveryBatchService {
                     report.getEventId(), batch.getBatchId(), attempt);
             if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
                 batchRepository.increaseSkipped(batch.getBatchId());
+                appendAudit(batch, result.name(), AUDIT_EVENT_RESULT,
+                        report.getEventId(), report.getAttemptId(), report.getMessage());
             } else if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
                 throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
             } else if (transition == DqlRecoveryCallbackResultEnum.NOT_IN_BATCH) {
@@ -363,6 +428,8 @@ public class DqlRecoveryBatchService {
                     report.getEventId(), batch.getBatchId(), attempt);
             if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
                 batchRepository.increaseFailed(batch.getBatchId());
+                appendAudit(batch, result.name(), AUDIT_EVENT_RESULT,
+                        report.getEventId(), report.getAttemptId(), report.getMessage());
                 alarmService.notifyRecoveryFailed(batch);
             } else if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
                 throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
@@ -392,6 +459,8 @@ public class DqlRecoveryBatchService {
                     ? DqlRecoveryBatchStatusEnum.SUCCESS
                     : DqlRecoveryBatchStatusEnum.PARTIAL_FAILED;
             batchRepository.finish(batch.getBatchId(), status, report.getMessage());
+            appendAudit(batch, status.name(), AUDIT_BATCH_FINISHED,
+                    null, null, report.getMessage());
             if (selected > 0 && status == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
                 alarmService.notifyBatchPartialFailed(batch);
             }
@@ -409,6 +478,8 @@ public class DqlRecoveryBatchService {
         try {
             eventRepository.releaseBatchLocks(batch.getBatchId(), DqlEventStatusEnum.RECOVERY_FAILED);
             batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.FAILED, message);
+            appendAudit(batch, DqlRecoveryBatchStatusEnum.FAILED.name(), AUDIT_BATCH_FAILED,
+                    null, null, message);
             alarmService.notifyRecoveryFailed(batch);
         } finally {
             releaseTaskLock(batch);
@@ -422,6 +493,8 @@ public class DqlRecoveryBatchService {
         }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.DISPATCHED);
         batchRepository.markRunning(batch.getBatchId());
+        appendAudit(batch, DqlRecoveryBatchStatusEnum.RUNNING.name(), AUDIT_BATCH_STARTED,
+                null, null, null);
     }
 
     private void handleEventStarted(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {
@@ -437,6 +510,10 @@ public class DqlRecoveryBatchService {
         }
         if (transition == DqlRecoveryCallbackResultEnum.CONFLICT) {
             throw new BizException("DqlRecovery.AttemptConflict", report.getAttemptId());
+        }
+        if (transition == DqlRecoveryCallbackResultEnum.APPLIED) {
+            appendAudit(batch, DqlRecoveryAttemptResultEnum.RUNNING.name(), AUDIT_EVENT_STARTED,
+                    report.getEventId(), report.getAttemptId(), report.getMessage());
         }
     }
 
@@ -579,6 +656,66 @@ public class DqlRecoveryBatchService {
 
     private boolean strictRecoveryValidation() {
         return taskService != null;
+    }
+
+    private String requireMode(String mode) {
+        if (StringUtils.isBlank(mode)) {
+            return DqlRecoveryMessageDto.MODE_AUTO;
+        }
+        if (!StringUtils.equals(DqlRecoveryMessageDto.MODE_AUTO, mode)) {
+            throw new BizException("IllegalArgument", "mode");
+        }
+        return mode;
+    }
+
+    private void normalizeDetail(DqlRecoveryBatchDto batch) {
+        if (StringUtils.isBlank(batch.getMode())) {
+            batch.setMode(DqlRecoveryMessageDto.MODE_AUTO);
+        }
+        if (batch.getTaskStatusAfter() == null) {
+            batch.setTaskStatusAfter(batch.getTaskStatusBefore());
+        }
+        if (batch.getAuditEntries() == null) {
+            batch.setAuditEntries(new ArrayList<>());
+        }
+    }
+
+    private void appendAudit(DqlRecoveryBatchDto batch,
+                             String status,
+                             String type,
+                             String eventId,
+                             String attemptId,
+                             String message) {
+        if (batch == null || StringUtils.isBlank(batch.getBatchId())) {
+            return;
+        }
+        batchRepository.appendAudit(batch.getBatchId(), auditEntry(
+                type,
+                status,
+                eventId,
+                attemptId,
+                message,
+                batch.getOperatorId(),
+                batch.getOperatorName()));
+    }
+
+    private DqlRecoveryAuditEntryDto auditEntry(String type,
+                                                String status,
+                                                String eventId,
+                                                String attemptId,
+                                                String message,
+                                                String operatorId,
+                                                String operatorName) {
+        DqlRecoveryAuditEntryDto entry = new DqlRecoveryAuditEntryDto();
+        entry.setType(type);
+        entry.setStatus(status);
+        entry.setEventId(eventId);
+        entry.setAttemptId(attemptId);
+        entry.setMessage(message);
+        entry.setOccurredAt(new Date());
+        entry.setOperatorId(operatorId);
+        entry.setOperatorName(operatorName);
+        return entry;
     }
 
     private RecoveryTaskContext loadTaskContext(String taskId) {

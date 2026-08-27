@@ -34,4 +34,12 @@ class DqlRecoveryMessageDtoTest {
         assertFalse(payload.containsKey("eventIds"));
         assertFalse(payload.containsKey("opType"));
     }
+
+    @Test
+    void preservesBatchModeWhenBuildingRecoveryMessage() {
+        DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+        batch.setMode("AUTO-CHECKED");
+
+        assertEquals("AUTO-CHECKED", DqlRecoveryMessageDto.fromBatch(batch).getMode());
+    }
 }

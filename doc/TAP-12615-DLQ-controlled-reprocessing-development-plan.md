@@ -128,7 +128,7 @@
 | D06 | 已完成 | 完成 Engine 结果回调状态机 | 已处理 BATCH_STARTED、EVENT_STARTED、EVENT_RESULT、BATCH_FINISHED、BATCH_FAILED；校验任务、批次、事件归属和当前批次锁；EVENT_STARTED 追加 RUNNING attempt，终态回调按结果迁移事件并刷新摘要 | A02、D05 | 回调只能推进合法状态；事件 attempt、摘要和批次计数保持一致；完成前强制满足 `selected=success+failed+skipped` |
 | D07 | 已完成 | 实现结果回调幂等 | 已使用 `attemptId + batchId + eventId` 进行事件回调条件更新和重复识别；批次重复回调按当前状态幂等返回 | D06 | 同一回调重复发送不会重复增加 `recovery_count`、success/failed/skipped count，也不会重复追加 attempt 或告警 |
 | D08 | 已完成 | 实现批次超时扫描 | 已由带 ShedLock 的 TM 定时任务扫描超时 `DISPATCHED/RUNNING` 批次；为仍为 `REPROCESSING` 的事件追加稳定 `TIMEOUT` attempt，汇总终态并释放锁 | D03、D06、D07 | 超时后不存在永久 `REPROCESSING` 事件或永久任务锁；产生失败告警；重复扫描不重复追加超时 attempt |
-| D09 | 部分完成 | 完成批次详情和审计 | 返回操作人、模式、任务前后状态、源读取暂停/恢复结果、计数、时间和消息 | D06-D08 | 批次详情 API 可完整表达进度且操作人和结果可追溯；该接口作为可选运维诊断能力，不阻塞当前 Web 联调 |
+| D09 | 已完成 | 完成批次详情和审计 | 返回操作人、模式、任务前后状态、源读取暂停/恢复结果、计数、时间和消息 | D06-D08 | 批次详情 API 可完整表达进度且操作人和结果可追溯；该接口作为可选运维诊断能力，不阻塞当前 Web 联调 |
 | D10 | 部分完成 | 补齐 TM 重处理测试 | 覆盖并发发起、锁冲突、下发失败、重复回调、部分失败、批次失败和超时恢复 | D01-D09 | 事件数量满足 `selected=success+failed+skipped`，所有终态释放任务锁 |
 
 ### 6.5 阶段 E：Engine 重处理执行

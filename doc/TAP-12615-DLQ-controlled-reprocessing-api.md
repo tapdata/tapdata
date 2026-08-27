@@ -149,6 +149,10 @@
 
 提交接口仍须执行与预览相同的校验，以应对预览后状态变化。成功时返回完整 `DqlRecoveryBatch`。Payload 必须保持不变，重处理使用当前已发布任务配置。
 
+`POST /api/dql-events/recovery` 请求可选携带 `mode`，当前支持值为 `AUTO`，省略时服务端按 `AUTO` 处理。批次创建后该值不可变，并在 `GET /api/dql-events/recovery-batches/{batchId}` 与 Engine `dqlRecovery` 消息中保持一致。
+
+批次诊断响应除批次状态、计数、开始/完成时间和最终消息外，还返回 `operatorId`、`operatorName`、`mode`、`taskStatusBefore`、`taskStatusAfter`、source read gate 的暂停/恢复结果及 `auditEntries`。`auditEntries` 用于追溯批次创建、派发、Engine 回调、单事件结果、超时和 source gate 结果；当前 Web UI 不依赖该接口。
+
 ## 5\.3 批次查询接口
 
 当前 Web UI 不调用此接口或展示独立批次抽屉。若服务端保留该接口，可供运维诊断使用；页面进度以 GET /api/dql\-events/\{eventId\} 返回的 recoveryAttempts 为准。

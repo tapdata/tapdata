@@ -516,6 +516,8 @@ public class DqlRecoveryBatchEntity extends Entity {
   private String taskName;
   @Field("task_status_before")
   private String taskStatusBefore;
+  @Field("task_status_after")
+  private String taskStatusAfter;
   @Field("task_version")
   private Long taskVersion;
   @Field("agent_id")
@@ -528,6 +530,22 @@ public class DqlRecoveryBatchEntity extends Entity {
   private String operatorId;
   @Field("operator_name")
   private String operatorName;
+  @Field("mode")
+  private String mode;
+  @Field("source_read_pause_result")
+  private String sourceReadPauseResult;
+  @Field("source_read_pause_message")
+  private String sourceReadPauseMessage;
+  @Field("source_read_pause_at")
+  private Date sourceReadPauseAt;
+  @Field("source_read_resume_result")
+  private String sourceReadResumeResult;
+  @Field("source_read_resume_message")
+  private String sourceReadResumeMessage;
+  @Field("source_read_resume_at")
+  private Date sourceReadResumeAt;
+  @Field("audit_entries")
+  private List<DqlRecoveryAuditEntryDto> auditEntries;
   private String status;
   @Field("selected_count")
   private Integer selectedCount;
@@ -550,6 +568,13 @@ public class DqlRecoveryBatchEntity extends Entity {
 ```
 
 `ttl_at` 新建时等于 `created`。批次进入 `DISPATCHED`、`RUNNING`，处理结果计数变化，以及进入 `SUCCESS`、`PARTIAL_FAILED`、`FAILED`、`CANCELED` 等终态时，与 `updated` 使用同一个时间值刷新。
+
+批次详情还必须保留以下审计契约：
+
+- `mode` 当前默认为 `AUTO`，由批次创建时固化，并由 `dqlRecovery` 消息原样下发；未知模式拒绝提交。
+- `taskStatusBefore` 和 `taskStatusAfter` 表示恢复前后的任务业务状态。运行中任务的 source gate 只暂停源读取，不改变任务业务状态，因此正常完成时两者应保持一致；暂停任务也必须保持暂停。
+- `sourceReadPauseResult`、`sourceReadPauseMessage`、`sourceReadPauseAt` 和对应的 resume 字段记录 source gate 的暂停/恢复结果。结果字段允许 Engine 使用明确的成功或失败字符串，消息用于安全的运维诊断。
+- `auditEntries` 按发生时间追加，至少覆盖批次创建、派发、开始、事件开始、事件结果、批次完成/失败/超时，以及 source gate 暂停/恢复。事件条目包含 `eventId`、`attemptId`、结果、消息和操作人；这些字段只用于批次诊断，不替代事件详情中的 recovery attempts。
 
 ### 6.6 索引
 
@@ -1027,11 +1052,46 @@ POST /api/dql-events/recovery
   "skippedCount": 0,
   "eventIds": ["DQL-12615-000001", "DQL-12615-000002"],
   "orderedEventIds": ["DQL-12615-000001", "DQL-12615-000002"],
+  "operatorId": "user-1",
+  "operatorName": "admin",
+  "mode": "AUTO",
+  "taskStatusBefore": "RUNNING",
+  "taskStatusAfter": "RUNNING",
+  "sourceReadPauseResult": null,
+  "sourceReadPauseMessage": null,
+  "sourceReadPauseAt": null,
+  "sourceReadResumeResult": null,
+  "sourceReadResumeMessage": null,
+  "sourceReadResumeAt": null,
   "startedAt": "2026-08-27T07:21:00.000Z",
   "finishedAt": null,
-  "message": null
+  "message": null,
+  "auditEntries": [
+    {
+      "type": "BATCH_CREATED",
+      "status": "CREATED",
+      "eventId": null,
+      "attemptId": null,
+      "message": null,
+      "occurredAt": "2026-08-27T07:21:00.000Z",
+      "operatorId": "user-1",
+      "operatorName": "admin"
+    }
+  ]
 }
 ```
+
+### 7.8.1 批次详情 API（可选运维诊断）
+
+```http
+GET /api/dql-events/recovery-batches/{batchId}
+```
+
+该接口沿用批次详情 DTO，返回批次标识、任务和 Agent 上下文、操作人、`mode`、任务前后状态、事件 ID 顺序、状态、计数、开始/完成时间、最终消息、source gate 结果和 `auditEntries`。接口仍要求异常事件菜单可见及批次所属任务可见；不存在的批次返回 `DqlRecovery.BatchNotFound`。该接口供运维诊断和联调使用，当前 Web UI 不依赖它。
+
+详情读取需要兼容 D09 之前创建的历史批次：缺失 `mode` 时返回 `AUTO`，缺失 `taskStatusAfter` 时按 `taskStatusBefore` 补齐，缺失 `auditEntries` 时返回空数组。补齐仅发生在响应映射，不回写历史文档。
+
+TM 在批次创建和每次合法状态/事件推进后追加审计记录；source gate 通过内部 Service 记录暂停/恢复结果时，结果字段和对应审计记录必须在同一 Mongo 更新中写入。审计更新也刷新批次 `updated` 与 `ttl_at`，从而不会让正在运行且仍有进展的批次被超时扫描误判。
 
 Web 必须使用 preview 返回的 `orderedEvents` 生成请求 `eventIds`。提交成功后只刷新列表和汇总，不打开批次抽屉；运行结果通过事件详情 `recoveryAttempts` 查看。
 

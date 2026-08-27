@@ -3,6 +3,8 @@ package com.tapdata.tm.dql.repository;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.entity.DqlRecoveryBatchEntity;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -17,6 +19,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -67,6 +70,8 @@ public class DqlRecoveryBatchRepository {
         dto.setUpdated(now);
         dto.setTtlAt(dto.getCreated());
         dto.setStatus(Optional.ofNullable(dto.getStatus()).orElse(DqlRecoveryBatchStatusEnum.CREATED.name()));
+        dto.setMode(Optional.ofNullable(dto.getMode()).orElse(DqlRecoveryMessageDto.MODE_AUTO));
+        dto.setAuditEntries(Optional.ofNullable(dto.getAuditEntries()).orElseGet(ArrayList::new));
         dto.setSelectedCount(Optional.ofNullable(dto.getSelectedCount()).orElse(0));
         dto.setSuccessCount(Optional.ofNullable(dto.getSuccessCount()).orElse(0));
         dto.setFailedCount(Optional.ofNullable(dto.getFailedCount()).orElse(0));
@@ -167,6 +172,44 @@ public class DqlRecoveryBatchRepository {
 
     public void increaseSkipped(String batchId) {
         increase(batchId, DqlRecoveryBatchDto.FIELD_SKIPPED_COUNT);
+    }
+
+    public void appendAudit(String batchId, DqlRecoveryAuditEntryDto entry) {
+        if (entry == null) {
+            return;
+        }
+        Date now = Optional.ofNullable(entry.getOccurredAt()).orElseGet(Date::new);
+        entry.setOccurredAt(now);
+        Update update = new Update()
+                .push(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES, entry)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
+        mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
+    }
+
+    public void recordSourceReadResult(String batchId,
+                                       boolean pause,
+                                       String result,
+                                       String message,
+                                       Date occurredAt,
+                                       DqlRecoveryAuditEntryDto auditEntry) {
+        Date now = occurredAt == null ? new Date() : occurredAt;
+        Update update = new Update()
+                .set(pause ? DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_RESULT
+                        : DqlRecoveryBatchDto.FIELD_SOURCE_READ_RESUME_RESULT, result)
+                .set(pause ? DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_AT
+                        : DqlRecoveryBatchDto.FIELD_SOURCE_READ_RESUME_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
+        if (message != null) {
+            update.set(pause ? DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_MESSAGE
+                    : DqlRecoveryBatchDto.FIELD_SOURCE_READ_RESUME_MESSAGE, message);
+        }
+        if (auditEntry != null) {
+            auditEntry.setOccurredAt(Optional.ofNullable(auditEntry.getOccurredAt()).orElse(now));
+            update.push(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES, auditEntry);
+        }
+        mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
     }
 
     public void finish(String batchId, DqlRecoveryBatchStatusEnum status, String message) {

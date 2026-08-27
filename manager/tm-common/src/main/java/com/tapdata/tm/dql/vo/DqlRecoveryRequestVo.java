@@ -9,4 +9,5 @@ import java.util.List;
 public class DqlRecoveryRequestVo implements Serializable {
     private List<String> eventIds;
     private Boolean confirm;
+    private String mode;
 }

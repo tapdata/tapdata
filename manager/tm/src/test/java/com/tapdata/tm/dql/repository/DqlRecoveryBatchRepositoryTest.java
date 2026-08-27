@@ -3,6 +3,7 @@ package com.tapdata.tm.dql.repository;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.entity.DqlRecoveryBatchEntity;
 import org.bson.Document;
 import org.junit.jupiter.api.DisplayName;
@@ -82,6 +83,52 @@ class DqlRecoveryBatchRepositoryTest {
         assertEquals(0, saved.getSuccessCount());
         assertEquals(0, saved.getFailedCount());
         assertEquals(0, saved.getSkippedCount());
+        assertEquals("AUTO", saved.getMode());
+        assertTrue(saved.getAuditEntries().isEmpty());
+    }
+
+    @Test
+    @DisplayName("audit append persists a timeline entry and refreshes ttl")
+    void appendAuditPersistsTimelineEntry() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        DqlRecoveryAuditEntryDto entry = new DqlRecoveryAuditEntryDto();
+        entry.setType("EVENT_RESULT");
+        entry.setStatus("SUCCESS");
+        entry.setEventId("DQL-1");
+        entry.setAttemptId("A-1");
+        entry.setMessage("replayed");
+
+        repository.appendAudit("DQLB-1", entry);
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertEquals(entry, update.get("$push", Document.class).get(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES));
+        assertTtlRefreshed(update.get("$set", Document.class));
+    }
+
+    @Test
+    @DisplayName("source read result updates detail fields and appends the same audit entry atomically")
+    void recordSourceReadResultUpdatesFieldsAndAudit() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        Date occurredAt = new Date(1787580100000L);
+        DqlRecoveryAuditEntryDto entry = new DqlRecoveryAuditEntryDto();
+        entry.setType("SOURCE_READ_PAUSE");
+        entry.setStatus("SUCCESS");
+
+        repository.recordSourceReadResult("DQLB-1", true, "SUCCESS", "gate closed", occurredAt, entry);
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        Document set = update.get("$set", Document.class);
+        assertEquals("SUCCESS", set.get(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_RESULT));
+        assertEquals("gate closed", set.get(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_MESSAGE));
+        assertEquals(occurredAt, set.get(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_AT));
+        assertEquals(entry, update.get("$push", Document.class).get(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES));
+        assertTtlRefreshed(set);
     }
 
     @Test

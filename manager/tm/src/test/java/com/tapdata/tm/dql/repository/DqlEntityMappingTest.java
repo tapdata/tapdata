@@ -3,6 +3,7 @@ package com.tapdata.tm.dql.repository;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.entity.DqlEventEntity;
 import com.tapdata.tm.dql.entity.DqlRecoveryBatchEntity;
@@ -76,6 +77,14 @@ class DqlEntityMappingTest {
         input.setSuccessCount(1);
         input.setFailedCount(0);
         input.setSkippedCount(1);
+        input.setTaskStatusBefore("RUNNING");
+        input.setTaskStatusAfter("RUNNING");
+        input.setMode("AUTO");
+        input.setSourceReadPauseResult("SUCCESS");
+        input.setSourceReadResumeResult("SUCCESS");
+        DqlRecoveryAuditEntryDto auditEntry = new DqlRecoveryAuditEntryDto();
+        auditEntry.setType("BATCH_CREATED");
+        input.setAuditEntries(List.of(auditEntry));
 
         DqlRecoveryBatchDto saved = repository.create(input);
 
@@ -89,6 +98,12 @@ class DqlEntityMappingTest {
         assertEquals(input.getOrderedEventIds(), entity.getOrderedEventIds());
         assertEquals(input.getSelectedCount(), entity.getSelectedCount());
         assertEquals(input.getSkippedCount(), entity.getSkippedCount());
+        assertEquals(input.getTaskStatusBefore(), entity.getTaskStatusBefore());
+        assertEquals(input.getTaskStatusAfter(), entity.getTaskStatusAfter());
+        assertEquals(input.getMode(), entity.getMode());
+        assertEquals(input.getSourceReadPauseResult(), entity.getSourceReadPauseResult());
+        assertEquals(input.getSourceReadResumeResult(), entity.getSourceReadResumeResult());
+        assertEquals(input.getAuditEntries(), entity.getAuditEntries());
         assertNotNull(entity.getCreated());
         assertEquals(entity.getCreated(), entity.getTtlAt());
         assertEquals("64f000000000000000000004", saved.getId());

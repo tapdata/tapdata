@@ -10,6 +10,7 @@ import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -619,8 +620,43 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryBatchDto result = service.start(request, user());
 
         assertEquals("running", result.getTaskStatusBefore());
+        assertEquals("running", result.getTaskStatusAfter());
+        assertEquals(DqlRecoveryMessageDto.MODE_AUTO, result.getMode());
         assertEquals(7L, result.getTaskVersion());
         assertEquals("agent-1", result.getAgentId());
+        assertTrue(result.getAuditEntries().stream().anyMatch(entry -> "BATCH_CREATED".equals(entry.getType())));
+    }
+
+    @Test
+    @DisplayName("source read result is stored for batch detail and audit")
+    void sourceReadResultIsStoredForBatchDetailAndAudit() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+
+        service.recordSourceReadResult("DQLB-1", true, "SUCCESS", "source reads paused", 1787580100000L);
+
+        ArgumentCaptor<DqlRecoveryAuditEntryDto> audit = ArgumentCaptor.forClass(DqlRecoveryAuditEntryDto.class);
+        verify(batchRepository).recordSourceReadResult(eq("DQLB-1"), eq(true), eq("SUCCESS"),
+                eq("source reads paused"), eq(new java.util.Date(1787580100000L)), audit.capture());
+        assertEquals("SOURCE_READ_PAUSE", audit.getValue().getType());
+        assertEquals("SUCCESS", audit.getValue().getStatus());
+    }
+
+    @Test
+    @DisplayName("start rejects an unsupported recovery mode")
+    void startRejectsUnsupportedMode() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+        request.setMode("MANUAL");
+
+        BizException exception = assertThrows(BizException.class, () -> service.start(request, user()));
+
+        assertEquals("IllegalArgument", exception.getErrorCode());
+        verify(batchRepository, never()).create(any(DqlRecoveryBatchDto.class));
     }
 
     @Test
