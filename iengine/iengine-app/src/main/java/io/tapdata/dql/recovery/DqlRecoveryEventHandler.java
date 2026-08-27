@@ -75,9 +75,6 @@ public class DqlRecoveryEventHandler extends BaseEventHandler {
             return null;
         }
         DqlEventReporter reporter = new DqlEventReporter(new DqlTmClient(httpClientMongoOperator));
-        return command -> reporter.reportRecovery(
-                command.getTaskId(),
-                DqlRecoveryReport.batchStarted(command.getBatchId(), System.currentTimeMillis())
-        );
+        return (command, report) -> reporter.reportRecovery(command.getTaskId(), report);
     }
 }

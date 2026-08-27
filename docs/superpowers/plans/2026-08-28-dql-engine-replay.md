@@ -104,27 +104,27 @@ git commit -m "feat(TAP-12615): add dql recovery event"
 - Consumes: E02 event factory and E01 `DqlRecoveryMessageDto`.
 - Produces: one asynchronous coordinator execution per claimed batch; event callback order and policy-driven continue/stop behavior.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Define `DqlRecoveryEventSource.load(String eventId)`, `DqlRecoveryEventSink.enqueue(TapdataDqlRecoveryEvent)`, `DqlRecoveryBarrier.await(String eventId, long timeoutMillis)`, and `DqlRecoveryExecutionPolicy.continueAfterFailure()`. Test that `start` reports events in message order, enqueues only one DATA event before waiting for its barrier, continues after a failed barrier when the policy allows it, and stops when the policy disallows it.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `mvn -pl iengine/iengine-app -Dtest=DqlRecoveryCoordinatorImplTest test`
 
 Expected: FAIL to compile because the coordinator implementation and execution interfaces do not exist.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Implement a single-threaded per-batch execution that iterates the immutable `orderedEventIds`, loads each complete snapshot, creates an attempt ID before DATA injection, calls the sink, waits on the barrier, and sends one terminal result through the existing recovery report abstraction. Keep the `start` method non-blocking for the WebSocket handler and guard a batch execution with an atomic terminal flag.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `mvn -pl iengine/iengine-app -Dtest=DqlRecoveryCoordinatorImplTest,DqlRecoveryMessageHandlerTest test`
 
 Expected: all selected tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Update E03 progress documentation and commit with `feat(TAP-12615): add recovery coordinator`.
 

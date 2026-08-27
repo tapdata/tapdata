@@ -13,6 +13,10 @@ import lombok.Data;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class DqlRecoveryReport {
     public static final String BATCH_STARTED = "BATCH_STARTED";
+    public static final String EVENT_STARTED = "EVENT_STARTED";
+    public static final String EVENT_RESULT = "EVENT_RESULT";
+    public static final String BATCH_FINISHED = "BATCH_FINISHED";
+    public static final String BATCH_FAILED = "BATCH_FAILED";
 
     private String batchId;
     private String eventId;
@@ -30,6 +34,53 @@ public class DqlRecoveryReport {
         report.setBatchId(batchId);
         report.setType(BATCH_STARTED);
         report.setStartedAt(startedAt);
+        return report;
+    }
+
+    public static DqlRecoveryReport eventStarted(String batchId,
+                                                 String eventId,
+                                                 String attemptId,
+                                                 long startedAt) {
+        DqlRecoveryReport report = new DqlRecoveryReport();
+        report.setBatchId(batchId);
+        report.setEventId(eventId);
+        report.setAttemptId(attemptId);
+        report.setType(EVENT_STARTED);
+        report.setStartedAt(startedAt);
+        return report;
+    }
+
+    public static DqlRecoveryReport eventResult(String batchId,
+                                                String eventId,
+                                                String attemptId,
+                                                String result,
+                                                String message,
+                                                long startedAt,
+                                                long finishedAt) {
+        DqlRecoveryReport report = eventStarted(batchId, eventId, attemptId, startedAt);
+        report.setType(EVENT_RESULT);
+        report.setResult(result);
+        report.setMessage(message);
+        report.setFinishedAt(finishedAt);
+        return report;
+    }
+
+    public static DqlRecoveryReport batchFinished(String batchId,
+                                                  String message,
+                                                  long finishedAt) {
+        DqlRecoveryReport report = new DqlRecoveryReport();
+        report.setBatchId(batchId);
+        report.setType(BATCH_FINISHED);
+        report.setMessage(message);
+        report.setFinishedAt(finishedAt);
+        return report;
+    }
+
+    public static DqlRecoveryReport batchFailed(String batchId,
+                                                String message,
+                                                long finishedAt) {
+        DqlRecoveryReport report = batchFinished(batchId, message, finishedAt);
+        report.setType(BATCH_FAILED);
         return report;
     }
 }

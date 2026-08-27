@@ -137,7 +137,7 @@
 | --- | --- | --- | --- | --- | --- |
 | E01 | 已完成 | 新增 `dqlRecovery` 消息 Handler | 已完成消息解析、任务/版本/Agent/有序事件校验、跨 Handler 进程级批次幂等及协调器启动适配；接受成功后上报 BATCH_STARTED | D05 | 非法或重复消息幂等拒绝；接受成功后上报 BATCH_STARTED |
 | E02 | 已完成 | 新增 `TapdataDqlRecoveryEvent` | 已从 `DqlPayloadSnapshot` 重建 I/U/D 原始 DML，复用父类 `eventId` 承载 DQL 事件 ID，保留 `exactlyOnceId`、事件时间、业务字段和 recovery 元数据，并覆盖 clone 复制 | C02、E01 | I/U/D 事件可从存储快照准确重建，Exactly-Once 身份不丢失 |
-| E03 | 未开始 | 实现 `DqlRecoveryCoordinator` | 串行处理 `ordered_event_ids`，负责模式选择、单事件注入、屏障等待、超时、回调和批次汇总 | E01、E02 | 不并发注入同一批次事件；单事件失败时按配置继续或停止 |
+| E03 | 已完成 | 实现 `DqlRecoveryCoordinator` | 已通过可替换事件源、源边界 sink、屏障和执行策略实现单批次异步串行执行；按顺序读取快照、创建 attempt、注入单条事件、等待结果并上报事件/批次终态 | E01、E02 | 不并发注入同一批次事件；单事件失败时按策略继续或停止；构建与定向测试通过 |
 | E04 | 未开始 | 实现运行中任务 `DqlSourceReadGate` | 暂停正常源读取但不改变任务业务状态，排空在途事件后允许 DQL 回放，从 finally 恢复读取 | E03 | 回放期间普通源事件不与批次事件交错；成功或异常后均恢复读取 |
 | E05 | 未开始 | 实现暂停任务 recovery-only runner | TaskClient 已释放时构造只用于回放的 runner 和源边界注入节点，不启动正常源读取，不改变暂停状态 | E03 | 暂停任务可完成回放，任务开始前后状态保持暂停 |
 | E06 | 未开始 | 实现源节点边界注入 | 根据原任务 DAG 和当前发布版本定位源节点，将恢复事件从源边界进入完整处理链 | E02、E04、E05 | 处理节点逻辑与目标写入链完整执行，不允许从目标节点直接写入绕过转换 |
