@@ -30,6 +30,7 @@
 | B09 | 已完成 | `steps/B09-query-api.md` |
 | B10 | 已完成 | `steps/B10-task-data-permission.md` |
 | B11 | 已完成 | `steps/B11-error-semantics-and-api-doc.md` |
+| B12 | 已完成 | `steps/B12-tm-foundation-regression.md` |
 
 ## 回归记录
 

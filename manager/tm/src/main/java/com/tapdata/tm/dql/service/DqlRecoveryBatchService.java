@@ -73,9 +73,9 @@ public class DqlRecoveryBatchService {
         for (String eventId : eventIds) {
             DqlEventDto event = eventMap.get(eventId);
             if (event == null) {
-                preview.getBlockedEvents().add(blocked(eventId, "event not found"));
+                preview.getBlockedEvents().add(blocked(eventId, "event not found", null));
             } else if (!isReprocessable(event)) {
-                preview.getBlockedEvents().add(blocked(eventId, blockedReason(event)));
+                preview.getBlockedEvents().add(blocked(eventId, blockedReason(event), event));
             }
         }
 
@@ -193,6 +193,10 @@ public class DqlRecoveryBatchService {
             if (eventRepository.completeEvent(report.getEventId(), batch.getBatchId(), attempt)) {
                 batchRepository.increaseSuccess(batch.getBatchId());
             }
+        } else if (result == DqlRecoveryAttemptResultEnum.SKIPPED) {
+            if (eventRepository.failEvent(report.getEventId(), batch.getBatchId(), attempt)) {
+                batchRepository.increaseSkipped(batch.getBatchId());
+            }
         } else {
             if (eventRepository.failEvent(report.getEventId(), batch.getBatchId(), attempt)) {
                 batchRepository.increaseFailed(batch.getBatchId());
@@ -264,10 +268,17 @@ public class DqlRecoveryBatchService {
         return "event is not reprocessable";
     }
 
-    private DqlRecoveryPreviewVo.BlockedEvent blocked(String eventId, String reason) {
+    private DqlRecoveryPreviewVo.BlockedEvent blocked(String eventId, String message, DqlEventDto event) {
         DqlRecoveryPreviewVo.BlockedEvent blocked = new DqlRecoveryPreviewVo.BlockedEvent();
         blocked.setEventId(eventId);
-        blocked.setReason(reason);
+        blocked.setMessage(message);
+        if (event != null) {
+            blocked.setSourceTable(event.getSourceTable());
+            blocked.setTargetTable(event.getTargetTable());
+            blocked.setDmlType(event.getDmlType());
+            blocked.setEventTime(event.getEventTime());
+            blocked.setCaptureSeq(event.getCaptureSeq());
+        }
         return blocked;
     }
 

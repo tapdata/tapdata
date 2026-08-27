@@ -1,5 +1,7 @@
 package com.tapdata.tm.dql.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -32,8 +34,31 @@ public class DqlRecoveryPreviewVo implements Serializable {
     }
 
     @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class BlockedEvent implements Serializable {
         private String eventId;
-        private String reason;
+        private String message;
+        private String sourceTable;
+        private String targetTable;
+        private String dmlType;
+        private Date eventTime;
+        private Long captureSeq;
+
+        /**
+         * Kept as a source-compatible alias for callers compiled against the pre-B12 VO.
+         * The JSON contract uses {@code message}.
+         */
+        @JsonIgnore
+        public String getReason() {
+            return message;
+        }
+
+        /**
+         * Kept as a source-compatible alias for callers compiled against the pre-B12 VO.
+         */
+        @JsonIgnore
+        public void setReason(String reason) {
+            this.message = reason;
+        }
     }
 }
