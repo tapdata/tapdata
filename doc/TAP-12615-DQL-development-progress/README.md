@@ -32,6 +32,12 @@
 | B11 | 已完成 | `steps/B11-error-semantics-and-api-doc.md` |
 | B12 | 已完成 | `steps/B12-tm-foundation-regression.md` |
 
+### 阶段 C：Engine 捕获与分层路由
+
+| 步骤 | 状态 | 总结文档 |
+| --- | --- | --- |
+| C01 | 已完成 | `steps/C01-engine-dql-model-and-tm-client.md` |
+
 ## 回归记录
 
 | 日期 | 范围 | 记录文档 |
