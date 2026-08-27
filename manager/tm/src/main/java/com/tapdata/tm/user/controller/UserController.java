@@ -25,6 +25,9 @@ import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.user.dto.TestLdapDto;
 import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.RC4Util;
 import com.tapdata.tm.utils.SendStatus;
@@ -295,19 +298,24 @@ public class UserController extends BaseController {
     @PostMapping("/login")
     @IgnoreLogin
     public ResponseMessage<AccessTokenDto> login(@RequestBody @Validated LoginRequest loginRequest) {
+        String loginAccount = loginRequest.getEmail();
         String password;
         try {
             password = RC4Util.decrypt(RC4_KEY, loginRequest.getPassword());
         } catch (Exception e) {
+            recordLoginFailure(loginRequest.getEmail(), "credential_parse_failed");
             return failed(e);
         }
         User user;
+        String loginMethod = "password";
         // 从setting中获取是否开启AD
         boolean adLoginEnable = userService.checkLdapLoginEnable();
         //若开启，走AD校验，校验通过创建用户，未通过登录失败
         if (adLoginEnable && !"admin@admin.com".equals(loginRequest.getEmail())) {
+            loginMethod = "ldap";
             boolean login = userService.loginByLdap(loginRequest.getEmail(), password);
             if (!login) {
+                recordLoginFailure(loginRequest.getEmail(), "external_identity_validation_failed", loginMethod);
                 throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
             }
             //登录成功查询用户是否存在没有就创建用户
@@ -338,17 +346,29 @@ public class UserController extends BaseController {
             user.setPassword(BCrypt.hashpw(password));
         } else {
             //未开启走原来的逻辑
-            user = userService.findOneByEmail(loginRequest.getEmail());
+            try {
+                user = userService.findOneByEmail(loginRequest.getEmail());
+            } catch (BizException e) {
+                recordLoginFailure(loginRequest.getEmail(), "credential_validation_failed", loginMethod);
+                throw e;
+            }
+        }
+        if (user == null) {
+            recordLoginFailure(loginRequest.getEmail(), "credential_validation_failed", loginMethod);
+            throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
         }
         if (user.getAccountStatus() == 2) {
+            recordLoginFailure(loginRequest.getEmail(), "user_pending_approval", loginMethod);
             return failed("110500", user.isEmailVerified() ? "WAITING_APPROVE" : "EMAIL_NON_VERIFLED");
         } else if (user.getAccountStatus() == 0) {
+            recordLoginFailure(loginRequest.getEmail(), "user_disabled", loginMethod);
             return failed("Account.disabled");
         }
         boolean timesOverFive = user.getLoginTimes() != null && user.getLoginTimes() >= 5;
         boolean timeInTenMin = user.getLoginTime() != null
                 && user.getLoginTime().getTime() + 1000 * 60 * 10 > System.currentTimeMillis();
         if (timesOverFive && timeInTenMin) {
+            recordLoginFailure(loginRequest.getEmail(), "too_many_login_failures", loginMethod);
             throw new BizException("Too.Many.Login.Failures");
         }
         AccessTokenDto accessTokenDto;
@@ -364,15 +384,42 @@ public class UserController extends BaseController {
         } else {
             Update update = Update.update("loginTimes", user.getLoginTimes() != null ? (user.getLoginTimes() % 6 + 1) : 1).set("loginTime", new Date());
             userService.update(Query.query(Criteria.where("id").is(user.getId())), update);
+            recordLoginFailure(loginRequest.getEmail(), "credential_validation_failed", loginMethod);
             throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
         }
-        try {
-            userLogService.addUserLog(Modular.SYSTEM, com.tapdata.tm.userLog.constant.Operation.LOGIN, user.getId().toHexString(), "", "");
-        } catch (Exception e) {
-            log.error("登录添加操作日志异常 {}", e.getMessage());
-        }
+        recordLoginSuccess(user, loginMethod, loginAccount);
         return success(accessTokenDto);
 
+    }
+
+    private void recordLoginSuccess(User user, String loginMethod, String loginAccount) {
+        AuditLogParam auditLogParam = new AuditLogParam();
+        auditLogParam.setEventType(AuditEventType.LOGIN);
+        auditLogParam.setOutcome(AuditOutcome.SUCCESS);
+        auditLogParam.setUserId(user.getId().toHexString());
+        auditLogParam.setCustomerId(user.getCustomId());
+        auditLogParam.setUsername(StringUtils.defaultIfBlank(loginAccount,
+                StringUtils.defaultIfBlank(user.getEmail(), user.getUsername())));
+        auditLogParam.setAction("login");
+        auditLogParam.setObjectName("TapData");
+        auditLogParam.setLoginMethod(loginMethod);
+        userLogService.addAuditLog(auditLogParam);
+    }
+
+    private void recordLoginFailure(String account, String reason) {
+        recordLoginFailure(account, reason, "password");
+    }
+
+    private void recordLoginFailure(String account, String reason, String loginMethod) {
+        AuditLogParam auditLogParam = new AuditLogParam();
+        auditLogParam.setEventType(AuditEventType.LOGIN);
+        auditLogParam.setOutcome(AuditOutcome.FAILURE);
+        auditLogParam.setUsername(account);
+        auditLogParam.setAction("login");
+        auditLogParam.setObjectName("TapData");
+        auditLogParam.setFailureReason(reason);
+        auditLogParam.setLoginMethod(loginMethod);
+        userLogService.addAuditLog(auditLogParam);
     }
 
     @Operation(summary = "User logout")

@@ -19,21 +19,30 @@ import com.tapdata.tm.cluster.dto.OracleLogParserSNResult;
 import com.tapdata.tm.cluster.dto.OracleLogParserUpdateConfigResult;
 import com.tapdata.tm.cluster.dto.OracleLogParserUpgradeSNResult;
 import com.tapdata.tm.cluster.dto.RawServerStateDto;
+import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
 import com.tapdata.tm.cluster.dto.UpdateAgentVersionParam;
 import com.tapdata.tm.cluster.params.OracleLogParserConfigParam;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.cluster.service.OracleLogParserService;
 import com.tapdata.tm.cluster.service.RawServerStateService;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -62,11 +71,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("api/clusterStates")
 @Setter(onMethod_ = {@Autowired})
+@Slf4j
 public class ClusterStateController extends BaseController {
 
     private ClusterStateService clusterStateService;
     private RawServerStateService rawServerStateService;
     private ClusterComponentStopService clusterComponentStopService;
+    private UserLogService userLogService;
 
     @Autowired
     private PermissionService permissionService;
@@ -312,8 +323,65 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "update status")
     @PostMapping("/updataStatus")
     public ResponseMessage<Map<String, Long>> updataStatus(@RequestBody @Validated UpdataStatusRequest updataStatusRequest) {
-        Long result = clusterStateService.updateStatus(updataStatusRequest, getLoginUser());
-        return success(new HashMap<String, Long>(){{put("greeting", result);}});
+        UserDetail operator = getLoginUser();
+        try {
+            Long result = clusterStateService.updateStatus(updataStatusRequest, operator);
+            boolean updated = result != null && result > 0;
+            recordClusterOperationAudit(updataStatusRequest, operator,
+                    updated ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
+                    updated ? null : "cluster_node_not_found");
+            return success(new HashMap<String, Long>(){{put("greeting", result);}});
+        } catch (RuntimeException e) {
+            recordClusterOperationAudit(updataStatusRequest, operator,
+                    AuditOutcome.FAILURE, "cluster_service_operation_failed");
+            throw e;
+        }
+    }
+
+    private void recordClusterOperationAudit(UpdataStatusRequest request, UserDetail operator,
+                                             AuditOutcome outcome, String failureReason) {
+        try {
+            ClusterStateDto clusterState = clusterStateService.findOne(
+                    Query.query(Criteria.where("uuid").is(request.getUuid())));
+            SystemInfo systemInfo = clusterState == null ? null : clusterState.getSystemInfo();
+            String server = request.getServer();
+            AuditLogParam param = new AuditLogParam();
+            param.setEventType(AuditEventType.SERVICE_LIFECYCLE);
+            param.setOutcome(outcome);
+            param.setUserId(operator == null ? "SYSTEM" : operator.getUserId());
+            param.setUsername(operator == null ? "SYSTEM" : operator.getUsername());
+            param.setAction(normalizeClusterAction(request.getOperation()));
+            param.setObjectName(server);
+            param.setComponentType(server);
+            param.setInstanceName(resolveClusterInstanceName(clusterState));
+            param.setServiceNode(resolveClusterServiceNode(systemInfo, request.getUuid()));
+            param.setParameter1(request.getUuid());
+            param.setChangeSummary("component=" + server + ", operation=" + request.getOperation());
+            param.setFailureReason(failureReason);
+            userLogService.addAuditLog(param);
+        } catch (RuntimeException auditException) {
+            log.warn("Failed to record cluster operation audit, uuid={}, server={}, operation={}",
+                    request.getUuid(), request.getServer(), request.getOperation(), auditException);
+        }
+    }
+
+    private String normalizeClusterAction(String operation) {
+        return operation != null && operation.startsWith("update:") ? "update" : operation;
+    }
+
+    private String resolveClusterInstanceName(ClusterStateDto clusterState) {
+        return clusterState != null && clusterState.getAgentName() != null
+                && !clusterState.getAgentName().isBlank() ? clusterState.getAgentName() : null;
+    }
+
+    private String resolveClusterServiceNode(SystemInfo systemInfo, String uuid) {
+        if (systemInfo == null) {
+            return uuid;
+        }
+        if (systemInfo.getHostname() != null && !systemInfo.getHostname().isBlank()) {
+            return systemInfo.getHostname();
+        }
+        return systemInfo.getIp() != null && !systemInfo.getIp().isBlank() ? systemInfo.getIp() : uuid;
     }
 
     @Operation(summary = "add monitor")

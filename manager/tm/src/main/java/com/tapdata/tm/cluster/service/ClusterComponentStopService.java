@@ -13,6 +13,10 @@ import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.worker.entity.field.WorkerType;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +47,7 @@ public class ClusterComponentStopService {
     private TransformSchemaService transformSchema;
     private UserService userService;
     private TaskAlarmScheduler taskAlarmScheduler;
+    private UserLogService userLogService;
 
     public Map<String, Object> componentStopped(ComponentStoppedRequest req, UserDetail caller) {
         log.info("ClusterComponent event=received component={} uuid={} processId={} callerUserId={}",
@@ -50,18 +55,19 @@ public class ClusterComponentStopService {
                 req == null ? null : req.getUuid(),
                 req == null ? null : req.getProcessId(),
                 caller == null ? null : caller.getUserId());
-        validate(req);
+        try {
+            validate(req);
 
-        String uuid = req.getUuid();
-        String component = req.getComponent();
-        String processId = req.getProcessId();
+            String uuid = req.getUuid();
+            String component = req.getComponent();
+            String processId = req.getProcessId();
 
-        Map<String, Object> result = new HashMap<>();
-        int taskRescheduled = 0;
-        boolean workerUpdated = false;
-        boolean clusterStateUpdated;
+            Map<String, Object> result = new HashMap<>();
+            int taskRescheduled = 0;
+            boolean workerUpdated = false;
+            boolean clusterStateUpdated;
 
-        switch (component) {
+            switch (component) {
             case ComponentStoppedRequest.COMPONENT_ENGINE:
                 workerUpdated = markWorkerStopped(processId, "connector");
                 taskRescheduled = failoverTasksOf(processId);
@@ -75,17 +81,39 @@ public class ClusterComponentStopService {
             case ComponentStoppedRequest.COMPONENT_FRONTEND:
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "management");
                 break;
-            default:
-                throw new IllegalArgumentException("Unknown component: " + component);
-        }
+                default:
+                    throw new IllegalArgumentException("Unknown component: " + component);
+            }
 
         log.info("ClusterComponent event=stopped component={} uuid={} processId={} workerUpdated={} clusterStateUpdated={} taskRescheduled={} reason=agent_initiated",
                 component, uuid, processId, workerUpdated, clusterStateUpdated, taskRescheduled);
 
-        result.put("workerUpdated", workerUpdated);
-        result.put("clusterStateUpdated", clusterStateUpdated);
-        result.put("taskRescheduled", taskRescheduled);
-        return result;
+            result.put("workerUpdated", workerUpdated);
+            result.put("clusterStateUpdated", clusterStateUpdated);
+            result.put("taskRescheduled", taskRescheduled);
+            recordLifecycleAudit(component, uuid, processId, "abnormal_service_stop_detected");
+            return result;
+        } catch (RuntimeException e) {
+            recordLifecycleAudit(req == null ? null : req.getComponent(),
+                    req == null ? null : req.getUuid(), req == null ? null : req.getProcessId(),
+                    "abnormal_stop_handling_failed");
+            throw e;
+        }
+    }
+
+    private void recordLifecycleAudit(String component, String uuid, String processId, String failureReason) {
+        AuditLogParam param = new AuditLogParam();
+        param.setEventType(AuditEventType.SERVICE_LIFECYCLE);
+        param.setOutcome(AuditOutcome.FAILURE);
+        param.setUserId("SYSTEM");
+        param.setUsername("SYSTEM");
+        param.setAction("abnormalStop");
+        param.setObjectName(StringUtils.defaultIfBlank(component, "service")
+                + (StringUtils.isBlank(processId) ? "" : ":" + processId));
+        param.setServiceNode(StringUtils.defaultIfBlank(component, "service")
+                + (StringUtils.isBlank(uuid) ? "" : "@" + uuid));
+        param.setFailureReason(failureReason);
+        userLogService.addAuditLog(param);
     }
 
     private void sendEngineOfflineAlarm(String processId) {

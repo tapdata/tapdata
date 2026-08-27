@@ -30,6 +30,16 @@ public class UserLogs extends BaseEntity {
     private String messageId;
     private String username;
     private String type;
+    private String eventType;
+    private String outcome;
+    private String failureReason;
+    private String eventId;
+    private String objectName;
+    private String changeSummary;
+    private String serviceNode;
+    private String componentType;
+    private String instanceName;
+    private String loginMethod;
     //是否修改名称
     private Boolean rename;
 

@@ -10,6 +10,10 @@ import com.tapdata.tm.permissions.constants.DataPermissionTypeEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.permissions.vo.DataPermissionAuthVo;
 import com.tapdata.tm.permissions.vo.DataPermissionSaveVo;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
+import com.tapdata.tm.userLog.service.UserLogService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -30,6 +34,8 @@ public class DataPermissionController extends BaseController {
 
 	@Autowired
 	private DataPermissionService service;
+	@Autowired
+	private UserLogService userLogService;
 
 	@GetMapping("/data-actions")
 	public ResponseMessage<Set<String>> findDataActions(
@@ -73,8 +79,14 @@ public class DataPermissionController extends BaseController {
 
 
 		UserDetail userDetail = getLoginUser();
-		long modifyCounts = service.saveDataPermissions(userDetail, dataPermissionDataTypeEnums, new ObjectId(vo.getDataId()), actions);
-		return success(modifyCounts);
+		try {
+			long modifyCounts = service.saveDataPermissions(userDetail, dataPermissionDataTypeEnums, new ObjectId(vo.getDataId()), actions);
+			recordPermissionAudit("save", vo.getDataType(), vo.getDataId(), modifyCounts, AuditOutcome.SUCCESS);
+			return success(modifyCounts);
+		} catch (RuntimeException e) {
+			recordPermissionAudit("save", vo.getDataType(), vo.getDataId(), null, AuditOutcome.FAILURE);
+			throw e;
+		}
 	}
 
 	@GetMapping("/role-actions")
@@ -125,11 +137,33 @@ public class DataPermissionController extends BaseController {
 				}
 			}
 		}
-		if (!objectIds.isEmpty()) {
-			service.dataAuth(dataPermissionDataType, objectIds, dataPermissionType, vo.getTypeIds(), vo.getActions());
+		try {
+			if (!objectIds.isEmpty()) {
+				service.dataAuth(dataPermissionDataType, objectIds, dataPermissionType, vo.getTypeIds(), vo.getActions());
+			}
+				recordPermissionAudit("authorize", vo.getDataType(), String.join(",", vo.getDataIds()),
+						(long) objectIds.size(), AuditOutcome.SUCCESS);
+			return success(ignoreIds);
+		} catch (RuntimeException e) {
+			recordPermissionAudit("authorize", vo.getDataType(), String.join(",", vo.getDataIds()),
+					null, AuditOutcome.FAILURE);
+			throw e;
 		}
+	}
 
-		return success(ignoreIds);
+	private void recordPermissionAudit(String action, String dataType, String dataId, Long modifiedCount,
+			AuditOutcome outcome) {
+		AuditLogParam param = new AuditLogParam();
+		param.setEventType(AuditEventType.ADMIN_OPERATION);
+		param.setOutcome(outcome);
+		param.setUserId(getLoginUser().getUserId());
+		param.setUsername(getLoginUser().getUsername());
+		param.setAction(action);
+		param.setObjectName("data-permission:" + dataType + ":" + dataId);
+		if (modifiedCount != null) {
+			param.setChangeSummary("modifiedCount=" + modifiedCount);
+		}
+		userLogService.addAuditLog(param);
 	}
 
 //	@GetMapping("/test")

@@ -13,6 +13,7 @@ import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.service.UserLogService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +57,7 @@ class ClusterComponentStopServiceTest {
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
     private UserService userService;
+    private UserLogService userLogService;
     private UserDetail caller;
 
     @BeforeEach
@@ -67,6 +69,7 @@ class ClusterComponentStopServiceTest {
         stateMachineService = mock(StateMachineService.class);
         transformSchema = mock(TransformSchemaService.class);
         userService = mock(UserService.class);
+        userLogService = mock(UserLogService.class);
         caller = mock(UserDetail.class);
 
         ReflectionTestUtils.setField(service, "mongoTemplate", mongoTemplate);
@@ -75,6 +78,7 @@ class ClusterComponentStopServiceTest {
         ReflectionTestUtils.setField(service, "stateMachineService", stateMachineService);
         ReflectionTestUtils.setField(service, "transformSchema", transformSchema);
         ReflectionTestUtils.setField(service, "userService", userService);
+        ReflectionTestUtils.setField(service, "userLogService", userLogService);
 
         UpdateResult ok = mock(UpdateResult.class);
         when(ok.getModifiedCount()).thenReturn(1L);

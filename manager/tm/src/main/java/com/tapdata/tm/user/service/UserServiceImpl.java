@@ -39,6 +39,9 @@ import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.repository.UserRepository;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
@@ -363,7 +366,13 @@ public class UserServiceImpl extends UserService{
     public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail, Locale locale, boolean userManagementAllowed) {
         JSONObject jsonObject = new JSONObject(settingJson);
         validateUserSettingFields(id, jsonObject, userDetail, userManagementAllowed);
+        User userBeforeUpdate = repository.findOne(Query.query(Criteria.where("id").is(id))).orElse(null);
         boolean updateRoleUsers = jsonObject.containsKey("roleusers");
+        Set<String> previousRoleIds = updateRoleUsers
+                ? roleMappingService.findAll(Query.query(Criteria.where("principalId").is(id).and("principalType").is("USER")))
+                .stream().map(RoleMappingDto::getRoleId).filter(Objects::nonNull)
+                .map(ObjectId::toHexString).collect(Collectors.toSet())
+                : Collections.emptySet();
         Iterator<String> iterator = jsonObject.keySet().iterator();
         while (iterator.hasNext()) {
             String key = iterator.next();
@@ -390,9 +399,46 @@ public class UserServiceImpl extends UserService{
                     : jsonObject.getJSONArray("roleusers").toList(Object.class);
             List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, roleusers, userDetail);
             userDto.setRoleMappings(roleMappingDtos);
+            Set<String> currentRoleIds = roleusers.stream().map(String::valueOf).collect(Collectors.toSet());
+            recordRoleAssignmentAudits(userDetail, userDto, previousRoleIds, currentRoleIds);
         }
-        userLogService.addUserLog(Modular.USER, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), StringUtils.isNotBlank(userDto.getLdapAccount()) ? userDto.getLdapAccount() : userDto.getEmail());
+        Set<String> changedFields = jsonObject.keySet().stream()
+                .filter(key -> !IGNORED_USER_UPDATE_FIELDS.contains(key) && !"roleusers".equals(key))
+                .filter(key -> isUserFieldChanged(userBeforeUpdate, key, jsonObject.get(key)))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!changedFields.isEmpty()) {
+            String action = "updateUser";
+            String changeSummary = "fields=" + String.join(",", changedFields);
+            if (changedFields.contains("account_status")) {
+                Integer accountStatus = jsonObject.getInt("account_status");
+                action = accountStatus != null && accountStatus == 0 ? "disableUser" : "enableUser";
+                changeSummary = "account_status="
+                        + (accountStatus != null && accountStatus == 0 ? "disabled" : "enabled");
+            }
+            recordUserAudit(userDetail, action, userDto, changeSummary);
+        }
         return userDto;
+    }
+
+    private boolean isUserFieldChanged(User before, String fieldName, Object requestedValue) {
+        if (before == null) {
+            return true;
+        }
+        if ("password".equals(fieldName)) {
+            return requestedValue != null && StringUtils.isNotEmpty(String.valueOf(requestedValue));
+        }
+        String entityFieldName = switch (fieldName) {
+            case "account_status" -> "accountStatus";
+            case "emailVerified_from_frontend" -> "emailVerifiedFromFrontend";
+            case "accesscode" -> "accessCode";
+            case "listtags" -> "listTags";
+            default -> fieldName;
+        };
+        Object currentValue = BeanUtil.getFieldValue(before, entityFieldName);
+        Object normalizedRequestedValue = requestedValue instanceof cn.hutool.json.JSONArray
+                ? ((cn.hutool.json.JSONArray) requestedValue).toList(Object.class)
+                : requestedValue;
+        return !Objects.equals(currentValue, normalizedRequestedValue);
     }
 
     protected void validateUserSettingFields(String id, JSONObject jsonObject, UserDetail userDetail, boolean userManagementAllowed) {
@@ -486,7 +532,8 @@ public class UserServiceImpl extends UserService{
 
         //添加ldp目录
         ldpService.addLdpDirectory(getUserDetail(user));
-        userLogService.addUserLog(Modular.USER, Operation.CREATE, userDetail, save.getUserId(), StringUtils.isNotBlank(save.getLdapAccount()) ? save.getLdapAccount() : save.getEmail(), "createLdap".equals(save.getSource()));
+        recordUserAudit(userDetail, "createUser", result,
+                "account_status=" + result.getAccountStatus());
 
         return result;
     }
@@ -496,6 +543,10 @@ public class UserServiceImpl extends UserService{
             validateRoleUsers(roleusers);
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
+            //update roleusers
+            Update update = new Update();
+            update.set("roleusers", roleusers);
+            updateById(userId, update, userDetail);
         // add new role mapping
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
                 RoleMappingDto roleMappingDto = new RoleMappingDto();
@@ -509,6 +560,43 @@ public class UserServiceImpl extends UserService{
             }
         }
         return null;
+    }
+
+    private void recordRoleAssignmentAudits(UserDetail operator, UserDto target, Set<String> previousRoleIds,
+                                            Set<String> currentRoleIds) {
+        Set<String> granted = new LinkedHashSet<>(currentRoleIds);
+        granted.removeAll(previousRoleIds);
+        Set<String> revoked = new LinkedHashSet<>(previousRoleIds);
+        revoked.removeAll(currentRoleIds);
+        if (!granted.isEmpty()) {
+            recordUserAudit(operator, "grantRole", target, "roles=" + resolveRoleNames(granted));
+        }
+        if (!revoked.isEmpty()) {
+            recordUserAudit(operator, "revokeRole", target, "roles=" + resolveRoleNames(revoked));
+        }
+    }
+
+    private String resolveRoleNames(Set<String> roleIds) {
+        List<ObjectId> objectIds = roleIds.stream().filter(ObjectId::isValid).map(ObjectId::new).toList();
+        if (objectIds.isEmpty()) {
+            return String.join(",", roleIds);
+        }
+        Map<String, String> roleNames = roleService.findAll(Query.query(Criteria.where("_id").in(objectIds)))
+                .stream().collect(Collectors.toMap(role -> role.getId().toHexString(), RoleDto::getName, (a, b) -> a));
+        return roleIds.stream().map(id -> roleNames.getOrDefault(id, id)).collect(Collectors.joining(","));
+    }
+
+    private void recordUserAudit(UserDetail operator, String action, UserDto target, String changeSummary) {
+        AuditLogParam param = new AuditLogParam();
+        param.setEventType(AuditEventType.ADMIN_OPERATION);
+        param.setOutcome(AuditOutcome.SUCCESS);
+        param.setUserId(operator.getUserId());
+        param.setUsername(operator.getUsername());
+        param.setAction(action);
+        param.setObjectName(StringUtils.defaultIfBlank(target.getLdapAccount(), target.getEmail()));
+        param.setParameter1(target.getId() == null ? target.getUserId() : target.getId().toHexString());
+        param.setChangeSummary(changeSummary);
+        userLogService.addAuditLog(param);
     }
 
     protected void validateRoleUsers(List<Object> roleusers) {
