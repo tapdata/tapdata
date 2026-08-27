@@ -61,7 +61,7 @@ import static org.mockito.Mockito.when;
         List<ExternalStorageEntity> list = new ArrayList<>();
         ExternalStorageEntity externalStorage = new ExternalStorageEntity();
         externalStorage.setName(mark);
-        externalStorage.setUri("http://test.com");
+        externalStorage.setUri("mongodb://test:password@127.0.0.1:27017/test");
         ExternalStorageDto externalStorageDto = new ExternalStorageDto();
         BeanUtils.copyProperties(externalStorage,externalStorageDto);
         list.add(externalStorage);
@@ -80,8 +80,9 @@ import static org.mockito.Mockito.when;
             data.when(() -> DataPermissionService.isCloud()).thenReturn(cloud);
             Page<ExternalStorageDto> externalStorageDtoPage = externalStorageService.find(filter, userDetail);
             if (!cloud) {
-            String actualData = externalStorageDtoPage.getItems().get(0).getName();
-            assertEquals(mark, actualData);
+                ExternalStorageDto actualData = externalStorageDtoPage.getItems().get(0);
+                assertEquals(mark, actualData.getName());
+                assertEquals("mongodb://test:******@127.0.0.1:27017/test", actualData.getUri());
             }else {
                 assertEquals(1,externalStorageDtoPage.getTotal());
             }
