@@ -10,10 +10,12 @@ import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.vo.DqlEventDetailVo;
+import com.tapdata.tm.dql.vo.DqlEventListVo;
 import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
@@ -24,12 +26,14 @@ import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +51,7 @@ import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -321,6 +326,31 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("summary ignores status and pagination while preserving the other filters")
+    void summaryIgnoresStatusAndPagination() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventQueryVo query = new DqlEventQueryVo();
+        query.setTaskId(TASK_ID);
+        query.setTaskName("sync_order");
+        query.setStatus(DqlEventStatusEnum.RECOVERED.name());
+        query.setSkip(40L);
+        query.setLimit(20);
+        query.setOrder("-eventTime");
+        when(eventRepository.count(any(DqlEventQueryVo.class))).thenReturn(42L);
+        when(eventRepository.countByStatus(any(DqlEventQueryVo.class), any())).thenReturn(1L);
+
+        service.summary(query, user());
+
+        ArgumentCaptor<DqlEventQueryVo> totalQuery = forClass(DqlEventQueryVo.class);
+        verify(eventRepository).count(totalQuery.capture());
+        assertSummaryQuery(totalQuery.getValue());
+        ArgumentCaptor<DqlEventQueryVo> statusQuery = forClass(DqlEventQueryVo.class);
+        verify(eventRepository, times(5)).countByStatus(statusQuery.capture(), any());
+        statusQuery.getAllValues().forEach(this::assertSummaryQuery);
+    }
+
+    @Test
     @DisplayName("preview rejects selected events from different tasks")
     void previewRejectsCrossTaskEvents() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
@@ -457,29 +487,32 @@ class DqlEventServiceTest {
         Page<DqlEventDto> page = Page.page(List.of(event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING)), 1);
         when(eventRepository.page(query)).thenReturn(page);
 
-        assertEquals(page, service.page(query, user()));
+        Page<DqlEventListVo> result = service.page(query, user());
+        assertEquals(page.getTotal(), result.getTotal());
+        assertEquals(page.getItems().get(0).getEventId(), result.getItems().get(0).getEventId());
     }
 
     @Test
     @DisplayName("page response omits full payload and attempt history from list items")
-    void pageOmitsPayloadAndAttempts() {
+    void pageOmitsPayloadAndAttempts() throws Exception {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
         DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
         DqlEventQueryVo query = new DqlEventQueryVo();
         DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setFailedAt(new Date(2000));
         event.setPayloadData(Map.of("after", Map.of("id", 1001)));
         event.setRecoveryAttempts(List.of(new com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto()));
         when(eventRepository.page(query)).thenReturn(Page.page(List.of(event), 1));
 
-        Page<DqlEventDto> page = service.page(query, user());
+        String json = new ObjectMapper().writeValueAsString(service.page(query, user()));
 
-        assertNull(page.getItems().get(0).getPayloadData());
-        assertNull(page.getItems().get(0).getRecoveryAttempts());
+        assertFalse(json.contains("\"payloadData\""));
+        assertFalse(json.contains("\"recoveryAttempts\""));
     }
 
     @Test
     @DisplayName("detail response includes current batch for reprocessing events")
-    void detailIncludesCurrentBatchForReprocessingEvent() {
+    void detailIncludesCurrentBatchForReprocessingEvent() throws Exception {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
         DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
         DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class), null, batchRepository);
@@ -494,10 +527,94 @@ class DqlEventServiceTest {
 
         DqlEventDetailVo detail = service.detail("DQL-64f000-000001", user());
 
-        assertNull(detail.getPayloadData());
+        String json = new ObjectMapper().writeValueAsString(detail);
+        assertFalse(json.contains("\"payloadData\""));
         assertNotNull(detail.getCurrentBatch());
         assertEquals("DQLB-20260826-000001", detail.getCurrentBatch().getBatchId());
         assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), detail.getCurrentBatch().getStatus());
+    }
+
+    @Test
+    @DisplayName("detail exposes only safe frontend fields and maps internal names")
+    void detailExposesSafeFrontendFields() throws Exception {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.REPROCESSING);
+        event.setFailedStage("TRANSFORM");
+        event.setRecoveryCount(2);
+        event.setEventKey(new LinkedHashMap<>(Map.of("id", 1001, "password", "must-not-leak")));
+        event.setPayloadData(Map.of("after", Map.of("id", 1001)));
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("A-000001");
+        attempt.setResult(DqlRecoveryAttemptResultEnum.RUNNING.name());
+        attempt.setErrorDetails("internal details");
+        event.setRecoveryAttempts(List.of(attempt));
+        when(eventRepository.findByEventId(event.getEventId())).thenReturn(event);
+
+        DqlEventDetailVo detail = service.detail(event.getEventId(), user());
+        String json = new ObjectMapper().writeValueAsString(detail);
+
+        assertEquals("{\"id\":1001,\"password\":\"******\"}", detail.getEventKey());
+        assertEquals(2, detail.getRecoveryCount());
+        assertTrue(json.contains("\"stage\":\"TRANSFORM\""));
+        assertTrue(json.contains("\"errorMessage\":\"internal details\""));
+        assertFalse(json.contains("\"failedStage\""));
+        assertFalse(json.contains("\"payloadData\""));
+        assertFalse(json.contains("\"errorDetails\""));
+    }
+
+    @Test
+    @DisplayName("detail returns at most twenty attempts in most recent first order")
+    void detailReturnsRecentAttemptsFirst() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.REPROCESSING);
+        List<DqlRecoveryAttemptDto> attempts = new java.util.ArrayList<>();
+        for (int i = 1; i <= 21; i++) {
+            DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+            attempt.setAttemptId("A-" + String.format("%06d", i));
+            attempt.setResult(i == 21 ? DqlRecoveryAttemptResultEnum.RUNNING.name() : DqlRecoveryAttemptResultEnum.FAILED.name());
+            attempts.add(attempt);
+        }
+        event.setRecoveryAttempts(attempts);
+        when(eventRepository.findByEventId(event.getEventId())).thenReturn(event);
+
+        DqlEventDetailVo detail = service.detail(event.getEventId(), user());
+
+        assertEquals(20, detail.getRecoveryAttempts().size());
+        assertEquals("A-000021", detail.getRecoveryAttempts().get(0).getAttemptId());
+        assertEquals(DqlRecoveryAttemptResultEnum.RUNNING.name(), detail.getRecoveryAttempts().get(0).getResult());
+        assertEquals("A-000002", detail.getRecoveryAttempts().get(19).getAttemptId());
+    }
+
+    @Test
+    @DisplayName("page exposes only list fields and never serializes payload or internal audit fields")
+    void pageExposesOnlyListFields() throws Exception {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setFailedAt(new Date(2000));
+        event.setPayloadData(Map.of("after", Map.of("id", 1001)));
+        event.setOverwriteRisk(true);
+        event.setRecordIdentity("key:orders:id=1001");
+        when(eventRepository.page(any(DqlEventQueryVo.class))).thenReturn(Page.page(List.of(event), 1));
+
+        String json = new ObjectMapper().writeValueAsString(service.page(new DqlEventQueryVo(), user()));
+
+        assertTrue(json.contains("\"taskName\""));
+        assertTrue(json.contains("\"failedAt\""));
+        assertFalse(json.contains("\"payloadData\""));
+        assertFalse(json.contains("\"overwriteRisk\""));
+        assertFalse(json.contains("\"recordIdentity\""));
+    }
+
+    private void assertSummaryQuery(DqlEventQueryVo summaryQuery) {
+        assertEquals(TASK_ID, summaryQuery.getTaskId());
+        assertEquals("sync_order", summaryQuery.getTaskName());
+        assertNull(summaryQuery.getStatus());
+        assertEquals(0L, summaryQuery.getSkip());
+        assertEquals(0, summaryQuery.getLimit());
+        assertNull(summaryQuery.getOrder());
     }
 
     private static DqlRecoveryBatchService recoveryService(DqlEventRepository eventRepository, DqlRecoveryBatchRepository batchRepository) {

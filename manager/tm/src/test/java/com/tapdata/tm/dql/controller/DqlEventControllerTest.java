@@ -6,11 +6,11 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
-import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.service.DqlEventService;
 import com.tapdata.tm.dql.service.DqlRecoveryBatchService;
 import com.tapdata.tm.dql.vo.DqlEventDetailVo;
+import com.tapdata.tm.dql.vo.DqlEventListVo;
 import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Collections;
 import java.util.Date;
@@ -112,10 +113,10 @@ class DqlEventControllerTest {
         DqlEventController controller = spy(new DqlEventController(eventService, mock(DqlRecoveryBatchService.class)));
         UserDetail user = user();
         doReturn(user).when(controller).getLoginUser();
-        Page<DqlEventDto> page = Page.page(List.of(new DqlEventDto()), 1);
+        Page<DqlEventListVo> page = Page.page(List.of(new DqlEventListVo()), 1);
         when(eventService.page(org.mockito.ArgumentMatchers.any(DqlEventQueryVo.class), eq(user))).thenReturn(page);
 
-        ResponseMessage<Page<DqlEventDto>> response = controller.page(
+        ResponseMessage<Page<DqlEventListVo>> response = controller.page(
                 "64f000000000000000000001",
                 "sync",
                 "orders",
@@ -148,6 +149,22 @@ class DqlEventControllerTest {
         assertEquals(5L, query.getSkip());
         assertEquals(20, query.getLimit());
         assertEquals("-failedAt", query.getOrder());
+    }
+
+    @Test
+    @DisplayName("page endpoint defaults to twenty items for the frontend contract")
+    void pageDefaultsToTwentyItems() throws Exception {
+        RequestParam limit = java.util.Arrays.stream(DqlEventController.class
+                        .getMethod("page", String.class, String.class, String.class, String.class, String.class,
+                                String.class, String.class, String.class, Long.class, Long.class, long.class, int.class, String.class)
+                        .getParameterAnnotations()[11])
+                .filter(RequestParam.class::isInstance)
+                .map(RequestParam.class::cast)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("limit", limit.name());
+        assertEquals("20", limit.defaultValue());
     }
 
     @Test

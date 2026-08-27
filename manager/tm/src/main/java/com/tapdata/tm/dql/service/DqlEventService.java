@@ -6,10 +6,10 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlErrorTypeEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
-import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.vo.DqlEventDetailVo;
+import com.tapdata.tm.dql.vo.DqlEventListVo;
 import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
@@ -21,7 +21,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -42,6 +41,7 @@ public class DqlEventService {
     private final DqlRecoveryBatchRepository batchRepository;
     private final DqlReportValidationService reportValidationService;
     private final DqlEventIdentityService identityService;
+    private final DqlEventWebMapper webMapper;
 
     public DqlEventService(DqlEventRepository eventRepository, DqlEventAlarmService alarmService) {
         this(eventRepository, alarmService, null, null, new DqlReportValidationService(), new DqlEventIdentityService());
@@ -81,6 +81,7 @@ public class DqlEventService {
         this.batchRepository = batchRepository;
         this.reportValidationService = reportValidationService;
         this.identityService = identityService;
+        this.webMapper = new DqlEventWebMapper();
     }
 
     public DqlEventReportResultVo report(String taskId, DqlEventReportVo report) {
@@ -147,11 +148,16 @@ public class DqlEventService {
                 : reason.substring(0, SAVE_FAILURE_REASON_MAX_LENGTH);
     }
 
-    public Page<DqlEventDto> page(DqlEventQueryVo query, UserDetail user) {
+    public Page<DqlEventListVo> page(DqlEventQueryVo query, UserDetail user) {
         checkQueryPermission(query, user);
         Page<DqlEventDto> page = eventRepository.page(query);
-        page.getItems().forEach(this::sanitizeListItem);
-        return page;
+        if (page == null) {
+            return Page.empty();
+        }
+        List<DqlEventListVo> items = page.getItems() == null
+                ? List.of()
+                : page.getItems().stream().map(webMapper::toList).toList();
+        return Page.page(items, page.getTotal());
     }
 
     public DqlEventDetailVo detail(String eventId, UserDetail user) {
@@ -160,10 +166,7 @@ public class DqlEventService {
             throw new BizException("DqlEvent.NotFound", eventId);
         }
         checkEventPermission(event, user);
-        DqlEventDetailVo detail = new DqlEventDetailVo();
-        BeanUtils.copyProperties(event, detail);
-        detail.setPayloadData(null);
-        detail.setRecoveryAttempts(lastAttempts(event.getRecoveryAttempts()));
+        DqlEventDetailVo detail = webMapper.toDetail(event);
         if (StringUtils.isNotBlank(event.getCurrentBatchId()) && batchRepository != null) {
             detail.setCurrentBatch(batchRepository.findByBatchId(event.getCurrentBatchId()));
         }
@@ -171,15 +174,28 @@ public class DqlEventService {
     }
 
     public DqlEventSummaryVo summary(DqlEventQueryVo query, UserDetail user) {
-        checkQueryPermission(query, user);
+        DqlEventQueryVo summaryQuery = summaryQuery(query);
+        checkQueryPermission(summaryQuery, user);
         DqlEventSummaryVo summary = new DqlEventSummaryVo();
-        summary.setTotal(eventRepository.count(query));
-        summary.setPending(eventRepository.countByStatus(query, DqlEventStatusEnum.PENDING));
-        summary.setReprocessing(eventRepository.countByStatus(query, DqlEventStatusEnum.REPROCESSING));
-        summary.setRecovered(eventRepository.countByStatus(query, DqlEventStatusEnum.RECOVERED));
-        summary.setRecoveryFailed(eventRepository.countByStatus(query, DqlEventStatusEnum.RECOVERY_FAILED));
-        summary.setNotReprocessable(eventRepository.countByStatus(query, DqlEventStatusEnum.NOT_REPROCESSABLE));
+        summary.setTotal(eventRepository.count(summaryQuery));
+        summary.setPending(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.PENDING));
+        summary.setReprocessing(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.REPROCESSING));
+        summary.setRecovered(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERED));
+        summary.setRecoveryFailed(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERY_FAILED));
+        summary.setNotReprocessable(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.NOT_REPROCESSABLE));
         return summary;
+    }
+
+    private DqlEventQueryVo summaryQuery(DqlEventQueryVo query) {
+        DqlEventQueryVo scoped = new DqlEventQueryVo();
+        if (query != null) {
+            BeanUtils.copyProperties(query, scoped);
+        }
+        scoped.setStatus(null);
+        scoped.setSkip(0L);
+        scoped.setLimit(0);
+        scoped.setOrder(null);
+        return scoped;
     }
 
     /**
@@ -220,21 +236,6 @@ public class DqlEventService {
         }
         permissionService.checkMenuVisible(user);
         permissionService.checkTaskVisible(event.getTaskId(), user);
-    }
-
-    private List<DqlRecoveryAttemptDto> lastAttempts(List<DqlRecoveryAttemptDto> attempts) {
-        if (attempts == null || attempts.size() <= 20) {
-            return attempts;
-        }
-        return new ArrayList<>(attempts.subList(attempts.size() - 20, attempts.size()));
-    }
-
-    private void sanitizeListItem(DqlEventDto event) {
-        if (event == null) {
-            return;
-        }
-        event.setPayloadData(null);
-        event.setRecoveryAttempts(null);
     }
 
     private DqlEventDto convert(String taskId,

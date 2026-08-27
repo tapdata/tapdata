@@ -4,11 +4,11 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.annotation.IgnoreRequestBodyLog;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.service.DqlEventService;
 import com.tapdata.tm.dql.service.DqlRecoveryBatchService;
 import com.tapdata.tm.dql.vo.DqlEventDetailVo;
+import com.tapdata.tm.dql.vo.DqlEventListVo;
 import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
@@ -70,7 +70,7 @@ public class DqlEventController extends BaseController {
      */
     @Operation(summary = "Query DLQ exception events")
     @GetMapping("/api/dql-events")
-    public ResponseMessage<Page<DqlEventDto>> page(@RequestParam(name = "taskId", required = false) String taskId,
+    public ResponseMessage<Page<DqlEventListVo>> page(@RequestParam(name = "taskId", required = false) String taskId,
                                                    @RequestParam(name = "taskName", required = false) String taskName,
                                                    @RequestParam(name = "sourceTable", required = false) String sourceTable,
                                                    @RequestParam(name = "targetTable", required = false) String targetTable,
@@ -81,7 +81,7 @@ public class DqlEventController extends BaseController {
                                                    @RequestParam(name = "startTime", required = false) Long startTime,
                                                    @RequestParam(name = "endTime", required = false) Long endTime,
                                                    @RequestParam(name = "skip", required = false, defaultValue = "0") long skip,
-                                                   @RequestParam(name = "limit", required = false, defaultValue = "10") int limit,
+                                                   @RequestParam(name = "limit", required = false, defaultValue = "20") int limit,
                                                    @RequestParam(name = "order", required = false) String order) {
         return success(eventService.page(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, skip, limit, order), getLoginUser()));
     }
