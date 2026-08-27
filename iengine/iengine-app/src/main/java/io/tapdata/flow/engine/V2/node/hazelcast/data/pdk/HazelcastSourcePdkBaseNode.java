@@ -98,6 +98,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionOneByOneFunctionProxy;
+import io.tapdata.dql.recovery.DqlSourceReadGate;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadOneByOneFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
@@ -196,6 +197,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
      * blocked when reading data from data source while jet using async when passing the event to next node.
      */
     protected DynamicLinkedBlockingQueue<TapdataEvent> eventQueue;
+    private final DqlSourceReadGate dqlSourceReadGate = new DqlSourceReadGate();
     private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
     protected StreamReadFuncAspect streamReadFuncAspect;
     protected TapdataEvent pendingEvent;
@@ -1746,6 +1748,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     public void enqueue(TapdataEvent tapdataEvent) {
+        if (!dqlSourceReadGate.allow(tapdataEvent)) {
+            return;
+        }
         try {
             if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
                 String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
@@ -1767,7 +1772,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             logger.warn("TapdataEvent enqueue thread interrupted");
         } catch (Throwable throwable) {
             throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+        } finally {
+            dqlSourceReadGate.release(tapdataEvent);
         }
+    }
+
+    public DqlSourceReadGate getDqlSourceReadGate() {
+        return dqlSourceReadGate;
     }
 
     @Override
@@ -1980,6 +1991,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueRunner).ifPresent(ExecutorService::shutdownNow), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueConcurrentProcessor).ifPresent(SimpleConcurrentProcessorImpl::close), TAG);
         } finally {
+            dqlSourceReadGate.close();
             super.doClose();
         }
     }

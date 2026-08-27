@@ -139,11 +139,11 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 **Interfaces:**
 - Produces: `open()`, `beginPausing()`, `enterRecoveryOnly()`, `beginResuming()`, `awaitDrained(long)`, `allow(TapdataEvent)` and `close()`.
 
-- [ ] **Step 1: Write the failing test** — cover `OPEN`, `PAUSING`, `RECOVERY_ONLY`, and `RESUMING`, including rejection of normal events in recovery-only mode and acceptance of DQL recovery/barrier events.
-- [ ] **Step 2: Run test to verify it fails** — run `mvn -pl iengine/iengine-app -Dtest=DqlSourceReadGateTest test`; expect missing type/behavior failure.
-- [ ] **Step 3: Write minimal implementation** — use a lock/condition state machine; never mutate `TaskDto.status`; make `close()` restore `OPEN` even after an exception.
-- [ ] **Step 4: Run test to verify it passes** — run the gate test plus the source-node focused regression.
-- [ ] **Step 5: Commit** — record source gate integration and commit `feat(TAP-12615): gate live source reads for dql recovery`.
+- [x] **Step 1: Write the failing test** — cover `OPEN`, `PAUSING`, `RECOVERY_ONLY`, and `RESUMING`, including rejection of normal events in recovery-only mode and acceptance of DQL recovery/barrier events.
+- [x] **Step 2: Run test to verify it fails** — full reactor testCompile failed because `DqlSourceReadGate` was missing.
+- [x] **Step 3: Write minimal implementation** — use a lock/condition state machine; never mutate `TaskDto.status`; make `close()` restore `OPEN` even after an exception; integrate it into `HazelcastSourcePdkBaseNode.enqueue`.
+- [x] **Step 4: Run test to verify it passes** — gate, coordinator, handler and the affected Engine modules compiled and passed; no independent production Source enqueue test existed, so the source base class compile regression was included.
+- [x] **Step 5: Commit** — record source gate integration and commit `feat(TAP-12615): gate live source reads for dql recovery`.
 
 ### Task 4: E05 recovery-only runner for paused tasks
 

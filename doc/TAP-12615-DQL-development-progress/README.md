@@ -71,7 +71,7 @@
 | E01 | 已完成 | `steps/E01-recovery-message-handler.md` |
 | E02 | 已完成 | `steps/E02-dql-recovery-event.md` |
 | E03 | 已完成 | `steps/E03-recovery-coordinator.md` |
-| E04 | 未开始 | 待生成 |
+| E04 | 已完成 | `steps/E04-live-source-read-gate.md` |
 | E05 | 未开始 | 待生成 |
 | E06 | 未开始 | 待生成 |
 | E07 | 未开始 | 待生成 |
