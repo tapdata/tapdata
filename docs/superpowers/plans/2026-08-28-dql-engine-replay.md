@@ -192,11 +192,11 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 **Interfaces:**
 - Produces: one barrier per event, target completion before next injection, `FAILED` or `TIMEOUT` on terminal wait failure.
 
-- [ ] **Step 1: Write the failing test** — assert the second event cannot be enqueued until the first target outcome is known; assert timeout produces one terminal result.
-- [ ] **Step 2: Run test to verify it fails** — run the focused barrier test and observe the missing sequencing behavior.
-- [ ] **Step 3: Write minimal implementation** — create the latch event at the source boundary, wait with the configured timeout, combine target callback and latch outcome, and release local latch state in finally.
-- [ ] **Step 4: Run test to verify it passes** — run barrier, coordinator, and target completion tests.
-- [ ] **Step 5: Commit** — record timeout and ordering evidence and commit `feat(TAP-12615): enforce dql recovery barriers`.
+- [x] **Step 1: Write the failing test** — assert the barrier source boundary receives one latch after the DML event, failure completion wakes the matching waiter, and timeout leaves no pending state.
+- [x] **Step 2: Run test to verify it fails** — the first compile exposed that the paused-task runner did not implement the extended source-boundary contract; the fix preserved the runner’s recovery-only lifecycle while adding barrier forwarding.
+- [x] **Step 3: Write minimal implementation** — create one `TapdataCountDownLatchEvent` per event at the resolved source boundary, register a first-terminal-wins pending outcome, wait with the configured timeout, and remove local state in `finally`.
+- [x] **Step 4: Run test to verify it passes** — barrier, coordinator and source-injector focused tests passed: 12/12, with the affected Engine reactor compiling successfully.
+- [x] **Step 5: Commit** — record timeout and ordering evidence and commit `feat(TAP-12615): enforce dql recovery barriers`.
 
 ### Task 7: E08 prevent recursive DQL capture
 

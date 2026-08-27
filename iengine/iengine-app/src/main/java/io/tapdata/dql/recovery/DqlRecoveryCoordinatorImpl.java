@@ -35,6 +35,12 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         DqlReplaySourceNode open(DqlRecoveryMessageDto command);
     }
 
+    @FunctionalInterface
+    public interface BarrierFactory {
+        /** Creates the barrier for this batch and resolved source boundary. */
+        DqlRecoveryBarrier open(DqlRecoveryMessageDto command, DqlReplaySourceNode sourceBoundary);
+    }
+
     private final DqlRecoveryEventSource eventSource;
     private final DqlRecoveryEventSink eventSink;
     private final DqlRecoveryBarrier barrier;
@@ -44,6 +50,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private final Executor executor;
     private final DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory;
     private final SourceBoundaryFactory sourceBoundaryFactory;
+    private final BarrierFactory barrierFactory;
     private final ConcurrentMap<String, AtomicBoolean> activeBatches = new ConcurrentHashMap<>();
     private final Object idleMonitor = new Object();
 
@@ -55,7 +62,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       long barrierTimeoutMillis,
                                       Executor executor) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
-                barrierTimeoutMillis, executor, command -> null, command -> null);
+                barrierTimeoutMillis, executor, command -> null, command -> null,
+                (command, sourceBoundary) -> barrier);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -67,7 +75,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       Executor executor,
                                       DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
-                barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, command -> null);
+                barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, command -> null,
+                (command, sourceBoundary) -> barrier);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -79,6 +88,21 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       Executor executor,
                                       DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
                                       SourceBoundaryFactory sourceBoundaryFactory) {
+        this(eventSource, eventSink, barrier, reportSender, executionPolicy,
+                barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, sourceBoundaryFactory,
+                (command, sourceBoundary) -> barrier);
+    }
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      DqlRecoveryExecutionPolicy executionPolicy,
+                                      long barrierTimeoutMillis,
+                                      Executor executor,
+                                      DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
+                                      SourceBoundaryFactory sourceBoundaryFactory,
+                                      BarrierFactory barrierFactory) {
         this.eventSource = Objects.requireNonNull(eventSource, "eventSource must not be null");
         this.eventSink = Objects.requireNonNull(eventSink, "eventSink must not be null");
         this.barrier = Objects.requireNonNull(barrier, "barrier must not be null");
@@ -93,6 +117,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                 recoveryOnlyRunnerFactory, "recoveryOnlyRunnerFactory must not be null");
         this.sourceBoundaryFactory = Objects.requireNonNull(
                 sourceBoundaryFactory, "sourceBoundaryFactory must not be null");
+        this.barrierFactory = Objects.requireNonNull(barrierFactory, "barrierFactory must not be null");
     }
 
     @Override
@@ -136,17 +161,23 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         try {
             recoveryOnlyRunner = recoveryOnlyRunnerFactory.open(command);
             DqlRecoveryEventSink sink;
+            DqlReplaySourceNode sourceBoundary = null;
             if (recoveryOnlyRunner != null) {
                 sink = recoveryOnlyRunner::replay;
+                sourceBoundary = recoveryOnlyRunner;
             } else {
-                DqlReplaySourceNode sourceBoundary = sourceBoundaryFactory.open(command);
+                sourceBoundary = sourceBoundaryFactory.open(command);
                 sink = sourceBoundary == null ? eventSink : sourceBoundary::enqueue;
+            }
+            DqlRecoveryBarrier batchBarrier = barrierFactory.open(command, sourceBoundary);
+            if (batchBarrier == null) {
+                batchBarrier = barrier;
             }
             for (String eventId : orderedEventIds) {
                 if (terminal.get()) {
                     return;
                 }
-                EventExecutionResult result = executeEvent(command, eventId, sink);
+                EventExecutionResult result = executeEvent(command, eventId, sink, batchBarrier);
                 if (result.successful()) {
                     continue;
                 }
@@ -173,7 +204,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
 
     private EventExecutionResult executeEvent(DqlRecoveryMessageDto command,
                                               String eventId,
-                                              DqlRecoveryEventSink sink) {
+                                              DqlRecoveryEventSink sink,
+                                              DqlRecoveryBarrier batchBarrier) {
         String attemptId = UUID.randomUUID().toString();
         long startedAt = System.currentTimeMillis();
         reportSender.reportEventStarted(command, eventId, attemptId, startedAt);
@@ -193,7 +225,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                     snapshot
             );
             sink.enqueue(recoveryEvent);
-            result = barrierResult(eventId, barrier.await(eventId, barrierTimeoutMillis));
+            result = barrierResult(eventId, batchBarrier.await(eventId, barrierTimeoutMillis));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             result = EventExecutionResult.failureResult("recovery barrier interrupted for event " + eventId,

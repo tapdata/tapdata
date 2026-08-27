@@ -1,5 +1,6 @@
 package io.tapdata.dql.recovery;
 
+import com.tapdata.entity.TapdataCountDownLatchEvent;
 import com.tapdata.entity.TapdataDqlRecoveryEvent;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
@@ -79,6 +80,14 @@ public final class DqlSourceBoundaryInjector implements DqlReplaySourceNode {
             throw new IllegalArgumentException("DQL source boundary accepts DATA recovery events only");
         }
         sourceBoundary().enqueue(event);
+    }
+
+    @Override
+    public void enqueueBarrier(TapdataCountDownLatchEvent event) {
+        if (event == null) {
+            throw new IllegalArgumentException("DQL recovery barrier event must not be null");
+        }
+        sourceBoundary().enqueueBarrier(event);
     }
 
     private List<Node> sourceNodes() {

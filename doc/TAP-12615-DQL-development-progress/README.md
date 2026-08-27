@@ -74,7 +74,7 @@
 | E04 | 已完成 | `steps/E04-live-source-read-gate.md` |
 | E05 | 已完成 | `steps/E05-recovery-only-runner.md` |
 | E06 | 已完成 | `steps/E06-source-boundary-injection.md` |
-| E07 | 未开始 | 待生成 |
+| E07 | 已完成 | `steps/E07-recovery-barrier.md` |
 | E08 | 未开始 | 待生成 |
 | E09 | 未开始 | 待生成 |
 | E10 | 未开始 | 待生成 |

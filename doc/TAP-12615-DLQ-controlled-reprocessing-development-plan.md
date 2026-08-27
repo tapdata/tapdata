@@ -141,7 +141,7 @@
 | E04 | 已完成 | 实现运行中任务 `DqlSourceReadGate` | 已在 `HazelcastSourcePdkBaseNode.enqueue` 接入四态闸门；暂停正常源读取但不改变任务业务状态，排空在途入队操作后允许 DQL 回放，并在 finally 恢复读取 | E03 | 回放期间普通源事件不与批次事件交错；成功或异常后均恢复读取 |
 | E05 | 已完成 | 实现暂停任务 recovery-only runner | 已以不可变任务快照和仅支持 recovery 入队的 `DqlReplaySourceNode` 构造 runner；不创建正常 TaskClient/Jet Job，不启动 Source reader，不改变暂停状态，并按逆序释放资源 | E03 | 暂停任务可完成回放，任务开始前后状态保持暂停 |
 | E06 | 已完成 | 实现源节点边界注入 | 已根据当前任务 DAG 的 `getSourceNodes()` 解析并校验 `DataParentNode` 源边界；恢复事件只允许从已注册源边界进入，缺失或多源歧义均 fail closed；协调器支持 live 源边界工厂 | E02、E04、E05 | 处理节点逻辑与目标写入链完整执行，不允许从目标节点直接写入绕过转换 |
-| E07 | 未开始 | 接入逐事件屏障和完成判定 | 每条事件后注入 `TapdataCountDownLatchEvent`，目标成功或失败分支释放屏障并形成 EVENT_RESULT | E03、E06 | 下一条事件只在上一条目标结果确定后注入；超时能形成 TIMEOUT/FAILED |
+| E07 | 已完成 | 接入逐事件屏障和完成判定 | 已在 source boundary 追加每条事件唯一的 `TapdataCountDownLatchEvent`，以 per-event pending 状态接收目标成功/失败回调；超时、失败和重复完成均为终态，并由协调器形成 EVENT_RESULT | E03、E06 | 下一条事件只在上一条目标结果确定后注入；超时能形成 TIMEOUT/FAILED |
 | E08 | 未开始 | 实现恢复防递归捕获 | 恢复事件失败只更新原事件并追加 attempt，不再次创建新的 DQL 主记录 | C07-C09、E02 | 回放失败后 `dql_events` 主记录数量不增加，状态转 `RECOVERY_FAILED` |
 | E09 | 未开始 | 实现批次失败补偿 | 处理任务停止、Engine 重启、版本变化、source gate 恢复失败和 runner 初始化失败，并尽可能上报 BATCH_FAILED | E03-E08 | 所有异常路径释放本地资源；TM 最终可通过回调或超时扫描收敛 |
 | E10 | 未开始 | 完成 Engine 回放测试 | 覆盖 live、paused、I/U/D、顺序、屏障、单条失败继续、超时、重复消息、重启和 source gate 恢复 | E01-E09 | M4 场景自动化通过，现有任务 start/stop/reset/delete 消息无回归 |

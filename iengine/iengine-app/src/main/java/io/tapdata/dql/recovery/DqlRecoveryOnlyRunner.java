@@ -1,6 +1,7 @@
 package io.tapdata.dql.recovery;
 
 import com.tapdata.entity.TapdataDqlRecoveryEvent;
+import com.tapdata.entity.TapdataCountDownLatchEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.util.ArrayList;
@@ -13,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Runs a DQL batch against a paused task snapshot without starting the normal
  * task lifecycle or any connector source reader.
  */
-public final class DqlRecoveryOnlyRunner implements AutoCloseable {
+public final class DqlRecoveryOnlyRunner implements DqlReplaySourceNode {
     @FunctionalInterface
     public interface Factory {
         /**
@@ -66,6 +67,17 @@ public final class DqlRecoveryOnlyRunner implements AutoCloseable {
 
     public void replay(TapdataDqlRecoveryEvent event) {
         replay(Collections.singletonList(event));
+    }
+
+    @Override
+    public void enqueue(TapdataDqlRecoveryEvent event) {
+        replay(event);
+    }
+
+    @Override
+    public void enqueueBarrier(TapdataCountDownLatchEvent event) {
+        ensureOpen();
+        replaySourceNode.enqueueBarrier(event);
     }
 
     public TaskSnapshot taskSnapshot() {
