@@ -1928,7 +1928,7 @@ POC 报告中的业务对账：
 | 参数、Payload、路由或跨任务校验失败 | `IllegalArgument`、`DqlEvent.InvalidPayload`、`DqlEvent.InvalidRouteDecision`、`DqlRecovery.CrossTaskNotAllowed` | 400 |
 | 菜单或任务数据无权限 | `NoPermission` | 403 |
 | 事件、任务或批次不存在 | `DqlEvent.NotFound`、`Task.NotFound`、`DqlRecovery.BatchNotFound` | 404 |
-| 状态不可重处理或锁冲突 | `DqlRecovery.EventNotReprocessable`、`DqlRecovery.EventLockFailed` | 409 |
+| 状态不可重处理或锁冲突 | `DqlRecovery.EventNotReprocessable`、`DqlRecovery.EventLockFailed`、`DqlRecovery.BatchAlreadyRunning` | 409 |
 | 未分类服务端异常 | `SystemError` | 500 |
 
 ### 17.3 批次超时扫描

@@ -32,6 +32,10 @@ class DqlErrorSemanticsTest {
                 MessageUtil.getMessage(Locale.US, "DqlEvent.NotFound", "DQL-1"));
         assertEquals("异常事件不存在：DQL-1",
                 MessageUtil.getMessage(Locale.CHINA, "DqlEvent.NotFound", "DQL-1"));
+        assertEquals("A recovery batch is already running for this task.",
+                MessageUtil.getMessage(Locale.US, "DqlRecovery.BatchAlreadyRunning"));
+        assertEquals("该任务已有正在运行的重处理批次。",
+                MessageUtil.getMessage(Locale.CHINA, "DqlRecovery.BatchAlreadyRunning"));
     }
 
     private UserDetail user() {

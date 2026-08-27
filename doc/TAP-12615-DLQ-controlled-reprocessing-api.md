@@ -236,7 +236,7 @@ HTTP 状态用于表达可恢复的交互语义，具体业务原因通过 `code
 |请求参数或 Payload/路由校验失败|`IllegalArgument`、`DqlEvent.InvalidPayload`、`DqlEvent.InvalidRouteDecision`、`DqlRecovery.CrossTaskNotAllowed`|400|提示 `message`，修正参数或重新预览。|
 |无异常事件菜单或任务数据权限|`NoPermission`|403|禁止当前操作并提示无权限。|
 |事件、任务或重处理批次不存在|`DqlEvent.NotFound`、`Task.NotFound`、`DqlRecovery.BatchNotFound`|404|关闭详情或移除失效记录后刷新列表。|
-|事件状态不可重处理、批次或事件锁冲突|`DqlRecovery.EventNotReprocessable`、`DqlRecovery.EventLockFailed`|409|提示状态已变化，重新获取详情或重新预览。|
+|事件状态不可重处理、批次或事件锁冲突|`DqlRecovery.EventNotReprocessable`、`DqlRecovery.EventLockFailed`、`DqlRecovery.BatchAlreadyRunning`|409|提示状态已变化，重新获取详情或重新预览；同一任务已有批次运行时等待该批次结束。|
 |未分类的服务端异常|`SystemError`|500|提示稍后重试并使用 `reqId` 定位问题。|
 
 列表、汇总在无任务数据权限时按第 7 节权限隔离规则返回空结果或零计数；只有菜单权限、任务归属或显式资源访问失败时才返回 `NoPermission`。前端不应依赖尚未冻结的内部错误码集合来判断流程，只需优先按 HTTP 状态处理，并展示服务端返回的 `message`。

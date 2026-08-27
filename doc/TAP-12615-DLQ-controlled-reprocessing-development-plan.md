@@ -122,7 +122,7 @@
 | --- | --- | --- | --- | --- | --- |
 | D01 | 已完成 | 完成重处理预览 | 校验同任务、状态、业务键、Payload 完整性、任务状态、版本、Agent 可用性、批次上限和已有活动批次 | A05、B02、B03、B10 | 返回完整 `orderedEvents` 及逐事件阻塞原因；blocked event 含表名、DML、事件时间、捕获顺序和 message；跨任务必须拒绝 |
 | D02 | 已完成 | 固化回放顺序 | 服务端按 `task_id ASC, event_time ASC, capture_seq ASC, event_id ASC` 排序并写入批次 `ordered_event_ids` | D01 | 多表、同时间事件排序稳定，预览顺序与实际下发顺序一致 |
-| D03 | 未开始 | 实现同任务批次互斥锁 | 使用独立锁集合或等价原子机制保证一个任务只有一个 CREATED/DISPATCHED/RUNNING 批次，并设置超时释放策略 | B03、D01 | 并发发起时只有一个请求成功；异常退出后锁可恢复 |
+| D03 | 已完成 | 实现同任务批次互斥锁 | 使用 `dql_recovery_locks` 独立集合，以 `task_id` 唯一索引和带过期条件的原子 upsert 保证一个任务只有一个 CREATED/DISPATCHED/RUNNING 批次；30 分钟租约支持异常退出后恢复 | B03、D01 | 并发发起时只有一个请求成功；批次创建、事件锁定或下发失败及终态回调均释放锁；异常退出后可在租约过期后重新获取 |
 | D04 | 部分完成 | 完成事件级锁和批次创建事务语义 | 创建批次后条件更新所有事件为 `REPROCESSING` 并写 `current_batch_id`；数量不匹配则整体失败并补偿 | D02、D03 | 选中数量与锁定数量不一致时不下发；已锁事件恢复原可重处理状态 |
 | D05 | 部分完成 | 完成 `dqlRecovery` 消息下发 | 定义独立消息类型和字段，通过 `MessageQueueService` 发送到正确 Agent，不修改已有 DataSync opType | A03、D04 | 消息契约测试通过；下发失败时批次失败、事件解锁、任务锁释放 |
 | D06 | 部分完成 | 完成 Engine 结果回调状态机 | 处理 BATCH_STARTED、EVENT_STARTED、EVENT_RESULT、BATCH_FINISHED、BATCH_FAILED；校验任务、批次和事件归属 | A02、D05 | 回调只能推进合法状态；事件 attempt、摘要和批次计数保持一致 |
