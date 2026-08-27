@@ -34,6 +34,12 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -169,6 +175,71 @@ class DqlRecoveryBatchServiceTest {
 
         verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null);
         verify(alarmService, never()).notifyBatchPartialFailed(any(DqlRecoveryBatchDto.class));
+    }
+
+    @Test
+    @DisplayName("reconciled partial batch raises one partial alarm and releases its task lock")
+    void batchFinishedFinalizesPartialBatchAndReleasesTaskLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository, alarmService,
+                taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1", "DQL-2"));
+        batch.setSuccessCount(1);
+        batch.setFailedCount(1);
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
+
+        verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.PARTIAL_FAILED, null);
+        verify(alarmService).notifyBatchPartialFailed(batch);
+        verify(taskLockRepository).release(TASK_ID, "DQLB-1");
+    }
+
+    @Test
+    @DisplayName("concurrent starts allow only the request that owns the task lock")
+    void concurrentStartsAllowOnlyOneTaskLockOwner() throws Exception {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlEventDto event = event("DQL-1", TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        AtomicBoolean lockTaken = new AtomicBoolean();
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskLockRepository.tryAcquire(eq(TASK_ID), anyString()))
+                .thenAnswer(invocation -> lockTaken.compareAndSet(false, true));
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString())).thenReturn(1L);
+
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+        Callable<Object> start = () -> {
+            try {
+                return service.start(request, user());
+            } catch (BizException exception) {
+                return exception;
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Object>> results = executor.invokeAll(List.of(start, start));
+            List<Object> completed = results.stream().map(this::getUnchecked).toList();
+
+            assertEquals(1, completed.stream().filter(DqlRecoveryBatchDto.class::isInstance).count());
+            List<BizException> conflicts = completed.stream()
+                    .filter(BizException.class::isInstance)
+                    .map(BizException.class::cast)
+                    .toList();
+            assertEquals(1, conflicts.size());
+            assertEquals("DqlRecovery.BatchAlreadyRunning", conflicts.get(0).getErrorCode());
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
     @Test
@@ -1014,6 +1085,14 @@ class DqlRecoveryBatchServiceTest {
         batch.setFailedCount(0);
         batch.setSkippedCount(0);
         return batch;
+    }
+
+    private Object getUnchecked(Future<Object> future) {
+        try {
+            return future.get(5, TimeUnit.SECONDS);
+        } catch (Exception exception) {
+            throw new AssertionError("concurrent recovery start did not complete", exception);
+        }
     }
 
     private DqlEventDto event(String eventId, String taskId, DqlEventStatusEnum status, String agentId) {

@@ -62,7 +62,7 @@
 | D07 | 已完成 | `steps/D07-recovery-callback-idempotency.md` |
 | D08 | 已完成 | `steps/D08-recovery-batch-timeout.md` |
 | D09 | 已完成 | `steps/D09-recovery-batch-detail-and-audit.md` |
-| D10 | 部分完成 | 待补充 |
+| D10 | 已完成 | `steps/D10-tm-recovery-regression.md` |
 
 ## 回归记录
 
@@ -77,7 +77,7 @@
 | M0 契约冻结 | 已完成 | `milestones/M0-contract-freeze.md` |
 | M1 TM 基础能力 | 已完成 | `milestones/M1-tm-foundation.md` |
 | M2 Engine 捕获闭环 | 未开始 | 待生成 |
-| M3 TM 批次控制 | 未开始 | 待生成 |
+| M3 TM 批次控制 | 已完成（待集成验证） | `milestones/M3-tm-recovery-batch-control.md` |
 | M4 Engine 回放闭环 | 未开始 | 待生成 |
 | M5 告警与初始化 | 未开始 | 待生成 |
 | M6 POC 验收 | 未开始 | 待生成 |
