@@ -19,4 +19,18 @@ public class ExternalStorageDtoTest {
         externalStorageDto.setUri("mongodb://test:test%3D%3D@localhost:27017/test");
         Assertions.assertTrue(externalStorageDto.maskUriPassword().contains(ExternalStorageDto.MASK_PWD));
     }
+
+    @Test
+    void maskUriPasswordTest_withoutType(){
+        ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+        externalStorageDto.setUri("mongodb://test:test==@localhost:27017/test");
+        Assertions.assertTrue(externalStorageDto.maskUriPassword().contains(ExternalStorageDto.MASK_PWD));
+    }
+
+    @Test
+    void maskUriPasswordTest_srvUriWithoutType(){
+        ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+        externalStorageDto.setUri("mongodb+srv://test:test%3D%3D@cluster0.example.com/test");
+        Assertions.assertTrue(externalStorageDto.maskUriPassword().contains(ExternalStorageDto.MASK_PWD));
+    }
 }
