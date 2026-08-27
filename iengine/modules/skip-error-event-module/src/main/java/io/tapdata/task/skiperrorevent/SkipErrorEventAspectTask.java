@@ -12,6 +12,7 @@ import io.tapdata.aspect.SkipErrorDataAspect;
 import io.tapdata.aspect.SkipErrorProcessAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.dql.classifier.DlqStormGuard;
@@ -28,6 +29,7 @@ import io.tapdata.dql.model.DqlEventIdentity;
 import io.tapdata.dql.model.DqlClassificationResult;
 import io.tapdata.dql.model.DqlEventReport;
 import io.tapdata.dql.model.DqlExceptionScope;
+import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.dql.model.DqlRouteDecision;
 import io.tapdata.dql.preview.DqlPayloadPreview;
@@ -45,13 +47,16 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.exception.TapPdkWriteLengthEx;
 import io.tapdata.exception.TapPdkWriteTypeEx;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.logging.log4j.*;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -90,6 +95,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public SkipErrorEventAspectTask() {
         interceptHandlers.register(SkipErrorDataAspect.class, this::skipErrorDataNoeAspectHandle);
         interceptHandlers.register(SkipErrorProcessAspect.class, this::skipErrorProcessAspectHandle);
+        observerHandlers.register(WriteRecordFuncAspect.class, this::writeRecordFuncAspectHandle);
     }
 
     private void save2TaskAttrs() {
@@ -299,6 +305,90 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     public AspectInterceptResult skipErrorDataNoeAspectHandle(SkipErrorDataAspect aspect) {
         return this.skipErrorDataNoeAspect.apply(aspect);
+    }
+
+    /**
+     * Attaches a best-effort callback to normal target writes. The write
+     * result is the source of truth for distinguishing successful records
+     * from records that were rejected by a connector.
+     */
+    public Void writeRecordFuncAspectHandle(WriteRecordFuncAspect aspect) {
+        if (aspect == null || aspect.getState() != WriteRecordFuncAspect.STATE_START
+                || !isSkipDataEnabled() || dqlEventReporter == null) {
+            return null;
+        }
+        TapTable targetTable = aspect.getTable();
+        aspect.consumer((events, writeResult) -> reportSuccessfulRecords(targetTable, events, writeResult));
+        return null;
+    }
+
+    private void reportSuccessfulRecords(TapTable targetTable,
+                                         List<TapRecordEvent> events,
+                                         WriteListResult<TapRecordEvent> writeResult) {
+        if (events == null || events.isEmpty() || writeResult == null) {
+            return;
+        }
+        Map<TapRecordEvent, Throwable> errorMap = writeResult.getErrorMap();
+        long successAt = System.currentTimeMillis();
+        for (TapRecordEvent event : events) {
+            if (event == null || (errorMap != null && errorMap.containsKey(event))) {
+                continue;
+            }
+            try {
+                reportRecordSuccess(targetTable, event, successAt);
+            } catch (RuntimeException exception) {
+                // The target write has already succeeded. A failure to update
+                // audit metadata must not turn it into a failed data write.
+                if (log != null) {
+                    log.warn("DQL later-success report failed for task {}: {}", taskId, exception.getMessage());
+                }
+            }
+        }
+    }
+
+    private void reportRecordSuccess(TapTable targetTable, TapRecordEvent event, long successAt) {
+        TaskDto currentTask = getTask();
+        String taskRecordId = currentTask == null ? taskId : currentTask.getTaskRecordId();
+        if (StringUtils.isBlank(taskRecordId)) {
+            taskRecordId = taskId;
+        }
+
+        String sourceTable = event.getTableId();
+        String targetTableId = targetTableId(targetTable, sourceTable);
+        DqlRecordSuccessReport report = new DqlRecordSuccessReport();
+        report.setTaskRecordId(taskRecordId);
+        report.setSourceTable(sourceTable);
+        report.setTargetTable(targetTableId);
+        report.setTableId(targetTableId);
+        report.setDmlType(dmlType(event));
+        report.setEventTime(eventTime(event, successAt));
+        report.setSuccessAt(successAt);
+
+        DqlEventIdentity identity = dqlEventIdentityGenerator.generate(event, targetTable, taskRecordId, null);
+        identity.applyTo(report);
+        dqlEventReporter.reportRecordSuccess(taskId, report);
+    }
+
+    private String targetTableId(TapTable targetTable, String sourceTable) {
+        if (targetTable != null) {
+            if (StringUtils.isNotBlank(targetTable.getId())) {
+                return targetTable.getId();
+            }
+            if (StringUtils.isNotBlank(targetTable.getName())) {
+                return targetTable.getName();
+            }
+        }
+        return sourceTable;
+    }
+
+    private Long eventTime(TapRecordEvent event, long captureTime) {
+        if (event.getReferenceTime() != null) {
+            return event.getReferenceTime();
+        }
+        if (event.getTime() != null) {
+            return event.getTime();
+        }
+        return captureTime;
     }
 
     /**

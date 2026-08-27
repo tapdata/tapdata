@@ -8,6 +8,7 @@ import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.SkipErrorDataAspect;
 import io.tapdata.aspect.SkipErrorProcessAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.Log;
@@ -15,6 +16,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.dql.model.DqlEventReport;
 import io.tapdata.dql.model.DqlEventReportResult;
+import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlErrorType;
 import io.tapdata.dql.model.DqlRouteDecision;
 import io.tapdata.dql.model.DqlClassificationConfidence;
@@ -26,6 +28,7 @@ import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.exception.TapPdkWriteLengthEx;
 import io.tapdata.exception.TapPdkWriteTypeEx;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -477,6 +480,112 @@ public class SkipErrorEventAspectTaskTest {
             return TapInsertRecordEvent.create()
                     .table("orders")
                     .after(Map.of("id", id, "name", "order-" + id));
+        }
+    }
+
+    @Nested
+    class LaterSuccessCaptureTest {
+        private final TapTable table = new TapTable("orders");
+        private final DqlEventReporter reporter = mock(DqlEventReporter.class);
+
+        @BeforeEach
+        void setUpLaterSuccessCapture() {
+            TaskDto task = new TaskDto();
+            task.setId(new org.bson.types.ObjectId());
+            task.setTaskRecordId("task-record-1");
+            task.setName("orders-sync");
+            task.setVersion(7L);
+            task.setAgentId("agent-1");
+            task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            task.setStatus(TaskDto.STATUS_RUNNING);
+            skipErrorEventAspectTask.setTask(task);
+
+            TaskDto.SkipErrorEvent skipConfig = new TaskDto.SkipErrorEvent();
+            skipConfig.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.SkipData);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "skipErrorEvent", skipConfig);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "taskId", "task-1");
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "dqlEventReporter", reporter);
+        }
+
+        @Test
+        void successfulWriteReportsOnlyRecordsWithoutWriteErrors() {
+            TapRecordEvent successfulEvent = insertEvent(1, 1787580100000L);
+            TapRecordEvent failedEvent = insertEvent(2, 1787580101000L);
+            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect()
+                    .recordEvents(List.of(successfulEvent, failedEvent))
+                    .table(table)
+                    .start();
+
+            skipErrorEventAspectTask.onObserveAspect(aspect);
+
+            WriteListResult<TapRecordEvent> writeResult = new WriteListResult<TapRecordEvent>()
+                    .insertedCount(1)
+                    .addError(failedEvent, new IllegalArgumentException("bad record"));
+            for (var consumer : aspect.getConsumers()) {
+                consumer.accept(List.of(successfulEvent, failedEvent), writeResult);
+            }
+
+            verify(reporter).reportRecordSuccess(eq("task-1"), any(DqlRecordSuccessReport.class));
+            ArgumentCaptor<DqlRecordSuccessReport> reportCaptor = ArgumentCaptor.forClass(DqlRecordSuccessReport.class);
+            verify(reporter).reportRecordSuccess(eq("task-1"), reportCaptor.capture());
+            DqlRecordSuccessReport report = reportCaptor.getValue();
+            assertEquals("task-record-1", report.getTaskRecordId());
+            assertEquals("orders", report.getSourceTable());
+            assertEquals("orders", report.getTargetTable());
+            assertEquals("orders", report.getTableId());
+            assertEquals("I", report.getDmlType());
+            assertEquals(1787580100000L, report.getEventTime());
+            assertNotNull(report.getSuccessAt());
+            assertNotNull(report.getPayloadHash());
+            assertNotNull(report.getRecordIdentity());
+        }
+
+        @Test
+        void callbackFailureDoesNotPreventReportingTheNextSuccessfulRecord() {
+            TapRecordEvent firstEvent = insertEvent(1, 1787580100000L);
+            TapRecordEvent secondEvent = insertEvent(2, 1787580101000L);
+            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect()
+                    .recordEvents(List.of(firstEvent, secondEvent))
+                    .table(table)
+                    .start();
+            when(reporter.reportRecordSuccess(eq("task-1"), any(DqlRecordSuccessReport.class)))
+                    .thenThrow(new RuntimeException("TM unavailable"))
+                    .thenReturn(null);
+
+            skipErrorEventAspectTask.onObserveAspect(aspect);
+
+            WriteListResult<TapRecordEvent> writeResult = new WriteListResult<TapRecordEvent>()
+                    .insertedCount(2);
+            for (var consumer : aspect.getConsumers()) {
+                consumer.accept(List.of(firstEvent, secondEvent), writeResult);
+            }
+
+            verify(reporter, times(2)).reportRecordSuccess(eq("task-1"), any(DqlRecordSuccessReport.class));
+        }
+
+        @Test
+        void disabledSkipDataDoesNotAttachSuccessCallback() {
+            TapRecordEvent event = insertEvent(1, 1787580100000L);
+            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect()
+                    .recordEvents(List.of(event))
+                    .table(table)
+                    .start();
+            TaskDto.SkipErrorEvent disabledConfig = new TaskDto.SkipErrorEvent();
+            disabledConfig.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.Disable);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "skipErrorEvent", disabledConfig);
+
+            skipErrorEventAspectTask.onObserveAspect(aspect);
+
+            assertTrue(aspect.getConsumers().isEmpty());
+            verifyNoInteractions(reporter);
+        }
+
+        private TapRecordEvent insertEvent(int id, long eventTime) {
+            TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                    .table("orders")
+                    .after(Map.of("id", id, "name", "order-" + id));
+            event.setReferenceTime(eventTime);
+            return event;
         }
     }
 }

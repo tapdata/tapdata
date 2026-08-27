@@ -3,6 +3,8 @@ package io.tapdata.dql.reporter;
 import io.tapdata.dql.client.DqlTmClient;
 import io.tapdata.dql.model.DqlEventReport;
 import io.tapdata.dql.model.DqlEventReportResult;
+import io.tapdata.dql.model.DqlRecordSuccessReport;
+import io.tapdata.dql.model.DqlRecordSuccessReportResult;
 import io.tapdata.dql.model.DqlRouteDecision;
 import org.apache.commons.lang3.StringUtils;
 
@@ -36,6 +38,25 @@ public class DqlEventReporter {
         }
     }
 
+    /**
+     * Reports a successfully written record so TM can mark a matching
+     * unresolved DQL event as exposed to a later write.
+     */
+    public DqlRecordSuccessReportResult reportRecordSuccess(String taskId, DqlRecordSuccessReport report) {
+        validateRecordSuccessInput(taskId, report);
+        try {
+            DqlRecordSuccessReportResult result = tmClient.reportRecordSuccess(taskId, report);
+            if (result == null) {
+                throw new DqlEventReportException(taskId, "TM acknowledgement was empty");
+            }
+            return result;
+        } catch (DqlEventReportException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new DqlEventReportException(taskId, exception);
+        }
+    }
+
     private void validateInput(String taskId, DqlEventReport report) {
         if (StringUtils.isBlank(taskId)) {
             throw new IllegalArgumentException("taskId must not be blank");
@@ -45,6 +66,15 @@ public class DqlEventReporter {
         }
         if (report.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
             throw new IllegalArgumentException("report routeDecision must be RECORD_DLQ");
+        }
+    }
+
+    private void validateRecordSuccessInput(String taskId, DqlRecordSuccessReport report) {
+        if (StringUtils.isBlank(taskId)) {
+            throw new IllegalArgumentException("taskId must not be blank");
+        }
+        if (report == null) {
+            throw new IllegalArgumentException("report must not be null");
         }
     }
 

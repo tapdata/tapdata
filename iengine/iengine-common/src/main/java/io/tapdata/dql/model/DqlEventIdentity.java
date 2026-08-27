@@ -36,4 +36,18 @@ public class DqlEventIdentity {
         }
         report.getPayload().setPayloadHash(payloadHash);
     }
+
+    /**
+     * Copies the same identity metadata to a later-success callback.
+     */
+    public void applyTo(DqlRecordSuccessReport report) {
+        if (report == null) {
+            throw new IllegalArgumentException("report must not be null");
+        }
+        report.setEventKey(eventKey);
+        report.setRecordIdentity(recordIdentity);
+        report.setRecordIdentityType(recordIdentityType == null ? null : recordIdentityType.name());
+        report.setRecordIdentityFields(recordIdentityFields);
+        report.setPayloadHash(payloadHash);
+    }
 }
