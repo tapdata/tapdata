@@ -110,7 +110,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         long now = System.currentTimeMillis();
         if (now > nextPrintTimes) {
             String skipInfo = JSON.toJSONString(syncAndSkipMap);
-            log.warn("Skip error event counts:{}", skipInfo);
+            log.warn("DQL record isolated: task={}, skip counts={}", taskId, skipInfo);
             if (ex instanceof TapPdkViolateUniqueEx && ((TapPdkViolateUniqueEx) ex).getData() != null) {
                 log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkViolateUniqueEx) ex).getData());
             }
@@ -146,14 +146,23 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         return getTypeMetrics(tableMetrics, type);
     }
 
-    private boolean checkSkipByLimitMode(long syncCounts, long skipCounts) {
-        switch (skipErrorEvent.getLimitModeEnum()) {
+    private boolean checkSkipByLimitMode(String tableName, long syncCounts, long skipCounts) {
+        TaskDto.SkipErrorEvent.LimitMode limitMode = skipErrorEvent == null
+                ? TaskDto.SkipErrorEvent.LimitMode.Disable : skipErrorEvent.getLimitModeEnum();
+        if (limitMode == null) {
+            limitMode = TaskDto.SkipErrorEvent.LimitMode.Disable;
+        }
+        switch (limitMode) {
+            case Disable:
+                return true;
             case SkipByLimit:
                 if (skipErrorEvent.getLimit() >= skipCounts) {
                     return true;
                 } else {
                     String skipInfo = JSON.toJSONString(syncAndSkipMap);
-                    log.warn("Reach the skip limit: {}, status: {}", skipCounts, skipInfo);
+                    logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                            DqlRouteDecision.TASK_ERROR.name(),
+                            "skip limit reached: count=" + skipCounts + ", status=" + skipInfo);
                 }
                 break;
             case SkipByRate:
@@ -162,7 +171,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                     return true;
                 } else {
                     String skipInfo = JSON.toJSONString(syncAndSkipMap);
-                    log.warn("Reach the skip rate: {}, status: {}", String.format("%.2f", rate), skipInfo);
+                    logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                            DqlRouteDecision.TASK_ERROR.name(),
+                            "skip rate reached: rate=" + String.format("%.2f", rate)
+                                    + ", status=" + skipInfo);
                 }
                 break;
             default:
@@ -398,7 +410,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public AspectInterceptResult skipErrorProcessAspectHandle(SkipErrorProcessAspect aspect) {
         if (aspect == null || aspect.getInputEvent() == null
                 || !(aspect.getInputEvent().getTapEvent() instanceof TapRecordEvent event)
-                || aspect.getError() == null) {
+                || aspect.getError() == null || !isSkipDataEnabled() || dqlEventReporter == null) {
             return null;
         }
 
@@ -412,20 +424,41 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         event,
                         DqlBatchContext.singleRecord(),
                         currentDqlTaskContext()));
+        AtomicLong skipMetric;
         if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
+            skipMetric = reserveSkipCandidate(tableId, classification);
             classification = dlqStormGuard.protect(classification, DqlStormGuardContext.singleRecord(
                     taskId, aspect.getNodeId(), tableId, errorCode(aspect.getError()),
                     aspect.getError().getMessage()));
+        } else {
+            skipMetric = reserveSkipCandidate(tableId, classification);
         }
-        if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
-            return null;
-        }
+        boolean committed = false;
+        try {
+            if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+                logTaskLevelHandling(tableId, classification);
+                return null;
+            }
+            long syncCounts = getTypeMetrics(tableId, METRICS_SYNC).get();
+            if (!checkSkipByLimitMode(tableId, syncCounts, skipMetric.get())) {
+                return null;
+            }
 
-        TapTable table = resolveProcessorTable(aspect, tableId);
-        reportDqlEvent(table, event, tableId, aspect.getError(), classification,
-                failedStage, aspect.getNodeId(), aspect.getNodeName(), null);
-        logSkipEvent(event, aspect.getError());
-        return new AspectInterceptResult().intercepted(true);
+            TapTable table = resolveProcessorTable(aspect, tableId);
+            reportDqlEvent(table, event, tableId, aspect.getError(), classification,
+                    failedStage, aspect.getNodeId(), aspect.getNodeName(), null);
+            logSkipEvent(event, aspect.getError());
+            committed = true;
+            return new AspectInterceptResult().intercepted(true);
+        } catch (DqlEventReportException exception) {
+            logTaskLevelHandling(tableId, DqlExceptionScope.RECORD.name(),
+                    DqlRouteDecision.TASK_ERROR.name(), "DQL report failed");
+            throw exception;
+        } finally {
+            if (!committed) {
+                rollbackSkipCandidate(skipMetric);
+            }
+        }
     }
 
     public AspectInterceptResult skipErrorDataNoeAspectImpl(SkipErrorDataAspect aspect) {
@@ -469,11 +502,17 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private boolean shouldSplitBatch(SkipErrorDataAspect aspect, Throwable error) {
         DqlClassificationResult classification = classify(error, null,
                 DqlBatchContext.batchFailure(aspect.getTapRecordEvents().size(), 1));
+        String tableName = tableId(aspect.getTapTable());
         if (classification.getExceptionScope() == DqlExceptionScope.SYSTEM
                 || isSharedFailure(classification)) {
+            logTaskLevelHandling(tableName, classification);
             return false;
         }
-        return checkSkipByThrowable(error);
+        boolean skippable = checkSkipByThrowable(error);
+        if (!skippable) {
+            logTaskLevelHandling(tableName, classification);
+        }
+        return skippable;
     }
 
     private boolean isSharedFailure(DqlClassificationResult classification) {
@@ -481,37 +520,86 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         return reason != null && reason.startsWith("shared failure");
     }
 
+    private AtomicLong reserveSkipCandidate(String tableName, DqlClassificationResult classification) {
+        if (classification == null
+                || (classification.getExceptionScope() != DqlExceptionScope.UNKNOWN
+                && classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ)) {
+            return null;
+        }
+        AtomicLong skipMetric = getTypeMetrics(tableName, METRICS_SKIP);
+        skipMetric.incrementAndGet();
+        return skipMetric;
+    }
+
+    private void rollbackSkipCandidate(AtomicLong skipMetric) {
+        if (skipMetric != null) {
+            skipMetric.decrementAndGet();
+        }
+    }
+
+    private String tableId(TapTable table) {
+        if (table == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(table.getId())) {
+            return table.getId();
+        }
+        return table.getName();
+    }
+
+    private void logTaskLevelHandling(String tableName, DqlClassificationResult classification) {
+        if (classification == null) {
+            return;
+        }
+        logTaskLevelHandling(tableName,
+                classification.getExceptionScope() == null ? null : classification.getExceptionScope().name(),
+                classification.getRouteDecision() == null ? null : classification.getRouteDecision().name(),
+                classification.getClassificationReason());
+    }
+
+    private void logTaskLevelHandling(String tableName, String scope, String route, String reason) {
+        if (log != null) {
+            log.warn("DQL task-level handling: task={}, table={}, scope={}, route={}, reason={}",
+                    taskId, tableName, scope, route, reason);
+        }
+    }
+
     private boolean checkSkip(TapTable table,
                                String tableName,
                                TapRecordEvent tapRecordEvent,
                                Throwable ex) {
         DqlClassificationResult classification = classify(ex, tapRecordEvent, DqlBatchContext.singleRecord());
+        AtomicLong skipMetric = reserveSkipCandidate(tableName, classification);
         if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
             classification = dlqStormGuard.protect(classification, DqlStormGuardContext.singleRecord(
                     taskId, null, tableName, errorCode(ex), ex.getMessage()));
         }
-        if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
-            return false;
-        }
-
-        AtomicLong skipMetric = getTypeMetrics(tableName, METRICS_SKIP);
-        long syncCounts = getTypeMetrics(tableName, METRICS_SYNC).get();
-        long skipCounts = skipMetric.incrementAndGet();
-        if (!checkSkipByLimitMode(syncCounts, skipCounts)) {
-            skipMetric.decrementAndGet();
-            return false;
-        }
-
+        boolean committed = false;
         try {
+            if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+                logTaskLevelHandling(tableName, classification);
+                return false;
+            }
+            long syncCounts = getTypeMetrics(tableName, METRICS_SYNC).get();
+            if (!checkSkipByLimitMode(tableName, syncCounts, skipMetric.get())) {
+                return false;
+            }
             reportDqlEvent(table, tapRecordEvent, tableName, ex, classification);
             logSkipEvent(tapRecordEvent, ex);
+            committed = true;
             return true;
         } catch (DqlEventReportException exception) {
-            skipMetric.decrementAndGet();
+            logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                    DqlRouteDecision.TASK_ERROR.name(), "DQL report failed");
             throw exception;
         } catch (RuntimeException exception) {
-            skipMetric.decrementAndGet();
+            logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                    DqlRouteDecision.TASK_ERROR.name(), "DQL capture failed");
             throw new DqlEventReportException(taskId, exception);
+        } finally {
+            if (!committed) {
+                rollbackSkipCandidate(skipMetric);
+            }
         }
     }
 
