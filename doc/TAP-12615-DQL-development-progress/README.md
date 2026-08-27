@@ -75,7 +75,7 @@
 | E05 | 已完成 | `steps/E05-recovery-only-runner.md` |
 | E06 | 已完成 | `steps/E06-source-boundary-injection.md` |
 | E07 | 已完成 | `steps/E07-recovery-barrier.md` |
-| E08 | 未开始 | 待生成 |
+| E08 | 已完成 | `steps/E08-recovery-capture-guard.md` |
 | E09 | 未开始 | 待生成 |
 | E10 | 未开始 | 待生成 |
 

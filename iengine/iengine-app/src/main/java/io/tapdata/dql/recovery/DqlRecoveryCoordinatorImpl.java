@@ -177,6 +177,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                 if (terminal.get()) {
                     return;
                 }
+                batchBarrier.register(eventId);
                 EventExecutionResult result = executeEvent(command, eventId, sink, batchBarrier);
                 if (result.successful()) {
                     continue;
@@ -227,10 +228,12 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
             sink.enqueue(recoveryEvent);
             result = barrierResult(eventId, batchBarrier.await(eventId, barrierTimeoutMillis));
         } catch (InterruptedException exception) {
+            batchBarrier.cancel(eventId);
             Thread.currentThread().interrupt();
             result = EventExecutionResult.failureResult("recovery barrier interrupted for event " + eventId,
                     "TIMEOUT");
         } catch (RuntimeException exception) {
+            batchBarrier.cancel(eventId);
             result = EventExecutionResult.failureResult(message(exception), "FAILED");
         }
 

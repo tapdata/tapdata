@@ -28,6 +28,7 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.dql.classifier.DqlFailedStage;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.DelayHandler;
@@ -287,6 +288,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	private boolean interceptProcessorError(TapdataEvent tapdataEvent, Throwable error) {
+		if (DqlRecoveryCaptureGuard.isRecovery(tapdataEvent)) {
+			DqlRecoveryCaptureGuard.notifyFailure(tapdataEvent, error);
+			return false;
+		}
 		AspectInterceptResult interceptResult = executeAspect(new SkipErrorProcessAspect()
 				.processorBaseContext(processorBaseContext)
 				.inputEvent(tapdataEvent)

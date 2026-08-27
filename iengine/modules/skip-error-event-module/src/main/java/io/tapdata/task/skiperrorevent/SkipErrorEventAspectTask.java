@@ -36,6 +36,7 @@ import io.tapdata.dql.preview.DqlPayloadPreview;
 import io.tapdata.dql.preview.DqlPayloadPreviewBuilder;
 import io.tapdata.dql.reporter.DqlEventReportException;
 import io.tapdata.dql.reporter.DqlEventReporter;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.dql.serializer.DqlPayloadSerializer;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -346,7 +347,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         Map<TapRecordEvent, Throwable> errorMap = writeResult.getErrorMap();
         long successAt = System.currentTimeMillis();
         for (TapRecordEvent event : events) {
-            if (event == null || (errorMap != null && errorMap.containsKey(event))) {
+            if (event == null || DqlRecoveryCaptureGuard.isRecoveryRecord(event)
+                    || (errorMap != null && errorMap.containsKey(event))) {
                 continue;
             }
             try {
@@ -413,7 +415,14 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public AspectInterceptResult skipErrorProcessAspectHandle(SkipErrorProcessAspect aspect) {
         if (aspect == null || aspect.getInputEvent() == null
                 || !(aspect.getInputEvent().getTapEvent() instanceof TapRecordEvent event)
-                || aspect.getError() == null || !isSkipDataEnabled() || dqlEventReporter == null) {
+                || aspect.getError() == null) {
+            return null;
+        }
+        if (DqlRecoveryCaptureGuard.isRecoveryRecord(event)) {
+            DqlRecoveryCaptureGuard.notifyFailure(event, aspect.getError());
+            return null;
+        }
+        if (!isSkipDataEnabled() || dqlEventReporter == null) {
             return null;
         }
 
@@ -571,6 +580,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                String tableName,
                                TapRecordEvent tapRecordEvent,
                                Throwable ex) {
+        if (DqlRecoveryCaptureGuard.isRecoveryRecord(tapRecordEvent)) {
+            DqlRecoveryCaptureGuard.notifyFailure(tapRecordEvent, ex);
+            return false;
+        }
         DqlClassificationResult classification = classify(ex, tapRecordEvent, DqlBatchContext.singleRecord());
         AtomicLong skipMetric = reserveSkipCandidate(tableName, classification);
         if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {

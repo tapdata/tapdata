@@ -22,26 +22,38 @@ public final class DqlRecoveryBarrierCoordinator implements DqlRecoveryBarrier {
     }
 
     @Override
-    public Outcome await(String eventId, long timeoutMillis) throws InterruptedException {
-        if (eventId == null || eventId.isBlank()) {
-            throw new IllegalArgumentException("recovery eventId must not be blank");
-        }
-        if (timeoutMillis <= 0L) {
-            throw new IllegalArgumentException("recovery barrier timeout must be greater than zero");
-        }
-        TapdataCountDownLatchEvent barrierEvent = TapdataCountDownLatchEvent.create(1);
-        PendingBarrier pending = new PendingBarrier(barrierEvent);
+    public void register(String eventId) {
+        validateEventId(eventId);
+        PendingBarrier pending = new PendingBarrier(TapdataCountDownLatchEvent.create(1));
         if (pendingBarriers.putIfAbsent(eventId, pending) != null) {
             throw new IllegalStateException("recovery barrier already exists for event " + eventId);
         }
         try {
-            sourceBoundary.enqueueBarrier(barrierEvent);
-            if (!barrierEvent.getCountDownLatch().await(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            DqlRecoveryFailureRegistry.register(eventId,
+                    failure -> complete(eventId, Outcome.FAILED));
+        } catch (RuntimeException exception) {
+            pendingBarriers.remove(eventId, pending);
+            throw exception;
+        }
+    }
+
+    @Override
+    public Outcome await(String eventId, long timeoutMillis) throws InterruptedException {
+        validateEventId(eventId);
+        if (timeoutMillis <= 0L) {
+            throw new IllegalArgumentException("recovery barrier timeout must be greater than zero");
+        }
+        PendingBarrier pending = pendingBarriers.computeIfAbsent(eventId,
+                ignored -> new PendingBarrier(TapdataCountDownLatchEvent.create(1)));
+        try {
+            sourceBoundary.enqueueBarrier(pending.event());
+            if (!pending.event().getCountDownLatch().await(timeoutMillis, TimeUnit.MILLISECONDS)) {
                 return Outcome.TIMEOUT;
             }
             return pending.outcome();
         } finally {
             pendingBarriers.remove(eventId, pending);
+            DqlRecoveryFailureRegistry.unregister(eventId);
         }
     }
 
@@ -64,8 +76,23 @@ public final class DqlRecoveryBarrierCoordinator implements DqlRecoveryBarrier {
         complete(eventId, Outcome.FAILED);
     }
 
+    @Override
+    public void cancel(String eventId) {
+        if (eventId == null) {
+            return;
+        }
+        pendingBarriers.remove(eventId);
+        DqlRecoveryFailureRegistry.unregister(eventId);
+    }
+
     public int activeBarrierCount() {
         return pendingBarriers.size();
+    }
+
+    private void validateEventId(String eventId) {
+        if (eventId == null || eventId.isBlank()) {
+            throw new IllegalArgumentException("recovery eventId must not be blank");
+        }
     }
 
     private static final class PendingBarrier {

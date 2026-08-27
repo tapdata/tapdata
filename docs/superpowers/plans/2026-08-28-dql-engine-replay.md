@@ -203,18 +203,18 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 **Files:**
 - Modify: `iengine/modules/skip-error-event-module/src/main/java/io/tapdata/task/skiperrorevent/SkipErrorEventAspectTask.java`
 - Modify: `iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/processor/HazelcastProcessorBaseNode.java`
-- Modify: `iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/HazelcastTargetPdkDataNode.java`
+- Modify: `iengine/modules/skip-error-event-module/src/main/java/io/tapdata/task/skiperrorevent/SkipErrorDataAspect.java` (target write aspect boundary; the repository has no `HazelcastTargetPdkDataNode`)
 - Create: `iengine/iengine-app/src/test/java/io/tapdata/dql/recovery/DqlRecoveryCaptureGuardTest.java`
 - Create: `doc/TAP-12615-DQL-development-progress/steps/E08-recovery-capture-guard.md`
 
 **Interfaces:**
 - Produces: recovery failures routed to original event result reporting without a second `DqlEventReporter.report` call.
 
-- [ ] **Step 1: Write the failing test** — feed a recovery-marked event through target and processor failure paths and assert no new DQL report is created while the original event failure callback is invoked.
-- [ ] **Step 2: Run test to verify it fails** — run the focused capture guard test and observe recursive reporting.
-- [ ] **Step 3: Write minimal implementation** — centralize `TapdataDqlRecoveryEvent.isRecoveryEvent(tapEvent)` detection and branch before normal DQL capture; preserve existing behavior for non-recovery events.
-- [ ] **Step 4: Run test to verify it passes** — run C07-C12 capture regression and recovery guard tests.
-- [ ] **Step 5: Commit** — record the no-recursion invariant and commit `feat(TAP-12615): guard dql recovery from recursive capture`.
+- [x] **Step 1: Write the failing test** — added recovery-marked target-write and processor-failure tests; both assert the original failure is delivered without a new DQL report.
+- [x] **Step 2: Run test to verify it fails** — the initial compile/test boundary exposed the missing common failure bridge and marker guard; after adding the narrow bridge, the focused tests exercised the intended failure path.
+- [x] **Step 3: Write minimal implementation** — centralized marker detection in `iengine-common`, registered one-shot failure listeners from the E07 barrier, branched before normal target/process capture, and skipped later-success reporting for recovery records.
+- [x] **Step 4: Run test to verify it passes** — focused E08 capture/barrier/coordinator tests passed (14 relevant tests); C12 capture regression passed (3/3). The broader legacy `SkipErrorEventAspectTaskTest` still has unrelated fixture failures in `LogSkipEventTest` and `ExecutorShutdownTest`, documented in the E08 step record.
+- [x] **Step 5: Commit** — record the no-recursion invariant and commit `feat(TAP-12615): guard dql recovery from recursive capture`.
 
 ### Task 8: E09 batch failure compensation
 

@@ -53,6 +53,29 @@ class DqlRecoveryBarrierCoordinatorTest {
     }
 
     @Test
+    void registeredCaptureFailureReleasesTheMatchingBarrier() throws Exception {
+        RecordingBoundary boundary = new RecordingBoundary(false);
+        DqlRecoveryBarrierCoordinator coordinator = new DqlRecoveryBarrierCoordinator(boundary);
+        coordinator.register("event-1");
+        List<DqlRecoveryBarrier.Outcome> outcomes = new ArrayList<>();
+        Thread waiter = new Thread(() -> {
+            try {
+                outcomes.add(coordinator.await("event-1", 2000L));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        waiter.start();
+
+        assertTrue(boundary.barrierEnqueued.await(1, TimeUnit.SECONDS));
+        assertTrue(DqlRecoveryFailureRegistry.fail("event-1", new RuntimeException("target failed")));
+        waiter.join(1000L);
+
+        assertEquals(List.of(DqlRecoveryBarrier.Outcome.FAILED), outcomes);
+        assertEquals(0, coordinator.activeBarrierCount());
+    }
+
+    @Test
     void timeoutIsTerminalAndDoesNotLeaveBarrierStateBehind() throws Exception {
         RecordingBoundary boundary = new RecordingBoundary(false);
         DqlRecoveryBarrierCoordinator coordinator = new DqlRecoveryBarrierCoordinator(boundary);
