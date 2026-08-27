@@ -108,6 +108,7 @@
 | G10 | 待外部环境 | `steps/G10-requirements-check.md` |
 | G11 | 待外部环境 | `steps/G11-poc-demo-and-limitations.md` |
 | G12 | 待外部环境 | `steps/G12-release-checklist.md` |
+| G13 | 待外部环境 | `steps/G13-poc-validation-scenarios.md` |
 
 ## 回归记录
 
@@ -125,4 +126,4 @@
 | M3 TM 批次控制 | 已完成（待集成验证） | `milestones/M3-tm-recovery-batch-control.md` |
 | M4 Engine 回放闭环 | 已完成（待集成验证） | `milestones/M4-engine-replay-closure.md` |
 | M5 告警与初始化 | 已完成（待集成验证） | `milestones/M5-alarm-initialization.md` |
-| M6 POC 验收 | 进行中（待外部环境） | 待 G01-G12 |
+| M6 POC 验收 | 进行中（待外部环境） | 待 G01-G13 |

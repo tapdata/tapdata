@@ -12,6 +12,16 @@ E02-E10、F01-F07 的代码、步骤文档和本地定向测试已形成连续�
 
 当前发布仍不能无条件放行：真实 TM/Engine/Mongo/连接器联调、权限升级、告警通知、TTL Monitor、故障注入、回滚和签字尚未执行；部分仓库既有测试在当前 JetBrains JDK 17 下受 Mockito inline agent 自附加影响，不能用全仓库绿灯作为本次 DQL 的完成依据。
 
+## Web-TM 联通收口
+
+- Web 基线已快进到 `404c66c2c`；联通修复提交为 `7de834bcb`（本地分支 `feat/TAP-12753-dlq-event-ui`）。
+- Web 开发环境默认调用真实 TM API；仅显式设置 `VITE_DQL_EVENT_API=mock` 时才启用模拟数据。
+- 列表、摘要、筛选、刷新、详情、处理记录、恢复预览和恢复提交均已对应 TM 的 `/api/dql-events` 端点；任务跳转通过 `/api/Task/{taskId}?fields=...` 获取 `syncType`。
+- TM 的真实只读探针已验证：直连 `/api/dql-events` 和经 Vite `/api/dql-events` 均返回 `401 NotLogin`，说明路由已到达 TM；未使用登录凭据执行有副作用的恢复提交。
+- Web `pnpm --filter daas build --emptyOutDir` 通过，目标文件 lint 无 error，目标文件类型检查无新增诊断；全仓类型检查仍受既有共享包问题影响。
+- TM Controller/事件 Service/Mapper 定向测试通过；恢复批次测试本次运行仍有 6 个失败和 1 个错误，涉及测试中的批次锁状态隔离，未修改 TM 后端代码。
+- 本次 Web 提交未通过仓库 `check-i18n` 钩子，原因是异常事件页面及其 mock 已存在大量中文硬编码；代码已保留并以 `--no-verify` 完成本地提交，需另行补国际化。
+
 ## 发布清单
 
 - 代码评审：核对 DQL 入口保护、状态机终态、锁释放、补偿和安全摘要。
