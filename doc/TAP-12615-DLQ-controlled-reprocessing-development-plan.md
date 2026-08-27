@@ -125,7 +125,7 @@
 | D03 | 已完成 | 实现同任务批次互斥锁 | 使用 `dql_recovery_locks` 独立集合，以 `task_id` 唯一索引和带过期条件的原子 upsert 保证一个任务只有一个 CREATED/DISPATCHED/RUNNING 批次；30 分钟租约支持异常退出后恢复 | B03、D01 | 并发发起时只有一个请求成功；批次创建、事件锁定或下发失败及终态回调均释放锁；异常退出后可在租约过期后重新获取 |
 | D04 | 已完成 | 完成事件级锁和批次创建事务语义 | 创建 `CREATED` 批次后条件更新所有事件为 `REPROCESSING` 并写 `current_batch_id`；数量不匹配或锁定异常时按事件原始状态补偿并取消批次；派发前失败时释放事件锁并失败批次 | D02、D03 | 选中数量与锁定数量不一致时不下发；已锁事件恢复原可重处理状态；任务锁在补偿后释放 |
 | D05 | 已完成 | 完成 `dqlRecovery` 消息下发 | 新增独立 `DqlRecoveryMessageDto`，携带任务/批次/版本/有序事件/操作人/执行模式，通过 `MessageQueueService` 发送到批次 Agent；批次先置 `DISPATCHED`，不修改已有 DataSync opType | A03、D04 | 消息契约测试通过；下发失败时批次失败、事件按 D04 原始状态解锁、任务锁释放 |
-| D06 | 部分完成 | 完成 Engine 结果回调状态机 | 处理 BATCH_STARTED、EVENT_STARTED、EVENT_RESULT、BATCH_FINISHED、BATCH_FAILED；校验任务、批次和事件归属 | A02、D05 | 回调只能推进合法状态；事件 attempt、摘要和批次计数保持一致 |
+| D06 | 已完成 | 完成 Engine 结果回调状态机 | 已处理 BATCH_STARTED、EVENT_STARTED、EVENT_RESULT、BATCH_FINISHED、BATCH_FAILED；校验任务、批次、事件归属和当前批次锁；EVENT_STARTED 追加 RUNNING attempt，终态回调按结果迁移事件并刷新摘要 | A02、D05 | 回调只能推进合法状态；事件 attempt、摘要和批次计数保持一致；完成前强制满足 `selected=success+failed+skipped` |
 | D07 | 部分完成 | 实现结果回调幂等 | 使用 attemptId、批次和事件条件更新防止重复回调重复增加次数或覆盖终态 | D06 | 同一回调重复发送不会重复增加 `recovery_count`、success/failed/skipped count |
 | D08 | 未开始 | 实现批次超时扫描 | 扫描超时的 DISPATCHED/RUNNING 批次，为未完成事件追加 TIMEOUT attempt，汇总批次并释放锁 | D03、D06 | 超时后不存在永久 `REPROCESSING` 事件或永久任务锁；产生失败告警 |
 | D09 | 部分完成 | 完成批次详情和审计 | 返回操作人、模式、任务前后状态、源读取暂停/恢复结果、计数、时间和消息 | D06-D08 | 批次详情 API 可完整表达进度且操作人和结果可追溯；该接口作为可选运维诊断能力，不阻塞当前 Web 联调 |

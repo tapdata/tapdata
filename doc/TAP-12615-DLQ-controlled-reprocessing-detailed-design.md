@@ -1083,6 +1083,14 @@ TM 处理时必须校验：
 - 事件属于该批次。
 - 事件 `current_batch_id` 等于当前批次。
 
+回调状态机约束：
+
+- `BATCH_STARTED` 仅允许 `DISPATCHED -> RUNNING`。
+- `EVENT_STARTED` 和 `EVENT_RESULT` 仅允许 `RUNNING` 批次；前者按 `event_id + current_batch_id` 追加 `RUNNING` attempt，后者按结果完成或失败事件并增加对应批次计数。
+- `BATCH_FINISHED` 仅允许 `RUNNING` 批次，且必须先满足 `selected_count = success_count + failed_count + skipped_count`，再进入 `SUCCESS` 或 `PARTIAL_FAILED`。
+- `BATCH_FAILED` 允许活动批次进入 `FAILED`，释放当前批次事件锁和任务租约。
+- 终态批次、非当前批次事件和未对账批次不得被回调覆盖；重复回调的 attempt 判重和计数幂等由 D07 处理。
+
 ## 8. Engine 捕获详细设计
 
 ### 8.1 捕获入口和分类前置

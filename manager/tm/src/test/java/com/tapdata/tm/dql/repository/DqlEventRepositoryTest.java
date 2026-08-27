@@ -3,6 +3,7 @@ package com.tapdata.tm.dql.repository;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
@@ -252,6 +253,31 @@ class DqlEventRepositoryTest {
         assertTtlRefreshed(set);
         assertEquals(attempt, updateCaptor.getValue().getUpdateObject()
                 .get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS));
+    }
+
+    @Test
+    @DisplayName("starting recovery appends a running attempt only for the current batch lock")
+    void startEventAppendsRunningAttempt() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("A-1");
+        attempt.setResult(DqlRecoveryAttemptResultEnum.RUNNING.name());
+
+        assertTrue(repository.startEvent("DQL-1", "DQLB-1", attempt));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQL-1", query.get(DqlEventDto.FIELD_EVENT_ID));
+        assertEquals(DqlEventStatusEnum.REPROCESSING.name(), query.get(DqlEventDto.FIELD_STATUS));
+        assertEquals("DQLB-1", query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertEquals(attempt, update.get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS));
+        assertTtlRefreshed(update.get("$set", Document.class));
     }
 
     @Test

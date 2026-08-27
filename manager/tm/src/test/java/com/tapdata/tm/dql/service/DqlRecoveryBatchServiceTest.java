@@ -8,6 +8,7 @@ import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -70,6 +71,99 @@ class DqlRecoveryBatchServiceTest {
         verify(batchRepository).increaseSkipped("DQLB-1");
         verify(batchRepository, never()).increaseFailed("DQLB-1");
         verify(alarmService, never()).notifyRecoveryFailed(any(DqlRecoveryBatchDto.class));
+    }
+
+    @Test
+    @DisplayName("batch started moves a dispatched batch to running")
+    void batchStartedMovesBatchToRunning() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.DISPATCHED.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_STARTED"));
+
+        verify(batchRepository).markRunning("DQLB-1");
+    }
+
+    @Test
+    @DisplayName("event started appends a running recovery attempt for the locked event")
+    void eventStartedAppendsRunningAttempt() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(eventRepository.startEvent(eq("DQL-1"), eq("DQLB-1"), any(DqlRecoveryAttemptDto.class))).thenReturn(true);
+        DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_STARTED");
+        report.setStartedAt(1787580100000L);
+
+        service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlRecoveryAttemptDto> attempt = ArgumentCaptor.forClass(DqlRecoveryAttemptDto.class);
+        verify(eventRepository).startEvent(eq("DQL-1"), eq("DQLB-1"), attempt.capture());
+        assertEquals(DqlRecoveryAttemptResultEnum.RUNNING.name(), attempt.getValue().getResult());
+        assertEquals(new java.util.Date(1787580100000L), attempt.getValue().getStartedAt());
+        org.junit.jupiter.api.Assertions.assertNull(attempt.getValue().getFinishedAt());
+    }
+
+    @Test
+    @DisplayName("event result rejects an event that is not owned by the current batch")
+    void eventResultRejectsEventOutsideCurrentBatchLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(eventRepository.completeEvent(eq("DQL-1"), eq("DQLB-1"), any())).thenReturn(false);
+        DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
+        report.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, report));
+
+        assertEquals("DqlRecovery.EventNotInBatch", exception.getErrorCode());
+        verify(batchRepository, never()).increaseSuccess("DQLB-1");
+    }
+
+    @Test
+    @DisplayName("batch finished requires event counters to reconcile before finalizing")
+    void batchFinishedRequiresReconciledCounters() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1", "DQL-2"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        batch.setSuccessCount(1);
+        batch.setFailedCount(0);
+        batch.setSkippedCount(0);
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        BizException exception = assertThrows(BizException.class,
+                () -> service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED")));
+
+        assertEquals("DqlRecovery.CountMismatch", exception.getErrorCode());
+        verify(batchRepository, never()).finish(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reconciled successful batch enters the success state")
+    void batchFinishedFinalizesSuccessfulBatch() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository, alarmService);
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1", "DQL-2"));
+        batch.setSuccessCount(2);
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
+
+        verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null);
+        verify(alarmService, never()).notifyBatchPartialFailed(any(DqlRecoveryBatchDto.class));
     }
 
     @Test
@@ -687,6 +781,7 @@ class DqlRecoveryBatchServiceTest {
         batch.setBatchId(batchId);
         batch.setTaskId(TASK_ID);
         batch.setEventIds(eventIds);
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
         batch.setSelectedCount(eventIds.size());
         batch.setSuccessCount(0);
         batch.setFailedCount(0);

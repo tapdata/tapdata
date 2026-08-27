@@ -368,6 +368,21 @@ public class DqlEventRepository {
         return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
     }
 
+    /**
+     * Records that the recovery engine has started processing an event.
+     * Ownership remains guarded by the current batch lock and the event stays
+     * in REPROCESSING until a terminal result is reported.
+     */
+    public boolean startEvent(String eventId, String batchId, DqlRecoveryAttemptDto attempt) {
+        Query query = batchEventQuery(eventId, batchId);
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+        update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
+    }
+
     public long releaseBatchLocks(String batchId, DqlEventStatusEnum targetStatus) {
         return releaseBatchLocks(batchId, null, targetStatus);
     }

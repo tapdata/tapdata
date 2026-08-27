@@ -548,6 +548,7 @@ class DqlEventServiceTest {
         batch.setBatchId("DQLB-20260825-000001");
         batch.setTaskId(TASK_ID);
         batch.setEventIds(List.of("DQL-64f000-000001"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
         when(batchRepository.findByBatchId("DQLB-20260825-000001")).thenReturn(batch);
         when(eventRepository.completeEvent(eq("DQL-64f000-000001"), eq("DQLB-20260825-000001"), any())).thenReturn(true);
         DqlRecoveryResultReportVo report = new DqlRecoveryResultReportVo();
