@@ -1,16 +1,35 @@
 package io.tapdata.task.skiperrorevent;
 
+import com.tapdata.tm.commons.function.ThrowableFunction;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.PDKExCode_10;
+import io.tapdata.aspect.SkipErrorDataAspect;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.dql.model.DqlEventReport;
+import io.tapdata.dql.model.DqlEventReportResult;
+import io.tapdata.dql.model.DqlErrorType;
+import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlClassificationConfidence;
+import io.tapdata.dql.classifier.DqlFailedStage;
+import io.tapdata.dql.reporter.DqlEventReportException;
+import io.tapdata.dql.reporter.DqlEventReporter;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.exception.TapPdkWriteLengthEx;
 import io.tapdata.exception.TapPdkWriteTypeEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -19,6 +38,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -141,6 +164,186 @@ public class SkipErrorEventAspectTaskTest {
             Throwable ex = new TapPdkWriteLengthEx("mysql", null, null, "\"ID\":7,\"NAME\":\"test1\"", null);
             skipErrorEventAspectTask.logSkipEvent(tapRecordEvent, ex);
             verify(log, new Times(2)).warn(anyString(), anyString());
+        }
+    }
+
+    @Nested
+    class TargetWriteCaptureTest {
+        private final TapTable table = new TapTable("orders");
+        private final PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+        private final DqlEventReporter reporter = mock(DqlEventReporter.class);
+
+        @BeforeEach
+        void setUpDqlCapture() {
+            TaskDto task = new TaskDto();
+            task.setId(new org.bson.types.ObjectId());
+            task.setTaskRecordId("task-record-1");
+            task.setName("orders-sync");
+            task.setVersion(7L);
+            task.setAgentId("agent-1");
+            task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            task.setStatus(TaskDto.STATUS_RUNNING);
+            skipErrorEventAspectTask.setTask(task);
+
+            TaskDto.SkipErrorEvent skipConfig = new TaskDto.SkipErrorEvent();
+            skipConfig.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.SkipData);
+            skipConfig.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.SkipByLimit);
+            skipConfig.setLimit(10L);
+            skipConfig.setRate(100);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "skipErrorEvent", skipConfig);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "taskId", "task-1");
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "dqlEventReporter", reporter);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "nextPrintTimes", Long.MAX_VALUE);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "log", mock(Log.class));
+        }
+
+        @Test
+        void sharedBatchFailureShouldReturnToTaskRetryWithoutSplitting() {
+            List<TapRecordEvent> events = List.of(insertEvent(1), insertEvent(2));
+            TapCodeException sharedFailure = new TapCodeException(PDKExCode_10.RETRYABLE_ERROR);
+            List<List<TapRecordEvent>> applied = new ArrayList<>();
+            SkipErrorDataAspect aspect = aspect(events, records -> {
+                applied.add(records);
+                throw sharedFailure;
+            });
+
+            TapCodeException thrown = assertThrows(TapCodeException.class,
+                    () -> skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(aspect));
+
+            assertSame(sharedFailure, thrown);
+            assertEquals(List.of(events), applied);
+            verifyNoInteractions(reporter);
+        }
+
+        @Test
+        void targetRecordFailureShouldReportBeforeReturningSkip() {
+            TapRecordEvent successfulEvent = insertEvent(1);
+            TapRecordEvent failedEvent = insertEvent(2);
+            List<TapRecordEvent> events = List.of(successfulEvent, failedEvent);
+            TapCodeException batchFailure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+            TapCodeException singleFailure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+            List<List<TapRecordEvent>> applied = new ArrayList<>();
+            SkipErrorDataAspect aspect = aspect(events, records -> {
+                applied.add(records);
+                if (records.size() > 1 || records.get(0) == failedEvent) {
+                    throw records.size() > 1 ? batchFailure : singleFailure;
+                }
+                return null;
+            });
+            DqlEventReportResult acknowledgement = new DqlEventReportResult();
+            acknowledgement.setEventId("dql-event-1");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenReturn(acknowledgement);
+
+            assertDoesNotThrow(() -> skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(aspect));
+
+            assertEquals(List.of(events, List.of(successfulEvent), List.of(failedEvent)), applied);
+            verify(reporter).report(eq("task-1"), any(DqlEventReport.class));
+            ArgumentCaptor<DqlEventReport> reportCaptor = ArgumentCaptor.forClass(DqlEventReport.class);
+            verify(reporter).report(eq("task-1"), reportCaptor.capture());
+            DqlEventReport report = reportCaptor.getValue();
+            assertEquals(DqlRouteDecision.RECORD_DLQ, report.getRouteDecision());
+            assertEquals(DqlFailedStage.TARGET_WRITE.name(), report.getFailedStage());
+            assertEquals("orders", report.getTableId());
+            assertNotNull(report.getEventIdentity());
+            assertNotNull(report.getPayload().getPayloadData());
+            assertEquals(1L, skipCount("orders"));
+        }
+
+        @Test
+        void protectedSingleRecordFailureShouldNotReportOrSkip() {
+            TapRecordEvent successfulEvent = insertEvent(1);
+            TapRecordEvent failedEvent = insertEvent(2);
+            List<TapRecordEvent> events = List.of(successfulEvent, failedEvent);
+            TapCodeException batchFailure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+            TapCodeException sharedFailure = new TapCodeException(PDKExCode_10.RETRYABLE_ERROR);
+            SkipErrorDataAspect aspect = aspect(events, records -> {
+                if (records.size() > 1) {
+                    throw batchFailure;
+                }
+                if (records.get(0) == failedEvent) {
+                    throw sharedFailure;
+                }
+                return null;
+            });
+
+            TapCodeException thrown = assertThrows(TapCodeException.class,
+                    () -> skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(aspect));
+
+            assertSame(sharedFailure, thrown);
+            verifyNoInteractions(reporter);
+            assertEquals(0L, skipCount("orders"));
+        }
+
+        @Test
+        void failedReportShouldRollbackCandidateSkipCountAndFailTask() {
+            TapRecordEvent successfulEvent = insertEvent(1);
+            TapRecordEvent failedEvent = insertEvent(2);
+            List<TapRecordEvent> events = List.of(successfulEvent, failedEvent);
+            TapCodeException batchFailure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+            TapCodeException singleFailure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+            SkipErrorDataAspect aspect = aspect(events, records -> {
+                if (records.size() > 1 || records.get(0) == failedEvent) {
+                    throw records.size() > 1 ? batchFailure : singleFailure;
+                }
+                return null;
+            });
+            DqlEventReportException reportFailure = new DqlEventReportException("task-1", "TM unavailable");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenThrow(reportFailure);
+
+            DqlEventReportException thrown = assertThrows(DqlEventReportException.class,
+                    () -> skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(aspect));
+
+            assertSame(reportFailure, thrown);
+            verify(reporter).report(eq("task-1"), any(DqlEventReport.class));
+            assertEquals(0L, skipCount("orders"));
+        }
+
+        @Test
+        void unknownSingleFailureShouldPassThroughStormGuardBeforeReporting() {
+            TapRecordEvent event = insertEvent(1);
+            IllegalStateException unknownFailure = new IllegalStateException("vendor row failure 1");
+            SkipErrorDataAspect aspect = aspect(List.of(event), records -> {
+                throw unknownFailure;
+            });
+            DqlEventReportResult acknowledgement = new DqlEventReportResult();
+            acknowledgement.setEventId("dql-event-unknown-1");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenReturn(acknowledgement);
+
+            assertDoesNotThrow(() -> skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(aspect));
+
+            ArgumentCaptor<DqlEventReport> reportCaptor = ArgumentCaptor.forClass(DqlEventReport.class);
+            verify(reporter).report(eq("task-1"), reportCaptor.capture());
+            DqlEventReport report = reportCaptor.getValue();
+            assertEquals(DqlRouteDecision.RECORD_DLQ, report.getRouteDecision());
+            assertEquals(DqlErrorType.UNKNOWN_RECORD_ERROR, report.getErrorType());
+            assertEquals(DqlClassificationConfidence.UNKNOWN_SINGLE, report.getClassificationConfidence());
+            assertEquals(1L, skipCount("orders"));
+        }
+
+        private SkipErrorDataAspect aspect(List<TapRecordEvent> events,
+                                           ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writeFunction) {
+            SkipErrorDataAspect aspect = mock(SkipErrorDataAspect.class);
+            when(aspect.getTapTable()).thenReturn(table);
+            when(aspect.getTapRecordEvents()).thenReturn(events);
+            when(aspect.getPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
+            when(aspect.getWriteRecordFunction()).thenReturn(writeFunction);
+            return aspect;
+        }
+
+        private TapRecordEvent insertEvent(int id) {
+            return TapInsertRecordEvent.create()
+                    .table("orders")
+                    .after(Map.of("id", id, "name", "order-" + id));
+        }
+
+        @SuppressWarnings("unchecked")
+        private long skipCount(String tableId) {
+            Map<String, Map<String, AtomicLong>> metrics =
+                    (Map<String, Map<String, AtomicLong>>) ReflectionTestUtils
+                            .getField(skipErrorEventAspectTask, "syncAndSkipMap");
+            Map<String, AtomicLong> tableMetrics = metrics.get(tableId);
+            return tableMetrics == null || tableMetrics.get("skip") == null
+                    ? 0L : tableMetrics.get("skip").get();
         }
     }
 }

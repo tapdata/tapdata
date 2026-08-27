@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
@@ -12,8 +13,33 @@ import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.dql.classifier.DlqStormGuard;
+import io.tapdata.dql.classifier.DqlBatchContext;
+import io.tapdata.dql.classifier.DqlClassificationContext;
+import io.tapdata.dql.classifier.DqlExceptionClassifier;
+import io.tapdata.dql.classifier.DqlFailedStage;
+import io.tapdata.dql.classifier.DqlNodeType;
+import io.tapdata.dql.classifier.DqlStormGuardContext;
+import io.tapdata.dql.classifier.DqlTaskContext;
+import io.tapdata.dql.client.DqlTmClient;
+import io.tapdata.dql.identity.DqlEventIdentityGenerator;
+import io.tapdata.dql.model.DqlEventIdentity;
+import io.tapdata.dql.model.DqlClassificationResult;
+import io.tapdata.dql.model.DqlEventReport;
+import io.tapdata.dql.model.DqlExceptionScope;
+import io.tapdata.dql.model.DqlPayloadSnapshot;
+import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.preview.DqlPayloadPreview;
+import io.tapdata.dql.preview.DqlPayloadPreviewBuilder;
+import io.tapdata.dql.reporter.DqlEventReportException;
+import io.tapdata.dql.reporter.DqlEventReporter;
+import io.tapdata.dql.serializer.DqlPayloadSerializer;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.exception.TapPdkWriteLengthEx;
@@ -24,9 +50,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,6 +71,13 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private String taskId;
     private TaskDto.SkipErrorEvent skipErrorEvent;
     private final Map<String, Map<String, AtomicLong>> syncAndSkipMap = new ConcurrentHashMap<>();
+
+    private final DqlExceptionClassifier dqlExceptionClassifier = new DqlExceptionClassifier();
+    private final DlqStormGuard dlqStormGuard = new DlqStormGuard();
+    private final DqlPayloadSerializer dqlPayloadSerializer = new DqlPayloadSerializer();
+    private final DqlPayloadPreviewBuilder dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder();
+    private final DqlEventIdentityGenerator dqlEventIdentityGenerator = new DqlEventIdentityGenerator();
+    private DqlEventReporter dqlEventReporter;
 
     private Function<SkipErrorDataAspect, AspectInterceptResult> skipErrorDataNoeAspect = aspect -> null;
     private long lastSkipTimes;
@@ -104,18 +138,6 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         return getTypeMetrics(tableMetrics, type);
     }
 
-    private boolean checkSkip(String tableName, TapRecordEvent tapRecordEvent, Throwable ex) {
-        if (checkSkipByThrowable(ex)) {
-            long syncCounts = getTypeMetrics(tableName, METRICS_SYNC).get();
-            long skipCounts = getTypeMetrics(tableName, METRICS_SKIP).addAndGet(1);
-            if (checkSkipByLimitMode(syncCounts, skipCounts)) {
-                logSkipEvent(tapRecordEvent, ex);
-                return true;
-            }
-        }
-        return false;
-    }
-
     private boolean checkSkipByLimitMode(long syncCounts, long skipCounts) {
         switch (skipErrorEvent.getLimitModeEnum()) {
             case SkipByLimit:
@@ -142,10 +164,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private boolean checkSkipByThrowable(Throwable ex) {
-        if (ex instanceof TapCodeException) {
-            String code = ((TapCodeException) ex).getCode();
+        String code = errorCode(ex);
+        if (code != null) {
             ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
-            return errorCode.isSkippable();
+            return errorCode != null && errorCode.isSkippable();
         }
         return false;
     }
@@ -155,6 +177,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         try {
             this.taskId = getTask().getId().toHexString();
             this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+            if (this.clientMongoOperator instanceof HttpClientMongoOperator) {
+                this.dqlEventReporter = new DqlEventReporter(
+                        new DqlTmClient((HttpClientMongoOperator) this.clientMongoOperator));
+            }
             this.logger = new SplitFileLogger(Level.INFO, taskId);
 
             synchronized (storeFuture) {
@@ -276,7 +302,11 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public AspectInterceptResult skipErrorDataNoeAspectImpl(SkipErrorDataAspect aspect) {
         aspect.getPdkMethodInvoker().setEnableSkipErrorEvent(true);
 
-        String tableId = aspect.getTapTable().getId();
+        TapTable table = aspect.getTapTable();
+        String tableId = table.getId();
+        if (tableId == null || tableId.isBlank()) {
+            tableId = table.getName();
+        }
         AspectInterceptResult result = new AspectInterceptResult();
         result.setIntercepted(true);
 
@@ -284,25 +314,184 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             aspect.getWriteRecordFunction().apply(aspect.getTapRecordEvents());
             getTypeMetrics(tableId, METRICS_SYNC).addAndGet(aspect.getTapRecordEvents().size());
         } catch (Throwable e1) {
-            // Here the exception is thrown as is and handled by the connector and engine
-            if (checkSkipByThrowable(e1)) {
+            if (aspect.getTapRecordEvents().size() == 1) {
+                if (!checkSkip(table, tableId, aspect.getTapRecordEvents().get(0), e1)) {
+                    throwAsRuntime(e1);
+                }
+            } else if (shouldSplitBatch(aspect, e1)) {
                 for (TapRecordEvent tapRecordEvent : aspect.getTapRecordEvents()) {
                     try {
                         aspect.getWriteRecordFunction().apply(Collections.singletonList(tapRecordEvent));
                         getTypeMetrics(tableId, METRICS_SYNC).addAndGet(1);
                     } catch (Throwable e2) {
-                        if (!checkSkip(tableId, tapRecordEvent, e2)) {
-                            throw new RuntimeException(e2);
+                        if (!checkSkip(table, tableId, tapRecordEvent, e2)) {
+                            throwAsRuntime(e2);
                         }
                     }
                 }
-            } else if (e1 instanceof RuntimeException) {
-                throw (RuntimeException) e1;
             } else {
-                throw new RuntimeException(e1);
+                throwAsRuntime(e1);
             }
         }
 
         return result;
+    }
+
+    private boolean shouldSplitBatch(SkipErrorDataAspect aspect, Throwable error) {
+        DqlClassificationResult classification = classify(error, null,
+                DqlBatchContext.batchFailure(aspect.getTapRecordEvents().size(), 1));
+        if (classification.getExceptionScope() == DqlExceptionScope.SYSTEM
+                || isSharedFailure(classification)) {
+            return false;
+        }
+        return checkSkipByThrowable(error);
+    }
+
+    private boolean isSharedFailure(DqlClassificationResult classification) {
+        String reason = classification.getClassificationReason();
+        return reason != null && reason.startsWith("shared failure");
+    }
+
+    private boolean checkSkip(TapTable table,
+                               String tableName,
+                               TapRecordEvent tapRecordEvent,
+                               Throwable ex) {
+        DqlClassificationResult classification = classify(ex, tapRecordEvent, DqlBatchContext.singleRecord());
+        if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
+            classification = dlqStormGuard.protect(classification, DqlStormGuardContext.singleRecord(
+                    taskId, null, tableName, errorCode(ex), ex.getMessage()));
+        }
+        if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+            return false;
+        }
+
+        AtomicLong skipMetric = getTypeMetrics(tableName, METRICS_SKIP);
+        long syncCounts = getTypeMetrics(tableName, METRICS_SYNC).get();
+        long skipCounts = skipMetric.incrementAndGet();
+        if (!checkSkipByLimitMode(syncCounts, skipCounts)) {
+            skipMetric.decrementAndGet();
+            return false;
+        }
+
+        try {
+            reportDqlEvent(table, tapRecordEvent, tableName, ex, classification);
+            logSkipEvent(tapRecordEvent, ex);
+            return true;
+        } catch (DqlEventReportException exception) {
+            skipMetric.decrementAndGet();
+            throw exception;
+        } catch (RuntimeException exception) {
+            skipMetric.decrementAndGet();
+            throw new DqlEventReportException(taskId, exception);
+        }
+    }
+
+    private DqlClassificationResult classify(Throwable error,
+                                              TapRecordEvent event,
+                                              DqlBatchContext batchContext) {
+        return dqlExceptionClassifier.classify(error, new DqlClassificationContext(
+                DqlFailedStage.TARGET_WRITE,
+                DqlNodeType.TARGET,
+                event,
+                batchContext,
+                currentDqlTaskContext()));
+    }
+
+    private DqlTaskContext currentDqlTaskContext() {
+        TaskDto currentTask = getTask();
+        String taskType = currentTask == null ? TaskDto.SYNC_TYPE_SYNC : currentTask.getSyncType();
+        String taskStatus = currentTask == null ? TaskDto.STATUS_RUNNING : currentTask.getStatus();
+        boolean configured = currentTask == null || currentTask.getId() != null;
+        return new DqlTaskContext(taskType, taskStatus, isSkipDataEnabled(),
+                isSkipDataEnabled(), false, configured);
+    }
+
+    private boolean isSkipDataEnabled() {
+        return skipErrorEvent != null
+                && skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.SkipData;
+    }
+
+    private void reportDqlEvent(TapTable table,
+                                TapRecordEvent event,
+                                String tableId,
+                                Throwable error,
+                                DqlClassificationResult classification) {
+        try {
+            if (dqlEventReporter == null) {
+                throw new DqlEventReportException(taskId, "DQL TM reporter is unavailable");
+            }
+            DqlEventReport report = buildDqlEventReport(table, event, tableId, error, classification);
+            dqlEventReporter.report(taskId, report);
+        } catch (DqlEventReportException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new DqlEventReportException(taskId, exception);
+        }
+    }
+
+    private DqlEventReport buildDqlEventReport(TapTable table,
+                                               TapRecordEvent event,
+                                               String tableId,
+                                               Throwable error,
+                                               DqlClassificationResult classification) {
+        TaskDto currentTask = getTask();
+        DqlEventReport report = new DqlEventReport();
+        if (currentTask != null) {
+            report.setTaskRecordId(currentTask.getTaskRecordId());
+            report.setTaskName(currentTask.getName());
+            report.setTaskVersion(currentTask.getVersion());
+            report.setAgentId(currentTask.getAgentId());
+        }
+        report.setTaskRecordId(report.getTaskRecordId() == null ? taskId : report.getTaskRecordId());
+        report.setFailedStage(DqlFailedStage.TARGET_WRITE.name());
+        report.setSourceTable(event.getTableId());
+        report.setTargetTable(tableId);
+        report.setTableId(tableId);
+        report.setDmlType(dmlType(event));
+        report.setEventTime(event.getReferenceTime() == null ? event.getTime() : event.getReferenceTime());
+        report.setErrorCode(errorCode(error));
+
+        DqlPayloadSnapshot payload = dqlPayloadSerializer.serialize(event);
+        DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
+                event, table, report.getTaskRecordId(), null);
+        DqlPayloadPreview preview = dqlPayloadPreviewBuilder.build(event, identity.getEventKey());
+        payload.setPayloadPreview(preview.getPayloadPreview());
+        payload.setPayloadPreviewTruncated(preview.isTruncated());
+        report.setPayload(payload);
+        identity.applyTo(report);
+        classification.applyTo(report);
+        return report;
+    }
+
+    private String dmlType(TapRecordEvent event) {
+        if (event instanceof TapInsertRecordEvent) {
+            return "I";
+        }
+        if (event instanceof TapUpdateRecordEvent) {
+            return "U";
+        }
+        if (event instanceof TapDeleteRecordEvent) {
+            return "D";
+        }
+        throw new IllegalArgumentException("Unsupported DQL event type: " + event.getClass().getName());
+    }
+
+    private String errorCode(Throwable error) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = error;
+        while (current != null && visited.add(current)) {
+            if (current instanceof TapCodeException && ((TapCodeException) current).getCode() != null) {
+                return ((TapCodeException) current).getCode();
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private void throwAsRuntime(Throwable error) {
+        if (error instanceof RuntimeException) {
+            throw (RuntimeException) error;
+        }
+        throw new RuntimeException(error);
     }
 }
