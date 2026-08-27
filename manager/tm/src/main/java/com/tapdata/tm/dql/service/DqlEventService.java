@@ -30,6 +30,11 @@ import java.util.Optional;
 @Service
 public class DqlEventService {
     static final String OVERWRITE_RISK_MESSAGE = "该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作";
+    private static final int SAVE_FAILURE_REASON_MAX_LENGTH = 512;
+    private static final String[] SENSITIVE_FAILURE_TOKENS = {
+            "password", "passwd", "secret", "token", "access_token", "authorization", "credential",
+            "apikey", "payload", "eventkey", "recordidentity"
+    };
 
     private final DqlEventRepository eventRepository;
     private final DqlEventAlarmService alarmService;
@@ -94,12 +99,52 @@ public class DqlEventService {
 
         Long captureSeq = Optional.ofNullable(report.getCaptureSeq()).orElseGet(() -> eventRepository.nextCaptureSeq(taskId));
         DqlEventDto dto = convert(taskId, report, captureSeq, validationResult);
-        DqlEventDto saved = eventRepository.upsert(dto);
+        DqlEventDto saved = persist(taskId, dto);
         boolean duplicateAfterUpsert = !Objects.equals(dto.getEventId(), saved.getEventId());
         if (!duplicateAfterUpsert) {
             alarmService.notifyEventCreated(saved);
         }
         return reportResult(saved, duplicateAfterUpsert);
+    }
+
+    /**
+     * Persists a report without allowing a database failure (or an empty repository result) to be
+     * interpreted as a successful report.  The Engine uses the error response as the signal that
+     * it must not skip the current record.
+     */
+    private DqlEventDto persist(String taskId, DqlEventDto dto) {
+        try {
+            DqlEventDto saved = eventRepository.upsert(dto);
+            if (saved == null) {
+                throw new IllegalStateException("DQL event persistence returned no event");
+            }
+            return saved;
+        } catch (RuntimeException cause) {
+            notifySaveFailed(taskId, cause);
+            throw new BizException(cause);
+        }
+    }
+
+    private void notifySaveFailed(String taskId, RuntimeException cause) {
+        if (alarmService == null) {
+            return;
+        }
+        try {
+            alarmService.notifySaveFailed(taskId, saveFailureReason(cause));
+        } catch (RuntimeException ignored) {
+            // An alarm failure must not mask the persistence failure returned to Engine.
+        }
+    }
+
+    private String saveFailureReason(RuntimeException cause) {
+        String message = cause.getMessage();
+        if (StringUtils.isBlank(message) || StringUtils.containsAnyIgnoreCase(message, SENSITIVE_FAILURE_TOKENS)) {
+            return cause.getClass().getSimpleName();
+        }
+        String reason = cause.getClass().getSimpleName() + ": " + message;
+        return reason.length() <= SAVE_FAILURE_REASON_MAX_LENGTH
+                ? reason
+                : reason.substring(0, SAVE_FAILURE_REASON_MAX_LENGTH);
     }
 
     public Page<DqlEventDto> page(DqlEventQueryVo query, UserDetail user) {

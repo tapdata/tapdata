@@ -798,7 +798,7 @@ POST /api/task/{taskId}/dql-events/report
 6. 若 `eventIdentity` 为空，由 TM 根据 Payload 和 `recordIdentity` 生成。
 7. 按唯一索引 upsert；捕获快照、`event_id`、`created` 和 `ttl_at` 使用 `$setOnInsert`，并发重复上报命中已有事件时不得覆盖原主记录或刷新 TTL。
 8. 新增主记录时触发 DLQ 告警；重复上报时只返回已有事件，不重复告警。
-9. 保存失败向 Engine 返回错误，Engine 不允许 skip。
+9. 保存失败向 Engine 返回错误，Engine 不允许 skip。TM 将 Repository 抛出的运行时异常或空保存结果统一转换为 `SystemError`，并调用 `DqlEventAlarmService.notifySaveFailed` 记录任务级保存失败；告警回调失败不能覆盖原始持久化错误。保存失败原因只保留异常类型和有限长度的非敏感摘要，不携带完整 Payload、事件键或记录身份。
 
 ### 7.3.1 Engine 后续成功写入回调 API
 

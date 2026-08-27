@@ -26,6 +26,7 @@
 | B05 | 已完成 | `steps/B05-ttl-index-initialization.md` |
 | B06 | 已完成 | `steps/B06-report-validation-and-safety.md` |
 | B07 | 已完成 | `steps/B07-event-identity-and-deduplication.md` |
+| B08 | 已完成 | `steps/B08-engine-report-api.md` |
 
 ## 回归记录
 

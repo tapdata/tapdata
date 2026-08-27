@@ -23,12 +23,14 @@ import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.bind.annotation.PostMapping;
 
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,6 +54,19 @@ class DqlEventControllerTest {
         assertTrue(DqlEventController.class
                 .getMethod("reportRecovery", String.class, DqlRecoveryResultReportVo.class)
                 .isAnnotationPresent(IgnoreRequestBodyLog.class));
+    }
+
+    @Test
+    @DisplayName("engine callback mappings expose canonical lowercase and legacy uppercase task paths")
+    void engineCallbackMappingsExposeCanonicalAndLegacyPaths() throws Exception {
+        assertArrayEquals(
+                new String[]{"/api/task/{taskId}/dql-events/report", "/api/Task/{taskId}/dql-events/report"},
+                DqlEventController.class.getMethod("report", String.class, DqlEventReportVo.class)
+                        .getAnnotation(PostMapping.class).value());
+        assertArrayEquals(
+                new String[]{"/api/task/{taskId}/dql-events/record-success/report", "/api/Task/{taskId}/dql-events/record-success/report"},
+                DqlEventController.class.getMethod("reportRecordSuccess", String.class, DqlRecordSuccessReportVo.class)
+                        .getAnnotation(PostMapping.class).value());
     }
 
     @Test

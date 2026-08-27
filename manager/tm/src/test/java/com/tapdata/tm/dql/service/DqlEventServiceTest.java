@@ -37,11 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentCaptor.forClass;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -109,6 +112,63 @@ class DqlEventServiceTest {
 
         assertEquals("DQL-64f000-000001", result.getEventId());
         assertTrue(result.isDuplicate());
+        verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
+    }
+
+    @Test
+    @DisplayName("report notifies save failure and returns a system error when persistence throws")
+    void reportNotifiesSaveFailureWhenPersistenceThrows() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlEventService service = new DqlEventService(eventRepository, alarmService);
+        IllegalStateException cause = new IllegalStateException("database unavailable");
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenThrow(cause);
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, reportVo()));
+
+        assertEquals(BizException.SYSTEM_ERROR, exception.getErrorCode());
+        assertSame(cause, exception.getCause());
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), contains("database unavailable"));
+        verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
+    }
+
+    @Test
+    @DisplayName("report treats an empty persistence result as a save failure")
+    void reportTreatsEmptyPersistenceResultAsSaveFailure() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlEventService service = new DqlEventService(eventRepository, alarmService);
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenReturn(null);
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, reportVo()));
+
+        assertEquals(BizException.SYSTEM_ERROR, exception.getErrorCode());
+        assertNotNull(exception.getCause());
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), contains("returned no event"));
+        verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
+    }
+
+    @Test
+    @DisplayName("report preserves persistence error when save failure alarm throws and redacts sensitive details")
+    void reportPreservesPersistenceErrorWhenSaveFailureAlarmThrows() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlEventService service = new DqlEventService(eventRepository, alarmService);
+        IllegalStateException cause = new IllegalStateException("payload token=must-not-leak");
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenThrow(cause);
+        doThrow(new IllegalStateException("alarm unavailable"))
+                .when(alarmService).notifySaveFailed(eq(TASK_ID), any(String.class));
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, reportVo()));
+
+        assertEquals(BizException.SYSTEM_ERROR, exception.getErrorCode());
+        assertSame(cause, exception.getCause());
+        ArgumentCaptor<String> reasonCaptor = forClass(String.class);
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), reasonCaptor.capture());
+        assertEquals("IllegalStateException", reasonCaptor.getValue());
         verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
     }
 
@@ -369,6 +429,23 @@ class DqlEventServiceTest {
         assertTrue(result.isMarked());
         assertEquals("DQL-64f000-000001", result.getEventId());
         assertEquals("该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作", result.getOverwriteRiskMessage());
+    }
+
+    @Test
+    @DisplayName("record success report returns an unmarked result without creating an event when no prior event matches")
+    void recordSuccessReportReturnsUnmarkedWhenNoEventMatches() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlRecordSuccessReportVo report = recordSuccessReport();
+        when(eventRepository.markLaterSuccess(eq(TASK_ID), eq(report), any())).thenReturn(null);
+
+        DqlRecordSuccessReportResultVo result = service.reportRecordSuccess(TASK_ID, report);
+
+        assertFalse(result.isMarked());
+        assertNull(result.getEventId());
+        assertEquals("key:orders:id=1001", result.getRecordIdentity());
+        assertNull(result.getOverwriteRiskMessage());
+        verify(eventRepository).markLaterSuccess(eq(TASK_ID), eq(report), any());
     }
 
     @Test
