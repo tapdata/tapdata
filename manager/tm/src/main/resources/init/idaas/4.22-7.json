@@ -24,5 +24,60 @@
         "background": true
       }
     ]
+  },
+  {
+    "update": "Permission",
+    "updates": [
+      {
+        "q": {
+          "name": "v2_exception_events"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_advanced_features",
+            "description": "异常事件",
+            "name": "v2_exception_events",
+            "need_permission": true,
+            "order": 8,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_exception_events",
+                "path": "/exception-events"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "update": "RoleMapping",
+    "updates": [
+      {
+        "q": {
+          "principalId": "v2_exception_events",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_exception_events",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      }
+    ]
   }
 ]

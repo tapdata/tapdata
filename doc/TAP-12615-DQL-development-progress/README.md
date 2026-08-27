@@ -79,6 +79,18 @@
 | E09 | 已完成 | `steps/E09-recovery-compensation.md` |
 | E10 | 已完成（待集成验证） | `steps/E10-engine-replay-regression.md` |
 
+### 阶段 F：权限、告警、配置和初始化
+
+| 步骤 | 状态 | 总结文档 |
+| --- | --- | --- |
+| F01 | 已完成（待集成验证） | `steps/F01-permission-initialization.md` |
+| F02 | 部分完成 | 待生成 |
+| F03 | 未开始 | 待生成 |
+| F04 | 部分完成 | 待生成 |
+| F05 | 未开始 | 待生成 |
+| F06 | 部分完成 | 待生成 |
+| F07 | 未开始 | 待生成 |
+
 ## 回归记录
 
 | 日期 | 范围 | 记录文档 |
@@ -94,5 +106,5 @@
 | M2 Engine 捕获闭环 | 已完成（待集成验证） | `milestones/M2-engine-capture-closure.md` |
 | M3 TM 批次控制 | 已完成（待集成验证） | `milestones/M3-tm-recovery-batch-control.md` |
 | M4 Engine 回放闭环 | 已完成（待集成验证） | `milestones/M4-engine-replay-closure.md` |
-| M5 告警与初始化 | 未开始 | 待生成 |
+| M5 告警与初始化 | 进行中 | 待生成 |
 | M6 POC 验收 | 未开始 | 待生成 |
