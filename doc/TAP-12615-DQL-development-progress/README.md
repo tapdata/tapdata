@@ -37,6 +37,7 @@
 | 步骤 | 状态 | 总结文档 |
 | --- | --- | --- |
 | C01 | 已完成 | `steps/C01-engine-dql-model-and-tm-client.md` |
+| C02 | 已完成 | `steps/C02-engine-payload-serialization.md` |
 
 ## 回归记录
 

@@ -42,7 +42,7 @@
 | TTL 生命周期 | 已完成（待集成验证） | 两个集合已增加 `ttl_at`；创建及重处理活动会刷新；`4.22-7.json` 创建 14 天 TTL 索引 | 需要在真实初始化流程中验证索引安装；历史数据是否回填需上线前决策 |
 | 权限 | 部分完成 | 已有 `ExceptionEvents` 菜单权限及权限服务；B10 已落实 View-only 定义和任务范围校验 | 权限资源初始化脚本和端到端验证待补 |
 | 告警 | 部分完成 | 已增加部分 DQL 告警 key，存在 `DqlEventAlarmService` | 告警服务仍需接入真实发送逻辑；Storm Guard 告警、模板和默认设置待补 |
-| Engine 捕获 | 部分完成 | 已建立 Engine 侧 DQL 公共模型、Payload 快照和 TM Client；分类、保护、上报编排和处理节点捕获尚未接入 | 需要继续完成 Payload 序列化、分类、风暴保护、捕获和上报闭环，并与现有任务级重试语义联调 |
+| Engine 捕获 | 部分完成 | 已建立 Engine 侧 DQL 公共模型、TM Client 和 I/U/D Payload 往返序列化；分类、保护、上报编排和处理节点捕获尚未接入 | 需要继续完成预览与身份生成、分类、风暴保护、捕获和上报闭环，并与现有任务级重试语义联调 |
 | Engine 重处理 | 未开始 | 未发现 `dqlRecovery` handler、恢复事件、协调器和 source gate 实现 | 需要完整开发运行中及暂停任务两种回放模式 |
 | 集成与 POC | 未开始 | 已有部分 TM 单元测试 | 缺少 Engine、TM/Engine 端到端、故障注入和一致性证明 |
 
@@ -104,7 +104,7 @@
 | 步骤 | 状态 | 需要完成的事项 | 说明 | 依赖 | 完成标准 |
 | --- | --- | --- | --- | --- | --- |
 | C01 | 已完成 | 建立 Engine DQL 公共模型和 TM Client | 在 `iengine-common` 定义分类结果、上报请求/响应、后续成功请求、Payload 快照及错误类型映射；Client 复用现有 HTTP 鉴权、重试和错误映射 | A03、B08 | Engine 可调用 TM Mock 接口并正确处理成功、重复、空响应和输入错误；契约字段与路径测试通过 |
-| C02 | 未开始 | 实现 Payload 序列化 | 支持 Insert、Update、Delete 的 `TapRecordEvent` 完整快照和 `tap-record-event-json-v1` 格式 | A03、A05 | I/U/D 往返序列化测试通过；超限事件能标记不可重处理 |
+| C02 | 已完成 | 实现 Payload 序列化 | 在 `iengine-common` 实现 Insert、Update、Delete 的 `TapRecordEvent` 完整快照和 `tap-record-event-json-v1` 往返转换；使用允许列表、class/type 一致性和反序列化二次大小校验保护回放 | A03、A05 | I/U/D 往返序列化测试通过；按 UTF-8 JSON 字节数执行 1 MiB 默认上限，超限快照移除完整 Payload 并标记 `payloadComplete=false` |
 | C03 | 未开始 | 实现预览、脱敏和身份生成工具 | 生成安全 `payloadPreview`、`eventKey`、`payloadHash`、`recordIdentity` 和 `eventIdentity` | C02 | 主键、唯一索引、全字段 hash 和未知身份四类测试通过；敏感字段不出现在预览 |
 | C04 | 未开始 | 实现 `DlqExceptionClassifier` | 按异常链、错误码、节点、阶段、事件和任务上下文输出 scope、decision、errorType、reason 和 confidence | A04、C01 | 分类规则表中的每条规则至少有一个测试；未知错误不直接默认为记录级 |
 | C05 | 未开始 | 实现 `DlqStormGuard` | 按任务、节点、表、错误码和归一化消息建立窗口计数，支持数量及批次比例阈值 | A05、C04 | 阈值内允许有限未知单记录入库；触发后停止继续写 DQL 并返回任务级路由 |
