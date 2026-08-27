@@ -15,6 +15,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.common.SettingService;
 import io.tapdata.dql.classifier.DlqStormGuard;
 import io.tapdata.dql.classifier.DqlBatchContext;
 import io.tapdata.dql.classifier.DqlClassificationContext;
@@ -22,6 +23,7 @@ import io.tapdata.dql.classifier.DqlExceptionClassifier;
 import io.tapdata.dql.classifier.DqlFailedStage;
 import io.tapdata.dql.classifier.DqlNodeType;
 import io.tapdata.dql.classifier.DqlStormGuardDecision;
+import io.tapdata.dql.classifier.DqlStormGuardConfig;
 import io.tapdata.dql.classifier.DqlStormGuardContext;
 import io.tapdata.dql.classifier.DqlTaskContext;
 import io.tapdata.dql.client.DqlTmClient;
@@ -36,6 +38,7 @@ import io.tapdata.dql.model.DqlRouteDecision;
 import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.dql.preview.DqlPayloadPreview;
 import io.tapdata.dql.preview.DqlPayloadPreviewBuilder;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.dql.reporter.DqlEventReportException;
 import io.tapdata.dql.reporter.DqlEventReporter;
 import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
@@ -82,9 +85,11 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private final Map<String, Map<String, AtomicLong>> syncAndSkipMap = new ConcurrentHashMap<>();
 
     private final DqlExceptionClassifier dqlExceptionClassifier = new DqlExceptionClassifier();
-    private final DlqStormGuard dlqStormGuard = new DlqStormGuard();
-    private final DqlPayloadSerializer dqlPayloadSerializer = new DqlPayloadSerializer();
-    private final DqlPayloadPreviewBuilder dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder();
+    private DqlRuntimeConfig dqlRuntimeConfig = DqlRuntimeConfig.defaults();
+    private DlqStormGuard dlqStormGuard = new DlqStormGuard(
+            DqlStormGuardConfig.from(dqlRuntimeConfig));
+    private DqlPayloadSerializer dqlPayloadSerializer = new DqlPayloadSerializer(dqlRuntimeConfig);
+    private DqlPayloadPreviewBuilder dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder(dqlRuntimeConfig);
     private final DqlEventIdentityGenerator dqlEventIdentityGenerator = new DqlEventIdentityGenerator();
     private DqlEventReporter dqlEventReporter;
 
@@ -199,6 +204,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public void onStart(TaskStartAspect startAspect) {
         try {
             this.taskId = getTask().getId().toHexString();
+            this.dqlRuntimeConfig = loadDqlRuntimeConfig();
+            this.dlqStormGuard = new DlqStormGuard(DqlStormGuardConfig.from(dqlRuntimeConfig));
+            this.dqlPayloadSerializer = new DqlPayloadSerializer(dqlRuntimeConfig);
+            this.dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder(dqlRuntimeConfig);
             this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
             if (this.clientMongoOperator instanceof HttpClientMongoOperator) {
                 this.dqlEventReporter = new DqlEventReporter(
@@ -265,7 +274,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                     default:
                         return false;
                 }
-            }).orElse(false)) {
+            }).orElse(false) && dqlRuntimeConfig.isEventEnabled()) {
                 this.skipErrorDataNoeAspect = this::skipErrorDataNoeAspectImpl;
             }
         } catch (Exception e) {
@@ -316,6 +325,26 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             }
             storeFuture.set(null);
         }
+    }
+
+    private DqlRuntimeConfig loadDqlRuntimeConfig() {
+        SettingService settingService;
+        try {
+            settingService = BeanUtil.getBean(SettingService.class);
+        } catch (RuntimeException exception) {
+            settingService = null;
+        }
+        SettingService source = settingService;
+        return DqlRuntimeConfig.from(key -> {
+            if (source == null) {
+                return null;
+            }
+            try {
+                return source.getString(key, null);
+            } catch (RuntimeException exception) {
+                return null;
+            }
+        });
     }
 
     public AspectInterceptResult skipErrorDataNoeAspectHandle(SkipErrorDataAspect aspect) {

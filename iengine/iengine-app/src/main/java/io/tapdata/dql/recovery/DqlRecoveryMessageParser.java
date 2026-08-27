@@ -18,6 +18,13 @@ public final class DqlRecoveryMessageParser {
     }
 
     public static DqlRecoveryMessageDto parse(Map<?, ?> payload) {
+        return parse(payload, MAX_EVENT_COUNT);
+    }
+
+    public static DqlRecoveryMessageDto parse(Map<?, ?> payload, int maxEventCount) {
+        if (maxEventCount <= 0) {
+            throw new DqlRecoveryMessageValidationException("maximum recovery batch size must be greater than zero");
+        }
         if (payload == null) {
             throw new DqlRecoveryMessageValidationException("recovery message payload must not be null");
         }
@@ -31,7 +38,7 @@ public final class DqlRecoveryMessageParser {
         command.setTaskId(requiredText(payload, "taskId"));
         command.setBatchId(requiredText(payload, "batchId"));
         command.setTaskVersion(requiredVersion(payload.get("taskVersion")));
-        command.setOrderedEventIds(requiredEventIds(payload.get("orderedEventIds")));
+        command.setOrderedEventIds(requiredEventIds(payload.get("orderedEventIds"), maxEventCount));
         command.setOperatorId(optionalText(payload.get("operatorId")));
         command.setOperatorName(optionalText(payload.get("operatorName")));
         String mode = optionalText(payload.get("mode"));
@@ -83,11 +90,11 @@ public final class DqlRecoveryMessageParser {
         }
     }
 
-    private static List<String> requiredEventIds(Object value) {
+    private static List<String> requiredEventIds(Object value, int maxEventCount) {
         if (!(value instanceof Collection<?> values) || values.isEmpty()) {
             throw new DqlRecoveryMessageValidationException("orderedEventIds must not be empty");
         }
-        if (values.size() > MAX_EVENT_COUNT) {
+        if (values.size() > maxEventCount) {
             throw new DqlRecoveryMessageValidationException("orderedEventIds exceeds the maximum batch size");
         }
         List<String> eventIds = new ArrayList<>(values.size());

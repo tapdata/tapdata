@@ -7,6 +7,7 @@ import com.tapdata.tm.dql.DqlRecoveryCallbackResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.DqlRecoveryReportTypeEnum;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
@@ -21,6 +22,8 @@ import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -42,8 +45,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class DqlRecoveryBatchService {
-    private static final int DEFAULT_BATCH_MAX_SIZE = 200;
-    private static final long DEFAULT_BATCH_TIMEOUT_MILLIS = 30 * 60 * 1000L;
+    private static final int DEFAULT_BATCH_MAX_SIZE = DqlRuntimeConfig.DEFAULT_RECOVERY_BATCH_MAX_SIZE;
+    private static final long DEFAULT_BATCH_TIMEOUT_MILLIS =
+            DqlRuntimeConfig.DEFAULT_RECOVERY_BATCH_TIMEOUT_SECONDS * 1000L;
     private static final String RECOVERY_BATCH_TIMEOUT_MESSAGE = "Recovery batch timed out";
     private static final String AUDIT_BATCH_CREATED = "BATCH_CREATED";
     private static final String AUDIT_BATCH_DISPATCHED = "BATCH_DISPATCHED";
@@ -66,6 +70,8 @@ public class DqlRecoveryBatchService {
     private final WorkerService workerService;
     private final DqlRecoveryTaskLockRepository taskLockRepository;
     private final DqlEventWebMapper webMapper;
+    @Autowired(required = false)
+    private SettingsService settingsService;
 
     public DqlRecoveryBatchService(DqlEventRepository eventRepository,
                                    DqlRecoveryBatchRepository batchRepository,
@@ -138,7 +144,8 @@ public class DqlRecoveryBatchService {
                 preview.setTaskName(taskContext.task().getName());
             }
         }
-        boolean batchSizeExceeded = eventIds.size() > DEFAULT_BATCH_MAX_SIZE;
+        DqlRuntimeConfig config = runtimeConfig();
+        boolean batchSizeExceeded = eventIds.size() > config.getRecoveryBatchMaxSize();
         boolean activeBatchExists = checkActiveBatch && !events.isEmpty()
                 && batchRepository.findActiveByTaskId(events.get(0).getTaskId()) != null;
 
@@ -149,7 +156,7 @@ public class DqlRecoveryBatchService {
             if (event == null) {
                 blockedReasons.put(eventId, "event not found");
             } else {
-                String reason = previewBlockedReason(event, taskContext, batchSizeExceeded, activeBatchExists);
+                String reason = previewBlockedReason(event, taskContext, batchSizeExceeded, activeBatchExists, config);
                 if (reason != null) {
                     blockedReasons.put(eventId, reason);
                 }
@@ -309,7 +316,8 @@ public class DqlRecoveryBatchService {
      */
     public int timeoutExpiredBatches(Date now) {
         Date current = now == null ? new Date() : now;
-        Date deadline = new Date(current.getTime() - DEFAULT_BATCH_TIMEOUT_MILLIS);
+        long timeoutMillis = runtimeConfig().getRecoveryBatchTimeoutSeconds() * 1000L;
+        Date deadline = new Date(current.getTime() - timeoutMillis);
         List<DqlRecoveryBatchDto> timedOut = Optional.ofNullable(batchRepository.findTimedOut(deadline))
                 .orElse(List.of());
         int finalized = 0;
@@ -621,7 +629,8 @@ public class DqlRecoveryBatchService {
     private String previewBlockedReason(DqlEventDto event,
                                         RecoveryTaskContext taskContext,
                                         boolean batchSizeExceeded,
-                                        boolean activeBatchExists) {
+                                        boolean activeBatchExists,
+                                        DqlRuntimeConfig config) {
         if (!isReprocessable(event)) {
             return blockedReason(event);
         }
@@ -635,7 +644,7 @@ public class DqlRecoveryBatchService {
             }
         }
         if (batchSizeExceeded) {
-            return "recovery batch size exceeds " + DEFAULT_BATCH_MAX_SIZE;
+            return "recovery batch size exceeds " + config.getRecoveryBatchMaxSize();
         }
         if (activeBatchExists) {
             return "an active recovery batch already exists";
@@ -810,7 +819,27 @@ public class DqlRecoveryBatchService {
     }
 
     private boolean acquireTaskLock(String taskId, String batchId) {
-        return taskLockRepository == null || taskLockRepository.tryAcquire(taskId, batchId);
+        return taskLockRepository == null || taskLockRepository.tryAcquire(taskId, batchId,
+                runtimeConfig().getRecoveryBatchTimeoutSeconds());
+    }
+
+    private DqlRuntimeConfig runtimeConfig() {
+        SettingsService source = settingsService;
+        return DqlRuntimeConfig.from(key -> {
+            if (source == null) {
+                return null;
+            }
+            try {
+                Settings setting = source.getByKey(key);
+                if (setting == null) {
+                    return null;
+                }
+                Object value = setting.getValue() == null ? setting.getDefault_value() : setting.getValue();
+                return value == null ? null : String.valueOf(value);
+            } catch (RuntimeException exception) {
+                return null;
+            }
+        });
     }
 
     private void releaseTaskLock(DqlRecoveryBatchDto batch) {

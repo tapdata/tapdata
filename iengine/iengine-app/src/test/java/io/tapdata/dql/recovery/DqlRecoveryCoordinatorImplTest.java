@@ -1,6 +1,7 @@
 package io.tapdata.dql.recovery;
 
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
@@ -117,6 +118,35 @@ class DqlRecoveryCoordinatorImplTest {
         assertEquals(List.of("event-1"), loaded);
         assertEquals("BATCH_FAILED", reports.get(reports.size() - 1).getType());
         assertEquals("FAILED", reports.get(1).getResult());
+    }
+
+    @Test
+    void configConstructorUsesRecoveryTimeoutAndContinuePolicy() throws Exception {
+        List<String> loaded = new ArrayList<>();
+        DqlRuntimeConfig config = DqlRuntimeConfig.fromMap(Map.of(
+                DqlRuntimeConfig.RECOVERY_EVENT_TIMEOUT_SECONDS, "2",
+                DqlRuntimeConfig.RECOVERY_CONTINUE_ON_EVENT_FAILURE, "false"));
+        DqlRecoveryCoordinatorImpl coordinator = new DqlRecoveryCoordinatorImpl(
+                eventId -> {
+                    loaded.add(eventId);
+                    return completeSnapshot();
+                },
+                event -> {
+                },
+                (eventId, timeoutMillis) -> {
+                    assertEquals(2_000L, timeoutMillis);
+                    return DqlRecoveryBarrier.Outcome.FAILED;
+                },
+                (command, report) -> {
+                },
+                executor,
+                config
+        );
+
+        coordinator.start(command("event-1", "event-2"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        assertEquals(List.of("event-1"), loaded);
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.tapdata.entity;
 
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.dql.serializer.DqlPayloadSerializer;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 
@@ -52,13 +53,24 @@ public class TapdataDqlRecoveryEvent extends TapdataEvent {
                                                      String operatorId,
                                                      Long taskVersion,
                                                      DqlPayloadSnapshot snapshot) {
+        return createData(batchId, eventId, attemptId, operatorId, taskVersion, snapshot,
+                DqlRuntimeConfig.defaults());
+    }
+
+    public static TapdataDqlRecoveryEvent createData(String batchId,
+                                                     String eventId,
+                                                     String attemptId,
+                                                     String operatorId,
+                                                     Long taskVersion,
+                                                     DqlPayloadSnapshot snapshot,
+                                                     DqlRuntimeConfig config) {
         TapdataDqlRecoveryEvent recoveryEvent = new TapdataDqlRecoveryEvent(batchId, TYPE_DATA);
         recoveryEvent.setEventId(eventId);
         recoveryEvent.attemptId = attemptId;
         recoveryEvent.operatorId = operatorId;
         recoveryEvent.taskVersion = taskVersion;
 
-        TapRecordEvent tapRecordEvent = new DqlPayloadSerializer().deserialize(snapshot);
+        TapRecordEvent tapRecordEvent = new DqlPayloadSerializer(config).deserialize(snapshot);
         Map<String, Object> info = tapRecordEvent.getInfo() == null
                 ? new LinkedHashMap<>()
                 : new LinkedHashMap<>(tapRecordEvent.getInfo());

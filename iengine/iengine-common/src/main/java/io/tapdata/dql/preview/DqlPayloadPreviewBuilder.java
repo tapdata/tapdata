@@ -1,5 +1,6 @@
 package io.tapdata.dql.preview;
 
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -49,6 +50,13 @@ public class DqlPayloadPreviewBuilder {
         this.fieldMaxLength = fieldMaxLength;
         this.maxDepth = maxDepth;
         this.maxItems = maxItems;
+    }
+
+    public DqlPayloadPreviewBuilder(DqlRuntimeConfig config) {
+        this(config == null ? DqlRuntimeConfig.DEFAULT_PREVIEW_FIELD_MAX_LENGTH
+                        : config.getPreviewFieldMaxLength(),
+                config == null ? DqlRuntimeConfig.DEFAULT_PREVIEW_MAX_DEPTH : config.getPreviewMaxDepth(),
+                config == null ? DqlRuntimeConfig.DEFAULT_PREVIEW_MAX_ITEMS : config.getPreviewMaxItems());
     }
 
     public DqlPayloadPreview build(TapRecordEvent event, Map<String, Object> eventKey) {

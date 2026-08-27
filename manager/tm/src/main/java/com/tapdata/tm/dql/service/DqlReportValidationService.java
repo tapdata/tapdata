@@ -2,7 +2,10 @@ package com.tapdata.tm.dql.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.dql.DqlExceptionScopeEnum;
 import com.tapdata.tm.dql.DqlRouteDecisionEnum;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
@@ -31,11 +34,11 @@ import java.util.regex.Pattern;
  */
 @Service
 public class DqlReportValidationService {
-    static final int ERROR_DETAILS_MAX_LENGTH = 4000;
-    static final long PAYLOAD_MAX_BYTES = 1_048_576L;
-    static final int PREVIEW_FIELD_MAX_LENGTH = 512;
-    static final int PREVIEW_MAX_DEPTH = 4;
-    static final int PREVIEW_MAX_ITEMS = 50;
+    static final int ERROR_DETAILS_MAX_LENGTH = DqlRuntimeConfig.DEFAULT_ERROR_DETAILS_MAX_LENGTH;
+    static final long PAYLOAD_MAX_BYTES = DqlRuntimeConfig.DEFAULT_PAYLOAD_MAX_BYTES;
+    static final int PREVIEW_FIELD_MAX_LENGTH = DqlRuntimeConfig.DEFAULT_PREVIEW_FIELD_MAX_LENGTH;
+    static final int PREVIEW_MAX_DEPTH = DqlRuntimeConfig.DEFAULT_PREVIEW_MAX_DEPTH;
+    static final int PREVIEW_MAX_ITEMS = DqlRuntimeConfig.DEFAULT_PREVIEW_MAX_ITEMS;
     static final String PREVIEW_TRUNCATED_MARKER = "...";
     static final String MASKED_VALUE = "******";
 
@@ -56,6 +59,8 @@ public class DqlReportValidationService {
     private final TaskRepository taskRepository;
     private final ObjectMapper objectMapper;
     private final DqlEventIdentityService identityService;
+    @Autowired(required = false)
+    private SettingsService settingsService;
 
     DqlReportValidationService() {
         this(null, new ObjectMapper());
@@ -75,12 +80,36 @@ public class DqlReportValidationService {
     }
 
     public ValidationResult validateAndSecure(String taskId, DqlEventReportVo report) {
+        DqlRuntimeConfig config = runtimeConfig();
         validateTask(taskId);
         validateRouteMetadata(report);
-        boolean errorDetailsTruncated = secureErrorDetails(report);
-        securePayload(report);
-        securePreview(report);
+        boolean errorDetailsTruncated = secureErrorDetails(report, config);
+        securePayload(report, config);
+        securePreview(report, config);
         return new ValidationResult(errorDetailsTruncated);
+    }
+
+    public void setSettingsService(SettingsService settingsService) {
+        this.settingsService = settingsService;
+    }
+
+    private DqlRuntimeConfig runtimeConfig() {
+        SettingsService source = settingsService;
+        return DqlRuntimeConfig.from(key -> {
+            if (source == null) {
+                return null;
+            }
+            try {
+                Settings setting = source.getByKey(key);
+                if (setting == null) {
+                    return null;
+                }
+                Object value = setting.getValue() == null ? setting.getDefault_value() : setting.getValue();
+                return value == null ? null : String.valueOf(value);
+            } catch (RuntimeException exception) {
+                return null;
+            }
+        });
     }
 
     private void validateTask(String taskId) {
@@ -110,14 +139,15 @@ public class DqlReportValidationService {
         }
     }
 
-    private boolean secureErrorDetails(DqlEventReportVo report) {
+    private boolean secureErrorDetails(DqlEventReportVo report, DqlRuntimeConfig config) {
         String errorDetails = report.getErrorDetails();
         if (errorDetails == null) {
             return false;
         }
         String secured = maskSensitiveErrorDetails(errorDetails);
-        boolean truncated = secured.length() > ERROR_DETAILS_MAX_LENGTH;
-        report.setErrorDetails(truncated ? secured.substring(0, ERROR_DETAILS_MAX_LENGTH) : secured);
+        int maxLength = config.getErrorDetailsMaxLength();
+        boolean truncated = secured.length() > maxLength;
+        report.setErrorDetails(truncated ? secured.substring(0, maxLength) : secured);
         return truncated;
     }
 
@@ -215,7 +245,7 @@ public class DqlReportValidationService {
         return value.length();
     }
 
-    private void securePayload(DqlEventReportVo report) {
+    private void securePayload(DqlEventReportVo report, DqlRuntimeConfig config) {
         Object payloadData = report.getPayloadData();
         identityService.fillPayloadHash(report);
         long actualSize = serializedSize(payloadData);
@@ -224,7 +254,7 @@ public class DqlReportValidationService {
         report.setPayloadSize(effectiveSize);
 
         boolean complete = payloadData != null && !Boolean.FALSE.equals(report.getPayloadComplete());
-        if (effectiveSize > PAYLOAD_MAX_BYTES) {
+        if (effectiveSize > config.getPayloadMaxBytes()) {
             report.setPayloadData(null);
             complete = false;
         }
@@ -242,22 +272,25 @@ public class DqlReportValidationService {
         }
     }
 
-    private void securePreview(DqlEventReportVo report) {
+    private void securePreview(DqlEventReportVo report, DqlRuntimeConfig config) {
         Map<String, Object> preview = report.getPayloadPreview();
         if (preview == null) {
             report.setPayloadPreviewTruncated(Boolean.TRUE.equals(report.getPayloadPreviewTruncated()));
             return;
         }
         PreviewContext context = new PreviewContext();
-        report.setPayloadPreview(sanitizeMap(preview, 0, context));
+        report.setPayloadPreview(sanitizeMap(preview, 0, context, config));
         report.setPayloadPreviewTruncated(Boolean.TRUE.equals(report.getPayloadPreviewTruncated()) || context.truncated);
     }
 
-    private Map<String, Object> sanitizeMap(Map<?, ?> source, int depth, PreviewContext context) {
+    private Map<String, Object> sanitizeMap(Map<?, ?> source,
+                                            int depth,
+                                            PreviewContext context,
+                                            DqlRuntimeConfig config) {
         Map<String, Object> result = new LinkedHashMap<>();
         int count = 0;
         for (Map.Entry<?, ?> entry : source.entrySet()) {
-            if (count >= PREVIEW_MAX_ITEMS) {
+            if (count >= config.getPreviewMaxItems()) {
                 context.truncated = true;
                 break;
             }
@@ -265,77 +298,86 @@ public class DqlReportValidationService {
             if (isSensitive(field)) {
                 result.put(field, MASKED_VALUE);
             } else {
-                result.put(field, sanitizeValue(entry.getValue(), depth + 1, context));
+                result.put(field, sanitizeValue(entry.getValue(), depth + 1, context, config));
             }
             count++;
         }
         return result;
     }
 
-    private Object sanitizeValue(Object value, int depth, PreviewContext context) {
+    private Object sanitizeValue(Object value,
+                                 int depth,
+                                 PreviewContext context,
+                                 DqlRuntimeConfig config) {
         if (value == null || value instanceof Number || value instanceof Boolean) {
             return value;
         }
         if (value instanceof CharSequence sequence) {
-            return truncateString(sequence.toString(), context);
+            return truncateString(sequence.toString(), context, config);
         }
         if (value instanceof Map<?, ?> map) {
-            if (depth > PREVIEW_MAX_DEPTH) {
+            if (depth > config.getPreviewMaxDepth()) {
                 context.truncated = true;
                 return PREVIEW_TRUNCATED_MARKER;
             }
-            return sanitizeMap(map, depth, context);
+            return sanitizeMap(map, depth, context, config);
         }
         if (value instanceof Collection<?> collection) {
-            if (depth > PREVIEW_MAX_DEPTH) {
+            if (depth > config.getPreviewMaxDepth()) {
                 context.truncated = true;
                 return PREVIEW_TRUNCATED_MARKER;
             }
-            return sanitizeCollection(collection, depth, context);
+            return sanitizeCollection(collection, depth, context, config);
         }
         if (value.getClass().isArray()) {
-            if (depth > PREVIEW_MAX_DEPTH) {
+            if (depth > config.getPreviewMaxDepth()) {
                 context.truncated = true;
                 return PREVIEW_TRUNCATED_MARKER;
             }
-            return sanitizeArray(value, depth, context);
+            return sanitizeArray(value, depth, context, config);
         }
-        return truncateString(String.valueOf(value), context);
+        return truncateString(String.valueOf(value), context, config);
     }
 
-    private List<Object> sanitizeCollection(Collection<?> source, int depth, PreviewContext context) {
-        List<Object> result = new ArrayList<>(Math.min(source.size(), PREVIEW_MAX_ITEMS));
+    private List<Object> sanitizeCollection(Collection<?> source,
+                                            int depth,
+                                            PreviewContext context,
+                                            DqlRuntimeConfig config) {
+        List<Object> result = new ArrayList<>(Math.min(source.size(), config.getPreviewMaxItems()));
         int count = 0;
         for (Object value : source) {
-            if (count >= PREVIEW_MAX_ITEMS) {
+            if (count >= config.getPreviewMaxItems()) {
                 context.truncated = true;
                 break;
             }
-            result.add(sanitizeValue(value, depth + 1, context));
+            result.add(sanitizeValue(value, depth + 1, context, config));
             count++;
         }
         return result;
     }
 
-    private List<Object> sanitizeArray(Object source, int depth, PreviewContext context) {
+    private List<Object> sanitizeArray(Object source,
+                                       int depth,
+                                       PreviewContext context,
+                                       DqlRuntimeConfig config) {
         int length = Array.getLength(source);
-        int kept = Math.min(length, PREVIEW_MAX_ITEMS);
+        int kept = Math.min(length, config.getPreviewMaxItems());
         List<Object> result = new ArrayList<>(kept);
         for (int index = 0; index < kept; index++) {
-            result.add(sanitizeValue(Array.get(source, index), depth + 1, context));
+            result.add(sanitizeValue(Array.get(source, index), depth + 1, context, config));
         }
-        if (length > PREVIEW_MAX_ITEMS) {
+        if (length > config.getPreviewMaxItems()) {
             context.truncated = true;
         }
         return result;
     }
 
-    private String truncateString(String value, PreviewContext context) {
-        if (value.length() <= PREVIEW_FIELD_MAX_LENGTH) {
+    private String truncateString(String value, PreviewContext context, DqlRuntimeConfig config) {
+        if (value.length() <= config.getPreviewFieldMaxLength()) {
             return value;
         }
         context.truncated = true;
-        return value.substring(0, PREVIEW_FIELD_MAX_LENGTH);
+        return value.substring(0, config.getPreviewFieldMaxLength());
     }
 
     private boolean isSensitive(String field) {

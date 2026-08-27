@@ -5,6 +5,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.dql.client.DqlTmClient;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.reporter.DqlEventReporter;
 import io.tapdata.websocket.EventHandlerAnnotation;
@@ -43,12 +44,15 @@ public class DqlRecoveryEventHandler extends BaseEventHandler {
                 : (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
         DqlRecoveryCoordinator coordinator = BeanUtil.getBean(DqlRecoveryCoordinator.class);
         DqlRecoveryReportSender reportSender = recoveryReportSender(clientMongoOperator);
+        DqlRuntimeConfig runtimeConfig = DqlRuntimeConfig.from(key ->
+                settingService == null ? null : settingService.getString(key, null));
         messageHandler = new DqlRecoveryMessageHandler(
                 coordinator,
                 reportSender,
                 new MongoDqlRecoveryTaskContextProvider(clientMongoOperator),
                 currentAgentId,
-                DqlRecoveryBatchRegistry.global()
+                DqlRecoveryBatchRegistry.global(),
+                runtimeConfig.getRecoveryBatchMaxSize()
         );
     }
 

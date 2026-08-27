@@ -6,7 +6,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,6 +51,36 @@ class DqlInitializationPatchTest {
             assertTrue(alarm.path("u").path("$set").path("open").asBoolean());
             assertEquals("SYSTEM", alarm.path("u").path("$set").path("notify").get(0).asText());
         }
+
+        JsonNode settingsPatch = findPatch(patches, "Settings");
+        assertNotNull(settingsPatch);
+        Map<String, Object> expectedDefaults = new LinkedHashMap<>();
+        expectedDefaults.put("dql.event.enabled", true);
+        expectedDefaults.put("dql.event.errorDetails.maxLength", 4000);
+        expectedDefaults.put("dql.event.payload.maxBytes", 1048576);
+        expectedDefaults.put("dql.event.preview.fieldMaxLength", 512);
+        expectedDefaults.put("dql.event.preview.maxDepth", 4);
+        expectedDefaults.put("dql.event.preview.maxItems", 50);
+        expectedDefaults.put("dql.recovery.batch.maxSize", 200);
+        expectedDefaults.put("dql.recovery.eventTimeoutSeconds", 60);
+        expectedDefaults.put("dql.recovery.batchTimeoutSeconds", 1800);
+        expectedDefaults.put("dql.recovery.continueOnEventFailure", true);
+        expectedDefaults.put("dql.unknown.guard.windowSeconds", 60);
+        expectedDefaults.put("dql.unknown.guard.maxEvents", 20);
+        expectedDefaults.put("dql.unknown.guard.maxBatchRatio", 0.2d);
+        expectedDefaults.put("dql.unknown.guard.decision", "TASK_RETRY");
+        assertEquals(expectedDefaults.size(), settingsPatch.path("updates").size());
+        expectedDefaults.forEach((key, value) -> {
+            JsonNode update = findUpdate(settingsPatch, key);
+            assertNotNull(update);
+            assertTrue(update.path("upsert").asBoolean());
+            JsonNode set = update.path("u").path("$set");
+            assertEquals("System", set.path("category").asText());
+            assertFalse(set.path("user_visible").asBoolean());
+            assertFalse(set.path("hot_reloading").asBoolean());
+            assertEquals(value.toString(), set.path("default_value").asText());
+            assertEquals(value.toString(), update.path("u").path("$setOnInsert").path("value").asText());
+        });
     }
 
     private JsonNode readPatches() throws Exception {

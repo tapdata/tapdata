@@ -16,13 +16,14 @@ public class DqlRecoveryMessageHandler {
     private final DqlRecoveryTaskContextProvider taskContextProvider;
     private final String currentAgentId;
     private final DqlRecoveryBatchRegistry batchRegistry;
+    private final int maxEventCount;
 
     public DqlRecoveryMessageHandler(DqlRecoveryCoordinator coordinator,
                                      DqlRecoveryReportSender reportSender,
                                      DqlRecoveryTaskContextProvider taskContextProvider,
                                      String currentAgentId) {
         this(coordinator, reportSender, taskContextProvider, currentAgentId,
-                new DqlRecoveryBatchRegistry());
+                new DqlRecoveryBatchRegistry(), DqlRecoveryMessageParser.MAX_EVENT_COUNT);
     }
 
     public DqlRecoveryMessageHandler(DqlRecoveryCoordinator coordinator,
@@ -30,17 +31,31 @@ public class DqlRecoveryMessageHandler {
                                      DqlRecoveryTaskContextProvider taskContextProvider,
                                      String currentAgentId,
                                      DqlRecoveryBatchRegistry batchRegistry) {
+        this(coordinator, reportSender, taskContextProvider, currentAgentId, batchRegistry,
+                DqlRecoveryMessageParser.MAX_EVENT_COUNT);
+    }
+
+    public DqlRecoveryMessageHandler(DqlRecoveryCoordinator coordinator,
+                                     DqlRecoveryReportSender reportSender,
+                                     DqlRecoveryTaskContextProvider taskContextProvider,
+                                     String currentAgentId,
+                                     DqlRecoveryBatchRegistry batchRegistry,
+                                     int maxEventCount) {
         this.coordinator = coordinator;
         this.reportSender = reportSender;
         this.taskContextProvider = taskContextProvider;
         this.currentAgentId = currentAgentId;
         this.batchRegistry = Objects.requireNonNull(batchRegistry, "batchRegistry must not be null");
+        if (maxEventCount <= 0) {
+            throw new IllegalArgumentException("maxEventCount must be greater than zero");
+        }
+        this.maxEventCount = maxEventCount;
     }
 
     public DqlRecoveryHandleResult handle(Map<?, ?> payload) {
         final DqlRecoveryMessageDto command;
         try {
-            command = DqlRecoveryMessageParser.parse(payload);
+            command = DqlRecoveryMessageParser.parse(payload, maxEventCount);
         } catch (DqlRecoveryMessageValidationException exception) {
             return DqlRecoveryHandleResult.rejected(exception.getMessage());
         }

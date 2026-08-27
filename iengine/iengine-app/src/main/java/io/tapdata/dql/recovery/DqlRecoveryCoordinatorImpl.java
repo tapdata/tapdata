@@ -1,6 +1,7 @@
 package io.tapdata.dql.recovery;
 
 import com.tapdata.entity.TapdataDqlRecoveryEvent;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import org.apache.commons.lang3.StringUtils;
@@ -23,7 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * paused-task runners.</p>
  */
 public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
-    public static final long DEFAULT_BARRIER_TIMEOUT_MILLIS = 30_000L;
+    public static final long DEFAULT_BARRIER_TIMEOUT_MILLIS =
+            DqlRuntimeConfig.DEFAULT_RECOVERY_EVENT_TIMEOUT_SECONDS * 1_000L;
 
     @FunctionalInterface
     public interface SourceBoundaryFactory {
@@ -51,8 +53,21 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private final DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory;
     private final SourceBoundaryFactory sourceBoundaryFactory;
     private final BarrierFactory barrierFactory;
+    private final DqlRuntimeConfig runtimeConfig;
     private final ConcurrentMap<String, AtomicBoolean> activeBatches = new ConcurrentHashMap<>();
     private final Object idleMonitor = new Object();
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      Executor executor,
+                                      DqlRuntimeConfig runtimeConfig) {
+        this(eventSource, eventSink, barrier, reportSender,
+                DqlRecoveryExecutionPolicy.from(runtimeConfig),
+                barrierTimeoutMillis(runtimeConfig), executor, command -> null, command -> null,
+                (command, sourceBoundary) -> barrier, effectiveConfig(runtimeConfig));
+    }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
                                       DqlRecoveryEventSink eventSink,
@@ -63,7 +78,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       Executor executor) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
                 barrierTimeoutMillis, executor, command -> null, command -> null,
-                (command, sourceBoundary) -> barrier);
+                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults());
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -76,7 +91,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
                 barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, command -> null,
-                (command, sourceBoundary) -> barrier);
+                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults());
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -90,7 +105,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       SourceBoundaryFactory sourceBoundaryFactory) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
                 barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, sourceBoundaryFactory,
-                (command, sourceBoundary) -> barrier);
+                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults());
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -103,6 +118,21 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
                                       SourceBoundaryFactory sourceBoundaryFactory,
                                       BarrierFactory barrierFactory) {
+        this(eventSource, eventSink, barrier, reportSender, executionPolicy, barrierTimeoutMillis, executor,
+                recoveryOnlyRunnerFactory, sourceBoundaryFactory, barrierFactory, DqlRuntimeConfig.defaults());
+    }
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      DqlRecoveryExecutionPolicy executionPolicy,
+                                      long barrierTimeoutMillis,
+                                      Executor executor,
+                                      DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
+                                      SourceBoundaryFactory sourceBoundaryFactory,
+                                      BarrierFactory barrierFactory,
+                                      DqlRuntimeConfig runtimeConfig) {
         this.eventSource = Objects.requireNonNull(eventSource, "eventSource must not be null");
         this.eventSink = Objects.requireNonNull(eventSink, "eventSink must not be null");
         this.barrier = Objects.requireNonNull(barrier, "barrier must not be null");
@@ -118,6 +148,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         this.sourceBoundaryFactory = Objects.requireNonNull(
                 sourceBoundaryFactory, "sourceBoundaryFactory must not be null");
         this.barrierFactory = Objects.requireNonNull(barrierFactory, "barrierFactory must not be null");
+        this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig must not be null");
     }
 
     @Override
@@ -232,7 +263,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                     attemptId,
                     command.getOperatorId(),
                     command.getTaskVersion(),
-                    snapshot
+                    snapshot,
+                    runtimeConfig
             );
             sink.enqueue(recoveryEvent);
             result = barrierResult(eventId, batchBarrier.await(eventId, barrierTimeoutMillis));
@@ -310,6 +342,14 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         synchronized (idleMonitor) {
             idleMonitor.notifyAll();
         }
+    }
+
+    private static DqlRuntimeConfig effectiveConfig(DqlRuntimeConfig config) {
+        return config == null ? DqlRuntimeConfig.defaults() : config;
+    }
+
+    private static long barrierTimeoutMillis(DqlRuntimeConfig config) {
+        return effectiveConfig(config).getRecoveryEventTimeoutSeconds() * 1_000L;
     }
 
     private record EventExecutionResult(boolean successful, String result, String message) {

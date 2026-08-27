@@ -104,5 +104,80 @@
         "upsert": true
       }
     ]
+  },
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {"key": "dql.event.enabled"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": true, "documentation": "Enable DQL exception event capture", "hot_reloading": false, "key": "dql.event.enabled", "key_label": "DQL event enabled", "last_update": 0, "scope": "global", "sort": 50, "user_visible": false, "enums": [true, false]}, "$setOnInsert": {"value": true}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.event.errorDetails.maxLength"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 4000, "documentation": "Maximum persisted DQL error detail characters", "hot_reloading": false, "key": "dql.event.errorDetails.maxLength", "key_label": "DQL error detail max length", "last_update": 0, "scope": "global", "sort": 51, "user_visible": false}, "$setOnInsert": {"value": 4000}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.event.payload.maxBytes"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 1048576, "documentation": "Maximum persisted DQL event payload bytes", "hot_reloading": false, "key": "dql.event.payload.maxBytes", "key_label": "DQL payload max bytes", "last_update": 0, "scope": "global", "sort": 52, "user_visible": false}, "$setOnInsert": {"value": 1048576}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.event.preview.fieldMaxLength"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 512, "documentation": "Maximum DQL preview string length per field", "hot_reloading": false, "key": "dql.event.preview.fieldMaxLength", "key_label": "DQL preview field max length", "last_update": 0, "scope": "global", "sort": 53, "user_visible": false}, "$setOnInsert": {"value": 512}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.event.preview.maxDepth"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 4, "documentation": "Maximum DQL preview nesting depth", "hot_reloading": false, "key": "dql.event.preview.maxDepth", "key_label": "DQL preview max depth", "last_update": 0, "scope": "global", "sort": 54, "user_visible": false}, "$setOnInsert": {"value": 4}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.event.preview.maxItems"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 50, "documentation": "Maximum DQL preview map or collection items", "hot_reloading": false, "key": "dql.event.preview.maxItems", "key_label": "DQL preview max items", "last_update": 0, "scope": "global", "sort": 55, "user_visible": false}, "$setOnInsert": {"value": 50}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.recovery.batch.maxSize"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 200, "documentation": "Maximum events in one DQL recovery batch", "hot_reloading": false, "key": "dql.recovery.batch.maxSize", "key_label": "DQL recovery batch max size", "last_update": 0, "scope": "global", "sort": 56, "user_visible": false}, "$setOnInsert": {"value": 200}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.recovery.eventTimeoutSeconds"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 60, "documentation": "DQL recovery event barrier timeout in seconds", "hot_reloading": false, "key": "dql.recovery.eventTimeoutSeconds", "key_label": "DQL recovery event timeout", "last_update": 0, "scope": "global", "sort": 57, "user_visible": false}, "$setOnInsert": {"value": 60}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.recovery.batchTimeoutSeconds"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 1800, "documentation": "DQL recovery batch timeout in seconds", "hot_reloading": false, "key": "dql.recovery.batchTimeoutSeconds", "key_label": "DQL recovery batch timeout", "last_update": 0, "scope": "global", "sort": 58, "user_visible": false}, "$setOnInsert": {"value": 1800}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.recovery.continueOnEventFailure"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": true, "documentation": "Continue DQL recovery after an event failure", "hot_reloading": false, "key": "dql.recovery.continueOnEventFailure", "key_label": "Continue DQL recovery on event failure", "last_update": 0, "scope": "global", "sort": 59, "user_visible": false, "enums": [true, false]}, "$setOnInsert": {"value": true}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.unknown.guard.windowSeconds"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 60, "documentation": "DQL unknown error guard rolling window in seconds", "hot_reloading": false, "key": "dql.unknown.guard.windowSeconds", "key_label": "DQL unknown guard window", "last_update": 0, "scope": "global", "sort": 60, "user_visible": false}, "$setOnInsert": {"value": 60}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.unknown.guard.maxEvents"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 20, "documentation": "DQL unknown error guard maximum events per window", "hot_reloading": false, "key": "dql.unknown.guard.maxEvents", "key_label": "DQL unknown guard max events", "last_update": 0, "scope": "global", "sort": 61, "user_visible": false}, "$setOnInsert": {"value": 20}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.unknown.guard.maxBatchRatio"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": 0.2, "documentation": "DQL unknown error guard maximum batch ratio", "hot_reloading": false, "key": "dql.unknown.guard.maxBatchRatio", "key_label": "DQL unknown guard max batch ratio", "last_update": 0, "scope": "global", "sort": 62, "user_visible": false}, "$setOnInsert": {"value": 0.2}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "dql.unknown.guard.decision"},
+        "u": {"$set": {"category": "System", "category_sort": 1, "default_value": "TASK_RETRY", "documentation": "DQL unknown error guard task route decision", "hot_reloading": false, "key": "dql.unknown.guard.decision", "key_label": "DQL unknown guard decision", "last_update": 0, "scope": "global", "sort": 63, "user_visible": false, "enums": ["TASK_RETRY", "TASK_ERROR"]}, "$setOnInsert": {"value": "TASK_RETRY"}},
+        "upsert": true
+      }
+    ]
   }
 ]

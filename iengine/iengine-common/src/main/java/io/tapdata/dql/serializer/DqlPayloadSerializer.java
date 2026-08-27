@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -33,6 +34,10 @@ public class DqlPayloadSerializer {
 
     public DqlPayloadSerializer(long maxBytes) {
         this(maxBytes, JSONUtil.mapper);
+    }
+
+    public DqlPayloadSerializer(DqlRuntimeConfig config) {
+        this(config == null ? DEFAULT_MAX_BYTES : config.getPayloadMaxBytes());
     }
 
     DqlPayloadSerializer(long maxBytes, ObjectMapper objectMapper) {

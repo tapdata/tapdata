@@ -1,5 +1,6 @@
 package io.tapdata.dql.classifier;
 
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.dql.model.DqlRouteDecision;
 
 /**
@@ -45,6 +46,20 @@ public final class DqlStormGuardConfig {
     public static DqlStormGuardConfig defaults() {
         return new DqlStormGuardConfig(DEFAULT_WINDOW_SECONDS, DEFAULT_MAX_EVENTS,
                 DEFAULT_MAX_BATCH_RATIO, DEFAULT_DECISION);
+    }
+
+    public static DqlStormGuardConfig from(DqlRuntimeConfig config) {
+        if (config == null) {
+            return defaults();
+        }
+        DqlRouteDecision decision;
+        try {
+            decision = DqlRouteDecision.valueOf(config.getUnknownGuardDecision());
+        } catch (IllegalArgumentException exception) {
+            decision = DEFAULT_DECISION;
+        }
+        return new DqlStormGuardConfig(config.getUnknownGuardWindowSeconds(),
+                config.getUnknownGuardMaxEvents(), config.getUnknownGuardMaxBatchRatio(), decision);
     }
 
     public long getWindowSeconds() {

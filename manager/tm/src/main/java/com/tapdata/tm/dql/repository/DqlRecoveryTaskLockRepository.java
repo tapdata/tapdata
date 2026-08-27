@@ -46,9 +46,16 @@ public class DqlRecoveryTaskLockRepository {
     }
 
     public boolean tryAcquire(String taskId, String batchId) {
+        return tryAcquire(taskId, batchId, DEFAULT_LEASE_MILLIS / 1000L);
+    }
+
+    public boolean tryAcquire(String taskId, String batchId, long leaseSeconds) {
+        if (leaseSeconds <= 0L || leaseSeconds > Long.MAX_VALUE / 1000L) {
+            return false;
+        }
         Date now = new Date();
         return tryAcquire(taskId, batchId, now,
-                new Date(now.getTime() + DEFAULT_LEASE_MILLIS));
+                new Date(saturatedAdd(now.getTime(), leaseSeconds * 1000L)));
     }
 
     public boolean tryAcquire(String taskId, String batchId, Date now, Date expireAt) {
@@ -86,5 +93,9 @@ public class DqlRecoveryTaskLockRepository {
                 .and(DqlRecoveryTaskLockEntity.FIELD_BATCH_ID).is(batchId));
         DeleteResult deleted = mongoTemplate.remove(query, DqlRecoveryTaskLockEntity.class);
         return deleted.getDeletedCount() > 0;
+    }
+
+    private long saturatedAdd(long left, long right) {
+        return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
     }
 }
