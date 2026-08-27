@@ -182,6 +182,19 @@ class DqlReportValidationServiceTest {
     }
 
     @Test
+    @DisplayName("report validation fingerprints a payload before removing an oversized body")
+    void fingerprintsOversizedPayloadBeforeRemoval() {
+        DqlReportValidationService service = serviceWithoutTaskLookup();
+        DqlEventReportVo report = report(Map.of("message", "中".repeat(400_000)));
+        report.setPayloadHash(null);
+
+        service.validateAndSecure(TASK_ID, report);
+
+        assertNull(report.getPayloadData());
+        assertTrue(report.getPayloadHash().startsWith("sha256:"));
+    }
+
+    @Test
     @DisplayName("report validation recursively masks sensitive preview fields")
     void masksSensitivePreviewFields() {
         DqlReportValidationService service = serviceWithoutTaskLookup();

@@ -92,7 +92,7 @@
 | B04 | 已完成 | 完成 TTL 字段生命周期 | 事件和批次创建时 `ttl_at=created`；进入重处理、结果更新、锁释放和批次推进时与同次 `updated` 一起刷新 | B02、B03 | 单元测试证明时间字段同值更新；字段以 BSON Date 保存 |
 | B05 | 已完成 | 创建 TTL 初始化脚本 | 使用 `init/idaas/4.22-7.json` 为 `dql_events.ttl_at` 和 `dql_recovery_batches.ttl_at` 创建 14 天单字段 TTL 索引，并更新 `version` | B04 | 初始化流程执行成功；索引 `expireAfterSeconds=1209600`；Repository 不重复创建 TTL 索引 |
 | B06 | 已完成 | 完成上报校验和安全处理 | 校验任务、异常范围和路由决策；实现错误详情脱敏与截断、Payload 大小限制、预览脱敏、嵌套深度和条目限制；Engine 回调请求体不进入普通日志 | A03、A05、B01 | 非 `RECORD_DLQ` 显式路由被拒绝；外部查询接口和普通日志不返回完整 Payload；敏感字段测试通过 |
-| B07 | 部分完成 | 完成事件身份与去重 | Engine 值优先；TM 按 `eventKey`、`payloadHash` 兜底生成 `recordIdentity` 和 `eventIdentity`，使用唯一索引 upsert | B02、B06 | 同一事件重复上报只保留一个主记录，返回 `duplicate=true` 且不重复告警 |
+| B07 | 已完成 | 完成事件身份与去重 | Engine 值优先；TM 按 `eventKey`、`payloadHash` 兜底生成 `recordIdentity` 和 `eventIdentity`，使用唯一索引 upsert | B02、B06 | 同一事件重复上报只保留一个主记录，返回 `duplicate=true` 且不重复告警 |
 | B08 | 部分完成 | 完成 Engine 上报 API | 落实异常事件上报和后续成功写入回调；后者只标记最新未完成前序事件的覆盖风险 | B06、B07 | API 契约测试覆盖首次、重复、非法路由、无匹配后续成功和覆盖风险匹配 |
 | B09 | 部分完成 | 完成列表、详情和统计 API | 列表支持当前筛选、默认 `-failedAt` 排序和 20 条分页；详情返回安全预览及含 `RUNNING` 的 attempt；统计复用相同权限与非状态筛选，并向 Web 负责人交付契约 | B02、B06 | 查询、统计结果口径一致；事件 ID 只作接口定位；列表和详情均不泄露 `payload_data`；详情可承载 3 秒进度刷新 |
 | B10 | 部分完成 | 完成任务数据权限 | 查询按可见任务过滤；详情和操作校验事件所属任务；明确 POC 是否只保留 View 权限 | A03、B09 | 无菜单或无任务数据权限时返回统一错误；跨任务数据不可见 |

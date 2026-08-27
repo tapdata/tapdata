@@ -5,7 +5,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlErrorTypeEnum;
-import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -22,15 +21,11 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class DqlEventService {
@@ -41,22 +36,31 @@ public class DqlEventService {
     private final DqlEventPermissionService permissionService;
     private final DqlRecoveryBatchRepository batchRepository;
     private final DqlReportValidationService reportValidationService;
+    private final DqlEventIdentityService identityService;
 
     public DqlEventService(DqlEventRepository eventRepository, DqlEventAlarmService alarmService) {
-        this(eventRepository, alarmService, null, null, new DqlReportValidationService());
+        this(eventRepository, alarmService, null, null, new DqlReportValidationService(), new DqlEventIdentityService());
     }
 
     public DqlEventService(DqlEventRepository eventRepository,
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService) {
-        this(eventRepository, alarmService, permissionService, null, new DqlReportValidationService());
+        this(eventRepository, alarmService, permissionService, null, new DqlReportValidationService(), new DqlEventIdentityService());
     }
 
     public DqlEventService(DqlEventRepository eventRepository,
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService,
                            DqlRecoveryBatchRepository batchRepository) {
-        this(eventRepository, alarmService, permissionService, batchRepository, new DqlReportValidationService());
+        this(eventRepository, alarmService, permissionService, batchRepository, new DqlReportValidationService(), new DqlEventIdentityService());
+    }
+
+    public DqlEventService(DqlEventRepository eventRepository,
+                           DqlEventAlarmService alarmService,
+                           DqlEventPermissionService permissionService,
+                           DqlRecoveryBatchRepository batchRepository,
+                           DqlReportValidationService reportValidationService) {
+        this(eventRepository, alarmService, permissionService, batchRepository, reportValidationService, new DqlEventIdentityService());
     }
 
     @Autowired
@@ -64,12 +68,14 @@ public class DqlEventService {
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService,
                            DqlRecoveryBatchRepository batchRepository,
-                           DqlReportValidationService reportValidationService) {
+                           DqlReportValidationService reportValidationService,
+                           DqlEventIdentityService identityService) {
         this.eventRepository = eventRepository;
         this.alarmService = alarmService;
         this.permissionService = permissionService;
         this.batchRepository = batchRepository;
         this.reportValidationService = reportValidationService;
+        this.identityService = identityService;
     }
 
     public DqlEventReportResultVo report(String taskId, DqlEventReportVo report) {
@@ -80,10 +86,7 @@ public class DqlEventService {
             throw new BizException("IllegalArgument", "taskId");
         }
         DqlReportValidationService.ValidationResult validationResult = reportValidationService.validateAndSecure(taskId, report);
-        fillRecordIdentity(report);
-        if (StringUtils.isBlank(report.getEventIdentity())) {
-            report.setEventIdentity(generateIdentity(taskId, report));
-        }
+        identityService.fillIdentities(taskId, report);
         DqlEventDto duplicate = eventRepository.findDuplicate(taskId, report);
         if (duplicate != null) {
             return reportResult(duplicate, true);
@@ -92,8 +95,11 @@ public class DqlEventService {
         Long captureSeq = Optional.ofNullable(report.getCaptureSeq()).orElseGet(() -> eventRepository.nextCaptureSeq(taskId));
         DqlEventDto dto = convert(taskId, report, captureSeq, validationResult);
         DqlEventDto saved = eventRepository.upsert(dto);
-        alarmService.notifyEventCreated(saved);
-        return reportResult(saved, false);
+        boolean duplicateAfterUpsert = !Objects.equals(dto.getEventId(), saved.getEventId());
+        if (!duplicateAfterUpsert) {
+            alarmService.notifyEventCreated(saved);
+        }
+        return reportResult(saved, duplicateAfterUpsert);
     }
 
     public Page<DqlEventDto> page(DqlEventQueryVo query, UserDetail user) {
@@ -141,7 +147,7 @@ public class DqlEventService {
         if (StringUtils.isBlank(taskId)) {
             throw new BizException("IllegalArgument", "taskId");
         }
-        fillRecordIdentity(report);
+        identityService.fillRecordIdentity(report);
         DqlEventDto marked = eventRepository.markLaterSuccess(taskId, report, OVERWRITE_RISK_MESSAGE);
         DqlRecordSuccessReportResultVo result = new DqlRecordSuccessReportResultVo();
         result.setMarked(marked != null);
@@ -259,89 +265,4 @@ public class DqlEventService {
         return String.format("DQL-%s-%06d", shortId, captureSeq);
     }
 
-    private String generateIdentity(String taskId, DqlEventReportVo report) {
-        String source = String.join("|",
-                taskId,
-                nullToEmpty(report.getTaskRecordId()),
-                nullToEmpty(report.getTableId()),
-                nullToEmpty(report.getRecordIdentity()),
-                nullToEmpty(report.getDmlType()),
-                String.valueOf(report.getEventTime()),
-                nullToEmpty(report.getPayloadHash()),
-                String.valueOf(report.getPayloadData()),
-                nullToEmpty(report.getFailedNodeId())
-        );
-        return "sha256:" + sha256(source);
-    }
-
-    private void fillRecordIdentity(DqlEventReportVo report) {
-        if (StringUtils.isNotBlank(report.getRecordIdentity())) {
-            if (StringUtils.isBlank(report.getRecordIdentityType())) {
-                report.setRecordIdentityType(DqlRecordIdentityTypeEnum.UNKNOWN.name());
-            }
-            return;
-        }
-        RecordIdentity identity = buildRecordIdentity(report.getTableId(), report.getSourceTable(), report.getEventKey(), report.getPayloadHash());
-        report.setRecordIdentity(identity.identity());
-        report.setRecordIdentityType(identity.type());
-        report.setRecordIdentityFields(identity.fields());
-    }
-
-    private void fillRecordIdentity(DqlRecordSuccessReportVo report) {
-        if (StringUtils.isNotBlank(report.getRecordIdentity())) {
-            if (StringUtils.isBlank(report.getRecordIdentityType())) {
-                report.setRecordIdentityType(DqlRecordIdentityTypeEnum.UNKNOWN.name());
-            }
-            return;
-        }
-        RecordIdentity identity = buildRecordIdentity(report.getTableId(), report.getSourceTable(), report.getEventKey(), report.getPayloadHash());
-        report.setRecordIdentity(identity.identity());
-        report.setRecordIdentityType(identity.type());
-        report.setRecordIdentityFields(identity.fields());
-    }
-
-    private RecordIdentity buildRecordIdentity(String tableId, String sourceTable, Map<String, Object> eventKey, String payloadHash) {
-        String table = Optional.ofNullable(tableId).filter(StringUtils::isNotBlank)
-                .orElseGet(() -> Optional.ofNullable(sourceTable).orElse(""));
-        if (eventKey != null && !eventKey.isEmpty()) {
-            List<String> fields = eventKey.keySet().stream().sorted().toList();
-            String keyValues = fields.stream()
-                    .map(field -> field + "=" + String.valueOf(eventKey.get(field)))
-                    .collect(Collectors.joining(","));
-            return new RecordIdentity(
-                    "key:" + table + ":" + keyValues,
-                    DqlRecordIdentityTypeEnum.PRIMARY_KEY.name(),
-                    fields
-            );
-        }
-        if (StringUtils.isNotBlank(payloadHash)) {
-            return new RecordIdentity(
-                    "hash:" + table + ":" + payloadHash,
-                    DqlRecordIdentityTypeEnum.FULL_FIELD_HASH.name(),
-                    List.of()
-            );
-        }
-        return new RecordIdentity(null, null, null);
-    }
-
-    private String sha256(String source) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(source.getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder();
-            for (byte b : bytes) {
-                builder.append(String.format("%02x", b));
-            }
-            return builder.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new BizException("SystemError", e.getMessage());
-        }
-    }
-
-    private String nullToEmpty(String value) {
-        return value == null ? "" : value;
-    }
-
-    private record RecordIdentity(String identity, String type, List<String> fields) {
-    }
 }

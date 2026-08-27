@@ -95,6 +95,24 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("report treats an existing event returned by atomic upsert as a concurrent duplicate")
+    void reportTreatsAtomicUpsertRaceAsDuplicate() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlEventService service = new DqlEventService(eventRepository, alarmService);
+        DqlEventDto existing = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.nextCaptureSeq(TASK_ID)).thenReturn(42L);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenReturn(existing);
+
+        DqlEventReportResultVo result = service.report(TASK_ID, reportVo());
+
+        assertEquals("DQL-64f000-000001", result.getEventId());
+        assertTrue(result.isDuplicate());
+        verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
+    }
+
+    @Test
     @DisplayName("report persists record identity fields used for later success risk detection")
     void reportPersistsRecordIdentityFields() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);

@@ -55,15 +55,23 @@ public class DqlReportValidationService {
 
     private final TaskRepository taskRepository;
     private final ObjectMapper objectMapper;
+    private final DqlEventIdentityService identityService;
 
     DqlReportValidationService() {
         this(null, new ObjectMapper());
     }
 
-    @Autowired
     public DqlReportValidationService(TaskRepository taskRepository, ObjectMapper objectMapper) {
+        this(taskRepository, objectMapper, new DqlEventIdentityService(objectMapper));
+    }
+
+    @Autowired
+    public DqlReportValidationService(TaskRepository taskRepository,
+                                      ObjectMapper objectMapper,
+                                      DqlEventIdentityService identityService) {
         this.taskRepository = taskRepository;
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.identityService = Objects.requireNonNull(identityService, "identityService must not be null");
     }
 
     public ValidationResult validateAndSecure(String taskId, DqlEventReportVo report) {
@@ -209,6 +217,7 @@ public class DqlReportValidationService {
 
     private void securePayload(DqlEventReportVo report) {
         Object payloadData = report.getPayloadData();
+        identityService.fillPayloadHash(report);
         long actualSize = serializedSize(payloadData);
         long declaredSize = report.getPayloadSize() == null ? 0L : Math.max(0L, report.getPayloadSize());
         long effectiveSize = Math.max(actualSize, declaredSize);

@@ -23,7 +23,7 @@
 
 - 安全处理集中在独立 Service，而不是继续堆叠在 `DqlEventService`，与详细设计中的组件划分一致，也为 F05 后续接入动态系统配置保留单一入口。
 - 当前使用 A05 已冻结的默认值；读取系统设置、非法配置保护和环境覆盖仍由 F05 完成，本步骤不提前扩大配置开发范围。
-- TM 只对 Engine 提供的预览执行二次安全处理，不在 B06 生成 Engine 侧完整预览、Payload hash 或事件身份；这些职责分别留给 C03 和 B07。
+- TM 只对 Engine 提供的预览执行二次安全处理，不在 B06 生成 Engine 侧完整预览或事件身份；Payload hash 和事件身份仍由 C03/B07 负责。为避免超限 Payload 被移除后丢失去重指纹，B06 校验流程只在移除完整 Payload 前调用 B07 身份服务生成缺失的 Payload hash。
 - 超限 Payload 的主记录仍然保存，但完整 `payloadData` 被移除，状态为 `NOT_REPROCESSABLE`；这满足“摘要可查询但不可恢复”的设计，并避免 Mongo 文档继续承载超限内容。
 - `payloadPreviewTruncated` 保留 Engine 已上报的 true，并与 TM 本次处理产生的截断结果做逻辑或，避免二次处理错误清除既有截断信息。
 

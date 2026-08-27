@@ -1303,6 +1303,8 @@ TM 把返回的 `attrs.dqlEventSeq` 写入 `dql_events.capture_seq`。
 
 `event_identity` 用于避免重复保存 DLQ 主记录，不用于证明业务幂等。
 
+TM 兜底计算中的对象和 Map 先递归按字段名排序后序列化为规范化 JSON，数组保持原顺序，再计算 `sha256:{hex}`，避免 Map 插入顺序影响身份。缺少 Engine 显式 `recordIdentity` 时，TM 使用 `key:{table}:sha256:{eventKeyHash}` 或 `hash:{table}:{payloadHash}`；缺少 `payloadHash` 时，必须在超限处理移除完整 Payload 之前生成。Engine 显式身份始终优先且不由 TM 重写。
+
 ### 8.8 DML 类型识别
 
 | TapEvent 类型 | `dml_type` |
