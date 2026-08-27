@@ -47,6 +47,7 @@
 | C09 | 已完成 | `steps/C09-engine-js-custom-process-capture.md` |
 | C10 | 已完成 | `steps/C10-engine-later-success-callback.md` |
 | C11 | 已完成 | `steps/C11-engine-skip-metric-and-error-semantics.md` |
+| C12 | 已完成 | `steps/C12-engine-capture-regression.md` |
 
 ## 回归记录
 

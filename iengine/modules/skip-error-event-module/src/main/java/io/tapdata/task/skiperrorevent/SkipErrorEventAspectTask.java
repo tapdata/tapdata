@@ -316,6 +316,9 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     public AspectInterceptResult skipErrorDataNoeAspectHandle(SkipErrorDataAspect aspect) {
+        if (aspect == null || !isSkipDataEnabled()) {
+            return null;
+        }
         return this.skipErrorDataNoeAspect.apply(aspect);
     }
 
