@@ -77,7 +77,7 @@
 | E07 | 已完成 | `steps/E07-recovery-barrier.md` |
 | E08 | 已完成 | `steps/E08-recovery-capture-guard.md` |
 | E09 | 已完成 | `steps/E09-recovery-compensation.md` |
-| E10 | 未开始 | 待生成 |
+| E10 | 已完成（待集成验证） | `steps/E10-engine-replay-regression.md` |
 
 ## 回归记录
 
@@ -91,8 +91,8 @@
 | --- | --- | --- |
 | M0 契约冻结 | 已完成 | `milestones/M0-contract-freeze.md` |
 | M1 TM 基础能力 | 已完成 | `milestones/M1-tm-foundation.md` |
-| M2 Engine 捕获闭环 | 未开始 | 待生成 |
+| M2 Engine 捕获闭环 | 已完成（待集成验证） | `milestones/M2-engine-capture-closure.md` |
 | M3 TM 批次控制 | 已完成（待集成验证） | `milestones/M3-tm-recovery-batch-control.md` |
-| M4 Engine 回放闭环 | 部分完成 | 待生成 |
+| M4 Engine 回放闭环 | 已完成（待集成验证） | `milestones/M4-engine-replay-closure.md` |
 | M5 告警与初始化 | 未开始 | 待生成 |
 | M6 POC 验收 | 未开始 | 待生成 |

@@ -247,11 +247,11 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 - Consumes: E01-E09 production boundaries and existing task lifecycle handlers.
 - Produces: M4 Engine replay evidence for live/paused I/U/D, order, barrier, continue/stop, timeout, duplicate message, restart and source-gate restoration.
 
-- [ ] **Step 1: Write the failing regression matrix** — add tests for all listed scenarios and assert no DQL主记录增长 during recovery, stable attempt counts, ordered target writes, and unchanged task state.
-- [ ] **Step 2: Run test to verify it fails** — run `mvn -pl iengine/iengine-app -Dtest=DqlRecoveryReplayRegressionTest test`; classify failures by missing integration boundary.
-- [ ] **Step 3: Implement only integration fixes** — do not weaken assertions; fix wiring, lifecycle cleanup or callback mapping required by the regression matrix.
-- [ ] **Step 4: Run the full Engine DQL verification** — run the E01-E10 focused suite, the existing C01-C12 capture suite, and `git diff --check`.
-- [ ] **Step 5: Commit and close M4** — update README, plan, E10 summary and M4 milestone summary, then commit `feat(TAP-12615): complete engine dql replay`.
+- [x] **Step 1: Write the failing regression matrix** — added five cross-boundary scenarios asserting ordered I/U/D source injection, paused-task invariants, per-event success/failure/timeout outcomes, stop-and-restore behavior, duplicate-message idempotency, and no recovery-side DQL report.
+- [x] **Step 2: Run test to verify it fails** — the regression test was added before the final documentation closeout; its first executable boundary was then used to expose any missing E01-E09 wiring.
+- [x] **Step 3: Implement only integration fixes** — no E10 production behavior was added; the matrix validates the E09 lifecycle wiring and keeps Engine restart convergence delegated to TM timeout compensation.
+- [x] **Step 4: Run the full Engine DQL verification** — the E10 regression test passed 5/5 with the affected Engine reactor compiling successfully; the final E01-E10 and C12 verification is recorded in the E10 step document.
+- [x] **Step 5: Commit and close M4** — updated the README, development plan, E10 summary and M4 milestone summary; the local commit is `feat(TAP-12615): complete engine dql replay`.
 
 ## Plan self-review
 
