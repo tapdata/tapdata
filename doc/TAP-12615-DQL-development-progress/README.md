@@ -69,7 +69,7 @@
 | 步骤 | 状态 | 总结文档 |
 | --- | --- | --- |
 | E01 | 已完成 | `steps/E01-recovery-message-handler.md` |
-| E02 | 未开始 | 待生成 |
+| E02 | 已完成 | `steps/E02-dql-recovery-event.md` |
 | E03 | 未开始 | 待生成 |
 | E04 | 未开始 | 待生成 |
 | E05 | 未开始 | 待生成 |

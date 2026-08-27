@@ -33,7 +33,7 @@
 - Consumes: `io.tapdata.dql.model.DqlPayloadSnapshot`, `io.tapdata.dql.serializer.DqlPayloadSerializer`, `io.tapdata.entity.event.dml.TapRecordEvent`.
 - Produces: `TapdataDqlRecoveryEvent.createBegin(String)`, `createData(String, String, String, String, Long, DqlPayloadSnapshot)`, `createEnd(String)`; `isDataEvent()` and `isRecoveryEvent(TapEvent)` for later coordinator and capture code.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add tests proving that `createData` reconstructs insert, update and delete events from snapshots; preserves `exactlyOnceId`, table, before/after, event times and original info; adds `DQL_RECOVERY`, `DQL_EVENT_ID`, `DQL_BATCH_ID`, `DQL_ATTEMPT_ID`; rejects incomplete snapshots; and preserves recovery fields after `clone()`.
 
@@ -61,23 +61,23 @@ void dataEventRebuildsDmlAndKeepsExactlyOnceIdentity() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `mvn -pl iengine/iengine-common -Dtest=TapdataDqlRecoveryEventTest test`
 
 Expected: FAIL to compile because `TapdataDqlRecoveryEvent` and its factories do not exist.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Implement the class with `SyncStage.CDC`, constants `INFO_KEY_DQL_RECOVERY`, `INFO_KEY_DQL_EVENT_ID`, `INFO_KEY_DQL_BATCH_ID`, `INFO_KEY_DQL_ATTEMPT_ID`, `TYPE_BEGIN`, `TYPE_DATA`, `TYPE_END`, fields `batchId`, `attemptId`, `recoveryType`, `operatorId`, `taskVersion`, and the inherited `eventId` as the DQL event ID. `createData` must call `new DqlPayloadSerializer().deserialize(snapshot)`, reject null/incomplete payloads through the serializer, set the DML event, then append recovery metadata to a copied info map so the snapshot object is not mutated. `clone(TapdataEvent)` must copy every recovery field after calling `super.clone`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `mvn -pl iengine/iengine-common -Dtest=TapdataDqlRecoveryEventTest,DqlPayloadSerializerTest test`
 
 Expected: all selected tests PASS with zero failures and zero errors.
 
-- [ ] **Step 5: Update progress record and commit**
+- [x] **Step 5: Update progress record and commit**
 
 Record actual code paths, design decision about reusing inherited `eventId`, TDD red/green evidence, and the Maven result in `E02-dql-recovery-event.md`. Change E02 to 已完成 and keep E03-E10 未开始 in the progress index and development plan. Run `git diff --check`, then:
 
