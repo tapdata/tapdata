@@ -38,6 +38,7 @@
 | --- | --- | --- |
 | C01 | 已完成 | `steps/C01-engine-dql-model-and-tm-client.md` |
 | C02 | 已完成 | `steps/C02-engine-payload-serialization.md` |
+| C03 | 已完成 | `steps/C03-engine-preview-and-identity.md` |
 
 ## 回归记录
 
@@ -50,7 +51,7 @@
 | 里程碑 | 状态 | 总结文档 |
 | --- | --- | --- |
 | M0 契约冻结 | 已完成 | `milestones/M0-contract-freeze.md` |
-| M1 TM 基础能力 | 进行中 | 待生成 |
+| M1 TM 基础能力 | 已完成 | `milestones/M1-tm-foundation.md` |
 | M2 Engine 捕获闭环 | 未开始 | 待生成 |
 | M3 TM 批次控制 | 未开始 | 待生成 |
 | M4 Engine 回放闭环 | 未开始 | 待生成 |
