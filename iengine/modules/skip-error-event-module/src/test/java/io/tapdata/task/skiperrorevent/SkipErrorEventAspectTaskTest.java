@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.script.ScriptException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -387,6 +388,30 @@ public class SkipErrorEventAspectTaskTest {
             assertEquals(DqlFailedStage.PROCESSOR.name(), report.getFailedStage());
             assertEquals("processor-1", report.getFailedNodeId());
             assertEquals("processor node", report.getFailedNodeName());
+        }
+
+        @Test
+        void nestedCustomScriptFailureShouldReportAndIntercept() {
+            TapdataEvent inputEvent = insertTapdataEvent(1);
+            TapCodeException processFailure = new TapCodeException(
+                    io.tapdata.error.TaskProcessorExCode_11.UNKNOWN_ERROR,
+                    new RuntimeException("Execute script error, record: {id=1}",
+                            new ScriptException("undefined variable")));
+            DqlEventReportResult acknowledgement = new DqlEventReportResult();
+            acknowledgement.setEventId("dql-custom-process-event-1");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenReturn(acknowledgement);
+
+            AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                    processAspect(inputEvent, processFailure));
+
+            assertNotNull(result);
+            assertTrue(result.isIntercepted());
+            ArgumentCaptor<DqlEventReport> reportCaptor = ArgumentCaptor.forClass(DqlEventReport.class);
+            verify(reporter).report(eq("task-1"), reportCaptor.capture());
+            DqlEventReport report = reportCaptor.getValue();
+            assertEquals(DqlRouteDecision.RECORD_DLQ, report.getRouteDecision());
+            assertEquals(DqlErrorType.TRANSFORM_ERROR, report.getErrorType());
+            assertEquals(DqlFailedStage.PROCESSOR.name(), report.getFailedStage());
         }
 
         @Test

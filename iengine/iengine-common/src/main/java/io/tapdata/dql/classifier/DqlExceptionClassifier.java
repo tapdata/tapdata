@@ -146,6 +146,14 @@ public class DqlExceptionClassifier {
                     DqlClassificationConfidence.EXACT);
         }
 
+        if (context.getFailedStage() == DqlFailedStage.PROCESSOR
+                && isNestedScriptExecutionFailure(error)) {
+            return result(DqlExceptionScope.RECORD, DqlRouteDecision.RECORD_DLQ,
+                    DqlErrorType.TRANSFORM_ERROR,
+                    reason("nested processor script failure", error, context),
+                    DqlClassificationConfidence.RULE);
+        }
+
         if (isMalformedException(error, context)) {
             return result(DqlExceptionScope.RECORD, DqlRouteDecision.RECORD_DLQ,
                     DqlErrorType.MALFORMED_RECORD,
@@ -200,7 +208,13 @@ public class DqlExceptionClassifier {
         if (containsCode(error, SCRIPT_INITIALIZATION_ERROR_CODES)) {
             return true;
         }
-        return errorCode(error) == null && containsType(error, ScriptException.class);
+        return error instanceof ScriptException;
+    }
+
+    private boolean isNestedScriptExecutionFailure(Throwable error) {
+        return !(error instanceof ScriptException)
+                && containsType(error, ScriptException.class)
+                && !containsCode(error, SCRIPT_INITIALIZATION_ERROR_CODES);
     }
 
     private boolean isTargetRecordCode(Throwable error) {

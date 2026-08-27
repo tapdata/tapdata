@@ -7,6 +7,7 @@ import io.tapdata.dql.model.DqlClassificationResult;
 import io.tapdata.dql.model.DqlErrorType;
 import io.tapdata.dql.model.DqlExceptionScope;
 import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.exception.TapCodeException;
 import org.junit.jupiter.api.DisplayName;
@@ -192,6 +193,33 @@ class DqlExceptionClassifierTest {
         assertEquals(DqlExceptionScope.RECORD, result.getExceptionScope());
         assertEquals(DqlRouteDecision.RECORD_DLQ, result.getRouteDecision());
         assertEquals(DqlErrorType.TRANSFORM_ERROR, result.getErrorType());
+    }
+
+    @Test
+    @DisplayName("a nested script exception with one processor event is a transform error")
+    void routesNestedScriptExceptionToRecordDlq() {
+        ScriptException scriptFailure = new ScriptException("undefined variable");
+        RuntimeException executionFailure = new RuntimeException(
+                "Execute script error, record: {id=1001}", scriptFailure);
+
+        DqlClassificationResult result = classifier.classify(
+                new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, executionFailure),
+                processorContext(EVENT));
+
+        assertEquals(DqlExceptionScope.RECORD, result.getExceptionScope());
+        assertEquals(DqlRouteDecision.RECORD_DLQ, result.getRouteDecision());
+        assertEquals(DqlErrorType.TRANSFORM_ERROR, result.getErrorType());
+        assertEquals(DqlClassificationConfidence.RULE, result.getClassificationConfidence());
+    }
+
+    @Test
+    @DisplayName("a direct script exception remains an initialization failure")
+    void keepsDirectScriptExceptionAtTaskLevel() {
+        DqlClassificationResult result = classifier.classify(
+                new ScriptException("syntax error"), processorContext(EVENT));
+
+        assertEquals(DqlExceptionScope.SYSTEM, result.getExceptionScope());
+        assertEquals(DqlRouteDecision.TASK_ERROR, result.getRouteDecision());
     }
 
     @Test
