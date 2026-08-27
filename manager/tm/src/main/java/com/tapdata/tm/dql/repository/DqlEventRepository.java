@@ -156,6 +156,8 @@ public class DqlEventRepository {
         setOnInsert(update, DqlEventDto.FIELD_AGENT_ID, dto.getAgentId());
         setOnInsert(update, DqlEventDto.FIELD_SOURCE_NODE_ID, dto.getSourceNodeId());
         setOnInsert(update, DqlEventDto.FIELD_SOURCE_NODE_NAME, dto.getSourceNodeName());
+        setOnInsert(update, DqlEventDto.FIELD_TARGET_NODE_ID, dto.getTargetNodeId());
+        setOnInsert(update, DqlEventDto.FIELD_TARGET_NODE_NAME, dto.getTargetNodeName());
         setOnInsert(update, DqlEventDto.FIELD_FAILED_NODE_ID, dto.getFailedNodeId());
         setOnInsert(update, DqlEventDto.FIELD_FAILED_NODE_NAME, dto.getFailedNodeName());
         setOnInsert(update, DqlEventDto.FIELD_FAILED_STAGE, dto.getFailedStage());
@@ -278,7 +280,7 @@ public class DqlEventRepository {
         }
         long skip = Math.max(0, Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getSkip).orElse(0L));
         int requestedLimit = Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getLimit).orElse(0);
-        int limit = requestedLimit > 0 ? requestedLimit : 10;
+        int limit = requestedLimit > 0 ? requestedLimit : 20;
         query.skip(skip).limit(limit).with(parseSort(Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getOrder).orElse(null)));
         List<DqlEventDto> items = mongoTemplate.find(query, entityClass).stream().map(this::convert).collect(Collectors.toList());
         return Page.page(items, count);

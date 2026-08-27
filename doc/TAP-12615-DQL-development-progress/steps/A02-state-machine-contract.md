@@ -34,7 +34,7 @@
 
 ## Attempt 和回调规则
 
-- Attempt 结果固定为 `SUCCESS`、`FAILED`、`SKIPPED`、`TIMEOUT`。
+- Attempt 结果固定为 `RUNNING`、`SUCCESS`、`FAILED`、`SKIPPED`、`TIMEOUT`。`RUNNING` 表示当前重放仍在执行，允许 `finishedAt` 为空。
 - 回调类型固定为 `BATCH_STARTED`、`EVENT_STARTED`、`EVENT_RESULT`、`BATCH_FINISHED`、`BATCH_FAILED`。
 - `EVENT_STARTED` 只记录开始信息，不增加成功、失败或跳过计数。
 - `EVENT_RESULT` 以 `batchId + eventId + attemptId` 幂等处理。

@@ -12,7 +12,7 @@
 | --- | --- |
 | 命名 | 内部代码和集合使用 DQL，用户可见名称使用“异常事件”，概念文档使用 DLQ |
 | 状态机 | 事件、批次、Attempt 和 Engine 回调类型及合法迁移已冻结 |
-| 数据与 API | snake_case Mongo、camelCase Java/API、完整 Payload 边界、9 个 API 和独立 `dqlRecovery` 消息已冻结 |
+| 数据与 API | snake_case Mongo、camelCase Java/API、完整 Payload 边界、当前 Web 依赖的 5 个接口、内部/可选接口和独立 `dqlRecovery` 消息已冻结 |
 | 异常分类 | RECORD、TASK_SHARED、SYSTEM、UNKNOWN 的路由矩阵和 Storm Guard 行为已冻结 |
 | 配置 | 14 个配置 key、默认值、Settings/SettingService 载体和快照生效规则已冻结 |
 | POC | 数据类型、异常注入、幂等适用范围和不设置性能阈值的验收口径已冻结 |
@@ -32,12 +32,18 @@
 - Web 不在本计划开发范围，但 API、权限码和错误码交接边界已明确。
 - 已识别代码与契约差异，并分别指派到 B01、D05、D06、F05 等后续步骤。
 
-## 已知差异
+## 2026-08-27 回归同步
 
-- 当前 `DqlErrorTypeEnum` 使用 `TARGET_WRITE_ERROR`，需在 B01 统一为设计口径。
-- 异常范围和路由决策尚缺少强类型枚举，需在 B01 补齐。
+- `TARGET_WRITE_ERROR` 确认为 API、Java 和新增存储数据的规范值，历史 `TARGET_CONSTRAINT_ERROR` 只作为兼容输入。
+- Attempt 结果补齐 `RUNNING`；当前 Web 通过事件详情 `recoveryAttempts` 获取进度。
+- 当前 Web 只依赖列表、汇总、详情、预览、提交 5 个接口，批次详情降为可选运维诊断接口。
+- B01 已补齐异常范围、路由决策、错误类型、Attempt 和目标节点字段契约。完整同步内容见 `../regressions/2026-08-27-A01-B03-contract-regression.md`。
+
+## 仍待后续步骤
+
 - 当前 TM 到 Engine 的恢复消息仍为 Map，需在 D05/E01 改为明确契约模型。
 - 配置尚未写入 Settings 初始化，需在 F05 落地。
+- 对外详情的 `stage`、attempt `errorMessage` 和 3 秒进度刷新契约在 B09/D06 完成，本次不提前实现。
 
 ## 下一里程碑
 

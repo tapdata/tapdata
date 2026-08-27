@@ -11,7 +11,9 @@
 - 新增 `DqlExceptionScopeEnum`：`RECORD`、`TASK_SHARED`、`SYSTEM`、`UNKNOWN`。
 - 新增 `DqlRouteDecisionEnum`：`RECORD_DLQ`、`TASK_RETRY`、`TASK_ERROR`。
 - 新增 `DqlClassificationConfidenceEnum`：`EXACT`、`RULE`、`UNKNOWN_SINGLE`。
-- 将 `DqlErrorTypeEnum` 的设计值统一为 `TARGET_CONSTRAINT_ERROR`，`parse()` 对历史 `TARGET_WRITE_ERROR` 保留兼容映射。
+- 将 `DqlErrorTypeEnum` 的规范值统一为 `TARGET_WRITE_ERROR`，`parse()` 对历史 `TARGET_CONSTRAINT_ERROR` 保留兼容映射，上报持久化前归一化为规范值。
+- `DqlRecoveryAttemptResultEnum` 补齐 `RUNNING`，与详情进度展示契约一致。
+- `DqlEventReportVo`、`DqlEventDto` 和 `DqlEventEntity` 补齐 `targetNodeId`、`targetNodeName`，Mongo 字段为 `target_node_id`、`target_node_name`。
 - TM 上报服务改用强类型枚举校验 `exceptionScope` 和 `routeDecision`，仍按契约保存大写规范值。
 - DTO、Entity、attempt 和 TTL 字段映射已按 A03 的 snake_case/camelCase 规则保留。
 
@@ -31,4 +33,5 @@ mvn -pl tm -am -Dtest=DqlEnumContractTest,DqlEventServiceTest \
 
 - C04 分类器必须输出上述枚举的合法值。
 - D06/D07 回调状态机必须使用批次和报告类型枚举。
-- API 文档中旧的 `TARGET_WRITE_ERROR` 只能作为兼容输入，新的输出和存储值使用 `TARGET_CONSTRAINT_ERROR`。
+- API、Java 和新增存储数据使用 `TARGET_WRITE_ERROR`；历史 `TARGET_CONSTRAINT_ERROR` 只作为兼容输入。
+- 对外详情的 `stage` 以及 attempt `errorMessage` 映射仍归 B09，本步骤继续保留内部 `failed_stage` 和 `error_details` 审计字段。

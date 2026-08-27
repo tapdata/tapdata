@@ -12,7 +12,8 @@
 - `uk_task_event_identity` 改为只约束非空字符串 `event_identity` 的 partial unique index；普通记录身份查询索引不再使用 sparse。
 - `nextCaptureSeq()` 通过 `Task.attrs.dqlEventSeq` 的 `$inc` 和 `findAndModify(returnNew=true)` 原子分配任务内序号，并校验任务 ObjectId 和任务存在性。
 - 唯一 upsert 的捕获字段统一使用 `$setOnInsert`。并发重复上报命中同一唯一身份时返回既有主记录，不覆盖原 `event_id`、Payload、状态、创建时间或 TTL。
-- 分页保留筛选、统计和 camelCase 到 Mongo 字段的排序映射；未传正数 `limit` 时使用 10 条默认值。
+- 分页保留筛选、统计和 camelCase 到 Mongo 字段的排序映射；未传正数 `limit` 时使用 20 条默认值。
+- 唯一 upsert 的 insert-only 捕获字段补齐 `target_node_id`、`target_node_name`，避免上报后丢失详情所需的目标节点信息。
 - 事件锁只允许 `PENDING`/`RECOVERY_FAILED` 且 `current_batch_id=null` 的事件进入 `REPROCESSING`。
 - 恢复完成、恢复失败和批次锁释放均使用 `status + current_batch_id` 条件更新；attempt 通过 `$push` 追加，不覆盖历史。
 - 后续成功写入仍按同任务、同记录身份和未完成状态选择最新事件并原子标记覆盖风险。

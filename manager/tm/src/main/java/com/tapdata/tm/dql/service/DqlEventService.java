@@ -5,6 +5,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlExceptionScopeEnum;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlErrorTypeEnum;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.DqlRouteDecisionEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
@@ -206,6 +207,8 @@ public class DqlEventService {
         dto.setAgentId(report.getAgentId());
         dto.setSourceNodeId(report.getSourceNodeId());
         dto.setSourceNodeName(report.getSourceNodeName());
+        dto.setTargetNodeId(report.getTargetNodeId());
+        dto.setTargetNodeName(report.getTargetNodeName());
         dto.setFailedNodeId(report.getFailedNodeId());
         dto.setFailedNodeName(report.getFailedNodeName());
         dto.setFailedStage(report.getFailedStage());
@@ -229,7 +232,8 @@ public class DqlEventService {
         dto.setPayloadComplete(Optional.ofNullable(report.getPayloadComplete()).orElse(true));
         dto.setPayloadPreview(report.getPayloadPreview());
         dto.setPayloadPreviewTruncated(Optional.ofNullable(report.getPayloadPreviewTruncated()).orElse(false));
-        dto.setErrorType(report.getErrorType());
+        DqlErrorTypeEnum errorType = DqlErrorTypeEnum.parse(report.getErrorType());
+        dto.setErrorType(errorType == null ? report.getErrorType() : errorType.name());
         dto.setErrorCode(report.getErrorCode());
         dto.setExceptionScope(report.getExceptionScope());
         dto.setRouteDecision(report.getRouteDecision());

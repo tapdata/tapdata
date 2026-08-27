@@ -17,6 +17,7 @@ import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -104,6 +105,63 @@ class DqlRecoveryBatchRepositoryTest {
         assertEquals("DQLB-1", query.get("batch_id"));
         assertEquals(List.of(DqlRecoveryBatchStatusEnum.CREATED.name()),
                 query.get("status", Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("status update rejects targets other than dispatched")
+    void statusUpdateRejectsNonDispatchedTarget() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.updateStatus("DQLB-1", DqlRecoveryBatchStatusEnum.RUNNING, null));
+
+        verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+    }
+
+    @Test
+    @DisplayName("finish rejects non-terminal target status")
+    void finishRejectsNonTerminalTargetStatus() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.finish("DQLB-1", DqlRecoveryBatchStatusEnum.RUNNING, null));
+
+        verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+    }
+
+    @Test
+    @DisplayName("finish uses state-specific source guards for every terminal status")
+    void finishUsesStateSpecificSourceGuards() {
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.SUCCESS,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.PARTIAL_FAILED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.FAILED,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.CANCELED,
+                DqlRecoveryBatchStatusEnum.CREATED);
+    }
+
+    private void assertFinishSourceStatuses(DqlRecoveryBatchStatusEnum targetStatus,
+                                            DqlRecoveryBatchStatusEnum... expectedSourceStatuses) {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        repository.finish("DQLB-1", targetStatus, null);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(expectedSourceStatuses).stream().map(Enum::name).toList(),
+                queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
     }
 
     @Test

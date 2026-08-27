@@ -15,6 +15,8 @@ public class DqlEventReportVo implements Serializable {
     private String agentId;
     private String sourceNodeId;
     private String sourceNodeName;
+    private String targetNodeId;
+    private String targetNodeName;
     private String failedNodeId;
     private String failedNodeName;
     private String failedStage;

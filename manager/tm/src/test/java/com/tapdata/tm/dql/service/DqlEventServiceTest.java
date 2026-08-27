@@ -5,6 +5,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlErrorTypeEnum;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
@@ -70,6 +71,8 @@ class DqlEventServiceTest {
         ArgumentCaptor<DqlEventDto> eventCaptor = forClass(DqlEventDto.class);
         verify(eventRepository).upsert(eventCaptor.capture());
         assertEquals(eventCaptor.getValue().getCreated(), eventCaptor.getValue().getTtlAt());
+        assertEquals("target-node", eventCaptor.getValue().getTargetNodeId());
+        assertEquals("postgres_sink", eventCaptor.getValue().getTargetNodeName());
         verify(alarmService).notifyEventCreated(any(DqlEventDto.class));
     }
 
@@ -110,6 +113,23 @@ class DqlEventServiceTest {
         assertEquals("key:orders:id=1001", captor.getValue().getRecordIdentity());
         assertEquals(DqlRecordIdentityTypeEnum.PRIMARY_KEY.name(), captor.getValue().getRecordIdentityType());
         assertEquals(List.of("id"), captor.getValue().getRecordIdentityFields());
+    }
+
+    @Test
+    @DisplayName("report normalizes the legacy target constraint error before persistence")
+    void reportNormalizesLegacyTargetConstraintError() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setErrorType("TARGET_CONSTRAINT_ERROR");
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlEventDto> captor = forClass(DqlEventDto.class);
+        verify(eventRepository).upsert(captor.capture());
+        assertEquals(DqlErrorTypeEnum.TARGET_WRITE_ERROR.name(), captor.getValue().getErrorType());
     }
 
     @Test
@@ -375,6 +395,8 @@ class DqlEventServiceTest {
         report.setAgentId("agent-1");
         report.setSourceNodeId("source-node");
         report.setSourceNodeName("mysql_src");
+        report.setTargetNodeId("target-node");
+        report.setTargetNodeName("postgres_sink");
         report.setFailedNodeId("js-node");
         report.setFailedNodeName("JS Processor");
         report.setFailedStage("PROCESSOR");

@@ -1,6 +1,7 @@
 package com.tapdata.tm.dql;
 
 public enum DqlRecoveryAttemptResultEnum {
+    RUNNING,
     SUCCESS,
     FAILED,
     SKIPPED,

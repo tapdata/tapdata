@@ -46,5 +46,5 @@
 
 ## 已识别的代码跟进
 
-- 当前 `DqlErrorTypeEnum.TARGET_WRITE_ERROR` 与设计的 `TARGET_CONSTRAINT_ERROR` 命名不一致，B01 必须统一。
+- `TARGET_WRITE_ERROR` 是 API、Java 和新增存储数据的规范值；B01 仅对历史 `TARGET_CONSTRAINT_ERROR` 输入保留兼容解析并归一化存储。
 - C04-C12 负责实现和验证本契约；不得用字符串包含关系作为唯一分类依据。

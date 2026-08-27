@@ -20,13 +20,15 @@
 | --- | --- | --- |
 | Engine | `POST /api/task/{taskId}/dql-events/report` | 上报记录级异常事件 |
 | Engine | `POST /api/task/{taskId}/dql-events/record-success/report` | 标记同记录后续成功造成的覆盖风险 |
-| 外部调用方 | `GET /api/dql-events` | 分页、过滤和排序查询 |
-| 外部调用方 | `GET /api/dql-events/{eventId}` | 查询安全详情和恢复历史 |
-| 外部调用方 | `GET /api/dql-events/summary` | 查询状态统计 |
-| 外部调用方 | `POST /api/dql-events/recovery/preview` | 校验并获取服务端回放顺序 |
-| 外部调用方 | `POST /api/dql-events/recovery` | 创建并下发恢复批次 |
-| 外部调用方 | `GET /api/dql-events/recovery-batches/{batchId}` | 查询批次进度 |
+| 当前 Web | `GET /api/dql-events` | 分页、过滤和排序查询 |
+| 当前 Web | `GET /api/dql-events/{eventId}` | 查询安全详情和 `recoveryAttempts` 进度 |
+| 当前 Web | `GET /api/dql-events/summary` | 查询状态统计 |
+| 当前 Web | `POST /api/dql-events/recovery/preview` | 校验并获取服务端唯一可信的回放顺序 |
+| 当前 Web | `POST /api/dql-events/recovery` | 按预览顺序创建并下发恢复批次 |
+| 可选运维诊断 | `GET /api/dql-events/recovery-batches/{batchId}` | 查询批次详情；当前 Web 不依赖、不展示独立批次抽屉 |
 | Engine | `POST /api/task/{taskId}/dql-events/recovery/report` | 上报批次和事件执行结果 |
+
+当前 Web 只依赖上述 5 个事件接口。`eventId` 仅用于接口定位和提交，不作为用户可见字段；提交必须使用预览 `orderedEvents` 返回的 eventId 顺序。详情通过 `recoveryAttempts` 展示并刷新进度，不依赖批次详情接口。
 
 ## 消息契约
 
@@ -43,7 +45,7 @@
 
 - 新增 API 不修改现有 skip-error-table API。
 - Engine 回调同时兼容项目现有 `/api/task` 与 `/api/Task` 路径风格，新增调用统一使用小写路径。
-- Web 开发不在本计划范围；B09、B11 和 D09 完成后向 Web 负责人交付最终接口文档。
+- Web 开发不在本计划范围；B09、B11 和 D01/D04 完成后向 Web 负责人交付当前 5 个接口契约。D09 只作为可选运维诊断能力。
 
 ## 已识别的代码跟进
 

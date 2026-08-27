@@ -126,6 +126,8 @@ class DqlEventRepositoryTest {
         incoming.setTaskId("64f000000000000000000001");
         incoming.setTaskRecordId("record-1");
         incoming.setTableId("orders");
+        incoming.setTargetNodeId("target-1");
+        incoming.setTargetNodeName("postgres_sink");
         incoming.setFailedNodeId("target-1");
         incoming.setEventIdentity("sha256:same-event");
         incoming.setStatus(DqlEventStatusEnum.PENDING.name());
@@ -158,6 +160,8 @@ class DqlEventRepositoryTest {
         assertNull(update.get("$set"));
         Document insert = update.get("$setOnInsert", Document.class);
         assertEquals("DQL-new-000002", insert.get(DqlEventDto.FIELD_EVENT_ID));
+        assertEquals("target-1", insert.get(DqlEventDto.FIELD_TARGET_NODE_ID));
+        assertEquals("postgres_sink", insert.get(DqlEventDto.FIELD_TARGET_NODE_NAME));
         assertEquals(created, insert.get(DqlEventDto.FIELD_CREATED));
         assertEquals(created, insert.get(DqlEventDto.FIELD_TTL_AT));
     }
@@ -287,7 +291,7 @@ class DqlEventRepositoryTest {
     }
 
     @Test
-    @DisplayName("page uses ten items when the request does not provide a positive limit")
+    @DisplayName("page uses twenty items when the request does not provide a positive limit")
     void pageUsesDefaultLimit() {
         MongoTemplate mongoTemplate = mongoTemplate();
         DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
@@ -297,7 +301,7 @@ class DqlEventRepositoryTest {
 
         repository.page(query);
 
-        assertEquals(10, capturedFindQuery(mongoTemplate).getLimit());
+        assertEquals(20, capturedFindQuery(mongoTemplate).getLimit());
     }
 
     @Test

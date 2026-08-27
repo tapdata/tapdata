@@ -25,10 +25,16 @@ class DqlEnumContractTest {
     }
 
     @Test
-    void mapsLegacyTargetWriteErrorToTargetConstraintError() {
-        assertEquals(DqlErrorTypeEnum.TARGET_CONSTRAINT_ERROR,
-                DqlErrorTypeEnum.parse("TARGET_CONSTRAINT_ERROR"));
-        assertEquals(DqlErrorTypeEnum.TARGET_CONSTRAINT_ERROR,
+    void usesTargetWriteErrorAsCanonicalValueAndAcceptsLegacyConstraintValue() {
+        assertEquals(DqlErrorTypeEnum.TARGET_WRITE_ERROR,
                 DqlErrorTypeEnum.parse("TARGET_WRITE_ERROR"));
+        assertEquals(DqlErrorTypeEnum.TARGET_WRITE_ERROR,
+                DqlErrorTypeEnum.parse("TARGET_CONSTRAINT_ERROR"));
+    }
+
+    @Test
+    void parsesRunningRecoveryAttemptResult() {
+        assertEquals(DqlRecoveryAttemptResultEnum.RUNNING,
+                DqlRecoveryAttemptResultEnum.parse("running"));
     }
 }

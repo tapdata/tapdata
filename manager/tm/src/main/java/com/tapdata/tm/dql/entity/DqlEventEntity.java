@@ -32,6 +32,10 @@ public class DqlEventEntity extends Entity {
     private String sourceNodeId;
     @Field(DqlEventDto.FIELD_SOURCE_NODE_NAME)
     private String sourceNodeName;
+    @Field(DqlEventDto.FIELD_TARGET_NODE_ID)
+    private String targetNodeId;
+    @Field(DqlEventDto.FIELD_TARGET_NODE_NAME)
+    private String targetNodeName;
     @Field(DqlEventDto.FIELD_FAILED_NODE_ID)
     private String failedNodeId;
     @Field(DqlEventDto.FIELD_FAILED_NODE_NAME)

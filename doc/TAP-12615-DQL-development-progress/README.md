@@ -23,6 +23,12 @@
 | B02 | 已完成 | `steps/B02-event-repository.md` |
 | B03 | 已完成 | `steps/B03-batch-repository.md` |
 
+## 回归记录
+
+| 日期 | 范围 | 记录文档 |
+| --- | --- | --- |
+| 2026-08-27 | A01-A05、B01-B03 最新前端交互与 API 契约回归 | `regressions/2026-08-27-A01-B03-contract-regression.md` |
+
 ## 里程碑进度
 
 | 里程碑 | 状态 | 总结文档 |

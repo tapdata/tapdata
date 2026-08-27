@@ -94,6 +94,9 @@ public class DqlRecoveryBatchRepository {
     }
 
     public void updateStatus(String batchId, DqlRecoveryBatchStatusEnum status, String message) {
+        if (status != DqlRecoveryBatchStatusEnum.DISPATCHED) {
+            throw new IllegalArgumentException("Only CREATED -> DISPATCHED is supported by updateStatus");
+        }
         Date now = new Date();
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
@@ -130,6 +133,7 @@ public class DqlRecoveryBatchRepository {
     }
 
     public void finish(String batchId, DqlRecoveryBatchStatusEnum status, String message) {
+        List<DqlRecoveryBatchStatusEnum> sourceStatuses = finishSourceStatuses(status);
         Date now = new Date();
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
@@ -139,7 +143,22 @@ public class DqlRecoveryBatchRepository {
         if (message != null) {
             update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
         }
-        mongoTemplate.updateFirst(batchQuery(batchId, ACTIVE_STATUSES), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId, sourceStatuses), update, entityClass);
+    }
+
+    private List<DqlRecoveryBatchStatusEnum> finishSourceStatuses(DqlRecoveryBatchStatusEnum status) {
+        if (status == null) {
+            throw new IllegalArgumentException("Finish status must not be null");
+        }
+        return switch (status) {
+            case SUCCESS -> List.of(DqlRecoveryBatchStatusEnum.RUNNING);
+            case PARTIAL_FAILED -> List.of(
+                    DqlRecoveryBatchStatusEnum.DISPATCHED,
+                    DqlRecoveryBatchStatusEnum.RUNNING);
+            case FAILED -> ACTIVE_STATUSES;
+            case CANCELED -> List.of(DqlRecoveryBatchStatusEnum.CREATED);
+            default -> throw new IllegalArgumentException("Finish status must be terminal: " + status);
+        };
     }
 
     private void increase(String batchId, String field) {

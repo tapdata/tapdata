@@ -18,6 +18,8 @@ public class DqlEventDto implements Serializable {
     public static final String FIELD_AGENT_ID = "agent_id";
     public static final String FIELD_SOURCE_NODE_ID = "source_node_id";
     public static final String FIELD_SOURCE_NODE_NAME = "source_node_name";
+    public static final String FIELD_TARGET_NODE_ID = "target_node_id";
+    public static final String FIELD_TARGET_NODE_NAME = "target_node_name";
     public static final String FIELD_FAILED_NODE_ID = "failed_node_id";
     public static final String FIELD_FAILED_NODE_NAME = "failed_node_name";
     public static final String FIELD_FAILED_STAGE = "failed_stage";
@@ -77,6 +79,8 @@ public class DqlEventDto implements Serializable {
     private String agentId;
     private String sourceNodeId;
     private String sourceNodeName;
+    private String targetNodeId;
+    private String targetNodeName;
     private String failedNodeId;
     private String failedNodeName;
     private String failedStage;
