@@ -79,5 +79,30 @@
         "upsert": true
       }
     ]
+  },
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {"key": "TASK_DQL_EVENT"},
+        "u": {"$set": {"type": "TASK", "open": true, "key": "TASK_DQL_EVENT", "sort": 8, "notify": ["SYSTEM"], "interval": 300, "unit": "SECOND", "emailAlarmContent": "DQL event created for {taskName}: {eventId}", "emailAlarmTitle": "[TapData DQL] Event created - {taskName}"}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_SAVE_FAILED"},
+        "u": {"$set": {"type": "TASK", "open": true, "key": "TASK_DQL_SAVE_FAILED", "sort": 9, "notify": ["SYSTEM"], "interval": 300, "unit": "SECOND", "emailAlarmContent": "DQL event save failed for {taskName}: {errorMessage}", "emailAlarmTitle": "[TapData DQL] Event save failed - {taskName}"}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_RECOVERY_FAILED"},
+        "u": {"$set": {"type": "TASK", "open": true, "key": "TASK_DQL_RECOVERY_FAILED", "sort": 10, "notify": ["SYSTEM"], "interval": 300, "unit": "SECOND", "emailAlarmContent": "DQL recovery failed for {taskName}: {batchId}", "emailAlarmTitle": "[TapData DQL] Recovery failed - {taskName}"}},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_STORM_GUARD"},
+        "u": {"$set": {"type": "TASK", "open": true, "key": "TASK_DQL_STORM_GUARD", "sort": 11, "notify": ["SYSTEM"], "interval": 300, "unit": "SECOND", "emailAlarmContent": "DQL storm guard routed events to task handling for {taskName}: {safeReason}", "emailAlarmTitle": "[TapData DQL] Storm guard activated - {taskName}"}},
+        "upsert": true
+      }
+    ]
   }
 ]

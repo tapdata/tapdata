@@ -6,10 +6,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DqlInitializationPatchTest {
 
@@ -36,6 +38,17 @@ class DqlInitializationPatchTest {
         assertEquals("PERMISSION", roleMapping.path("q").path("principalType").asText());
         assertEquals("5b9a0a383fcba02649524bf1", roleMapping.path("q").path("roleId").path("$oid").asText());
         assertFalse(roleMapping.path("u").path("$set").path("self_only").asBoolean());
+
+        JsonNode alarmPatch = findPatch(patches, "Settings_Alarm");
+        assertNotNull(alarmPatch);
+        for (String key : List.of("TASK_DQL_EVENT", "TASK_DQL_SAVE_FAILED", "TASK_DQL_RECOVERY_FAILED", "TASK_DQL_STORM_GUARD")) {
+            JsonNode alarm = findUpdate(alarmPatch, key);
+            assertNotNull(alarm);
+            assertTrue(alarm.path("upsert").asBoolean());
+            assertEquals("TASK", alarm.path("u").path("$set").path("type").asText());
+            assertTrue(alarm.path("u").path("$set").path("open").asBoolean());
+            assertEquals("SYSTEM", alarm.path("u").path("$set").path("notify").get(0).asText());
+        }
     }
 
     private JsonNode readPatches() throws Exception {
@@ -57,7 +70,9 @@ class DqlInitializationPatchTest {
     private JsonNode findUpdate(JsonNode patch, String name) {
         for (JsonNode update : patch.path("updates")) {
             JsonNode query = update.path("q");
-            if (name.equals(query.path("name").asText()) || name.equals(query.path("principalId").asText())) {
+            if (name.equals(query.path("name").asText())
+                    || name.equals(query.path("principalId").asText())
+                    || name.equals(query.path("key").asText())) {
                 return update;
             }
         }

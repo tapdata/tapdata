@@ -81,7 +81,8 @@ public enum AlarmKeyEnum {
 
     TASK_DQL_EVENT(Constant.TYPE_EVENT),
     TASK_DQL_SAVE_FAILED(Constant.TYPE_EVENT),
-    TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT)
+    TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT),
+    TASK_DQL_STORM_GUARD(Constant.TYPE_EVENT)
     ;
 
 
