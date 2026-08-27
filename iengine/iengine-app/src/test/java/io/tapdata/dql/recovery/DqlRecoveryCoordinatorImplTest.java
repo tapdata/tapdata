@@ -1,6 +1,8 @@
 package io.tapdata.dql.recovery;
 
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.serializer.DqlPayloadSerializer;
@@ -153,6 +155,40 @@ class DqlRecoveryCoordinatorImplTest {
         assertEquals(List.of("event-1", "event-2"), emitted);
         assertEquals(List.of("source", "context"), closed);
         assertFalse(runner.normalSourceStarted());
+    }
+
+    @Test
+    void usesDagSourceBoundaryForLiveTaskInsteadOfLegacySink() throws Exception {
+        DatabaseNode source = new DatabaseNode();
+        source.setId("source");
+        DAG dag = org.mockito.Mockito.mock(DAG.class);
+        org.mockito.Mockito.when(dag.getSourceNodes()).thenReturn(List.of(source));
+        List<String> emitted = new ArrayList<>();
+        DqlSourceBoundaryInjector injector = new DqlSourceBoundaryInjector(
+                dag,
+                Map.of("source", event -> emitted.add(event.getEventId()))
+        );
+        List<DqlRecoveryReport> reports = new ArrayList<>();
+        DqlRecoveryReportSender reportSender = (command, report) -> reports.add(report);
+        DqlRecoveryCoordinatorImpl coordinator = new DqlRecoveryCoordinatorImpl(
+                eventId -> completeSnapshot(),
+                event -> {
+                    throw new AssertionError("live recovery must use the resolved DAG source boundary");
+                },
+                (eventId, timeoutMillis) -> DqlRecoveryBarrier.Outcome.SUCCESS,
+                reportSender,
+                () -> false,
+                1000L,
+                executor,
+                command -> null,
+                command -> injector
+        );
+
+        coordinator.start(command("event-1", "event-2"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        assertEquals(List.of("event-1", "event-2"), emitted);
+        assertEquals("BATCH_FINISHED", reports.get(reports.size() - 1).getType());
     }
 
     private DqlRecoveryCoordinatorImpl coordinator(DqlRecoveryEventSource source,

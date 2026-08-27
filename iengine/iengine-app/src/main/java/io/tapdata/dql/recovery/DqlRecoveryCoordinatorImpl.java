@@ -25,6 +25,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     public static final long DEFAULT_BARRIER_TIMEOUT_MILLIS = 30_000L;
 
+    @FunctionalInterface
+    public interface SourceBoundaryFactory {
+        /**
+         * Resolves the source boundary for a live task. The returned boundary
+         * is owned by the running task and must not be closed by the
+         * coordinator. Returning {@code null} preserves the legacy sink port.
+         */
+        DqlReplaySourceNode open(DqlRecoveryMessageDto command);
+    }
+
     private final DqlRecoveryEventSource eventSource;
     private final DqlRecoveryEventSink eventSink;
     private final DqlRecoveryBarrier barrier;
@@ -33,6 +43,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private final long barrierTimeoutMillis;
     private final Executor executor;
     private final DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory;
+    private final SourceBoundaryFactory sourceBoundaryFactory;
     private final ConcurrentMap<String, AtomicBoolean> activeBatches = new ConcurrentHashMap<>();
     private final Object idleMonitor = new Object();
 
@@ -44,7 +55,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       long barrierTimeoutMillis,
                                       Executor executor) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
-                barrierTimeoutMillis, executor, command -> null);
+                barrierTimeoutMillis, executor, command -> null, command -> null);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -55,6 +66,19 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       long barrierTimeoutMillis,
                                       Executor executor,
                                       DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory) {
+        this(eventSource, eventSink, barrier, reportSender, executionPolicy,
+                barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, command -> null);
+    }
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      DqlRecoveryExecutionPolicy executionPolicy,
+                                      long barrierTimeoutMillis,
+                                      Executor executor,
+                                      DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
+                                      SourceBoundaryFactory sourceBoundaryFactory) {
         this.eventSource = Objects.requireNonNull(eventSource, "eventSource must not be null");
         this.eventSink = Objects.requireNonNull(eventSink, "eventSink must not be null");
         this.barrier = Objects.requireNonNull(barrier, "barrier must not be null");
@@ -67,6 +91,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         this.executor = Objects.requireNonNull(executor, "executor must not be null");
         this.recoveryOnlyRunnerFactory = Objects.requireNonNull(
                 recoveryOnlyRunnerFactory, "recoveryOnlyRunnerFactory must not be null");
+        this.sourceBoundaryFactory = Objects.requireNonNull(
+                sourceBoundaryFactory, "sourceBoundaryFactory must not be null");
     }
 
     @Override
@@ -109,9 +135,13 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         DqlRecoveryOnlyRunner recoveryOnlyRunner = null;
         try {
             recoveryOnlyRunner = recoveryOnlyRunnerFactory.open(command);
-            DqlRecoveryEventSink sink = recoveryOnlyRunner == null
-                    ? eventSink
-                    : recoveryOnlyRunner::replay;
+            DqlRecoveryEventSink sink;
+            if (recoveryOnlyRunner != null) {
+                sink = recoveryOnlyRunner::replay;
+            } else {
+                DqlReplaySourceNode sourceBoundary = sourceBoundaryFactory.open(command);
+                sink = sourceBoundary == null ? eventSink : sourceBoundary::enqueue;
+            }
             for (String eventId : orderedEventIds) {
                 if (terminal.get()) {
                     return;

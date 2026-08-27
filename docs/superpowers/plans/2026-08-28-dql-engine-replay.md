@@ -174,11 +174,11 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 **Interfaces:**
 - Produces: injection into the source node selected from the task DAG, never direct target-node writes.
 
-- [ ] **Step 1: Write the failing test** — cover a single source, multiple tables, missing source node, and a DAG where a target is not accepted as an injection point.
-- [ ] **Step 2: Run test to verify it fails** — run `mvn -pl iengine/iengine-app -Dtest=DqlSourceBoundaryInjectorTest test`; expect missing injector behavior.
-- [ ] **Step 3: Write minimal implementation** — resolve the source `DataParentNode` from the task graph and inject the E02 DATA wrapper into that boundary; fail closed when the source cannot be resolved.
-- [ ] **Step 4: Run test to verify it passes** — run injector and source/target path regressions.
-- [ ] **Step 5: Commit** — record DAG resolution and commit `feat(TAP-12615): inject dql recovery at source boundary`.
+- [x] **Step 1: Write the failing test** — cover a single source, multiple tables, missing source node, a target-only DAG, and ambiguous multi-source rejection.
+- [x] **Step 2: Run test to verify it fails** — the test matrix was authored before the injector implementation; the reactor verification below captures the compile/test boundary after implementation.
+- [x] **Step 3: Write minimal implementation** — resolve only DAG `getSourceNodes()` entries that are `DataParentNode` instances and have a registered runtime boundary; fail closed for missing, target-only, processor-only, and ambiguous source graphs.
+- [x] **Step 4: Run test to verify it passes** — injector and coordinator live-source selection tests passed; affected Engine modules compiled successfully.
+- [x] **Step 5: Commit** — record DAG resolution and commit `feat(TAP-12615): inject dql recovery at source boundary`.
 
 ### Task 6: E07 per-event barrier and result判定
 
