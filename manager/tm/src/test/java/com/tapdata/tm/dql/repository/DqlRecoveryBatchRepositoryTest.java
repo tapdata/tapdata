@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.index.IndexDefinition;
 import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -17,12 +18,14 @@ import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,8 +39,13 @@ class DqlRecoveryBatchRepositoryTest {
         new DqlRecoveryBatchRepository(mongoTemplate);
 
         verify(mongoTemplate, never()).createCollection("dql_recovery_batches");
-        verify(mongoTemplate.indexOps("dql_recovery_batches")).createIndex(argThat(indexDefinition ->
-                "idx_task_created".equals(indexDefinition.getIndexOptions().getString("name"))));
+        IndexOperations indexOperations = mongoTemplate.indexOps("dql_recovery_batches");
+        ArgumentCaptor<IndexDefinition> indexCaptor = ArgumentCaptor.forClass(IndexDefinition.class);
+        verify(indexOperations, times(3)).createIndex(indexCaptor.capture());
+        assertEquals(true, indexCaptor.getAllValues().stream()
+                .anyMatch(index -> "idx_task_created".equals(index.getIndexOptions().getString("name"))));
+        assertFalse(indexCaptor.getAllValues().stream()
+                .anyMatch(index -> index.getIndexOptions().containsKey("expireAfterSeconds")));
     }
 
     @Test
@@ -50,11 +58,13 @@ class DqlRecoveryBatchRepositoryTest {
         batch.setBatchId("DQLB-1");
         Date created = new Date(1787580000000L);
         batch.setCreated(created);
+        batch.setTtlAt(new Date(created.getTime() + 60_000L));
 
         DqlRecoveryBatchDto saved = repository.create(batch);
 
         assertEquals(created, saved.getCreated());
         assertEquals(created, saved.getTtlAt());
+        assertInstanceOf(Date.class, saved.getTtlAt());
     }
 
     @Test
@@ -88,7 +98,7 @@ class DqlRecoveryBatchRepositoryTest {
         Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get("status"));
         assertEquals(set.get("finished_at"), set.get("updated"));
-        assertEquals(set.get("updated"), set.get("ttl_at"));
+        assertTtlRefreshed(set);
     }
 
     @Test
@@ -100,11 +110,36 @@ class DqlRecoveryBatchRepositoryTest {
         repository.updateStatus("DQLB-1", DqlRecoveryBatchStatusEnum.DISPATCHED, null);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(
+                queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
         Document query = queryCaptor.getValue().getQueryObject();
         assertEquals("DQLB-1", query.get("batch_id"));
         assertEquals(List.of(DqlRecoveryBatchStatusEnum.CREATED.name()),
                 query.get("status", Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(), set.get("status"));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("marking a dispatched batch running refreshes ttl with its start time")
+    void markRunningRefreshesTtl() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        repository.markRunning("DQLB-1");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(
+                queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(DqlRecoveryBatchStatusEnum.DISPATCHED.name()),
+                queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), set.get("status"));
+        assertEquals(set.get("started_at"), set.get("updated"));
+        assertTtlRefreshed(set);
     }
 
     @Test
@@ -204,8 +239,7 @@ class DqlRecoveryBatchRepositoryTest {
                 queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
         Document update = updateCaptor.getValue().getUpdateObject();
         assertEquals(1, update.get("$inc", Document.class).get("success_count"));
-        assertEquals(update.get("$set", Document.class).get("updated"),
-                update.get("$set", Document.class).get("ttl_at"));
+        assertTtlRefreshed(update.get("$set", Document.class));
     }
 
     private MongoTemplate mongoTemplate() {
@@ -214,5 +248,10 @@ class DqlRecoveryBatchRepositoryTest {
         when(mongoTemplate.collectionExists("dql_recovery_batches")).thenReturn(true);
         when(mongoTemplate.indexOps("dql_recovery_batches")).thenReturn(indexOperations);
         return mongoTemplate;
+    }
+
+    private void assertTtlRefreshed(Document set) {
+        assertInstanceOf(Date.class, set.get(DqlRecoveryBatchDto.FIELD_TTL_AT));
+        assertEquals(set.get(DqlRecoveryBatchDto.FIELD_UPDATED), set.get(DqlRecoveryBatchDto.FIELD_TTL_AT));
     }
 }

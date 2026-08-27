@@ -89,7 +89,7 @@
 | B01 | 已完成 | 补齐领域枚举、DTO、VO 和 Entity | 按详细设计复核事件、批次、attempt、错误类型、异常范围、路由决策、记录身份和报告类型；补齐 BSON 字段映射 | A02、A03 | 编译通过；序列化测试覆盖必填字段、枚举及时间字段 |
 | B02 | 已完成 | 完成 `dql_events` Repository | 实现集合创建、普通索引、原子 capture sequence、唯一 upsert、分页过滤、统计、事件锁、attempt 追加和覆盖风险更新 | B01 | Repository 测试覆盖唯一性、排序、条件更新和并发冲突 |
 | B03 | 已完成 | 完成 `dql_recovery_batches` Repository | 实现批次创建、状态更新、计数、详情、活动批次查询及状态条件更新 | B01 | 批次计数和状态更新使用原子操作；终态不能被普通回调覆盖 |
-| B04 | 已完成（待集成验证） | 完成 TTL 字段生命周期 | 事件和批次创建时 `ttl_at=created`；进入重处理、结果更新、锁释放和批次推进时与同次 `updated` 一起刷新 | B02、B03 | 单元测试证明时间字段同值更新；字段以 BSON Date 保存 |
+| B04 | 已完成 | 完成 TTL 字段生命周期 | 事件和批次创建时 `ttl_at=created`；进入重处理、结果更新、锁释放和批次推进时与同次 `updated` 一起刷新 | B02、B03 | 单元测试证明时间字段同值更新；字段以 BSON Date 保存 |
 | B05 | 已完成（待集成验证） | 创建 TTL 初始化脚本 | 使用 `init/idaas/4.22-7.json` 为 `dql_events.ttl_at` 和 `dql_recovery_batches.ttl_at` 创建 14 天单字段 TTL 索引，并更新 `version` | B04 | 初始化流程执行成功；索引 `expireAfterSeconds=1209600`；Repository 不重复创建 TTL 索引 |
 | B06 | 部分完成 | 完成上报校验和安全处理 | 校验任务、异常范围和路由决策；实现错误详情截断、Payload 大小限制、预览脱敏、嵌套深度和条目限制 | A03、A05、B01 | 非 `RECORD_DLQ` 显式路由被拒绝；外部查询接口不返回完整 Payload；敏感字段测试通过 |
 | B07 | 部分完成 | 完成事件身份与去重 | Engine 值优先；TM 按 `eventKey`、`payloadHash` 兜底生成 `recordIdentity` 和 `eventIdentity`，使用唯一索引 upsert | B02、B06 | 同一事件重复上报只保留一个主记录，返回 `duplicate=true` 且不重复告警 |

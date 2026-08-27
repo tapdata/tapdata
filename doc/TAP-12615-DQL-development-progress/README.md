@@ -22,6 +22,7 @@
 | B01 | 已完成 | `steps/B01-domain-contract.md` |
 | B02 | 已完成 | `steps/B02-event-repository.md` |
 | B03 | 已完成 | `steps/B03-batch-repository.md` |
+| B04 | 已完成 | `steps/B04-ttl-lifecycle.md` |
 
 ## 回归记录
 

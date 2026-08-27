@@ -65,7 +65,7 @@ public class DqlRecoveryBatchRepository {
         Date now = new Date();
         dto.setCreated(Optional.ofNullable(dto.getCreated()).orElse(now));
         dto.setUpdated(now);
-        dto.setTtlAt(Optional.ofNullable(dto.getTtlAt()).orElse(dto.getCreated()));
+        dto.setTtlAt(dto.getCreated());
         dto.setStatus(Optional.ofNullable(dto.getStatus()).orElse(DqlRecoveryBatchStatusEnum.CREATED.name()));
         dto.setSelectedCount(Optional.ofNullable(dto.getSelectedCount()).orElse(0));
         dto.setSuccessCount(Optional.ofNullable(dto.getSuccessCount()).orElse(0));

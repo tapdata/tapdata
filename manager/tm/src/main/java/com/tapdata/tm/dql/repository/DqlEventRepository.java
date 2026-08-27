@@ -146,7 +146,7 @@ public class DqlEventRepository {
         Query query = Query.query(uniqueCriteria(dto));
         Date now = new Date();
         Date created = Optional.ofNullable(dto.getCreated()).orElse(now);
-        Date ttlAt = Optional.ofNullable(dto.getTtlAt()).orElse(created);
+        Date ttlAt = created;
         Update update = new Update();
         setOnInsert(update, DqlEventDto.FIELD_EVENT_ID, dto.getEventId());
         setOnInsert(update, DqlEventDto.FIELD_TASK_ID, dto.getTaskId());

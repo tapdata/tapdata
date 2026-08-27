@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -52,6 +53,8 @@ class DqlEventRepositoryTest {
         IndexOperations indexOperations = mongoTemplate.indexOps("dql_events");
         ArgumentCaptor<IndexDefinition> indexCaptor = ArgumentCaptor.forClass(IndexDefinition.class);
         verify(indexOperations, times(7)).createIndex(indexCaptor.capture());
+        assertFalse(indexCaptor.getAllValues().stream()
+                .anyMatch(index -> index.getIndexOptions().containsKey("expireAfterSeconds")));
         IndexDefinition recordIdentityIndex = indexCaptor.getAllValues().stream()
                 .filter(index -> "idx_task_record_identity_event_time".equals(index.getIndexOptions().getString("name")))
                 .findFirst()
@@ -116,7 +119,7 @@ class DqlEventRepositoryTest {
     }
 
     @Test
-    @DisplayName("upsert writes capture data only on insert so concurrent duplicates cannot replace the event")
+    @DisplayName("upsert writes capture data only on insert and derives ttl from created time")
     void upsertUsesInsertOnlyCaptureFields() {
         MongoTemplate mongoTemplate = mongoTemplate();
         DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
@@ -132,6 +135,7 @@ class DqlEventRepositoryTest {
         incoming.setEventIdentity("sha256:same-event");
         incoming.setStatus(DqlEventStatusEnum.PENDING.name());
         incoming.setCreated(created);
+        incoming.setTtlAt(new Date(created.getTime() + 60_000L));
         DqlEventEntity existing = new DqlEventEntity();
         existing.setEventId("DQL-existing-000001");
         existing.setTaskId(incoming.getTaskId());
@@ -164,6 +168,7 @@ class DqlEventRepositoryTest {
         assertEquals("postgres_sink", insert.get(DqlEventDto.FIELD_TARGET_NODE_NAME));
         assertEquals(created, insert.get(DqlEventDto.FIELD_CREATED));
         assertEquals(created, insert.get(DqlEventDto.FIELD_TTL_AT));
+        assertInstanceOf(Date.class, insert.get(DqlEventDto.FIELD_TTL_AT));
     }
 
     @Test
@@ -180,7 +185,7 @@ class DqlEventRepositoryTest {
         verify(mongoTemplate).updateMulti(any(Query.class), updateCaptor.capture(), eq(DqlEventEntity.class));
         Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertEquals(DqlEventStatusEnum.REPROCESSING.name(), set.get("status"));
-        assertEquals(set.get("updated"), set.get("ttl_at"));
+        assertTtlRefreshed(set);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).updateMulti(queryCaptor.capture(), any(Update.class), eq(DqlEventEntity.class));
@@ -210,7 +215,7 @@ class DqlEventRepositoryTest {
         assertEquals("DQLB-1", query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
         Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertEquals(DqlEventStatusEnum.RECOVERED.name(), set.get("status"));
-        assertEquals(set.get("updated"), set.get("ttl_at"));
+        assertTtlRefreshed(set);
         assertEquals(attempt, updateCaptor.getValue().getUpdateObject()
                 .get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS));
     }
@@ -239,8 +244,9 @@ class DqlEventRepositoryTest {
                 failQueryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_STATUS));
         assertEquals("DQLB-1",
                 failQueryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
-        assertEquals(DqlEventStatusEnum.RECOVERY_FAILED.name(), failUpdateCaptor.getValue()
-                .getUpdateObject().get("$set", Document.class).get(DqlEventDto.FIELD_STATUS));
+        Document failSet = failUpdateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlEventStatusEnum.RECOVERY_FAILED.name(), failSet.get(DqlEventDto.FIELD_STATUS));
+        assertTtlRefreshed(failSet);
 
         ArgumentCaptor<Query> releaseQueryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> releaseUpdateCaptor = ArgumentCaptor.forClass(Update.class);
@@ -250,8 +256,9 @@ class DqlEventRepositoryTest {
                 releaseQueryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
         assertEquals(DqlEventStatusEnum.REPROCESSING.name(),
                 releaseQueryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_STATUS));
-        assertNull(releaseUpdateCaptor.getValue().getUpdateObject()
-                .get("$set", Document.class).get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        Document releaseSet = releaseUpdateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertNull(releaseSet.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        assertTtlRefreshed(releaseSet);
     }
 
     @Test
@@ -371,5 +378,10 @@ class DqlEventRepositoryTest {
         ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).find(captor.capture(), eq(DqlEventEntity.class));
         return captor.getValue();
+    }
+
+    private void assertTtlRefreshed(Document set) {
+        assertInstanceOf(Date.class, set.get(DqlEventDto.FIELD_TTL_AT));
+        assertEquals(set.get(DqlEventDto.FIELD_UPDATED), set.get(DqlEventDto.FIELD_TTL_AT));
     }
 }
