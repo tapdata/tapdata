@@ -296,11 +296,12 @@ public class DqlEventRepository {
     }
 
     public long lockEvents(List<String> eventIds, String batchId) {
-        if (eventIds == null || eventIds.isEmpty()) {
+        if (eventIds == null || eventIds.isEmpty() || StringUtils.isBlank(batchId)) {
             return 0;
         }
         Criteria criteria = Criteria.where(DqlEventDto.FIELD_EVENT_ID).in(eventIds)
-                .and(DqlEventDto.FIELD_STATUS).in(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name());
+                .and(DqlEventDto.FIELD_STATUS).in(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name())
+                .and(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(null);
         Query query = Query.query(criteria);
         Date now = new Date();
         Update update = new Update()

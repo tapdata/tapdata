@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.Date;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,6 +72,21 @@ class DqlRecoveryBatchRepositoryTest {
         assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get("status"));
         assertEquals(set.get("finished_at"), set.get("updated"));
         assertEquals(set.get("updated"), set.get("ttl_at"));
+    }
+
+    @Test
+    @DisplayName("status update only targets an active created batch")
+    void statusUpdateOnlyTargetsCreatedBatch() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        repository.updateStatus("DQLB-1", DqlRecoveryBatchStatusEnum.DISPATCHED, null);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get("batch_id"));
+        assertEquals(List.of(DqlRecoveryBatchStatusEnum.CREATED.name()), query.get("status"));
     }
 
     private MongoTemplate mongoTemplate() {

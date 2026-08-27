@@ -3,8 +3,10 @@ package com.tapdata.tm.dql.service;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dql.DqlExceptionScopeEnum;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
+import com.tapdata.tm.dql.DqlRouteDecisionEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -123,18 +125,18 @@ public class DqlEventService {
 
     private void validateRouteMetadata(DqlEventReportVo report) {
         if (StringUtils.isBlank(report.getExceptionScope())) {
-            report.setExceptionScope("RECORD");
-        } else if (!StringUtils.equalsIgnoreCase("RECORD", report.getExceptionScope())) {
+            report.setExceptionScope(DqlExceptionScopeEnum.RECORD.name());
+        } else if (DqlExceptionScopeEnum.RECORD != DqlExceptionScopeEnum.parse(report.getExceptionScope())) {
             throw new BizException("DqlEvent.InvalidRouteDecision", "exceptionScope");
         } else {
-            report.setExceptionScope("RECORD");
+            report.setExceptionScope(DqlExceptionScopeEnum.RECORD.name());
         }
         if (StringUtils.isBlank(report.getRouteDecision())) {
-            report.setRouteDecision("RECORD_DLQ");
-        } else if (!StringUtils.equalsIgnoreCase("RECORD_DLQ", report.getRouteDecision())) {
+            report.setRouteDecision(DqlRouteDecisionEnum.RECORD_DLQ.name());
+        } else if (DqlRouteDecisionEnum.RECORD_DLQ != DqlRouteDecisionEnum.parse(report.getRouteDecision())) {
             throw new BizException("DqlEvent.InvalidRouteDecision", "routeDecision");
         } else {
-            report.setRouteDecision("RECORD_DLQ");
+            report.setRouteDecision(DqlRouteDecisionEnum.RECORD_DLQ.name());
         }
     }
 

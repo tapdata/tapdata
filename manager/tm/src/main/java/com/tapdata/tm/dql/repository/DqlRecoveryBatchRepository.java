@@ -79,7 +79,8 @@ public class DqlRecoveryBatchRepository {
         if (message != null) {
             update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
         }
-        mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId,
+                DqlRecoveryBatchStatusEnum.CREATED), update, entityClass);
     }
 
     public void markRunning(String batchId) {
@@ -89,7 +90,8 @@ public class DqlRecoveryBatchRepository {
                 .set(DqlRecoveryBatchDto.FIELD_STARTED_AT, now)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
-        mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId,
+                DqlRecoveryBatchStatusEnum.DISPATCHED), update, entityClass);
     }
 
     public void increaseSuccess(String batchId) {
@@ -114,7 +116,10 @@ public class DqlRecoveryBatchRepository {
         if (message != null) {
             update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
         }
-        mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING), update, entityClass);
     }
 
     private void increase(String batchId, String field) {
@@ -123,11 +128,19 @@ public class DqlRecoveryBatchRepository {
                 .inc(field, 1)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
-        mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
+        mongoTemplate.updateFirst(batchQuery(batchId,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING), update, entityClass);
     }
 
-    private Query batchQuery(String batchId) {
-        return Query.query(Criteria.where(DqlRecoveryBatchDto.FIELD_BATCH_ID).is(batchId));
+    private Query batchQuery(String batchId, DqlRecoveryBatchStatusEnum... statuses) {
+        Criteria criteria = Criteria.where(DqlRecoveryBatchDto.FIELD_BATCH_ID).is(batchId);
+        if (statuses != null && statuses.length > 0) {
+            criteria.and(DqlRecoveryBatchDto.FIELD_STATUS).in(
+                    java.util.Arrays.stream(statuses).map(Enum::name).toList());
+        }
+        return Query.query(criteria);
     }
 
     public DqlRecoveryBatchDto convert(DqlRecoveryBatchEntity entity) {

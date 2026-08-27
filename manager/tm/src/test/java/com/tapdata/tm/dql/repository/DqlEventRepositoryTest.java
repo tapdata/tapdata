@@ -60,6 +60,12 @@ class DqlEventRepositoryTest {
         Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertEquals(DqlEventStatusEnum.REPROCESSING.name(), set.get("status"));
         assertEquals(set.get("updated"), set.get("ttl_at"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).updateMulti(queryCaptor.capture(), any(Update.class), eq(DqlEventEntity.class));
+        assertEquals(List.of(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name()),
+                queryCaptor.getValue().getQueryObject().get("status"));
+        assertEquals(null, queryCaptor.getValue().getQueryObject().get("current_batch_id"));
     }
 
     @Test
