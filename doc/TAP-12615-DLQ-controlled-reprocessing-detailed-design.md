@@ -589,7 +589,7 @@ db.dql_events.createIndex(
   {
     name: "uk_task_event_identity",
     unique: true,
-    partialFilterExpression: { event_identity: { $exists: true, $ne: "" } }
+    partialFilterExpression: { event_identity: { $type: "string", $gt: "" } }
   }
 )
 
@@ -613,6 +613,8 @@ db.dql_recovery_batches.createIndex(
   { name: "idx_dql_batch_ttl", expireAfterSeconds: 1209600 }
 )
 ```
+
+`uk_task_event_identity` 只约束非空字符串身份。MongoDB partial index 不支持使用 `$ne` 作为过滤表达式，因此使用 `$type: "string"` 与 `$gt: ""` 表达“字段为非空字符串”；Repository 的 upsert 查询只在 `eventIdentity` 非空时使用该唯一身份。
 
 ### 6.7 TTL 生命周期
 
@@ -781,7 +783,7 @@ POST /api/task/{taskId}/dql-events/report
 4. 若 `captureSeq` 为空，由 TM 原子分配。
 5. 若 `recordIdentity` 为空，由 TM 根据 `eventKey` 或 `payloadHash` 兜底生成；准确性以 Engine 按主键、唯一索引、全字段 hash 生成的显式值为准。
 6. 若 `eventIdentity` 为空，由 TM 根据 Payload 和 `recordIdentity` 生成。
-7. 按唯一索引 upsert。
+7. 按唯一索引 upsert；捕获快照、`event_id`、`created` 和 `ttl_at` 使用 `$setOnInsert`，并发重复上报命中已有事件时不得覆盖原主记录或刷新 TTL。
 8. 新增主记录时触发 DLQ 告警；重复上报时只返回已有事件，不重复告警。
 9. 保存失败向 Engine 返回错误，Engine 不允许 skip。
 

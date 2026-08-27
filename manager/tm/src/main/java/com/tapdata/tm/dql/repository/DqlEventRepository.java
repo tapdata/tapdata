@@ -3,7 +3,6 @@ package com.tapdata.tm.dql.repository;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
@@ -19,6 +18,7 @@ import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.index.IndexOperations;
+import org.springframework.data.mongodb.core.index.PartialIndexFilter;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -29,7 +29,6 @@ import org.springframework.util.Assert;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -90,7 +89,6 @@ public class DqlEventRepository {
                 .on(DqlEventDto.FIELD_RECORD_IDENTITY, Sort.Direction.ASC)
                 .on(DqlEventDto.FIELD_EVENT_TIME, Sort.Direction.DESC)
                 .on(DqlEventDto.FIELD_CAPTURE_SEQ, Sort.Direction.DESC)
-                .sparse()
                 .named("idx_task_record_identity_event_time"));
         indexOps.createIndex(new Index()
                 .on(DqlEventDto.FIELD_TASK_ID, Sort.Direction.ASC)
@@ -98,7 +96,10 @@ public class DqlEventRepository {
                 .on(DqlEventDto.FIELD_TABLE_ID, Sort.Direction.ASC)
                 .on(DqlEventDto.FIELD_EVENT_IDENTITY, Sort.Direction.ASC)
                 .on(DqlEventDto.FIELD_FAILED_NODE_ID, Sort.Direction.ASC)
-                .sparse()
+                .partial(PartialIndexFilter.of(new org.bson.Document(
+                        DqlEventDto.FIELD_EVENT_IDENTITY,
+                        new org.bson.Document("$type", "string").append("$gt", "")
+                )))
                 .unique()
                 .named("uk_task_event_identity"));
     }
@@ -147,57 +148,57 @@ public class DqlEventRepository {
         Date created = Optional.ofNullable(dto.getCreated()).orElse(now);
         Date ttlAt = Optional.ofNullable(dto.getTtlAt()).orElse(created);
         Update update = new Update();
-        set(update, DqlEventDto.FIELD_EVENT_ID, dto.getEventId());
-        set(update, DqlEventDto.FIELD_TASK_ID, dto.getTaskId());
-        set(update, DqlEventDto.FIELD_TASK_RECORD_ID, dto.getTaskRecordId());
-        set(update, DqlEventDto.FIELD_TASK_NAME, dto.getTaskName());
-        set(update, DqlEventDto.FIELD_TASK_VERSION, dto.getTaskVersion());
-        set(update, DqlEventDto.FIELD_AGENT_ID, dto.getAgentId());
-        set(update, DqlEventDto.FIELD_SOURCE_NODE_ID, dto.getSourceNodeId());
-        set(update, DqlEventDto.FIELD_SOURCE_NODE_NAME, dto.getSourceNodeName());
-        set(update, DqlEventDto.FIELD_FAILED_NODE_ID, dto.getFailedNodeId());
-        set(update, DqlEventDto.FIELD_FAILED_NODE_NAME, dto.getFailedNodeName());
-        set(update, DqlEventDto.FIELD_FAILED_STAGE, dto.getFailedStage());
-        set(update, DqlEventDto.FIELD_SOURCE_TABLE, dto.getSourceTable());
-        set(update, DqlEventDto.FIELD_TARGET_TABLE, dto.getTargetTable());
-        set(update, DqlEventDto.FIELD_TABLE_ID, dto.getTableId());
-        set(update, DqlEventDto.FIELD_DML_TYPE, dto.getDmlType());
-        set(update, DqlEventDto.FIELD_EVENT_TIME, dto.getEventTime());
-        set(update, DqlEventDto.FIELD_CAPTURE_SEQ, dto.getCaptureSeq());
-        set(update, DqlEventDto.FIELD_FAILED_AT, dto.getFailedAt());
-        set(update, DqlEventDto.FIELD_EVENT_KEY, dto.getEventKey());
-        set(update, DqlEventDto.FIELD_EVENT_KEY_MISSING, dto.getEventKeyMissing());
-        set(update, DqlEventDto.FIELD_EVENT_IDENTITY, dto.getEventIdentity());
-        set(update, DqlEventDto.FIELD_RECORD_IDENTITY, dto.getRecordIdentity());
-        set(update, DqlEventDto.FIELD_RECORD_IDENTITY_TYPE, dto.getRecordIdentityType());
-        set(update, DqlEventDto.FIELD_RECORD_IDENTITY_FIELDS, dto.getRecordIdentityFields());
-        set(update, DqlEventDto.FIELD_PAYLOAD_FORMAT, dto.getPayloadFormat());
-        set(update, DqlEventDto.FIELD_PAYLOAD_DATA, dto.getPayloadData());
-        set(update, DqlEventDto.FIELD_PAYLOAD_HASH, dto.getPayloadHash());
-        set(update, DqlEventDto.FIELD_PAYLOAD_SIZE, dto.getPayloadSize());
-        set(update, DqlEventDto.FIELD_PAYLOAD_COMPLETE, dto.getPayloadComplete());
-        set(update, DqlEventDto.FIELD_PAYLOAD_PREVIEW, dto.getPayloadPreview());
-        set(update, DqlEventDto.FIELD_PAYLOAD_PREVIEW_TRUNCATED, dto.getPayloadPreviewTruncated());
-        set(update, DqlEventDto.FIELD_ERROR_TYPE, dto.getErrorType());
-        set(update, DqlEventDto.FIELD_ERROR_CODE, dto.getErrorCode());
-        set(update, DqlEventDto.FIELD_EXCEPTION_SCOPE, dto.getExceptionScope());
-        set(update, DqlEventDto.FIELD_ROUTE_DECISION, dto.getRouteDecision());
-        set(update, DqlEventDto.FIELD_CLASSIFICATION_REASON, dto.getClassificationReason());
-        set(update, DqlEventDto.FIELD_CLASSIFICATION_CONFIDENCE, dto.getClassificationConfidence());
-        set(update, DqlEventDto.FIELD_ERROR_DETAILS, dto.getErrorDetails());
-        set(update, DqlEventDto.FIELD_ERROR_DETAILS_TRUNCATED, dto.getErrorDetailsTruncated());
-        set(update, DqlEventDto.FIELD_RAW_ERROR_REF, dto.getRawErrorRef());
-        set(update, DqlEventDto.FIELD_STATUS, dto.getStatus());
-        set(update, DqlEventDto.FIELD_RECOVERY_COUNT, Optional.ofNullable(dto.getRecoveryCount()).orElse(0));
-        set(update, DqlEventDto.FIELD_OVERWRITE_RISK, dto.getOverwriteRisk());
-        set(update, DqlEventDto.FIELD_OVERWRITE_RISK_MESSAGE, dto.getOverwriteRiskMessage());
-        set(update, DqlEventDto.FIELD_LATER_SUCCESS_AT, dto.getLaterSuccessAt());
-        set(update, DqlEventDto.FIELD_LATER_SUCCESS_EVENT_TIME, dto.getLaterSuccessEventTime());
-        set(update, DqlEventDto.FIELD_LATER_SUCCESS_CAPTURE_SEQ, dto.getLaterSuccessCaptureSeq());
-        set(update, DqlEventDto.FIELD_LATER_SUCCESS_DML_TYPE, dto.getLaterSuccessDmlType());
-        set(update, DqlEventDto.FIELD_TTL_AT, ttlAt);
-        update.set(DqlEventDto.FIELD_UPDATED, now);
+        setOnInsert(update, DqlEventDto.FIELD_EVENT_ID, dto.getEventId());
+        setOnInsert(update, DqlEventDto.FIELD_TASK_ID, dto.getTaskId());
+        setOnInsert(update, DqlEventDto.FIELD_TASK_RECORD_ID, dto.getTaskRecordId());
+        setOnInsert(update, DqlEventDto.FIELD_TASK_NAME, dto.getTaskName());
+        setOnInsert(update, DqlEventDto.FIELD_TASK_VERSION, dto.getTaskVersion());
+        setOnInsert(update, DqlEventDto.FIELD_AGENT_ID, dto.getAgentId());
+        setOnInsert(update, DqlEventDto.FIELD_SOURCE_NODE_ID, dto.getSourceNodeId());
+        setOnInsert(update, DqlEventDto.FIELD_SOURCE_NODE_NAME, dto.getSourceNodeName());
+        setOnInsert(update, DqlEventDto.FIELD_FAILED_NODE_ID, dto.getFailedNodeId());
+        setOnInsert(update, DqlEventDto.FIELD_FAILED_NODE_NAME, dto.getFailedNodeName());
+        setOnInsert(update, DqlEventDto.FIELD_FAILED_STAGE, dto.getFailedStage());
+        setOnInsert(update, DqlEventDto.FIELD_SOURCE_TABLE, dto.getSourceTable());
+        setOnInsert(update, DqlEventDto.FIELD_TARGET_TABLE, dto.getTargetTable());
+        setOnInsert(update, DqlEventDto.FIELD_TABLE_ID, dto.getTableId());
+        setOnInsert(update, DqlEventDto.FIELD_DML_TYPE, dto.getDmlType());
+        setOnInsert(update, DqlEventDto.FIELD_EVENT_TIME, dto.getEventTime());
+        setOnInsert(update, DqlEventDto.FIELD_CAPTURE_SEQ, dto.getCaptureSeq());
+        setOnInsert(update, DqlEventDto.FIELD_FAILED_AT, dto.getFailedAt());
+        setOnInsert(update, DqlEventDto.FIELD_EVENT_KEY, dto.getEventKey());
+        setOnInsert(update, DqlEventDto.FIELD_EVENT_KEY_MISSING, dto.getEventKeyMissing());
+        setOnInsert(update, DqlEventDto.FIELD_EVENT_IDENTITY, dto.getEventIdentity());
+        setOnInsert(update, DqlEventDto.FIELD_RECORD_IDENTITY, dto.getRecordIdentity());
+        setOnInsert(update, DqlEventDto.FIELD_RECORD_IDENTITY_TYPE, dto.getRecordIdentityType());
+        setOnInsert(update, DqlEventDto.FIELD_RECORD_IDENTITY_FIELDS, dto.getRecordIdentityFields());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_FORMAT, dto.getPayloadFormat());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_DATA, dto.getPayloadData());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_HASH, dto.getPayloadHash());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_SIZE, dto.getPayloadSize());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_COMPLETE, dto.getPayloadComplete());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_PREVIEW, dto.getPayloadPreview());
+        setOnInsert(update, DqlEventDto.FIELD_PAYLOAD_PREVIEW_TRUNCATED, dto.getPayloadPreviewTruncated());
+        setOnInsert(update, DqlEventDto.FIELD_ERROR_TYPE, dto.getErrorType());
+        setOnInsert(update, DqlEventDto.FIELD_ERROR_CODE, dto.getErrorCode());
+        setOnInsert(update, DqlEventDto.FIELD_EXCEPTION_SCOPE, dto.getExceptionScope());
+        setOnInsert(update, DqlEventDto.FIELD_ROUTE_DECISION, dto.getRouteDecision());
+        setOnInsert(update, DqlEventDto.FIELD_CLASSIFICATION_REASON, dto.getClassificationReason());
+        setOnInsert(update, DqlEventDto.FIELD_CLASSIFICATION_CONFIDENCE, dto.getClassificationConfidence());
+        setOnInsert(update, DqlEventDto.FIELD_ERROR_DETAILS, dto.getErrorDetails());
+        setOnInsert(update, DqlEventDto.FIELD_ERROR_DETAILS_TRUNCATED, dto.getErrorDetailsTruncated());
+        setOnInsert(update, DqlEventDto.FIELD_RAW_ERROR_REF, dto.getRawErrorRef());
+        setOnInsert(update, DqlEventDto.FIELD_STATUS, dto.getStatus());
+        setOnInsert(update, DqlEventDto.FIELD_RECOVERY_COUNT, Optional.ofNullable(dto.getRecoveryCount()).orElse(0));
+        setOnInsert(update, DqlEventDto.FIELD_OVERWRITE_RISK, dto.getOverwriteRisk());
+        setOnInsert(update, DqlEventDto.FIELD_OVERWRITE_RISK_MESSAGE, dto.getOverwriteRiskMessage());
+        setOnInsert(update, DqlEventDto.FIELD_LATER_SUCCESS_AT, dto.getLaterSuccessAt());
+        setOnInsert(update, DqlEventDto.FIELD_LATER_SUCCESS_EVENT_TIME, dto.getLaterSuccessEventTime());
+        setOnInsert(update, DqlEventDto.FIELD_LATER_SUCCESS_CAPTURE_SEQ, dto.getLaterSuccessCaptureSeq());
+        setOnInsert(update, DqlEventDto.FIELD_LATER_SUCCESS_DML_TYPE, dto.getLaterSuccessDmlType());
+        setOnInsert(update, DqlEventDto.FIELD_UPDATED, now);
         update.setOnInsert(DqlEventDto.FIELD_CREATED, created);
+        update.setOnInsert(DqlEventDto.FIELD_TTL_AT, ttlAt);
 
         DqlEventEntity entity = mongoTemplate.findAndModify(
                 query,
@@ -276,7 +277,8 @@ public class DqlEventRepository {
             return Page.empty();
         }
         long skip = Math.max(0, Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getSkip).orElse(0L));
-        int limit = Math.max(1, Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getLimit).orElse(10));
+        int requestedLimit = Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getLimit).orElse(0);
+        int limit = requestedLimit > 0 ? requestedLimit : 10;
         query.skip(skip).limit(limit).with(parseSort(Optional.ofNullable(queryVo).map(com.tapdata.tm.dql.vo.DqlEventQueryVo::getOrder).orElse(null)));
         List<DqlEventDto> items = mongoTemplate.find(query, entityClass).stream().map(this::convert).collect(Collectors.toList());
         return Page.page(items, count);
@@ -490,9 +492,9 @@ public class DqlEventRepository {
         return field;
     }
 
-    private void set(Update update, String field, Object value) {
+    private void setOnInsert(Update update, String field, Object value) {
         if (value != null) {
-            update.set(field, value);
+            update.setOnInsert(field, value);
         }
     }
 
@@ -508,12 +510,4 @@ public class DqlEventRepository {
         return dto;
     }
 
-    private DqlEventEntity convert(DqlEventDto dto) {
-        DqlEventEntity entity = new DqlEventEntity();
-        BeanUtils.copyProperties(dto, entity);
-        if (StringUtils.isNotBlank(dto.getId()) && ObjectId.isValid(dto.getId())) {
-            entity.setId(new ObjectId(dto.getId()));
-        }
-        return entity;
-    }
 }

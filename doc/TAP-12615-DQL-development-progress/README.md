@@ -4,6 +4,8 @@
 
 - 开发严格按照 `doc/TAP-12615-DLQ-controlled-reprocessing-development-plan.md` 的步骤编号推进。
 - 每个步骤完成后，在 `steps/` 下新增一份步骤总结，并同步开发计划中的状态。
+- 每个代码开发步骤独立创建一笔以 `feat(TAP-12615): ` 开头的本地 commit，不执行 push。
+- 每个步骤提交后暂停开发，等待 review 确认后再进入下一步骤。
 - 每个里程碑满足退出条件后，在 `milestones/` 下新增一份里程碑总结。
 - 步骤文档记录实际完成内容、设计决策、代码或文档产出、验证结果和后续依赖，不以“文件已创建”代替完成标准。
 - Web 开发不在本计划范围内，只记录 TM API、权限码和错误码的契约交接。
@@ -18,6 +20,7 @@
 | A04 | 已完成 | `steps/A04-exception-classification-contract.md` |
 | A05 | 已完成 | `steps/A05-configuration-and-poc-contract.md` |
 | B01 | 已完成 | `steps/B01-domain-contract.md` |
+| B02 | 已完成 | `steps/B02-event-repository.md` |
 
 ## 里程碑进度
 
