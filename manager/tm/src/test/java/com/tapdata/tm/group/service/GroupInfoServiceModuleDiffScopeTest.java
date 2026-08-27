@@ -3,15 +3,20 @@ package com.tapdata.tm.group.service;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.group.constant.GroupConstants;
+import com.tapdata.tm.group.dto.ResourceType;
 import com.tapdata.tm.group.handler.ModuleResourceHandler;
+import com.tapdata.tm.group.handler.ResourceHandler;
+import com.tapdata.tm.group.handler.ResourceHandlerRegistry;
 import com.tapdata.tm.group.repostitory.GroupInfoRepository;
 import com.tapdata.tm.group.vo.FieldChange;
 import com.tapdata.tm.group.vo.ResourceDiff;
 import com.tapdata.tm.group.vo.ResourceDiffItem;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.dto.PathSetting;
@@ -29,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.query.Query;
@@ -42,12 +48,16 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -78,6 +88,12 @@ class GroupInfoServiceModuleDiffScopeTest {
 
 	@Mock
 	private ModulesService modulesService;
+
+	@Mock
+	private MetadataInstancesService metadataInstancesService;
+
+	@Mock
+	private ResourceHandlerRegistry resourceHandlerRegistry;
 
 	private GroupInfoService groupInfoService;
 	private ModuleResourceHandler moduleResourceHandler;
@@ -349,5 +365,224 @@ class GroupInfoServiceModuleDiffScopeTest {
 		f.setComment(name + " 注释");
 		f.setKey(name);
 		return f;
+	}
+
+	// ------------------------------------------------------- T4 · 字段维度只剩增 / 删 / 改别名
+
+	@Test
+	@DisplayName("T4-2 加字段：包侧多暴露一个 ⇒ 恰好一条变更，from 为 null")
+	void exposingOneMoreFieldProducesExactlyOneAdd() {
+		// DB 侧只暴露 2 个字段（没有 TS），包侧 3 个
+		List<FieldChange> changes = changesOf(UNCHANGED, db -> dropExposed(db, "TS"));
+
+		FieldChange only = onlyChange(changes, "paths[customerQuery].fields[TS]");
+		assertNull(only.getFrom(), "DB 侧本来就没有这个字段，from 必须为 null");
+		assertNotNull(only.getTo(), "包侧新增的字段必须出现在 to 里");
+	}
+
+	@Test
+	@DisplayName("T4-3 删字段（删中间那个）：恰好一条变更，from 非空 / to 为 null —— keyed diff 一旦退化成下标，这里会变成一串位移")
+	void removingMiddleExposedFieldProducesExactlyOneDelete() {
+		// 播种顺序 POLICY_ID / CUSTOMER_NO / TS，删中间的 CUSTOMER_NO
+		List<FieldChange> changes = changesOf(file -> dropExposed(file, "CUSTOMER_NO"), UNCHANGED);
+
+		FieldChange only = onlyChange(changes, "paths[customerQuery].fields[CUSTOMER_NO]");
+		assertNotNull(only.getFrom(), "DB 侧仍有这个字段，from 必须非空");
+		assertNull(only.getTo(), "包侧已删掉，to 必须为 null");
+	}
+
+	@Test
+	@DisplayName("T4-4 只改别名：恰好一条变更，路径以 .field_alias 结尾 —— 别名是「改」的唯一定义")
+	void aliasChangeProducesExactlyOneChange() {
+		List<FieldChange> changes = changesOf(file -> renameAlias(file, "CUSTOMER_NO", "客户编号"), UNCHANGED);
+
+		FieldChange only = onlyChange(changes, "paths[customerQuery].fields[CUSTOMER_NO].field_alias");
+		assertEquals("客户号", only.getFrom());
+		assertEquals("客户编号", only.getTo());
+	}
+
+	@Test
+	@DisplayName("T4-5 字段的其余属性全变、名与别名不变 ⇒ 零变更（四处 Field 数组各造一份）")
+	void fieldPropertiesOtherThanNameAndAliasAreIgnored() {
+		ObjectId id = new ObjectId();
+		// 与 T1-B 的区别：顶层内容两侧逐字相同，只有四处 Field 数组的属性不同 ——
+		// 这样它红的时候只可能是「某一处归约漏了」，与顶层排除表无关。
+		ResourceDiff diff = diffOf(fullModule(id, Env.SOURCE),
+				withTargetStyleFieldProperties(fullModule(id, Env.SOURCE)));
+
+		assertEquals(0, diff.getAdd().size(), "同 _id 的 Module 应落 update 而不是 add：" + report(diff));
+		assertTrue(diff.getUpdate().isEmpty(),
+				() -> "字段只有类型/精度/位置/id 这类模型推演产物不同，却报了变更 —— "
+						+ "四处 Field 数组里有一处没被归约：\n" + report(diff));
+	}
+
+	// --------------------------------------------- T4-7 没有收窄过头：其余用户可编辑内容仍被认出
+
+	@Test
+	@DisplayName("T4-7a 新增一个查询参数 ⇒ 恰好一条")
+	void addedParamIsStillReported() {
+		List<FieldChange> changes = changesOf(file -> file.getPaths().get(0).getParams().add(param("policyNo")), UNCHANGED);
+		onlyChange(changes, "paths[customerQuery].params[1]");
+	}
+
+	@Test
+	@DisplayName("T4-7b 改一条 where ⇒ 恰好一条")
+	void changedWhereIsStillReported() {
+		List<FieldChange> changes = changesOf(
+				file -> file.getPaths().get(0).getWhere().get(0).setOperator("gt"), UNCHANGED);
+		FieldChange only = onlyChange(changes, "paths[customerQuery].where[0].operator");
+		assertEquals("eq", only.getFrom());
+		assertEquals("gt", only.getTo());
+	}
+
+	@Test
+	@DisplayName("T4-7c 改 limit ⇒ 恰好一条")
+	void changedLimitIsStillReported() {
+		List<FieldChange> changes = changesOf(file -> file.setLimit(1000), UNCHANGED);
+		FieldChange only = onlyChange(changes, "limit");
+		assertEquals(500, only.getFrom());
+		assertEquals(1000, only.getTo());
+	}
+
+	@Test
+	@DisplayName("T4-7d 改 API 路径 ⇒ 恰好一条")
+	void changedApiPathIsStillReported() {
+		List<FieldChange> changes = changesOf(file -> file.setPath("/api/insurance/v2/policy"), UNCHANGED);
+		FieldChange only = onlyChange(changes, "path");
+		assertEquals("/api/insurance/v1/policy", only.getFrom());
+		assertEquals("/api/insurance/v2/policy", only.getTo());
+	}
+
+	// ------------------------------------------------------------- T4-8 部署闸联动（diff → 真的部署什么）
+
+	@Test
+	@DisplayName("T4-8a 零变更 ⇒ 闸关上：modulesService 与 metadataInstancesService 的 batchImport 都不被调用")
+	void unchangedModuleTriggersNoImportAtAll() {
+		ObjectId id = new ObjectId();
+		runStandaloneImport(fullModule(id, Env.SOURCE), fullModule(id, Env.TARGET));
+
+		verify(modulesService, never()).batchImport(any(), any(), any(), any(), any());
+		// [ADR-0037] 第 ⑦ 项裁决「接受」：MODULE metadata 导入挂在同一个 if 上，零变更时它同样不跑。
+		// 之所以无害，是因为那份列表结构上恒空（moduleExportPayloadCarriesNoMetadataInstances 守着）。
+		verify(metadataInstancesService, never()).batchImport(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	@DisplayName("T4-8b 只改一个别名 ⇒ 闸打开，且入参恰好只有那一个 Module")
+	void aliasChangeImportsExactlyThatOneModule() {
+		ObjectId id = new ObjectId();
+		ModulesDto fileSide = fullModule(id, Env.SOURCE);
+		renameAlias(fileSide, "CUSTOMER_NO", "客户编号");
+		runStandaloneImport(fileSide, fullModule(id, Env.TARGET));
+
+		ArgumentCaptor<List<ModulesDto>> toImport = ArgumentCaptor.forClass(List.class);
+		verify(modulesService).batchImport(toImport.capture(), any(), any(), any(), any());
+		assertEquals(Collections.singletonList("policy_api"),
+				toImport.getValue().stream().map(ModulesDto::getName).toList());
+
+		ArgumentCaptor<List<MetadataInstancesDto>> metadata = ArgumentCaptor.forClass(List.class);
+		verify(metadataInstancesService).batchImport(metadata.capture(), any(), any(), any(), any());
+		assertTrue(metadata.getValue().isEmpty(),
+				"有变更时那两句照旧跑，但传的列表恒空 —— 一旦非空，[ADR-0037] 第 ⑦ 项要重判");
+	}
+
+	// -------------------------------------------------------------- T4 脚手架
+
+	private static final Consumer<ModulesDto> UNCHANGED = m -> { };
+
+	/**
+	 * 造一次「源环境的包 vs 目标环境的库」——两侧先播成用户可编辑内容逐字相同，再各自施加一个改动。
+	 * 环境噪声照旧存在，所以每条用例同时也在证明「收窄没被这次改动破坏」。
+	 */
+	private List<FieldChange> changesOf(Consumer<ModulesDto> mutateFile, Consumer<ModulesDto> mutateDb) {
+		ObjectId id = new ObjectId();
+		ModulesDto fileSide = fullModule(id, Env.SOURCE);
+		ModulesDto dbSide = fullModule(id, Env.TARGET);
+		mutateFile.accept(fileSide);
+		mutateDb.accept(dbSide);
+
+		ResourceDiff diff = diffOf(fileSide, dbSide);
+		assertEquals(0, diff.getAdd().size(), "同 _id 的 Module 应落 update 而不是 add：" + report(diff));
+		assertEquals(1, diff.getUpdate().size(), () -> "应恰好一个 Module 落在 update：\n" + report(diff));
+		List<FieldChange> changes = diff.getUpdate().get(0).getChanges();
+		assertNotNull(changes, "update 项必须带字段级变更");
+		return changes;
+	}
+
+	/** 断言恰好一条变更且落在预期路径上；返回它以便继续断言 from / to。 */
+	private static FieldChange onlyChange(List<FieldChange> changes, String expectedPath) {
+		assertEquals(1, changes.size(),
+				() -> "期望恰好一条变更，实际 " + changes.size() + " 条：" + changedPaths(changes));
+		assertEquals(expectedPath, changes.get(0).getField(),
+				() -> "变更路径不对，实际：" + changedPaths(changes));
+		return changes.get(0);
+	}
+
+	private static List<String> changedPaths(List<FieldChange> changes) {
+		return changes.stream().map(FieldChange::getField).toList();
+	}
+
+	/** 跑真实的 apis 导入腿：diff 算 changedNames → toImport 过滤 → batchImport。recordId 传 null 以跳过状态回写。 */
+	private void runStandaloneImport(ModulesDto fileSide, ModulesDto dbSide) {
+		ReflectionTestUtils.setField(groupInfoService, "metadataInstancesService", metadataInstancesService);
+		ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", resourceHandlerRegistry);
+		when(resourceHandlerRegistry.getHandler(ResourceType.MODULE)).thenReturn(moduleResourceHandler);
+		when(resourceHandlerRegistry.getAllHandlers())
+				.thenReturn(Collections.<ResourceHandler>singletonList(moduleResourceHandler));
+		when(modulesService.findAllDto(any(Query.class), any(UserDetail.class)))
+				.thenReturn(new ArrayList<>(Collections.singletonList(dbSide)));
+
+		groupInfoService.executeImportApisStandaloneAsync(
+				payloadsOf(exportedJson(fileSide)), ImportModeEnum.REPLACE, user, null);
+	}
+
+	// --------------------------------------------------------- T4 播种改写
+
+	/** paths[0].fields —— 前端勾选字段的真值（plan §现状 5），不是顶层那份整表快照。 */
+	private static List<Field> exposed(ModulesDto m) {
+		return m.getPaths().get(0).getFields();
+	}
+
+	private static void dropExposed(ModulesDto m, String fieldName) {
+		assertTrue(exposed(m).removeIf(f -> fieldName.equals(f.getFieldName())),
+				"播种里没有字段 " + fieldName + "，用例前提已失效");
+	}
+
+	private static void renameAlias(ModulesDto m, String fieldName, String newAlias) {
+		assertTrue(exposed(m).stream().anyMatch(f -> fieldName.equals(f.getFieldName())),
+				"播种里没有字段 " + fieldName + "，用例前提已失效");
+		exposed(m).stream()
+				.filter(f -> fieldName.equals(f.getFieldName()))
+				.forEach(f -> f.setFieldAlias(newAlias));
+	}
+
+	/** 只把四处 Field 数组里「名与别名以外的一切」换成目标环境的样子，Module 的其余内容一字不动。 */
+	private static ModulesDto withTargetStyleFieldProperties(ModulesDto m) {
+		m.setFields(retyped(m.getFields()));
+		for (Path p : m.getPaths()) {
+			p.setFields(retyped(p.getFields()));
+			p.setAvailableQueryField(retyped(p.getAvailableQueryField()));
+			p.setRequiredQueryField(retyped(p.getRequiredQueryField()));
+		}
+		return m;
+	}
+
+	private static List<Field> retyped(List<Field> src) {
+		List<Field> out = new ArrayList<>();
+		for (int i = 0; i < src.size(); i++) {
+			out.add(field(src.get(i).getFieldName(), src.get(i).getFieldAlias(), Env.TARGET, i));
+		}
+		return out;
+	}
+
+	private static Param param(String name) {
+		Param p = new Param();
+		p.setName(name);
+		p.setType("string");
+		p.setDefaultvalue("");
+		p.setDescription(name);
+		p.setRequired(false);
+		return p;
 	}
 }
