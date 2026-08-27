@@ -127,11 +127,10 @@ public class DqlRecoveryBatchService {
             }
         }
 
-        events.stream()
-                .filter(event -> !blockedReasons.containsKey(event.getEventId()))
-                .sorted(Comparator.comparing(DqlEventDto::getEventTime, Comparator.nullsLast(Date::compareTo))
-                        .thenComparing(DqlEventDto::getCaptureSeq, Comparator.nullsLast(Long::compareTo))
-                        .thenComparing(DqlEventDto::getEventId))
+        DqlRecoveryOrder.sort(events.stream()
+                        .filter(event -> !blockedReasons.containsKey(event.getEventId()))
+                        .toList())
+                .stream()
                 .map(this::orderedEvent)
                 .forEach(preview.getOrderedEvents()::add);
         preview.setCanSubmit(preview.getBlockedEvents().isEmpty() && preview.getOrderedEvents().size() == eventIds.size());

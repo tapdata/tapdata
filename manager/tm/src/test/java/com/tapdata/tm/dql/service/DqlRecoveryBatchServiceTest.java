@@ -337,6 +337,50 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
+    @DisplayName("preview, batch and dispatch share the stable recovery order")
+    void persistsAndDispatchesStableRecoveryOrder() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        MessageQueueServiceImpl messageQueueService = mock(MessageQueueServiceImpl.class);
+        DqlRecoveryBatchService service = new DqlRecoveryBatchService(
+                eventRepository,
+                batchRepository,
+                mock(DqlEventPermissionService.class),
+                messageQueueService,
+                mock(DqlEventAlarmService.class));
+        DqlEventDto first = event("DQL-1", TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        first.setSourceTable("orders");
+        first.setTargetTable("orders_sink");
+        first.setEventTime(new java.util.Date(1000L));
+        first.setCaptureSeq(1L);
+        DqlEventDto second = event("DQL-2", TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        second.setSourceTable("customers");
+        second.setTargetTable("customers_sink");
+        second.setEventTime(new java.util.Date(1000L));
+        second.setCaptureSeq(1L);
+        DqlEventDto third = event("DQL-3", TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        third.setSourceTable("products");
+        third.setTargetTable("products_sink");
+        third.setEventTime(new java.util.Date(1000L));
+        third.setCaptureSeq(2L);
+        when(eventRepository.findByEventIds(anyList())).thenReturn(List.of(third, first, second));
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.lockEvents(eq(List.of("DQL-1", "DQL-2", "DQL-3")), anyString())).thenReturn(3L);
+        DqlRecoveryRequestVo request = request(List.of("DQL-3", "DQL-2", "DQL-1"));
+        request.setConfirm(true);
+
+        DqlRecoveryPreviewVo preview = service.preview(request, user());
+        DqlRecoveryBatchDto result = service.start(request, user());
+
+        assertEquals(List.of("DQL-1", "DQL-2", "DQL-3"), preview.getOrderedEvents().stream()
+                .map(DqlRecoveryPreviewVo.OrderedEvent::getEventId).toList());
+        assertEquals(List.of("DQL-1", "DQL-2", "DQL-3"), result.getOrderedEventIds());
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(messageQueueService).sendPipeMessage(payload.capture(), eq("tm"), eq("agent-1"));
+        assertEquals(List.of("DQL-1", "DQL-2", "DQL-3"), payload.getValue().get("eventIds"));
+    }
+
+    @Test
     @DisplayName("start releases locks and fails the batch when not every event is locked")
     void startCompensatesWhenLockCountDoesNotMatch() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
