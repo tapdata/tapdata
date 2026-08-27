@@ -210,8 +210,12 @@ class ServingIndexesExportDiffTest {
 	}
 
 	@Test
-	@DisplayName("索引未变：changedFields 不得出现 servingIndexes 项（否则每次 CICD 都误报索引变更）")
+	@DisplayName("索引未变：整个 update 必须为空 —— 一条噪声都不许有（[ADR-0037] 收窄后抬硬）")
 	void unchangedIndexesProduceNoServingIndexChange() {
+		// 抬硬历史：本用例原先写成 `diff.getUpdate().isEmpty() ? emptyList : ...`，只断言「没有
+		// servingIndexes 前缀的变更」。那份容忍不是设计，是当时 update 里还躺着 last_updated /
+		// customId 这类管道噪声（module-diff-scope 的 bug 本身）。收窄之后噪声没有了，
+		// 断言随之抬到「整个 update 为空」——这一条同时守着索引与噪声两件事。
 		ObjectId id = new ObjectId();
 		ModulesDto inDb = moduleWith(id, index("ix_policy", "POLICY_ID", "TS"));
 		ModulesDto inFile = moduleWith(id, index("ix_policy", "POLICY_ID", "TS"));
@@ -222,11 +226,10 @@ class ServingIndexesExportDiffTest {
 				groupInfoService, "buildApiDiff", payloadsOf(exportedJson(inFile)), user);
 
 		assertNotNull(diff);
-		List<FieldChange> changes = diff.getUpdate().isEmpty()
-				? Collections.emptyList() : diff.getUpdate().get(0).getChanges();
-		List<String> paths = changes == null
-				? Collections.emptyList() : changes.stream().map(FieldChange::getField).toList();
-		assertTrue(paths.stream().noneMatch(p -> p.startsWith("servingIndexes")),
-				"索引未变却报了 servingIndexes 变更，changedFields=" + paths);
+		assertTrue(diff.getUpdate().isEmpty(), () -> {
+			List<FieldChange> changes = diff.getUpdate().get(0).getChanges();
+			return "索引与内容都没变，却报了变更：" + (changes == null
+					? "changes=null" : changes.stream().map(FieldChange::getField).toList());
+		});
 	}
 }

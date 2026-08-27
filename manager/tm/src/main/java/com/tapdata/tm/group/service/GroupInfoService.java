@@ -2121,11 +2121,44 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return sb.toString();
     }
 
-    /** API 对比时排除的顶层字段：环境相关、运行时状态字段 */
-    private static final Set<String> MODULE_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "id", "createTime", "datasource",
-            "createUser", "lastUpdBy", "status", "isDeleted"
-    ));
+    /**
+     * API 对比时排除的顶层字段：环境派生 / 运行时状态，<b>两侧对称剔除</b>（本方法对文件侧与 DB 侧
+     * 各跑一次）。逐条「它为什么不是用户可编辑内容」的理由见 [ADR-0037] D2，实测依据见
+     * {@code research/2026-08-module-diff-noise.md}。
+     *
+     * <p><b>复用既有两份常量而不是抄字符串</b>：它们将来增补运行时字段时本表要跟着走，抄一份就等于
+     * 埋下「新字段不被排除、噪声悄悄回来」的下一次同类 bug。</p>
+     *
+     * <p>⚠ {@code connectionId} / {@code connection} <b>刻意不在表内</b>：{@code datasource} 已被排除，
+     * 若把这两个也排除，「用户把 API 改指到另一个连接」就一条证据都不剩。{@code connectionName} /
+     * {@code connectionType} 可以排除，正因为改连接必然连带改 {@code connectionId}。</p>
+     */
+    private static final Set<String> MODULE_EXCLUDED_FIELDS;
+
+    static {
+        Set<String> excluded = new HashSet<>();
+        // id / customId / createTime / last_updated / lastUpdBy / createUser / permissionActions
+        excluded.addAll(BASE_DTO_VOLATILE_FIELDS);
+        // last_updated / lastUpdate / last_user_name —— 导出侧剔这三个、DB 侧不剔，本行让两侧对齐。
+        // 边际贡献只有后两个（last_updated 已由上一行覆盖），而 ModulesDto 今天产不出它们 ——
+        // 留着是为了导出侧这份清单将来增补时 DB 侧自动跟上，不是为了修今天的某一条噪声。
+        excluded.addAll(COMMON_VOLATILE_FIELDS);
+        excluded.addAll(Arrays.asList(
+                "datasource", "status", "isDeleted",
+                // 属主 / 账号 / 凭据。user_id 落进 JSON 的是父类 BaseDto.userId（@JsonProperty("user_id")）；
+                // email 是小写（Jackson 取 Lombok 的 getEmail()），写成 "Email" 排不掉
+                "user_id", "user", "access_token", "email",
+                // 目标环境的发布状态（status 已排除，它是漏网的同类）
+                "publishStatus",
+                // 运行统计：目标一有流量就变，且包里带的是源环境的值
+                "visitCount", "latency", "responseTime", "reqBytes", "resRows", "failRate",
+                // 导入时由 ModulesService.updateConnectionIds 整体用目标连接的名字与类型覆写
+                "connectionName", "connectionType"));
+        MODULE_EXCLUDED_FIELDS = Collections.unmodifiableSet(excluded);
+    }
+
+    /** 一个 {@code Field} 参与比对的全部键：名与别名（[ADR-0037] D3）。其余约 70 个属性一律不比。 */
+    private static final Set<String> FIELD_COMPARED_KEYS = Set.of("field_name", "field_alias");
 
     private static final Set<String> CONFIG_ENV_EXCLUDED_FIELDS = Collections.emptySet();
 
@@ -2134,6 +2167,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         // 解析文件中的 Module，以 _id 为 key 去重
         Map<String, Map<String, Object>> fileModulesById = new LinkedHashMap<>();
+        // 归一化图从 [ADR-0037] 起是刻意有损的（connectionName 等已被排除），展示值另存一份原始 DTO
+        Map<String, ModulesDto> fileDtoById = new LinkedHashMap<>();
         for (TaskUpAndLoadDto item : payloads.getOrDefault("Module.json", Collections.emptyList())) {
             if (!GroupConstants.COLLECTION_MODULES.equals(item.getCollectionName())) continue;
             Map<String, Object> normalized = normalizeModuleForComparison(item.getJson());
@@ -2144,6 +2179,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 continue;
             }
             fileModulesById.putIfAbsent(parsedDto.getId().toHexString(), normalized);
+            fileDtoById.putIfAbsent(parsedDto.getId().toHexString(), parsedDto);
         }
         if (fileModulesById.isEmpty()) return diff;
 
@@ -2162,9 +2198,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             ModulesDto existingModule = existingById.get(key);
             if (existingModule == null) {
                 ResourceDiffItem item = new ResourceDiffItem(name, null);
-                item.setApiPath((String) fileNormalized.get("path"));
-                item.setApiConnectionName((String) fileNormalized.get("connectionName"));
-                item.setApiTableName((String) fileNormalized.get("tableName"));
+                // 展示值取自原始 DTO：归一化图已排除 connectionName，从它读会静默拿到 null（[ADR-0037] D5）
+                ModulesDto fileDto = fileDtoById.get(key);
+                if (fileDto != null) {
+                    item.setApiPath(fileDto.getPath());
+                    item.setApiConnectionName(fileDto.getConnectionName());
+                    item.setApiTableName(fileDto.getTableName());
+                }
                 diff.getAdd().add(item);
             } else {
                 Map<String, Object> existingNormalized = normalizeModuleForComparison(JsonUtil.toJsonUseJackson(existingModule));
@@ -2186,11 +2226,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             if (map == null) return null;
             // 移除顶层排除字段
             MODULE_EXCLUDED_FIELDS.forEach(map::remove);
-            // 移除 fields 数组中每个元素的 id
-            Object fieldsObj = map.get("fields");
-            if (fieldsObj instanceof List) {
-                for (Object fieldItem : (List<?>) fieldsObj) {
-                    if (fieldItem instanceof Map) ((Map<String, Object>) fieldItem).remove("id");
+            // 四处 Field 数组各自归约成 {field_name, field_alias}（[ADR-0037] D3）。归约之后
+            // ARRAY_KEY_CONFIG 里那四条 keyed 路径自然产出「增 / 删 / 改别名」三种事件，无需新增比对逻辑。
+            reduceFieldsToNameAndAlias(map.get("fields"));
+            Object pathsObj = map.get("paths");
+            if (pathsObj instanceof List) {
+                for (Object pathItem : (List<?>) pathsObj) {
+                    if (!(pathItem instanceof Map)) continue;
+                    Map<String, Object> pathMap = (Map<String, Object>) pathItem;
+                    reduceFieldsToNameAndAlias(pathMap.get("fields"));
+                    reduceFieldsToNameAndAlias(pathMap.get("availableQueryField"));
+                    reduceFieldsToNameAndAlias(pathMap.get("requiredQueryField"));
                 }
             }
             // 移除 listtags 数组中每个元素的 id
@@ -2204,6 +2250,21 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         } catch (Exception e) {
             log.warn("Failed to normalize ModulesDto for comparison", e);
             return null;
+        }
+    }
+
+    /**
+     * 把一个 {@code Field} 数组里的每个元素归约成只剩 {@link #FIELD_COMPARED_KEYS}（名与别名）。
+     * 就地改，两侧各跑一次。别名为空的字段归约后只剩一个键，两侧不会互报差异 ——
+     * {@code jsonEqual} 把空串与 null 视为相等，{@code COMPARISON_MAPPER} 又忽略 null。
+     */
+    @SuppressWarnings("unchecked")
+    private static void reduceFieldsToNameAndAlias(Object fieldsObj) {
+        if (!(fieldsObj instanceof List)) return;
+        for (Object fieldItem : (List<?>) fieldsObj) {
+            if (fieldItem instanceof Map) {
+                ((Map<String, Object>) fieldItem).keySet().retainAll(FIELD_COMPARED_KEYS);
+            }
         }
     }
 
