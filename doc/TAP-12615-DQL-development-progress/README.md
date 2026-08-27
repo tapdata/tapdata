@@ -85,7 +85,7 @@
 | --- | --- | --- |
 | F01 | 已完成（待集成验证） | `steps/F01-permission-initialization.md` |
 | F02 | 已完成（待集成验证） | `steps/F02-dql-alarm-keys.md` |
-| F03 | 未开始 | 待生成 |
+| F03 | 已完成（待集成验证） | `steps/F03-dql-alarm-templates.md` |
 | F04 | 部分完成 | 待生成 |
 | F05 | 未开始 | 待生成 |
 | F06 | 部分完成 | 待生成 |
