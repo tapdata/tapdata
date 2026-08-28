@@ -7,6 +7,8 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
@@ -51,6 +53,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.exception.ExceptionUtil;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.exception.TapPdkWriteLengthEx;
@@ -368,13 +371,16 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             return null;
         }
         TapTable targetTable = aspect.getTable();
-        aspect.consumer((events, writeResult) -> reportSuccessfulRecords(targetTable, events, writeResult));
+        DataProcessorContext dataProcessorContext = aspect.getDataProcessorContext();
+        aspect.consumer((events, writeResult) -> reportSuccessfulRecords(
+                targetTable, events, writeResult, dataProcessorContext));
         return null;
     }
 
     private void reportSuccessfulRecords(TapTable targetTable,
                                          List<TapRecordEvent> events,
-                                         WriteListResult<TapRecordEvent> writeResult) {
+                                         WriteListResult<TapRecordEvent> writeResult,
+                                         DataProcessorContext dataProcessorContext) {
         if (events == null || events.isEmpty() || writeResult == null) {
             return;
         }
@@ -386,7 +392,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                 continue;
             }
             try {
-                reportRecordSuccess(targetTable, event, successAt);
+                reportRecordSuccess(targetTable, event, successAt, dataProcessorContext);
             } catch (RuntimeException exception) {
                 // The target write has already succeeded. A failure to update
                 // audit metadata must not turn it into a failed data write.
@@ -397,7 +403,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         }
     }
 
-    private void reportRecordSuccess(TapTable targetTable, TapRecordEvent event, long successAt) {
+    private void reportRecordSuccess(TapTable targetTable,
+                                     TapRecordEvent event,
+                                     long successAt,
+                                     DataProcessorContext dataProcessorContext) {
         TaskDto currentTask = getTask();
         String taskRecordId = currentTask == null ? taskId : currentTask.getTaskRecordId();
         if (StringUtils.isBlank(taskRecordId)) {
@@ -415,7 +424,12 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         report.setEventTime(eventTime(event, successAt));
         report.setSuccessAt(successAt);
 
-        DqlEventIdentity identity = dqlEventIdentityGenerator.generate(event, targetTable, taskRecordId, null);
+        Node<?> targetNode = targetNode(dataProcessorContext,
+                currentTask == null || currentTask.getDag() == null
+                        ? null : currentTask.getDag().getTargetNodes());
+        DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
+                event, targetTable, taskRecordId, null,
+                updateConditionFields(targetNode, targetTable, event));
         identity.applyTo(report);
         dqlEventReporter.reportRecordSuccess(taskId, report);
     }
@@ -820,10 +834,12 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         report.setDmlType(dmlType(event));
         report.setEventTime(event.getReferenceTime() == null ? event.getTime() : event.getReferenceTime());
         report.setErrorCode(errorCode(error));
+        report.setErrorDetails(error == null ? null : ExceptionUtil.getStackString(error));
 
         DqlPayloadSnapshot payload = dqlPayloadSerializer.serialize(event);
         DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
-                event, table, report.getTaskRecordId(), null);
+                event, table, report.getTaskRecordId(), null,
+                updateConditionFields(targetNode, table, event));
         DqlPayloadPreview preview = dqlPayloadPreviewBuilder.build(event, identity.getEventKey());
         payload.setPayloadPreview(preview.getPayloadPreview());
         payload.setPayloadPreviewTruncated(preview.isTruncated());
@@ -842,6 +858,44 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             return dataProcessorContext.getNode();
         }
         return boundaryNode(targetNodes);
+    }
+
+    private List<String> updateConditionFields(Node<?> targetNode,
+                                               TapTable table,
+                                               TapRecordEvent event) {
+        if (targetNode instanceof TableNode tableNode) {
+            return tableNode.getUpdateConditionFields() == null
+                    ? List.of() : tableNode.getUpdateConditionFields();
+        }
+        if (!(targetNode instanceof DatabaseNode databaseNode)
+                || databaseNode.getUpdateConditionFieldMap() == null
+                || databaseNode.getUpdateConditionFieldMap().isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<String>> fieldMap = databaseNode.getUpdateConditionFieldMap();
+        for (String tableName : tableNames(table, event)) {
+            List<String> fields = fieldMap.get(tableName);
+            if (fields != null) {
+                return fields;
+            }
+        }
+        return List.of();
+    }
+
+    private List<String> tableNames(TapTable table, TapRecordEvent event) {
+        List<String> names = new java.util.ArrayList<>();
+        if (event != null && StringUtils.isNotBlank(event.getTableId())) {
+            names.add(event.getTableId());
+        }
+        if (table != null) {
+            if (StringUtils.isNotBlank(table.getName())) {
+                names.add(table.getName());
+            }
+            if (StringUtils.isNotBlank(table.getId())) {
+                names.add(table.getId());
+            }
+        }
+        return names;
     }
 
     private void setNodeMetadata(DqlEventReport report,

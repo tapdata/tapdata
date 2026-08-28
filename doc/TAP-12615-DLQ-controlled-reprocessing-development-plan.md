@@ -106,7 +106,7 @@
 | --- | --- | --- | --- | --- | --- |
 | C01 | 已完成 | 建立 Engine DQL 公共模型和 TM Client | 在 `iengine-common` 定义分类结果、上报请求/响应、后续成功请求、Payload 快照及错误类型映射；Client 复用现有 HTTP 鉴权、重试和错误映射 | A03、B08 | Engine 可调用 TM Mock 接口并正确处理成功、重复、空响应和输入错误；契约字段与路径测试通过 |
 | C02 | 已完成 | 实现 Payload 序列化 | 在 `iengine-common` 实现 Insert、Update、Delete 的 `TapRecordEvent` 完整快照和 `tap-record-event-json-v1` 往返转换；使用允许列表、class/type 一致性和反序列化二次大小校验保护回放 | A03、A05 | I/U/D 往返序列化测试通过；按 UTF-8 JSON 字节数执行 1 MiB 默认上限，超限快照移除完整 Payload 并标记 `payloadComplete=false` |
-| C03 | 已完成 | 实现预览、脱敏和身份生成工具 | 生成安全 `payloadPreview`、`eventKey`、`payloadHash`、`recordIdentity` 和 `eventIdentity` | C02 | 主键、唯一索引、全字段 hash 和未知身份四类测试通过；敏感字段不出现在预览 |
+| C03 | 已完成 | 实现预览、脱敏和身份生成工具 | 生成安全 `payloadPreview`、`eventKey`、`payloadHash`、`recordIdentity` 和 `eventIdentity` | C02 | 主键、更新条件字段、唯一索引、全字段 hash 和未知身份测试通过；敏感字段不出现在预览 |
 | C04 | 已完成 | 实现 `DlqExceptionClassifier` | 按异常链、错误码、节点、阶段、事件和任务上下文输出 scope、decision、errorType、reason 和 confidence；当前仅提供纯分类工具，不接入捕获链路 | A04、C01 | 分类规则表中的每条规则至少有一个测试；未知错误不直接默认为记录级 |
 | C05 | 已完成 | 实现 `DlqStormGuard` | 在 Engine 公共模块按任务、节点、表、错误码和归一化消息建立线程安全窗口计数，支持数量及批次比例阈值，并返回保护元数据 | A05、C04 | 阈值内允许有限未知单记录入库；触发后停止继续写 DQL 并返回任务级路由；定向测试通过 |
 | C06 | 已完成 | 实现 `DqlEventReporter` | 封装 TM 上报、超时、重试边界和结果处理；上报失败必须转任务错误路径 | C01-C05、B08 | TM 不可用或返回错误时当前记录不被 skip；重复响应视为上报成功 |

@@ -143,6 +143,23 @@ class DqlEventIdentityServiceTest {
         assertEquals(eventReport.getRecordIdentityFields(), successReport.getRecordIdentityFields());
     }
 
+    @Test
+    @DisplayName("update-condition identity type is preserved by TM fallback")
+    void preservesUpdateConditionIdentityTypeWhenEngineIdentityIsIncomplete() {
+        DqlEventReportVo report = report();
+        report.setRecordIdentity(null);
+        report.setRecordIdentityType(DqlRecordIdentityTypeEnum.UPDATE_CONDITION.name());
+        report.setRecordIdentityFields(List.of("external_id"));
+        report.setEventKey(Map.of("external_id", "EXT-1"));
+        report.setEventIdentity(null);
+
+        service.fillIdentities(TASK_ID, report);
+
+        assertEquals(DqlRecordIdentityTypeEnum.UPDATE_CONDITION.name(), report.getRecordIdentityType());
+        assertEquals(List.of("external_id"), report.getRecordIdentityFields());
+        assertTrue(report.getEventIdentity().startsWith("key:record-1:orders:U:"));
+    }
+
     private DqlEventReportVo report() {
         DqlEventReportVo report = new DqlEventReportVo();
         report.setTaskRecordId("record-1");

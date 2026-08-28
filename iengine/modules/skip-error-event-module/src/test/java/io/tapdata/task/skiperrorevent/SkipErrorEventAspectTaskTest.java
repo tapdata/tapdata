@@ -3,8 +3,10 @@ package io.tapdata.task.skiperrorevent;
 import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.SkipErrorDataAspect;
 import io.tapdata.aspect.SkipErrorProcessAspect;
@@ -652,6 +654,35 @@ public class SkipErrorEventAspectTaskTest {
             assertNotNull(report.getSuccessAt());
             assertNotNull(report.getPayloadHash());
             assertNotNull(report.getRecordIdentity());
+        }
+
+        @Test
+        void successfulWriteUsesTheSameConfiguredBusinessKeyAsDqlCapture() {
+            TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                    .table("orders")
+                    .after(Map.of("external_id", "EXT-1", "name", "order-1"));
+            TableNode targetNode = new TableNode();
+            targetNode.setUpdateConditionFields(List.of("external_id"));
+            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect()
+                    .recordEvents(List.of(event))
+                    .table(table)
+                    .dataProcessorContext(DataProcessorContext.newBuilder().withNode(targetNode).build())
+                    .start();
+
+            skipErrorEventAspectTask.onObserveAspect(aspect);
+
+            WriteListResult<TapRecordEvent> writeResult = new WriteListResult<TapRecordEvent>()
+                    .insertedCount(1);
+            for (var consumer : aspect.getConsumers()) {
+                consumer.accept(List.of(event), writeResult);
+            }
+
+            ArgumentCaptor<DqlRecordSuccessReport> reportCaptor =
+                    ArgumentCaptor.forClass(DqlRecordSuccessReport.class);
+            verify(reporter).reportRecordSuccess(eq("task-1"), reportCaptor.capture());
+            DqlRecordSuccessReport report = reportCaptor.getValue();
+            assertEquals(Map.of("external_id", "EXT-1"), report.getEventKey());
+            assertEquals("UPDATE_CONDITION", report.getRecordIdentityType());
         }
 
         @Test

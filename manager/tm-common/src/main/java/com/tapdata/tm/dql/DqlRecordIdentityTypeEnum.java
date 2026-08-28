@@ -5,6 +5,7 @@ package com.tapdata.tm.dql;
  */
 public enum DqlRecordIdentityTypeEnum {
     PRIMARY_KEY,
+    UPDATE_CONDITION,
     UNIQUE_INDEX,
     FULL_FIELD_HASH,
     UNKNOWN;

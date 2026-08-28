@@ -46,6 +46,20 @@ public class DqlEventIdentityGenerator {
                                      TapTable table,
                                      String taskRecordId,
                                      String failedNodeId) {
+        return generate(event, table, taskRecordId, failedNodeId, List.of());
+    }
+
+    /**
+     * Generates an identity using the target task's update-condition fields
+     * when the record has no usable primary-key value.  The fields are
+     * intentionally supplied by the caller because they are task-node
+     * configuration, not table schema metadata.
+     */
+    public DqlEventIdentity generate(TapRecordEvent event,
+                                     TapTable table,
+                                     String taskRecordId,
+                                     String failedNodeId,
+                                     Collection<String> updateConditionFields) {
         if (event == null) {
             throw new IllegalArgumentException("event must not be null");
         }
@@ -55,7 +69,7 @@ public class DqlEventIdentityGenerator {
         String tableId = tableId(event, table);
         Long eventTime = eventTime(event);
 
-        KeySelection keySelection = selectKey(event, table);
+        KeySelection keySelection = selectKey(event, table, updateConditionFields);
         Map<String, Object> eventKey = keySelection.values();
         DqlRecordIdentityType identityType;
         String recordIdentity;
@@ -98,7 +112,9 @@ public class DqlEventIdentityGenerator {
         return result;
     }
 
-    private KeySelection selectKey(TapRecordEvent event, TapTable table) {
+    private KeySelection selectKey(TapRecordEvent event,
+                                   TapTable table,
+                                   Collection<String> updateConditionFields) {
         if (table == null) {
             return KeySelection.missing();
         }
@@ -108,6 +124,11 @@ public class DqlEventIdentityGenerator {
             if (primary.complete()) {
                 return primary;
             }
+        }
+        KeySelection updateCondition = keySelection(event,
+                normalizeFields(updateConditionFields), DqlRecordIdentityType.UPDATE_CONDITION);
+        if (updateCondition.complete()) {
+            return updateCondition;
         }
         if (table.getIndexList() != null) {
             for (TapIndex index : table.getIndexList()) {
@@ -122,6 +143,13 @@ public class DqlEventIdentityGenerator {
             }
         }
         return KeySelection.missing();
+    }
+
+    private List<String> normalizeFields(Collection<String> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return List.of();
+        }
+        return fields.stream().filter(this::hasText).toList();
     }
 
     private List<String> primaryKeys(TapTable table) {
@@ -177,8 +205,7 @@ public class DqlEventIdentityGenerator {
             return value(insert.getAfter(), field);
         }
         if (event instanceof TapUpdateRecordEvent update) {
-            Object afterValue = value(update.getAfter(), field);
-            return afterValue != null ? afterValue : value(update.getBefore(), field);
+            return value(update.getAfter(), field);
         }
         if (event instanceof TapDeleteRecordEvent delete) {
             return value(delete.getBefore(), field);

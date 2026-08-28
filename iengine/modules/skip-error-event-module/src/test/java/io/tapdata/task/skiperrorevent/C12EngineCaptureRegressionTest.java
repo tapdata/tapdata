@@ -3,6 +3,8 @@ package io.tapdata.task.skiperrorevent;
 import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.PDKExCode_10;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -93,7 +96,8 @@ class C12EngineCaptureRegressionTest {
                 .table("orders")
                 .after(Map.of("id", 1001, "password", "secret-value", "status", "new"));
         event.setReferenceTime(1_787_580_100_000L);
-        TapCodeException failure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+        RuntimeException writeCause = new RuntimeException("dirty row cannot be written");
+        TapCodeException failure = new TapCodeException(PDKExCode_10.WRITE_TYPE, writeCause);
         when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
                 .thenReturn(acknowledgement("dql-event-1"));
 
@@ -113,6 +117,9 @@ class C12EngineCaptureRegressionTest {
         assertEquals("I", report.getDmlType());
         assertEquals(1_787_580_100_000L, report.getEventTime());
         assertEquals(PDKExCode_10.WRITE_TYPE, report.getErrorCode());
+        assertNotNull(report.getErrorDetails());
+        assertTrue(report.getErrorDetails().contains("dirty row cannot be written"));
+        assertTrue(report.getErrorDetails().contains("java.lang.RuntimeException"));
         assertEquals(DqlExceptionScope.RECORD, report.getExceptionScope());
         assertEquals(DqlRouteDecision.RECORD_DLQ, report.getRouteDecision());
         assertEquals(DqlErrorType.TARGET_WRITE_ERROR, report.getErrorType());
@@ -153,6 +160,61 @@ class C12EngineCaptureRegressionTest {
         assertEquals("MySQL target", report.getTargetNodeName());
         assertEquals("target-node-1", report.getFailedNodeId());
         assertEquals("MySQL target", report.getFailedNodeName());
+    }
+
+    @Test
+    void targetCaptureShouldUseConfiguredUpdateConditionAsBusinessKey() {
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("external_id", "EXT-1", "status", "new"));
+        TapCodeException failure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+        when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
+                .thenReturn(acknowledgement("dql-event-1"));
+
+        TableNode targetNode = new TableNode();
+        targetNode.setId("target-node-1");
+        targetNode.setName("MySQL target");
+        targetNode.setUpdateConditionFields(List.of("external_id"));
+
+        assertNotNull(skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(
+                targetAspect(new TapTable("orders"), event, records -> {
+                    throw failure;
+                }, targetNode)));
+
+        org.mockito.ArgumentCaptor<DqlEventReport> reportCaptor =
+                org.mockito.ArgumentCaptor.forClass(DqlEventReport.class);
+        verify(reporter).report(eq("task-1"), reportCaptor.capture());
+        DqlEventReport report = reportCaptor.getValue();
+        assertEquals(Map.of("external_id", "EXT-1"), report.getEventKey());
+        assertEquals("UPDATE_CONDITION", report.getRecordIdentityType());
+        assertEquals(List.of("external_id"), report.getRecordIdentityFields());
+    }
+
+    @Test
+    void targetCaptureShouldUseDatabaseUpdateConditionMapAsBusinessKey() {
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("external_id", "EXT-1", "status", "new"));
+        TapCodeException failure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+        when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
+                .thenReturn(acknowledgement("dql-event-1"));
+
+        DatabaseNode targetNode = new DatabaseNode();
+        targetNode.setId("target-node-1");
+        targetNode.setName("MySQL target");
+        targetNode.setUpdateConditionFieldMap(Map.of("orders", List.of("external_id")));
+
+        assertNotNull(skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(
+                targetAspect(new TapTable("orders"), event, records -> {
+                    throw failure;
+                }, targetNode)));
+
+        org.mockito.ArgumentCaptor<DqlEventReport> reportCaptor =
+                org.mockito.ArgumentCaptor.forClass(DqlEventReport.class);
+        verify(reporter).report(eq("task-1"), reportCaptor.capture());
+        DqlEventReport report = reportCaptor.getValue();
+        assertEquals(Map.of("external_id", "EXT-1"), report.getEventKey());
+        assertEquals("UPDATE_CONDITION", report.getRecordIdentityType());
     }
 
     @Test
@@ -203,16 +265,30 @@ class C12EngineCaptureRegressionTest {
     private SkipErrorDataAspect targetAspect(TapTable table,
                                              List<TapRecordEvent> events,
                                              ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writeFunction) {
+        Node targetNode = mock(Node.class);
+        when(targetNode.getId()).thenReturn("target-node-1");
+        when(targetNode.getName()).thenReturn("MySQL target");
+        return targetAspect(table, events, writeFunction, targetNode);
+    }
+
+    private SkipErrorDataAspect targetAspect(TapTable table,
+                                             TapRecordEvent event,
+                                             ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writeFunction,
+                                             Node<?> targetNode) {
+        return targetAspect(table, List.of(event), writeFunction, targetNode);
+    }
+
+    private SkipErrorDataAspect targetAspect(TapTable table,
+                                             List<TapRecordEvent> events,
+                                             ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writeFunction,
+                                             Node<?> targetNode) {
         SkipErrorDataAspect aspect = mock(SkipErrorDataAspect.class);
         when(aspect.getTapTable()).thenReturn(table);
         when(aspect.getTapRecordEvents()).thenReturn(events);
         when(aspect.getPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
         when(aspect.getWriteRecordFunction()).thenReturn(writeFunction);
         DataProcessorContext context = mock(DataProcessorContext.class);
-        Node targetNode = mock(Node.class);
-        when(targetNode.getId()).thenReturn("target-node-1");
-        when(targetNode.getName()).thenReturn("MySQL target");
-        when(context.getNode()).thenReturn(targetNode);
+        when(context.getNode()).thenReturn((Node) targetNode);
         when(aspect.getDataProcessorContext()).thenReturn(context);
         return aspect;
     }

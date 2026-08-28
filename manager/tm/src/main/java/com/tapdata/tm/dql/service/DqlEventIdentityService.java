@@ -146,10 +146,14 @@ public class DqlEventIdentityService {
         }
         String table = table(tableId, sourceTable);
         if (eventKey != null && !eventKey.isEmpty()) {
+            String type = StringUtils.defaultIfBlank(
+                    explicitType, DqlRecordIdentityTypeEnum.PRIMARY_KEY.name());
+            List<String> fields = explicitFields == null || explicitFields.isEmpty()
+                    ? eventKey.keySet().stream().sorted().toList() : explicitFields;
             return new RecordIdentity(
                     "key:" + table + ":" + hash(eventKey),
-                    DqlRecordIdentityTypeEnum.PRIMARY_KEY.name(),
-                    eventKey.keySet().stream().sorted().toList()
+                    type,
+                    fields
             );
         }
         if (StringUtils.isNotBlank(payloadHash)) {
@@ -167,6 +171,7 @@ public class DqlEventIdentityService {
             return true;
         }
         return DqlRecordIdentityTypeEnum.PRIMARY_KEY.name().equals(report.getRecordIdentityType())
+                || DqlRecordIdentityTypeEnum.UPDATE_CONDITION.name().equals(report.getRecordIdentityType())
                 || DqlRecordIdentityTypeEnum.UNIQUE_INDEX.name().equals(report.getRecordIdentityType());
     }
 

@@ -158,7 +158,7 @@ flowchart LR
 8. 运行中任务不调用 `TaskService.pause(...)`；改用 Engine 内部 source read gate 暂停正常读取。
 9. 暂停任务如果 TaskClient 已释放，使用 recovery-only runner 从源节点边界注入事件，完成后不改变任务业务状态。
 10. 批量回放按单事件串行 + 队列屏障执行，优先满足 POC 的顺序可证明性。
-11. 每条 DQL 事件保存 `record_identity`，Engine 按主键、唯一索引、全字段 hash 的优先级生成；`event_key_missing=true` 时服务端阻止安全重处理。后续同记录成功写入的覆盖风险字段可作为内部审计保留，不属于当前 Web DTO。
+11. 每条 DQL 事件保存 `record_identity`，Engine 按主键、任务配置的更新条件字段、唯一索引、全字段 hash 的优先级生成；`event_key_missing=true` 时服务端阻止安全重处理。后续同记录成功写入的覆盖风险字段可作为内部审计保留，不属于当前 Web DTO。
 12. `dql_events` 和 `dql_recovery_batches` 使用独立 `ttl_at` 字段执行默认 14 天清理；创建时与 `created` 一致，重处理和批次状态推进时与 `updated` 同步刷新。
 
 ## 5. 领域模型
@@ -391,11 +391,11 @@ public class DqlEventEntity extends Entity {
 | `dml_type` | 是 | `I`、`U`、`D` |
 | `event_time` | 是 | 排序用事件时间 |
 | `capture_seq` | 是 | TM 分配的任务内递增序号 |
-| `event_key` | 否 | 主键/唯一键摘要，不能包含全量敏感字段 |
+| `event_key` | 否 | 主键/更新条件字段/唯一键摘要，不能包含全量敏感字段；Insert/Update 从 after、Delete 从 before 取值 |
 | `event_key_missing` | 是 | 是否无法抽取主键 |
 | `event_identity` | 是 | 去重身份 |
-| `record_identity` | 是 | 同一业务记录身份；Engine 按主键、唯一索引、全字段 hash 优先级生成 |
-| `record_identity_type` | 是 | `PRIMARY_KEY`、`UNIQUE_INDEX`、`FULL_FIELD_HASH`、`UNKNOWN` |
+| `record_identity` | 是 | 同一业务记录身份；Engine 按主键、更新条件字段、唯一索引、全字段 hash 优先级生成 |
+| `record_identity_type` | 是 | `PRIMARY_KEY`、`UPDATE_CONDITION`、`UNIQUE_INDEX`、`FULL_FIELD_HASH`、`UNKNOWN` |
 | `record_identity_fields` | 否 | 参与生成同一记录身份的字段名；全字段 hash 时可为空 |
 | `payload_data` | 是 | 原始 TapRecordEvent 快照 |
 | `payload_complete` | 是 | 是否具备重处理所需完整 Payload |
@@ -820,7 +820,7 @@ POST /api/task/{taskId}/dql-events/report
 2. 对 `errorDetails` 和 `payloadPreview` 执行 TM 侧二次截断和脱敏。
 3. 标准化并校验路由元数据：`exceptionScope` 为空时保存为 `RECORD`，`routeDecision` 为空时保存为 `RECORD_DLQ`；若 Engine 显式上报其他值，TM 返回错误，Engine 不允许 skip。
 4. 若 `captureSeq` 为空，由 TM 原子分配。
-5. 若 `recordIdentity` 为空，由 TM 根据 `eventKey` 或 `payloadHash` 兜底生成；准确性以 Engine 按主键、唯一索引、全字段 hash 生成的显式值为准。
+5. 若 `recordIdentity` 为空，由 TM 根据 `eventKey` 或 `payloadHash` 兜底生成；准确性以 Engine 按主键、更新条件字段、唯一索引、全字段 hash 生成的显式值为准。
 6. 若 `eventIdentity` 为空，由 TM 根据 Payload 和 `recordIdentity` 生成。
 7. 按唯一索引 upsert；捕获快照、`event_id`、`created` 和 `ttl_at` 使用 `$setOnInsert`，并发重复上报命中已有事件时不得覆盖原主记录或刷新 TTL。
 8. 新增主记录时触发 DLQ 告警；重复上报时只返回已有事件，不重复告警。

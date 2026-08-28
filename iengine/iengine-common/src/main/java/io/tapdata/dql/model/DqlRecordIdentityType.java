@@ -5,6 +5,7 @@ package io.tapdata.dql.model;
  */
 public enum DqlRecordIdentityType {
     PRIMARY_KEY,
+    UPDATE_CONDITION,
     UNIQUE_INDEX,
     FULL_FIELD_HASH,
     UNKNOWN

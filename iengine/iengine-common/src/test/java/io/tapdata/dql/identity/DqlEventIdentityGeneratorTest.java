@@ -3,6 +3,7 @@ package io.tapdata.dql.identity;
 import io.tapdata.dql.model.DqlEventIdentity;
 import io.tapdata.dql.model.DqlRecordIdentityType;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -64,6 +65,61 @@ class DqlEventIdentityGeneratorTest {
         assertEquals(DqlRecordIdentityType.UNIQUE_INDEX, identity.getRecordIdentityType());
         assertEquals(List.of("tenant_id", "order_no"), identity.getRecordIdentityFields());
         assertTrue(identity.getRecordIdentity().startsWith("key:orders:sha256:"));
+    }
+
+    @Test
+    @DisplayName("update condition fields are preferred before unique indexes")
+    void usesUpdateConditionIdentity() {
+        TapIndex uniqueIndex = new TapIndex()
+                .name("uk_tenant_order")
+                .unique(true)
+                .indexField(new TapIndexField().name("tenant_id").fieldAsc(true))
+                .indexField(new TapIndexField().name("order_no").fieldAsc(true));
+        TapTable table = new TapTable("orders").add(uniqueIndex);
+        TapInsertRecordEvent event = insertEvent(Map.of(
+                "tenant_id", "tenant-1",
+                "order_no", "A-100",
+                "external_id", "EXT-1",
+                "status", "new"));
+
+        DqlEventIdentity identity = generator.generate(
+                event, table, "record-1", "target-node", List.of("external_id"));
+
+        assertEquals(Map.of("external_id", "EXT-1"), identity.getEventKey());
+        assertEquals(DqlRecordIdentityType.UPDATE_CONDITION, identity.getRecordIdentityType());
+        assertEquals(List.of("external_id"), identity.getRecordIdentityFields());
+        assertFalse(identity.isEventKeyMissing());
+    }
+
+    @Test
+    @DisplayName("delete business key is read from before image")
+    void readsDeleteKeyFromBeforeImage() {
+        TapTable table = new TapTable("orders");
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create()
+                .table("orders")
+                .before(Map.of("external_id", "EXT-1", "status", "deleted"));
+        event.setReferenceTime(EVENT_TIME);
+
+        DqlEventIdentity identity = generator.generate(
+                event, table, "record-1", "target-node", List.of("external_id"));
+
+        assertEquals(Map.of("external_id", "EXT-1"), identity.getEventKey());
+        assertEquals(DqlRecordIdentityType.UPDATE_CONDITION, identity.getRecordIdentityType());
+    }
+
+    @Test
+    @DisplayName("update business key is read from after image")
+    void readsUpdateKeyFromAfterImage() {
+        TapTable table = new TapTable("orders");
+        TapUpdateRecordEvent event = updateEvent(
+                Map.of("external_id", "EXT-OLD", "status", "new"),
+                Map.of("external_id", "EXT-NEW", "status", "paid"));
+
+        DqlEventIdentity identity = generator.generate(
+                event, table, "record-1", "target-node", List.of("external_id"));
+
+        assertEquals(Map.of("external_id", "EXT-NEW"), identity.getEventKey());
+        assertEquals(DqlRecordIdentityType.UPDATE_CONDITION, identity.getRecordIdentityType());
     }
 
     @Test

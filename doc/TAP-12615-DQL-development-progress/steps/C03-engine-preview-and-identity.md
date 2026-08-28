@@ -22,8 +22,8 @@
 
 ### 记录身份与事件身份
 
-- 新增 `DqlEventIdentityGenerator` 和 `DqlRecordIdentityType`，身份类型覆盖 `PRIMARY_KEY`、`UNIQUE_INDEX`、`FULL_FIELD_HASH` 和 `UNKNOWN`。
-- 记录键优先使用表主键，主键不完整时按声明顺序选择第一个完整唯一索引；Insert/Update/Delete 分别从 after、after 优先再回退 before、before 取键值。
+- 新增 `DqlEventIdentityGenerator` 和 `DqlRecordIdentityType`，身份类型覆盖 `PRIMARY_KEY`、`UPDATE_CONDITION`、`UNIQUE_INDEX`、`FULL_FIELD_HASH` 和 `UNKNOWN`。
+- 记录键按“主键列表→任务配置的更新条件字段列表→声明顺序的第一个完整唯一索引”选择；Insert/Update 从 after，Delete 从 before 取 Payload 中对应字段的值。
 - 有完整业务键时生成 `key:<table>:<sha256>` 记录身份；没有键但存在记录镜像时生成 `hash:<table>:<sha256>` 全字段身份；两者都不可用时返回 `UNKNOWN`。
 - 事件身份优先级为 `exactlyOnceId`、`info` 中的 source offset/LSN/oplog 位置、业务键、Payload 兜底；哈希使用排序 Map key 的 canonical JSON 和 `sha256:<hex>` 格式，数组顺序保持不变。
 - 生成器在 C02 序列化前使用不受业务上限限制的完整快照计算 `payloadHash`，并提供 `applyTo(DqlEventReport)` 将身份元数据写入公共上报模型。
