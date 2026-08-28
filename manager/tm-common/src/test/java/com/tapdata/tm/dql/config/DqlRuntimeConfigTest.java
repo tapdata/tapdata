@@ -28,6 +28,9 @@ class DqlRuntimeConfigTest {
         assertEquals(200, config.getRecoveryBatchMaxSize());
         assertEquals(60L, config.getRecoveryEventTimeoutSeconds());
         assertEquals(1_800L, config.getRecoveryBatchTimeoutSeconds());
+        assertEquals(60L, config.getRecoveryDispatchTimeoutSeconds());
+        assertEquals(5L, config.getRecoveryHeartbeatIntervalSeconds());
+        assertEquals(60L, config.getRecoveryHeartbeatTimeoutSeconds());
         assertTrue(config.isRecoveryContinueOnEventFailure());
         assertEquals(60L, config.getUnknownGuardWindowSeconds());
         assertEquals(20L, config.getUnknownGuardMaxEvents());
@@ -47,6 +50,9 @@ class DqlRuntimeConfigTest {
                 Map.entry(DqlRuntimeConfig.RECOVERY_BATCH_MAX_SIZE, "500"),
                 Map.entry(DqlRuntimeConfig.RECOVERY_EVENT_TIMEOUT_SECONDS, "90"),
                 Map.entry(DqlRuntimeConfig.RECOVERY_BATCH_TIMEOUT_SECONDS, "3600"),
+                Map.entry(DqlRuntimeConfig.RECOVERY_DISPATCH_TIMEOUT_SECONDS, "75"),
+                Map.entry(DqlRuntimeConfig.RECOVERY_HEARTBEAT_INTERVAL_SECONDS, "10"),
+                Map.entry(DqlRuntimeConfig.RECOVERY_HEARTBEAT_TIMEOUT_SECONDS, "120"),
                 Map.entry(DqlRuntimeConfig.RECOVERY_CONTINUE_ON_EVENT_FAILURE, "false"),
                 Map.entry(DqlRuntimeConfig.UNKNOWN_GUARD_WINDOW_SECONDS, "120"),
                 Map.entry(DqlRuntimeConfig.UNKNOWN_GUARD_MAX_EVENTS, "40"),
@@ -62,6 +68,9 @@ class DqlRuntimeConfigTest {
         assertEquals(500, config.getRecoveryBatchMaxSize());
         assertEquals(90L, config.getRecoveryEventTimeoutSeconds());
         assertEquals(3_600L, config.getRecoveryBatchTimeoutSeconds());
+        assertEquals(75L, config.getRecoveryDispatchTimeoutSeconds());
+        assertEquals(10L, config.getRecoveryHeartbeatIntervalSeconds());
+        assertEquals(120L, config.getRecoveryHeartbeatTimeoutSeconds());
         assertFalse(config.isRecoveryContinueOnEventFailure());
         assertEquals(120L, config.getUnknownGuardWindowSeconds());
         assertEquals(40L, config.getUnknownGuardMaxEvents());
@@ -81,6 +90,9 @@ class DqlRuntimeConfigTest {
                 Map.entry(DqlRuntimeConfig.RECOVERY_BATCH_MAX_SIZE, "10001"),
                 Map.entry(DqlRuntimeConfig.RECOVERY_EVENT_TIMEOUT_SECONDS, "0"),
                 Map.entry(DqlRuntimeConfig.RECOVERY_BATCH_TIMEOUT_SECONDS, "-1"),
+                Map.entry(DqlRuntimeConfig.RECOVERY_DISPATCH_TIMEOUT_SECONDS, "0"),
+                Map.entry(DqlRuntimeConfig.RECOVERY_HEARTBEAT_INTERVAL_SECONDS, "-1"),
+                Map.entry(DqlRuntimeConfig.RECOVERY_HEARTBEAT_TIMEOUT_SECONDS, "0"),
                 Map.entry(DqlRuntimeConfig.RECOVERY_CONTINUE_ON_EVENT_FAILURE, "maybe"),
                 Map.entry(DqlRuntimeConfig.UNKNOWN_GUARD_WINDOW_SECONDS, "0"),
                 Map.entry(DqlRuntimeConfig.UNKNOWN_GUARD_MAX_EVENTS, "0"),
@@ -96,6 +108,9 @@ class DqlRuntimeConfigTest {
         assertEquals(DqlRuntimeConfig.defaults().getRecoveryBatchMaxSize(), config.getRecoveryBatchMaxSize());
         assertEquals(DqlRuntimeConfig.defaults().getRecoveryEventTimeoutSeconds(), config.getRecoveryEventTimeoutSeconds());
         assertEquals(DqlRuntimeConfig.defaults().getRecoveryBatchTimeoutSeconds(), config.getRecoveryBatchTimeoutSeconds());
+        assertEquals(DqlRuntimeConfig.defaults().getRecoveryDispatchTimeoutSeconds(), config.getRecoveryDispatchTimeoutSeconds());
+        assertEquals(DqlRuntimeConfig.defaults().getRecoveryHeartbeatIntervalSeconds(), config.getRecoveryHeartbeatIntervalSeconds());
+        assertEquals(DqlRuntimeConfig.defaults().getRecoveryHeartbeatTimeoutSeconds(), config.getRecoveryHeartbeatTimeoutSeconds());
         assertTrue(config.isRecoveryContinueOnEventFailure());
         assertEquals(DqlRuntimeConfig.defaults().getUnknownGuardWindowSeconds(), config.getUnknownGuardWindowSeconds());
         assertEquals(DqlRuntimeConfig.defaults().getUnknownGuardMaxEvents(), config.getUnknownGuardMaxEvents());

@@ -16,6 +16,7 @@ import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
+import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.dql.vo.DqlStormGuardReportVo;
@@ -76,6 +77,7 @@ public class DqlEventController extends BaseController {
                                                    @RequestParam(name = "sourceTable", required = false) String sourceTable,
                                                    @RequestParam(name = "targetTable", required = false) String targetTable,
                                                    @RequestParam(name = "keyword", required = false) String keyword,
+                                                      @RequestParam(name = "errorCode", required = false) String errorCode,
                                                    @RequestParam(name = "dmlType", required = false) String dmlType,
                                                    @RequestParam(name = "errorType", required = false) String errorType,
                                                    @RequestParam(name = "status", required = false) String status,
@@ -84,7 +86,7 @@ public class DqlEventController extends BaseController {
                                                    @RequestParam(name = "skip", required = false, defaultValue = "0") long skip,
                                                    @RequestParam(name = "limit", required = false, defaultValue = "20") int limit,
                                                    @RequestParam(name = "order", required = false) String order) {
-        return success(eventService.page(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, skip, limit, order), getLoginUser()));
+        return success(eventService.page(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, errorCode, skip, limit, order), getLoginUser()));
     }
 
     /**
@@ -97,12 +99,13 @@ public class DqlEventController extends BaseController {
                                                       @RequestParam(name = "sourceTable", required = false) String sourceTable,
                                                       @RequestParam(name = "targetTable", required = false) String targetTable,
                                                       @RequestParam(name = "keyword", required = false) String keyword,
+                                                      @RequestParam(name = "errorCode", required = false) String errorCode,
                                                       @RequestParam(name = "dmlType", required = false) String dmlType,
                                                       @RequestParam(name = "errorType", required = false) String errorType,
                                                       @RequestParam(name = "status", required = false) String status,
                                                       @RequestParam(name = "startTime", required = false) Long startTime,
                                                       @RequestParam(name = "endTime", required = false) Long endTime) {
-        return success(eventService.summary(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, 0L, 0, null), getLoginUser()));
+        return success(eventService.summary(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, errorCode, 0L, 0, null), getLoginUser()));
     }
 
     /**
@@ -112,6 +115,16 @@ public class DqlEventController extends BaseController {
     @GetMapping("/api/dql-events/{eventId}")
     public ResponseMessage<DqlEventDetailVo> detail(@PathVariable("eventId") String eventId) {
         return success(eventService.detail(eventId, getLoginUser()));
+    }
+
+    /**
+     * Returns the immutable payload required by Engine when reprocessing one DQL event.
+     */
+    @Operation(summary = "Query DQL recovery payload")
+    @GetMapping("/api/dql-events/{eventId}/recovery-payload")
+    @IgnoreRequestBodyLog
+    public ResponseMessage<DqlRecoveryPayloadVo> recoveryPayload(@PathVariable("eventId") String eventId) {
+        return success(eventService.recoveryPayload(eventId, getLoginUser()));
     }
 
     /**
@@ -175,6 +188,7 @@ public class DqlEventController extends BaseController {
                                   String status,
                                   Long startTime,
                                   Long endTime,
+                                  String errorCode,
                                   long skip,
                                   int limit,
                                   String order) {
@@ -184,6 +198,7 @@ public class DqlEventController extends BaseController {
         query.setSourceTable(sourceTable);
         query.setTargetTable(targetTable);
         query.setKeyword(keyword);
+        query.setErrorCode(errorCode);
         query.setDmlType(dmlType);
         query.setErrorType(errorType);
         query.setStatus(status);

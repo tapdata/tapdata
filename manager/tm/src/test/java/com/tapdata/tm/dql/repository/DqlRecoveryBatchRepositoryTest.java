@@ -191,6 +191,27 @@ class DqlRecoveryBatchRepositoryTest {
     }
 
     @Test
+    @DisplayName("heartbeat update only targets a running batch and refreshes ttl")
+    void touchHeartbeatOnlyTargetsRunningBatch() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+        Date pingTime = new Date(1787580100000L);
+
+        assertTrue(repository.touchHeartbeat("DQLB-1", pingTime));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                queryCaptor.getValue().getQueryObject().get(DqlRecoveryBatchDto.FIELD_STATUS, Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(pingTime, set.get(DqlRecoveryBatchDto.FIELD_PING_TIME));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
     @DisplayName("status update rejects targets other than dispatched")
     void statusUpdateRejectsNonDispatchedTarget() {
         MongoTemplate mongoTemplate = mongoTemplate();
@@ -311,6 +332,29 @@ class DqlRecoveryBatchRepositoryTest {
     }
 
     @Test
+    @DisplayName("timed out query separates dispatch, heartbeat and legacy deadlines")
+    void findTimedOutSeparatesDispatchHeartbeatAndLegacyDeadlines() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.find(any(Query.class), eq(DqlRecoveryBatchEntity.class))).thenReturn(List.of());
+        Date dispatchDeadline = new Date(1787580200000L);
+        Date heartbeatDeadline = new Date(1787580210000L);
+        Date legacyDeadline = new Date(1787580220000L);
+
+        repository.findTimedOut(dispatchDeadline, heartbeatDeadline, legacyDeadline);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(queryCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(2, query.get("$or", List.class).size());
+        Document dispatched = (Document) query.get("$or", List.class).get(0);
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                dispatched.getString(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertEquals(dispatchDeadline,
+                dispatched.get(DqlRecoveryBatchDto.FIELD_UPDATED, Document.class).get("$lte"));
+    }
+
+    @Test
     @DisplayName("timeout finalization only changes an active batch")
     void finishTimedOutUsesActiveSourceStatuses() {
         MongoTemplate mongoTemplate = mongoTemplate();
@@ -334,6 +378,33 @@ class DqlRecoveryBatchRepositoryTest {
         assertEquals(DqlRecoveryBatchStatusEnum.PARTIAL_FAILED.name(), set.get(DqlRecoveryBatchDto.FIELD_STATUS));
         assertEquals("timeout", set.get(DqlRecoveryBatchDto.FIELD_MESSAGE));
         assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("timeout finalization rechecks the batch timeout predicate")
+    void finishTimedOutRechecksTimeoutPredicate() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(0L, 0L, null));
+        Date dispatchDeadline = new Date(1787580200000L);
+        Date heartbeatDeadline = new Date(1787580210000L);
+        Date legacyDeadline = new Date(1787580220000L);
+
+        assertFalse(repository.finishTimedOut(
+                "DQLB-1",
+                DqlRecoveryBatchStatusEnum.FAILED,
+                "timeout",
+                dispatchDeadline,
+                heartbeatDeadline,
+                legacyDeadline));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        List<Document> and = query.get("$and", List.class);
+        assertEquals("DQLB-1", and.get(0).get(DqlRecoveryBatchDto.FIELD_BATCH_ID));
+        assertEquals(2, and.get(1).get("$or", List.class).size());
     }
 
     @Test

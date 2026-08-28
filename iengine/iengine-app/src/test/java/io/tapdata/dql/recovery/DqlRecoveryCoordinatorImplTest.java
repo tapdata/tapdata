@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -69,7 +70,7 @@ class DqlRecoveryCoordinatorImplTest {
                 "load:event-1", "enqueue:event-1", "barrier:event-1",
                 "load:event-2", "enqueue:event-2", "barrier:event-2"
         ), operations);
-        assertEquals(List.of("EVENT_STARTED", "EVENT_RESULT", "EVENT_STARTED", "EVENT_RESULT", "BATCH_FINISHED"),
+        assertEquals(List.of("BATCH_HEARTBEAT", "EVENT_STARTED", "EVENT_RESULT", "EVENT_STARTED", "EVENT_RESULT", "BATCH_FINISHED"),
                 reportTypes(reports));
     }
 
@@ -117,7 +118,11 @@ class DqlRecoveryCoordinatorImplTest {
         assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
         assertEquals(List.of("event-1"), loaded);
         assertEquals("BATCH_FAILED", reports.get(reports.size() - 1).getType());
-        assertEquals("FAILED", reports.get(1).getResult());
+        assertEquals("FAILED", reports.stream()
+                .filter(report -> "EVENT_RESULT".equals(report.getType()))
+                .findFirst()
+                .orElseThrow()
+                .getResult());
     }
 
     @Test
@@ -242,8 +247,8 @@ class DqlRecoveryCoordinatorImplTest {
         coordinator.start(command("event-1"));
 
         assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
-        assertEquals(List.of("BATCH_FAILED"), reportTypes(reports));
-        assertEquals("runner init failed", reports.get(0).getMessage());
+        assertEquals(List.of("BATCH_HEARTBEAT", "BATCH_FAILED"), reportTypes(reports));
+        assertEquals("runner init failed", reports.get(reports.size() - 1).getMessage());
     }
 
     @Test
@@ -288,6 +293,77 @@ class DqlRecoveryCoordinatorImplTest {
         assertEquals(List.of("prepare", "enqueue", "restore"), lifecycle);
         assertEquals("BATCH_FAILED", reports.get(reports.size() - 1).getType());
         assertEquals("source gate restore failed", reports.get(reports.size() - 1).getMessage());
+    }
+
+    @Test
+    void sendsHeartbeatsWhileTheBatchIsRunningAndStopsAfterCompletion() throws Exception {
+        List<DqlRecoveryReport> reports = new ArrayList<>();
+        CountDownLatch eventEnqueued = new CountDownLatch(1);
+        CountDownLatch releaseBarrier = new CountDownLatch(1);
+        ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+        try {
+            DqlRuntimeConfig config = DqlRuntimeConfig.fromMap(Map.of(
+                    DqlRuntimeConfig.RECOVERY_HEARTBEAT_INTERVAL_SECONDS, "1"));
+            DqlRecoveryCoordinatorImpl coordinator = new DqlRecoveryCoordinatorImpl(
+                    eventId -> completeSnapshot(),
+                    event -> eventEnqueued.countDown(),
+                    (eventId, timeoutMillis) -> {
+                        assertTrue(releaseBarrier.await(2, TimeUnit.SECONDS));
+                        return DqlRecoveryBarrier.Outcome.SUCCESS;
+                    },
+                    (command, report) -> {
+                        synchronized (reports) {
+                            reports.add(report);
+                        }
+                    },
+                    () -> false,
+                    1000L,
+                    executor,
+                    command -> null,
+                    command -> null,
+                    (command, sourceBoundary) -> null,
+                    config,
+                    heartbeatExecutor
+            );
+
+            coordinator.start(command("event-1"));
+
+            assertTrue(eventEnqueued.await(2, TimeUnit.SECONDS));
+            assertTrue(awaitReport(reports, "BATCH_HEARTBEAT", 2, TimeUnit.SECONDS));
+            assertTrue(reports.stream()
+                    .filter(report -> "BATCH_HEARTBEAT".equals(report.getType()))
+                    .allMatch(report -> report.getPingTime() != null && report.getPingTime() > 0));
+
+            releaseBarrier.countDown();
+            assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+            int reportCountAfterCompletion;
+            synchronized (reports) {
+                reportCountAfterCompletion = reports.size();
+            }
+            Thread.sleep(1_200L);
+            synchronized (reports) {
+                assertEquals(reportCountAfterCompletion, reports.size());
+                assertEquals("BATCH_FINISHED", reports.get(reports.size() - 1).getType());
+            }
+        } finally {
+            heartbeatExecutor.shutdownNow();
+        }
+    }
+
+    private boolean awaitReport(List<DqlRecoveryReport> reports,
+                                String type,
+                                long timeout,
+                                TimeUnit unit) throws InterruptedException {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        while (System.nanoTime() < deadline) {
+            synchronized (reports) {
+                if (reports.stream().anyMatch(report -> type.equals(report.getType()))) {
+                    return true;
+                }
+            }
+            Thread.sleep(10L);
+        }
+        return false;
     }
 
     private DqlRecoveryCoordinatorImpl coordinator(DqlRecoveryEventSource source,

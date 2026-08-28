@@ -5,6 +5,8 @@ import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.Objects;
@@ -12,6 +14,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -24,6 +30,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * paused-task runners.</p>
  */
 public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
+    private static final Logger LOGGER = LogManager.getLogger(DqlRecoveryCoordinatorImpl.class);
+    private static final ScheduledExecutorService DEFAULT_HEARTBEAT_EXECUTOR =
+            Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
     public static final long DEFAULT_BARRIER_TIMEOUT_MILLIS =
             DqlRuntimeConfig.DEFAULT_RECOVERY_EVENT_TIMEOUT_SECONDS * 1_000L;
 
@@ -54,6 +63,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private final SourceBoundaryFactory sourceBoundaryFactory;
     private final BarrierFactory barrierFactory;
     private final DqlRuntimeConfig runtimeConfig;
+    private final ScheduledExecutorService heartbeatExecutor;
     private final ConcurrentMap<String, AtomicBoolean> activeBatches = new ConcurrentHashMap<>();
     private final Object idleMonitor = new Object();
 
@@ -133,6 +143,23 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       SourceBoundaryFactory sourceBoundaryFactory,
                                       BarrierFactory barrierFactory,
                                       DqlRuntimeConfig runtimeConfig) {
+        this(eventSource, eventSink, barrier, reportSender, executionPolicy, barrierTimeoutMillis, executor,
+                recoveryOnlyRunnerFactory, sourceBoundaryFactory, barrierFactory, runtimeConfig,
+                DEFAULT_HEARTBEAT_EXECUTOR);
+    }
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      DqlRecoveryExecutionPolicy executionPolicy,
+                                      long barrierTimeoutMillis,
+                                      Executor executor,
+                                      DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
+                                      SourceBoundaryFactory sourceBoundaryFactory,
+                                      BarrierFactory barrierFactory,
+                                      DqlRuntimeConfig runtimeConfig,
+                                      ScheduledExecutorService heartbeatExecutor) {
         this.eventSource = Objects.requireNonNull(eventSource, "eventSource must not be null");
         this.eventSink = Objects.requireNonNull(eventSink, "eventSink must not be null");
         this.barrier = Objects.requireNonNull(barrier, "barrier must not be null");
@@ -149,6 +176,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                 sourceBoundaryFactory, "sourceBoundaryFactory must not be null");
         this.barrierFactory = Objects.requireNonNull(barrierFactory, "barrierFactory must not be null");
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig must not be null");
+        this.heartbeatExecutor = Objects.requireNonNull(heartbeatExecutor, "heartbeatExecutor must not be null");
     }
 
     @Override
@@ -189,6 +217,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                               List<String> orderedEventIds,
                               AtomicBoolean terminal) {
         DqlRecoveryOnlyRunner recoveryOnlyRunner = null;
+        ScheduledFuture<?> heartbeat = startHeartbeat(command, terminal);
         DqlRecoveryFailureCompensator compensator = new DqlRecoveryFailureCompensator(
                 failure -> failBatchOnce(command, terminal, failure));
         try {
@@ -239,8 +268,39 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         } catch (RuntimeException exception) {
             compensator.compensate(exception);
         } finally {
+            stopHeartbeat(heartbeat);
             activeBatches.remove(command.getBatchId(), terminal);
             signalIdle();
+        }
+    }
+
+    private ScheduledFuture<?> startHeartbeat(DqlRecoveryMessageDto command, AtomicBoolean terminal) {
+        sendHeartbeat(command);
+        long intervalMillis = runtimeConfig.getRecoveryHeartbeatIntervalSeconds() * 1_000L;
+        try {
+            return heartbeatExecutor.scheduleAtFixedRate(
+                    () -> {
+                        if (!terminal.get()) {
+                            sendHeartbeat(command);
+                        }
+                    }, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("DQL recovery heartbeat scheduling failed, batchId={}", command.getBatchId(), exception);
+            return null;
+        }
+    }
+
+    private void sendHeartbeat(DqlRecoveryMessageDto command) {
+        try {
+            reportSender.reportBatchHeartbeat(command);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("DQL recovery heartbeat report failed, batchId={}", command.getBatchId(), exception);
+        }
+    }
+
+    private void stopHeartbeat(ScheduledFuture<?> heartbeat) {
+        if (heartbeat != null) {
+            heartbeat.cancel(false);
         }
     }
 
@@ -359,6 +419,15 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
 
         private static EventExecutionResult failureResult(String message, String result) {
             return new EventExecutionResult(false, result, message);
+        }
+    }
+
+    private static final class DaemonThreadFactory implements ThreadFactory {
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "Dql-Recovery-Heartbeat");
+            thread.setDaemon(true);
+            return thread;
         }
     }
 }

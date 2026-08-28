@@ -64,29 +64,40 @@ public class DqlRecoveryMessageHandler {
             return DqlRecoveryHandleResult.duplicate(command);
         }
 
-        boolean coordinatorStarted = false;
+        boolean batchStartedReported = false;
         try {
             validateTaskContext(command);
             if (coordinator == null) {
-                throw new IllegalStateException("recovery coordinator is unavailable");
+                String message = "DQL recovery cannot start because the Engine recovery coordinator is unavailable";
+                // The batch is already DISPATCHED in TM. A direct terminal
+                // callback is required here because this failure happens
+                // before BATCH_STARTED can be published.
+                reportBatchFailed(command, message);
+                batchRegistry.release(command.getBatchId());
+                return DqlRecoveryHandleResult.rejected(message);
             }
             if (reportSender == null) {
                 throw new IllegalStateException("recovery report sender is unavailable");
             }
-            coordinator.start(command);
-            coordinatorStarted = true;
+            // The coordinator starts work asynchronously and may report
+            // EVENT_STARTED before start() returns. TM accepts that callback
+            // only after the batch has transitioned from DISPATCHED to
+            // RUNNING, so publish BATCH_STARTED first.
             reportSender.reportBatchStarted(command);
+            batchStartedReported = true;
+            coordinator.start(command);
             return DqlRecoveryHandleResult.accepted(command);
         } catch (RuntimeException exception) {
-            // A startup failure means no coordinator has accepted the batch;
-            // allow TM redelivery to retry initialization. Once start returns,
-            // the batch remains claimed even if its callback later fails.
-            if (!coordinatorStarted) {
-                batchRegistry.release(command.getBatchId());
-            } else {
+            // If TM accepted BATCH_STARTED, finish the failed lifecycle so
+            // event locks are released immediately. If that callback itself
+            // failed, its outcome is unknown; release the local claim and let
+            // a redelivery retry the idempotent TM callback.
+            if (batchStartedReported) {
                 new DqlRecoveryFailureCompensator(
                         message -> reportBatchFailed(command, message)
                 ).compensate(exception);
+            } else {
+                batchRegistry.release(command.getBatchId());
             }
             return DqlRecoveryHandleResult.rejected(safeMessage(exception));
         }

@@ -84,8 +84,12 @@ class DqlRecoveryReplayRegressionTest {
                 TapUpdateRecordEvent.TYPE,
                 TapDeleteRecordEvent.TYPE
         ), operations);
+        assertEquals("BATCH_HEARTBEAT", reports.get(0).getType());
         assertEquals(List.of("EVENT_STARTED", "EVENT_RESULT", "EVENT_STARTED", "EVENT_RESULT",
-                "EVENT_STARTED", "EVENT_RESULT", "BATCH_FINISHED"), reportTypes(reports));
+                "EVENT_STARTED", "EVENT_RESULT", "BATCH_FINISHED"),
+                reportTypes(reports).stream()
+                        .filter(type -> !"BATCH_HEARTBEAT".equals(type))
+                        .toList());
         assertEquals(0, reports.stream().filter(report -> "DQL_EVENT".equals(report.getType())).count());
     }
 

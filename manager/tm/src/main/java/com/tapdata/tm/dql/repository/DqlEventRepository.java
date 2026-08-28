@@ -336,14 +336,55 @@ public class DqlEventRepository {
     }
 
     /**
+     * Finalizes the running recovery attempt for each event still owned by the batch.
+     * This is used when the batch fails without an event-level terminal callback.
+     */
+    public long finalizeRunningAttempts(String batchId,
+                                        List<String> eventIds,
+                                        DqlRecoveryAttemptResultEnum result,
+                                        String message,
+                                        Date now) {
+        if (StringUtils.isBlank(batchId) || result == null || result == DqlRecoveryAttemptResultEnum.RUNNING
+                || now == null) {
+            return 0;
+        }
+        Criteria criteria = Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
+                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name())
+                .and(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
+                .elemMatch(Criteria.where(DqlRecoveryAttemptDto.FIELD_BATCH_ID).is(batchId)
+                        .and(DqlRecoveryAttemptDto.FIELD_RESULT).is(DqlRecoveryAttemptResultEnum.RUNNING.name()));
+        if (eventIds != null && !eventIds.isEmpty()) {
+            criteria.and(DqlEventDto.FIELD_EVENT_ID).in(eventIds);
+        }
+        Query query = Query.query(criteria);
+        Update update = recoveryFailureUpdate(result, now);
+        String attemptPath = DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.";
+        update.set(attemptPath + DqlRecoveryAttemptDto.FIELD_RESULT, result.name())
+                .set(attemptPath + DqlRecoveryAttemptDto.FIELD_FINISHED_AT, now);
+        if (message != null) {
+            update.set(attemptPath + DqlRecoveryAttemptDto.FIELD_MESSAGE, message);
+        }
+        return modifiedCount(mongoTemplate.updateMulti(query, update, entityClass));
+    }
+
+    /**
      * Moves all still-running events for a batch to recovery failure when the batch times out.
-     * The synthetic attempt id is stable for the batch, so a retried scan cannot append another
-     * timeout attempt to an event that was already compensated.
+     * Existing RUNNING attempts are updated in place. Events that never emitted EVENT_STARTED
+     * receive one stable synthetic timeout attempt as a compatibility fallback.
      */
     public long timeoutEvents(String batchId, List<String> eventIds, Date now) {
         if (StringUtils.isBlank(batchId) || now == null) {
             return 0;
         }
+        long finalized = finalizeRunningAttempts(batchId, eventIds,
+                DqlRecoveryAttemptResultEnum.TIMEOUT, "Recovery batch timed out", now);
+        if (eventIds != null && !eventIds.isEmpty() && finalized >= eventIds.size()) {
+            return finalized;
+        }
+        return finalized + appendTimeoutAttempts(batchId, eventIds, now);
+    }
+
+    private long appendTimeoutAttempts(String batchId, List<String> eventIds, Date now) {
         String attemptId = "TIMEOUT-" + batchId;
         Criteria criteria = Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
                 .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name())
@@ -361,16 +402,9 @@ public class DqlEventRepository {
         attempt.setFinishedAt(now);
         attempt.setResult(DqlRecoveryAttemptResultEnum.TIMEOUT.name());
         attempt.setMessage("Recovery batch timed out");
-        Update update = new Update()
-                .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.RECOVERY_FAILED.name())
-                .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
-                .set(DqlEventDto.FIELD_LAST_RECOVERY_TIME, now)
-                .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, DqlRecoveryAttemptResultEnum.TIMEOUT.name())
-                .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
-                .set(DqlEventDto.FIELD_UPDATED, now)
-                .set(DqlEventDto.FIELD_TTL_AT, now);
+        Update update = recoveryFailureUpdate(DqlRecoveryAttemptResultEnum.TIMEOUT, now);
         update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
-        return mongoTemplate.updateMulti(query, update, entityClass).getModifiedCount();
+        return modifiedCount(mongoTemplate.updateMulti(query, update, entityClass));
     }
 
     public long countReprocessingByBatchId(String batchId) {
@@ -493,9 +527,8 @@ public class DqlEventRepository {
         }
         Query query = batchEventQuery(eventId, batchId);
         query.addCriteria(Criteria.where(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
-                .not()
                 .elemMatch(attemptIdentityCriteria(batchId, attempt.getAttemptId())
-                        .and(DqlRecoveryAttemptDto.FIELD_RESULT).in(terminalAttemptResults())));
+                        .and(DqlRecoveryAttemptDto.FIELD_RESULT).nin(terminalAttemptResults())));
         Date now = new Date();
         Update update = new Update()
                 .set(DqlEventDto.FIELD_STATUS, status.name())
@@ -507,12 +540,69 @@ public class DqlEventRepository {
                 .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
                 .set(DqlEventDto.FIELD_UPDATED, now)
                 .set(DqlEventDto.FIELD_TTL_AT, now);
-        update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        setAttempt(update, DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.", attempt);
         UpdateResult updateResult = mongoTemplate.updateFirst(query, update, entityClass);
         if (modified(updateResult)) {
             return DqlRecoveryCallbackResultEnum.APPLIED;
         }
+
+        // A terminal callback can arrive without a persisted EVENT_STARTED
+        // callback after a transport race. Preserve that callback, but do not
+        // append a second lifecycle snapshot when the attempt already exists.
+        Query newAttemptQuery = batchEventQuery(eventId, batchId);
+        newAttemptQuery.addCriteria(Criteria.where(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
+                .not()
+                .elemMatch(attemptIdentityCriteria(batchId, attempt.getAttemptId())));
+        Update appendUpdate = terminalEventUpdate(attempt, result, status, now);
+        appendUpdate.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        UpdateResult appendResult = mongoTemplate.updateFirst(newAttemptQuery, appendUpdate, entityClass);
+        if (modified(appendResult)) {
+            return DqlRecoveryCallbackResultEnum.APPLIED;
+        }
         return classifyEventTransition(eventId, batchId, attempt.getAttemptId(), result, false);
+    }
+
+    private Update terminalEventUpdate(DqlRecoveryAttemptDto attempt,
+                                       DqlRecoveryAttemptResultEnum result,
+                                       DqlEventStatusEnum status,
+                                       Date now) {
+        return new Update()
+                .set(DqlEventDto.FIELD_STATUS, status.name())
+                .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_TIME, attempt.getFinishedAt())
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_USER_ID, attempt.getOperatorId())
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_USER_NAME, attempt.getOperatorName())
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, result.name())
+                .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+    }
+
+    private Update recoveryFailureUpdate(DqlRecoveryAttemptResultEnum result, Date now) {
+        return new Update()
+                .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.RECOVERY_FAILED.name())
+                .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_TIME, now)
+                .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, result.name())
+                .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+    }
+
+    private void setAttempt(Update update,
+                            String path,
+                            DqlRecoveryAttemptDto attempt) {
+        update.set(path + DqlRecoveryAttemptDto.FIELD_ATTEMPT_ID, attempt.getAttemptId())
+                .set(path + DqlRecoveryAttemptDto.FIELD_BATCH_ID, attempt.getBatchId())
+                .set(path + DqlRecoveryAttemptDto.FIELD_OPERATOR_ID, attempt.getOperatorId())
+                .set(path + DqlRecoveryAttemptDto.FIELD_OPERATOR_NAME, attempt.getOperatorName())
+                .set(path + DqlRecoveryAttemptDto.FIELD_TASK_VERSION, attempt.getTaskVersion())
+                .set(path + DqlRecoveryAttemptDto.FIELD_STARTED_AT, attempt.getStartedAt())
+                .set(path + DqlRecoveryAttemptDto.FIELD_FINISHED_AT, attempt.getFinishedAt())
+                .set(path + DqlRecoveryAttemptDto.FIELD_RESULT, attempt.getResult())
+                .set(path + DqlRecoveryAttemptDto.FIELD_MESSAGE, attempt.getMessage())
+                .set(path + DqlRecoveryAttemptDto.FIELD_ERROR_CODE, attempt.getErrorCode())
+                .set(path + DqlRecoveryAttemptDto.FIELD_ERROR_DETAILS, attempt.getErrorDetails());
     }
 
     private DqlRecoveryCallbackResultEnum classifyEventTransition(String eventId,
@@ -559,6 +649,10 @@ public class DqlEventRepository {
 
     private boolean modified(UpdateResult result) {
         return result != null && result.getModifiedCount() > 0;
+    }
+
+    private long modifiedCount(UpdateResult result) {
+        return result == null ? 0 : result.getModifiedCount();
     }
 
     public long releaseBatchLocks(String batchId, DqlEventStatusEnum targetStatus) {
@@ -635,6 +729,7 @@ public class DqlEventRepository {
             addEquals(criteria, DqlEventDto.FIELD_DML_TYPE, queryVo.getDmlType());
             addEquals(criteria, DqlEventDto.FIELD_ERROR_TYPE, queryVo.getErrorType());
             addEquals(criteria, DqlEventDto.FIELD_STATUS, queryVo.getStatus());
+            addEquals(criteria, DqlEventDto.FIELD_ERROR_CODE, queryVo.getErrorCode());
             if (queryVo.getStartTime() != null || queryVo.getEndTime() != null) {
                 Criteria failedAt = Criteria.where(DqlEventDto.FIELD_FAILED_AT);
                 if (queryVo.getStartTime() != null) {
@@ -648,11 +743,11 @@ public class DqlEventRepository {
             if (StringUtils.isNotBlank(queryVo.getKeyword())) {
                 String regex = Pattern.quote(queryVo.getKeyword());
                 criteria.add(new Criteria().orOperator(
-                        Criteria.where(DqlEventDto.FIELD_EVENT_ID).regex(regex, "i"),
-                        Criteria.where(DqlEventDto.FIELD_TASK_NAME).regex(regex, "i"),
-                        Criteria.where(DqlEventDto.FIELD_SOURCE_TABLE).regex(regex, "i"),
-                        Criteria.where(DqlEventDto.FIELD_TARGET_TABLE).regex(regex, "i"),
-                        Criteria.where(DqlEventDto.FIELD_ERROR_CODE).regex(regex, "i"),
+//                        Criteria.where(DqlEventDto.FIELD_EVENT_ID).regex(regex, "i"),
+//                        Criteria.where(DqlEventDto.FIELD_TASK_NAME).regex(regex, "i"),
+//                        Criteria.where(DqlEventDto.FIELD_SOURCE_TABLE).regex(regex, "i"),
+//                        Criteria.where(DqlEventDto.FIELD_TARGET_TABLE).regex(regex, "i"),
+//                        Criteria.where(DqlEventDto.FIELD_ERROR_CODE).regex(regex, "i"),
                         Criteria.where(DqlEventDto.FIELD_RECORD_IDENTITY).regex(regex, "i"),
                         Criteria.where(DqlEventDto.FIELD_ROUTE_DECISION).regex(regex, "i"),
                         Criteria.where(DqlEventDto.FIELD_CLASSIFICATION_REASON).regex(regex, "i"),

@@ -18,6 +18,7 @@ import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
+import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import org.junit.jupiter.api.DisplayName;
@@ -104,6 +105,23 @@ class DqlEventControllerTest {
 
         assertSame(result, response.getData());
         verify(eventService).reportRecordSuccess("64f000000000000000000001", request);
+    }
+
+    @Test
+    @DisplayName("recovery payload endpoint uses the dedicated event payload service")
+    void recoveryPayloadUsesDedicatedService() {
+        DqlEventService eventService = mock(DqlEventService.class);
+        DqlEventController controller = spy(new DqlEventController(eventService, mock(DqlRecoveryBatchService.class)));
+        UserDetail user = user();
+        doReturn(user).when(controller).getLoginUser();
+        DqlRecoveryPayloadVo payload = new DqlRecoveryPayloadVo();
+        payload.setPayloadFormat("tap-record-event-json-v1");
+        when(eventService.recoveryPayload("DQL-1", user)).thenReturn(payload);
+
+        ResponseMessage<DqlRecoveryPayloadVo> response = controller.recoveryPayload("DQL-1");
+
+        assertSame(payload, response.getData());
+        verify(eventService).recoveryPayload("DQL-1", user);
     }
 
     @Test

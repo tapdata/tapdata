@@ -65,6 +65,50 @@ GET  /api/dql-events/recovery-batches/{BATCH_ID}
 
 可重处理事件的最低预期是：`status=PENDING` 或 `RECOVERY_FAILED`、`payloadComplete=true`、存在 `recordIdentity`/业务键。完整 Payload 缺失时状态为 `NOT_REPROCESSABLE`，不应强行提交恢复。
 
+### 2.3 MySQL 目标端共通 SQL
+
+以下 SQL 都在 TapData 任务“目标连接”配置的数据库中执行。先使用目标连接的实际 host、port、user 和 database 建立 MySQL 会话，再执行 SQL；不要在源 MongoDB 会话中执行这些语句。
+
+```bash
+mysql -h <TARGET_MYSQL_HOST> -P <TARGET_MYSQL_PORT> \
+  -u <TARGET_MYSQL_USER> -p <TARGET_MYSQL_DATABASE>
+```
+
+进入 MySQL 后先确认当前数据库和目标表结构：
+
+```sql
+SELECT DATABASE();
+SHOW CREATE TABLE dql_poc_orders_1;
+SHOW INDEX FROM dql_poc_orders_1;
+```
+
+本文后续 SQL 使用任务字段映射中的列：`user_id`、`order_no`、`amount_text`、`event_time`、`status`、`scenario`、`op_seq`。如果 `SHOW CREATE TABLE` 显示任务使用了不同的列名，应先在任务字段映射中统一为这些列名；不得只改 SQL 中的列名后继续执行，否则 DQL 事件中的 Payload 和身份无法按本文对账。
+
+创建唯一索引前，先清理本 POC 专用订单号并检查重复值：
+
+```sql
+DELETE FROM dql_poc_orders_1
+WHERE order_no IN (
+  '1', '2', '3',
+  'M-003', 'M-004', 'M-005',
+  'BATCH-A', 'BATCH-B', 'BATCH-C',
+  'RECOVERY-FAIL'
+);
+
+SELECT order_no, COUNT(*) AS row_count
+FROM dql_poc_orders_1
+WHERE order_no IN (
+  '1', '2', '3',
+  'M-003', 'M-004', 'M-005',
+  'BATCH-A', 'BATCH-B', 'BATCH-C',
+  'RECOVERY-FAIL'
+)
+GROUP BY order_no
+HAVING COUNT(*) > 1;
+```
+
+上面的 `DELETE` 只允许在专用 POC 目标表执行；如果目标表包含非本文场景的数据，先停止并确认清理范围。
+
 ## 3. 场景 1：重复下单导致唯一索引冲突
 
 这是现有场景，保留其业务背景和数据。它验证目标写入的单条唯一约束错误能被隔离并进入 DQL。
@@ -90,6 +134,13 @@ GET  /api/dql-events/recovery-batches/{BATCH_ID}
    ```sql
    CREATE UNIQUE INDEX idx_unique_order_no
      ON dql_poc_orders_1 (order_no);
+   ```
+
+   建立后立即执行以下 SQL 确认索引确实生效：
+
+   ```sql
+   SHOW INDEX FROM dql_poc_orders_1
+   WHERE Key_name = 'idx_unique_order_no';
    ```
 
 4. 源端再次插入重复订单号，模拟用户重复点击下单：
@@ -141,8 +192,31 @@ GET  /api/dql-events/recovery-batches/{BATCH_ID}
    db.customer_orders.deleteOne({ user_id: "M-002" })
    ```
 
-4. 预先在目标端写入 `order_no=M-003`，再在源端插入另一条 `order_no=M-003` 的记录，制造 Insert 唯一键冲突。
-5. 预先在目标端写入 `order_no=M-004`，再将源端 `M-001` 更新为 `order_no=M-004`，制造 Update 唯一键冲突。
+4. 预先在目标端执行以下 SQL 写入 `order_no=M-003`，再在源端插入另一条 `order_no=M-003` 的记录，制造 Insert 唯一键冲突：
+
+   ```sql
+   INSERT INTO dql_poc_orders_1
+     (user_id, order_no, amount_text, event_time, status, scenario, op_seq)
+   VALUES
+     ('seed-M-003', 'M-003', '0.00', CURRENT_TIMESTAMP, 'SEED', 'MIX_SEED', 0);
+
+   SELECT user_id, order_no, amount_text, event_time, status, scenario, op_seq
+   FROM dql_poc_orders_1
+   WHERE order_no = 'M-003';
+   ```
+
+5. 预先在目标端执行以下 SQL 写入 `order_no=M-004`，再将源端 `M-001` 更新为 `order_no=M-004`，制造 Update 唯一键冲突：
+
+   ```sql
+   INSERT INTO dql_poc_orders_1
+     (user_id, order_no, amount_text, event_time, status, scenario, op_seq)
+   VALUES
+     ('seed-M-004', 'M-004', '0.00', CURRENT_TIMESTAMP, 'SEED', 'MIX_SEED', 0);
+
+   SELECT user_id, order_no, amount_text, event_time, status, scenario, op_seq
+   FROM dql_poc_orders_1
+   WHERE order_no = 'M-004';
+   ```
 6. 紧接着插入一条正常订单 `M-005`，验证异常后续记录仍可处理。
 
 预期结果：
@@ -152,6 +226,13 @@ GET  /api/dql-events/recovery-batches/{BATCH_ID}
 - 两条事件的 Payload、`eventKey`、`recordIdentity` 与对应源记录一致，不能把同一批数据错误合并成一条事件；
 - `M-005` 正常写入目标，任务继续运行；
 - 若目标连接器支持可控的 Delete 记录级约束错误，可额外对 Delete 注入同类错误，预期新增 `dmlType=D` 的事件；如果只能制造任务级/共享错误，则不把该错误归入 Delete DQL 场景。
+
+场景结束后清理两个预置冲突行，避免影响下一轮任务运行：
+
+```sql
+DELETE FROM dql_poc_orders_1
+WHERE user_id IN ('seed-M-003', 'seed-M-004');
+```
 
 ## 5. 场景 3：JavaScript 转换异常与单条恢复
 
@@ -210,7 +291,48 @@ GET  /api/dql-events/recovery-batches/{BATCH_ID}
 
 本场景使用三个已捕获且可恢复的 DQL 事件，验证 TM 固化顺序、批次锁、Engine 串行屏障和数量对账。
 
-1. 准备三个不同事件时间的目标唯一键冲突，分别记录 `EVENT_A`、`EVENT_B`、`EVENT_C`。清理目标端原有冲突行，但不要修改 `dql_events`。
+1. 先在目标端执行以下 SQL 预置三行，再在源端插入相同 `order_no` 的三条订单，分别记录 `EVENT_A`、`EVENT_B`、`EVENT_C`。这些目标行用于制造唯一键冲突，清理时只删除这三行，不要修改 `dql_events`。
+
+   ```sql
+   INSERT INTO dql_poc_orders_1
+     (user_id, order_no, amount_text, event_time, status, scenario, op_seq)
+   VALUES
+     ('seed-BATCH-A', 'BATCH-A', '0.00', '2026-08-28 10:00:00.000', 'SEED', 'BATCH_SEED', 0),
+     ('seed-BATCH-B', 'BATCH-B', '0.00', '2026-08-28 10:00:00.001', 'SEED', 'BATCH_SEED', 0),
+     ('seed-BATCH-C', 'BATCH-C', '0.00', '2026-08-28 10:00:00.002', 'SEED', 'BATCH_SEED', 0);
+
+   SELECT user_id, order_no, amount_text, event_time, status, scenario, op_seq
+   FROM dql_poc_orders_1
+   WHERE order_no IN ('BATCH-A', 'BATCH-B', 'BATCH-C')
+   ORDER BY event_time, order_no;
+   ```
+
+   源端随后执行：
+
+   ```javascript
+   db.customer_orders.insertMany([
+     { user_id: "BATCH-A", order_no: "BATCH-A", amount_text: "101.00",
+       event_time: ISODate("2026-08-28T10:00:00.100Z"), status: "CREATED",
+       scenario: "BATCH_RECOVER_A", op_seq: 1 },
+     { user_id: "BATCH-B", order_no: "BATCH-B", amount_text: "102.00",
+       event_time: ISODate("2026-08-28T10:00:00.200Z"), status: "CREATED",
+       scenario: "BATCH_RECOVER_B", op_seq: 1 },
+     { user_id: "BATCH-C", order_no: "BATCH-C", amount_text: "103.00",
+       event_time: ISODate("2026-08-28T10:00:00.300Z"), status: "CREATED",
+       scenario: "BATCH_RECOVER_C", op_seq: 1 }
+   ])
+   ```
+
+   三条 DQL 事件产生后，恢复前执行以下 SQL 删除目标端的 seed 行，使回放 Payload 能够成功写入：
+
+   ```sql
+   DELETE FROM dql_poc_orders_1
+   WHERE user_id IN ('seed-BATCH-A', 'seed-BATCH-B', 'seed-BATCH-C');
+
+   SELECT user_id, order_no
+   FROM dql_poc_orders_1
+   WHERE order_no IN ('BATCH-A', 'BATCH-B', 'BATCH-C');
+   ```
 2. 以非时间顺序提交预览，例如：
 
    ```json
@@ -279,6 +401,27 @@ POC 默认阈值为：`windowSeconds=60`、`maxEvents=20`、`maxBatchRatio=0.2`�
 2. 观察 `EVENT_STARTED`、`EVENT_RESULT` 和批次详情。
 3. 对另一个事件提交恢复后，在 Engine 回调前停止 Engine，或阻断目标写入使 barrier 超时。若需要缩短等待时间，只在隔离 POC 环境中设置较小的 `dql.recovery.eventTimeoutSeconds`/`dql.recovery.batchTimeoutSeconds`，并重新启动任务或创建新批次使配置快照生效。
 4. 恢复 TM/Engine，等待回调或 TM 超时扫描完成。
+
+为确保第 1 步的目标约束冲突真实存在，执行以下 SQL 预置冲突行，并在源端提交同一 `order_no` 的订单：
+
+```sql
+INSERT INTO dql_poc_orders_1
+  (user_id, order_no, amount_text, event_time, status, scenario, op_seq)
+VALUES
+  ('seed-RECOVERY-FAIL', 'RECOVERY-FAIL', '0.00', CURRENT_TIMESTAMP,
+   'SEED', 'RECOVERY_FAILURE_SEED', 0);
+
+SELECT user_id, order_no, status, scenario
+FROM dql_poc_orders_1
+WHERE order_no = 'RECOVERY-FAIL';
+```
+
+恢复失败验证完成后，执行以下 SQL 清理 seed 行；不要删除 DQL 事件主记录：
+
+```sql
+DELETE FROM dql_poc_orders_1
+WHERE user_id = 'seed-RECOVERY-FAIL';
+```
 
 预期结果：
 

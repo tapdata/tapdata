@@ -15,5 +15,6 @@ public class DqlRecoveryResultReportVo implements Serializable {
     private String errorCode;
     private String errorDetails;
     private Long startedAt;
+    private Long pingTime;
     private Long finishedAt;
 }

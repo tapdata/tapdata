@@ -110,6 +110,17 @@ public class DqlRecoveryBatchRepository {
         return mongoTemplate.find(query, entityClass).stream().map(this::convert).toList();
     }
 
+    public List<DqlRecoveryBatchDto> findTimedOut(Date dispatchDeadline,
+                                                  Date heartbeatDeadline,
+                                                  Date legacyDeadline) {
+        if (dispatchDeadline == null || heartbeatDeadline == null || legacyDeadline == null) {
+            return List.of();
+        }
+        Query query = Query.query(timedOutCriteria(dispatchDeadline, heartbeatDeadline, legacyDeadline))
+                .with(Sort.by(Sort.Order.asc(DqlRecoveryBatchDto.FIELD_UPDATED)));
+        return mongoTemplate.find(query, entityClass).stream().map(this::convert).toList();
+    }
+
     public void updateStatus(String batchId, DqlRecoveryBatchStatusEnum status, String message) {
         if (status != DqlRecoveryBatchStatusEnum.DISPATCHED) {
             throw new IllegalArgumentException("Only CREATED -> DISPATCHED is supported by updateStatus");
@@ -131,10 +142,24 @@ public class DqlRecoveryBatchRepository {
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, DqlRecoveryBatchStatusEnum.RUNNING.name())
                 .set(DqlRecoveryBatchDto.FIELD_STARTED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_PING_TIME, now)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         mongoTemplate.updateFirst(batchQuery(batchId,
                 DqlRecoveryBatchStatusEnum.DISPATCHED), update, entityClass);
+    }
+
+    public boolean touchHeartbeat(String batchId, Date pingTime) {
+        if (StringUtils.isBlank(batchId) || pingTime == null) {
+            return false;
+        }
+        Update update = new Update()
+                .set(DqlRecoveryBatchDto.FIELD_PING_TIME, pingTime)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, pingTime)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, pingTime);
+        UpdateResult result = mongoTemplate.updateFirst(
+                batchQuery(batchId, DqlRecoveryBatchStatusEnum.RUNNING), update, entityClass);
+        return result.getModifiedCount() > 0;
     }
 
     public void increaseSuccess(String batchId) {
@@ -167,6 +192,45 @@ public class DqlRecoveryBatchRepository {
         }
         UpdateResult result = mongoTemplate.updateFirst(
                 batchQuery(batchId, ACTIVE_STATUSES), update, entityClass);
+        return result.getModifiedCount() > 0;
+    }
+
+    /**
+     * Finishes a batch only if it still satisfies the timeout predicate used
+     * by the scan. A heartbeat can arrive after the scan query but before the
+     * final update; rechecking here prevents that late scan from terminating
+     * a batch that has become live again.
+     */
+    public boolean finishTimedOut(String batchId,
+                                  DqlRecoveryBatchStatusEnum status,
+                                  String message,
+                                  Date dispatchDeadline,
+                                  Date heartbeatDeadline,
+                                  Date legacyDeadline) {
+        if (StringUtils.isBlank(batchId)
+                || dispatchDeadline == null
+                || heartbeatDeadline == null
+                || legacyDeadline == null) {
+            return false;
+        }
+        if (status != DqlRecoveryBatchStatusEnum.FAILED
+                && status != DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
+            throw new IllegalArgumentException("Timeout status must be FAILED or PARTIAL_FAILED");
+        }
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
+                .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
+        if (message != null) {
+            update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
+        }
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where(DqlRecoveryBatchDto.FIELD_BATCH_ID).is(batchId),
+                timedOutCriteria(dispatchDeadline, heartbeatDeadline, legacyDeadline));
+        UpdateResult result = mongoTemplate.updateFirst(
+                Query.query(criteria), update, entityClass);
         return result.getModifiedCount() > 0;
     }
 
@@ -271,6 +335,25 @@ public class DqlRecoveryBatchRepository {
                 .and(DqlRecoveryBatchDto.FIELD_STATUS).in(
                         statuses.stream().map(Enum::name).collect(Collectors.toList()));
         return Query.query(criteria);
+    }
+
+    private Criteria timedOutCriteria(Date dispatchDeadline,
+                                      Date heartbeatDeadline,
+                                      Date legacyDeadline) {
+        Criteria dispatched = Criteria.where(DqlRecoveryBatchDto.FIELD_STATUS)
+                .is(DqlRecoveryBatchStatusEnum.DISPATCHED.name())
+                .and(DqlRecoveryBatchDto.FIELD_UPDATED).lte(dispatchDeadline);
+        Criteria running = new Criteria().andOperator(
+                Criteria.where(DqlRecoveryBatchDto.FIELD_STATUS)
+                        .is(DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                new Criteria().orOperator(
+                        Criteria.where(DqlRecoveryBatchDto.FIELD_PING_TIME).lte(heartbeatDeadline),
+                        new Criteria().andOperator(
+                                new Criteria().orOperator(
+                                        Criteria.where(DqlRecoveryBatchDto.FIELD_PING_TIME).exists(false),
+                                        Criteria.where(DqlRecoveryBatchDto.FIELD_PING_TIME).is(null)),
+                                Criteria.where(DqlRecoveryBatchDto.FIELD_UPDATED).lte(legacyDeadline))));
+        return new Criteria().orOperator(dispatched, running);
     }
 
     public DqlRecoveryBatchDto convert(DqlRecoveryBatchEntity entity) {

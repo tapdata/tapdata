@@ -64,6 +64,8 @@ public class DqlRecoveryBatchEntity extends Entity {
     private Integer skippedCount;
     @Field(DqlRecoveryBatchDto.FIELD_STARTED_AT)
     private Date startedAt;
+    @Field(DqlRecoveryBatchDto.FIELD_PING_TIME)
+    private Date pingTime;
     @Field(DqlRecoveryBatchDto.FIELD_FINISHED_AT)
     private Date finishedAt;
     private String message;

@@ -3,6 +3,7 @@ package io.tapdata.dql.client;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import io.tapdata.dql.model.DqlEventReport;
 import io.tapdata.dql.model.DqlEventReportResult;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
@@ -11,6 +12,7 @@ import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.exception.ManagementException;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +28,7 @@ public class DqlTmClient {
     public static final String RECORD_SUCCESS_REPORT_RESOURCE = "task/%s/dql-events/record-success/report";
     public static final String RECOVERY_REPORT_RESOURCE = "task/%s/dql-events/recovery/report";
     public static final String STORM_GUARD_REPORT_RESOURCE = "task/%s/dql-events/storm-guard/report";
+    public static final String RECOVERY_PAYLOAD_RESOURCE = "dql-events/%s/recovery-payload";
 
     private final HttpClientMongoOperator operator;
 
@@ -47,6 +50,18 @@ public class DqlTmClient {
 
     public Boolean reportStormGuard(String taskId, DqlStormGuardReport report) {
         return post(taskId, report, STORM_GUARD_REPORT_RESOURCE, Boolean.class);
+    }
+
+    public DqlRecoveryPayloadVo getRecoveryPayload(String eventId) {
+        if (StringUtils.isBlank(eventId)) {
+            throw new IllegalArgumentException("eventId must not be blank");
+        }
+        DqlRecoveryPayloadVo payload = operator.findOne(
+                new Query(), String.format(RECOVERY_PAYLOAD_RESOURCE, eventId), DqlRecoveryPayloadVo.class);
+        if (payload == null) {
+            throw new ManagementException("DQL recovery payload was not found: " + eventId);
+        }
+        return payload;
     }
 
     private <T> T post(String taskId, Object request, String resourcePattern, Class<T> responseType) {

@@ -24,6 +24,7 @@ import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
+import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
@@ -715,6 +716,32 @@ class DqlEventServiceTest {
         assertNotNull(detail.getCurrentBatch());
         assertEquals("DQLB-20260826-000001", detail.getCurrentBatch().getBatchId());
         assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), detail.getCurrentBatch().getStatus());
+    }
+
+    @Test
+    @DisplayName("recovery payload contains only the immutable fields needed by Engine")
+    void recoveryPayloadMapsImmutableFields() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setPayloadFormat("tap-record-event-json-v1");
+        event.setPayloadData(Map.of("after", Map.of("id", 1001)));
+        event.setPayloadHash("sha256:payload");
+        event.setPayloadSize(128L);
+        event.setPayloadComplete(true);
+        event.setPayloadPreview(Map.of("id", 1001));
+        event.setPayloadPreviewTruncated(false);
+        when(eventRepository.findByEventId("DQL-64f000-000001")).thenReturn(event);
+
+        DqlRecoveryPayloadVo payload = service.recoveryPayload("DQL-64f000-000001", user());
+
+        assertEquals(event.getPayloadFormat(), payload.getPayloadFormat());
+        assertEquals(event.getPayloadData(), payload.getPayloadData());
+        assertEquals(event.getPayloadHash(), payload.getPayloadHash());
+        assertEquals(event.getPayloadSize(), payload.getPayloadSize());
+        assertEquals(event.getPayloadComplete(), payload.getPayloadComplete());
+        assertEquals(event.getPayloadPreview(), payload.getPayloadPreview());
+        assertEquals(event.getPayloadPreviewTruncated(), payload.getPayloadPreviewTruncated());
     }
 
     @Test

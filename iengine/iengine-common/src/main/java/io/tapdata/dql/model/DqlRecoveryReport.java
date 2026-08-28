@@ -13,6 +13,7 @@ import lombok.Data;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class DqlRecoveryReport {
     public static final String BATCH_STARTED = "BATCH_STARTED";
+    public static final String BATCH_HEARTBEAT = "BATCH_HEARTBEAT";
     public static final String EVENT_STARTED = "EVENT_STARTED";
     public static final String EVENT_RESULT = "EVENT_RESULT";
     public static final String BATCH_FINISHED = "BATCH_FINISHED";
@@ -27,6 +28,7 @@ public class DqlRecoveryReport {
     private String errorCode;
     private String errorDetails;
     private Long startedAt;
+    private Long pingTime;
     private Long finishedAt;
 
     public static DqlRecoveryReport batchStarted(String batchId, long startedAt) {
@@ -34,6 +36,14 @@ public class DqlRecoveryReport {
         report.setBatchId(batchId);
         report.setType(BATCH_STARTED);
         report.setStartedAt(startedAt);
+        return report;
+    }
+
+    public static DqlRecoveryReport batchHeartbeat(String batchId, long pingTime) {
+        DqlRecoveryReport report = new DqlRecoveryReport();
+        report.setBatchId(batchId);
+        report.setType(BATCH_HEARTBEAT);
+        report.setPingTime(pingTime);
         return report;
     }
 

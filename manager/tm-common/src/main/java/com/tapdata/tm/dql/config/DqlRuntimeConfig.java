@@ -20,6 +20,9 @@ public final class DqlRuntimeConfig {
     public static final String RECOVERY_BATCH_MAX_SIZE = "dql.recovery.batch.maxSize";
     public static final String RECOVERY_EVENT_TIMEOUT_SECONDS = "dql.recovery.eventTimeoutSeconds";
     public static final String RECOVERY_BATCH_TIMEOUT_SECONDS = "dql.recovery.batchTimeoutSeconds";
+    public static final String RECOVERY_DISPATCH_TIMEOUT_SECONDS = "dql.recovery.dispatchTimeoutSeconds";
+    public static final String RECOVERY_HEARTBEAT_INTERVAL_SECONDS = "dql.recovery.heartbeatIntervalSeconds";
+    public static final String RECOVERY_HEARTBEAT_TIMEOUT_SECONDS = "dql.recovery.heartbeatTimeoutSeconds";
     public static final String RECOVERY_CONTINUE_ON_EVENT_FAILURE = "dql.recovery.continueOnEventFailure";
     public static final String UNKNOWN_GUARD_WINDOW_SECONDS = "dql.unknown.guard.windowSeconds";
     public static final String UNKNOWN_GUARD_MAX_EVENTS = "dql.unknown.guard.maxEvents";
@@ -35,6 +38,9 @@ public final class DqlRuntimeConfig {
     public static final int DEFAULT_RECOVERY_BATCH_MAX_SIZE = 200;
     public static final long DEFAULT_RECOVERY_EVENT_TIMEOUT_SECONDS = 60L;
     public static final long DEFAULT_RECOVERY_BATCH_TIMEOUT_SECONDS = 1_800L;
+    public static final long DEFAULT_RECOVERY_DISPATCH_TIMEOUT_SECONDS = 60L;
+    public static final long DEFAULT_RECOVERY_HEARTBEAT_INTERVAL_SECONDS = 5L;
+    public static final long DEFAULT_RECOVERY_HEARTBEAT_TIMEOUT_SECONDS = 60L;
     public static final boolean DEFAULT_RECOVERY_CONTINUE_ON_EVENT_FAILURE = true;
     public static final long DEFAULT_UNKNOWN_GUARD_WINDOW_SECONDS = 60L;
     public static final long DEFAULT_UNKNOWN_GUARD_MAX_EVENTS = 20L;
@@ -63,6 +69,9 @@ public final class DqlRuntimeConfig {
     private final int recoveryBatchMaxSize;
     private final long recoveryEventTimeoutSeconds;
     private final long recoveryBatchTimeoutSeconds;
+    private final long recoveryDispatchTimeoutSeconds;
+    private final long recoveryHeartbeatIntervalSeconds;
+    private final long recoveryHeartbeatTimeoutSeconds;
     private final boolean recoveryContinueOnEventFailure;
     private final long unknownGuardWindowSeconds;
     private final long unknownGuardMaxEvents;
@@ -78,6 +87,9 @@ public final class DqlRuntimeConfig {
                              int recoveryBatchMaxSize,
                              long recoveryEventTimeoutSeconds,
                              long recoveryBatchTimeoutSeconds,
+                             long recoveryDispatchTimeoutSeconds,
+                             long recoveryHeartbeatIntervalSeconds,
+                             long recoveryHeartbeatTimeoutSeconds,
                              boolean recoveryContinueOnEventFailure,
                              long unknownGuardWindowSeconds,
                              long unknownGuardMaxEvents,
@@ -92,6 +104,9 @@ public final class DqlRuntimeConfig {
         this.recoveryBatchMaxSize = recoveryBatchMaxSize;
         this.recoveryEventTimeoutSeconds = recoveryEventTimeoutSeconds;
         this.recoveryBatchTimeoutSeconds = recoveryBatchTimeoutSeconds;
+        this.recoveryDispatchTimeoutSeconds = recoveryDispatchTimeoutSeconds;
+        this.recoveryHeartbeatIntervalSeconds = recoveryHeartbeatIntervalSeconds;
+        this.recoveryHeartbeatTimeoutSeconds = recoveryHeartbeatTimeoutSeconds;
         this.recoveryContinueOnEventFailure = recoveryContinueOnEventFailure;
         this.unknownGuardWindowSeconds = unknownGuardWindowSeconds;
         this.unknownGuardMaxEvents = unknownGuardMaxEvents;
@@ -110,6 +125,9 @@ public final class DqlRuntimeConfig {
                 DEFAULT_RECOVERY_BATCH_MAX_SIZE,
                 DEFAULT_RECOVERY_EVENT_TIMEOUT_SECONDS,
                 DEFAULT_RECOVERY_BATCH_TIMEOUT_SECONDS,
+                DEFAULT_RECOVERY_DISPATCH_TIMEOUT_SECONDS,
+                DEFAULT_RECOVERY_HEARTBEAT_INTERVAL_SECONDS,
+                DEFAULT_RECOVERY_HEARTBEAT_TIMEOUT_SECONDS,
                 DEFAULT_RECOVERY_CONTINUE_ON_EVENT_FAILURE,
                 DEFAULT_UNKNOWN_GUARD_WINDOW_SECONDS,
                 DEFAULT_UNKNOWN_GUARD_MAX_EVENTS,
@@ -150,6 +168,12 @@ public final class DqlRuntimeConfig {
                         DEFAULT_RECOVERY_EVENT_TIMEOUT_SECONDS, 1L, MAX_TIMEOUT_SECONDS),
                 longValue(value(RECOVERY_BATCH_TIMEOUT_SECONDS, source),
                         DEFAULT_RECOVERY_BATCH_TIMEOUT_SECONDS, 1L, MAX_TIMEOUT_SECONDS),
+                longValue(value(RECOVERY_DISPATCH_TIMEOUT_SECONDS, source),
+                        DEFAULT_RECOVERY_DISPATCH_TIMEOUT_SECONDS, 1L, MAX_TIMEOUT_SECONDS),
+                longValue(value(RECOVERY_HEARTBEAT_INTERVAL_SECONDS, source),
+                        DEFAULT_RECOVERY_HEARTBEAT_INTERVAL_SECONDS, 1L, MAX_TIMEOUT_SECONDS),
+                longValue(value(RECOVERY_HEARTBEAT_TIMEOUT_SECONDS, source),
+                        DEFAULT_RECOVERY_HEARTBEAT_TIMEOUT_SECONDS, 1L, MAX_TIMEOUT_SECONDS),
                 booleanValue(value(RECOVERY_CONTINUE_ON_EVENT_FAILURE, source),
                         DEFAULT_RECOVERY_CONTINUE_ON_EVENT_FAILURE),
                 longValue(value(UNKNOWN_GUARD_WINDOW_SECONDS, source),
@@ -287,6 +311,18 @@ public final class DqlRuntimeConfig {
 
     public long getRecoveryBatchTimeoutSeconds() {
         return recoveryBatchTimeoutSeconds;
+    }
+
+    public long getRecoveryDispatchTimeoutSeconds() {
+        return recoveryDispatchTimeoutSeconds;
+    }
+
+    public long getRecoveryHeartbeatIntervalSeconds() {
+        return recoveryHeartbeatIntervalSeconds;
+    }
+
+    public long getRecoveryHeartbeatTimeoutSeconds() {
+        return recoveryHeartbeatTimeoutSeconds;
     }
 
     public boolean isRecoveryContinueOnEventFailure() {

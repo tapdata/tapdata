@@ -11,12 +11,16 @@ import io.tapdata.dql.reporter.DqlEventReporter;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventResult;
 import io.tapdata.websocket.handler.BaseEventHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 
 import java.util.Map;
 
 /** WebSocket adapter for the TM -> Engine dqlRecovery pipe message. */
 @EventHandlerAnnotation(type = "dqlRecovery")
 public class DqlRecoveryEventHandler extends BaseEventHandler {
+    private static final Logger LOGGER = LogManager.getLogger(DqlRecoveryEventHandler.class);
     private DqlRecoveryMessageHandler messageHandler;
 
     public DqlRecoveryEventHandler() {
@@ -42,7 +46,21 @@ public class DqlRecoveryEventHandler extends BaseEventHandler {
         String currentAgentId = configurationCenter == null
                 ? null
                 : (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
-        DqlRecoveryCoordinator coordinator = BeanUtil.getBean(DqlRecoveryCoordinator.class);
+        DqlRecoveryCoordinator coordinator = null;
+        try {
+            coordinator = BeanUtil.getBean(DqlRecoveryCoordinator.class);
+        } catch (NoSuchBeanDefinitionException exception) {
+            // Keep the websocket message inside the normal recovery handler.
+            // DqlRecoveryMessageHandler will report BATCH_FAILED to TM for
+            // the already DISPATCHED batch. Throwing from initialize() here
+            // bypasses the callback and leaves the UI in "processing".
+            LOGGER.error("DQL recovery coordinator bean is not available", exception);
+        } catch (RuntimeException exception) {
+            // A partially initialized Engine context must converge the same
+            // way as a missing bean instead of leaving TM waiting for a
+            // callback that can never arrive.
+            LOGGER.error("DQL recovery coordinator initialization failed", exception);
+        }
         DqlRecoveryReportSender reportSender = recoveryReportSender(clientMongoOperator);
         DqlRuntimeConfig runtimeConfig = DqlRuntimeConfig.from(key ->
                 settingService == null ? null : settingService.getString(key, null));

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import io.tapdata.dql.client.DqlTmClient;
 import io.tapdata.dql.model.DqlClassificationConfidence;
 import io.tapdata.dql.model.DqlClassificationResult;
@@ -20,6 +21,7 @@ import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.exception.ManagementException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.query.Query;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -141,6 +143,22 @@ class DqlTmClientTest {
     }
 
     @Test
+    @DisplayName("recovery payload reads through the dedicated DQL event endpoint")
+    void recoveryPayloadUsesDedicatedEndpoint() {
+        RecordingMongoOperator operator = new RecordingMongoOperator();
+        DqlTmClient client = new DqlTmClient(operator);
+        DqlRecoveryPayloadVo payload = new DqlRecoveryPayloadVo();
+        payload.setPayloadFormat("tap-record-event-json-v1");
+        payload.setPayloadData(Map.of("after", Map.of("id", 1001)));
+        operator.respond("dql-events/DQL-1/recovery-payload", payload);
+
+        DqlRecoveryPayloadVo actual = client.getRecoveryPayload("DQL-1");
+
+        assertEquals(payload, actual);
+        assertEquals("dql-events/DQL-1/recovery-payload", operator.calls.get(0).resource());
+    }
+
+    @Test
     @DisplayName("TM client rejects null responses so callers cannot skip without a TM acknowledgement")
     void emptyResponseFailsAsManagementException() {
         RecordingMongoOperator operator = new RecordingMongoOperator();
@@ -181,6 +199,13 @@ class DqlTmClientTest {
         public <T> T postOne(Map<String, Object> payload, String resource, Class<T> responseType) {
             calls.add(new Call(resource, payload));
             return (T) responses.get(resource);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T findOne(Query query, String collection, Class<T> className) {
+            calls.add(new Call(collection, Map.of()));
+            return (T) responses.get(collection);
         }
     }
 }

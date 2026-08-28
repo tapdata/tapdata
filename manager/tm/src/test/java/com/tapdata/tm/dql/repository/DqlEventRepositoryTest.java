@@ -282,8 +282,8 @@ class DqlEventRepositoryTest {
     }
 
     @Test
-    @DisplayName("timing out current batch events appends a stable timeout attempt and releases their locks")
-    void timeoutEventsAppendsTimeoutAttempt() {
+    @DisplayName("timing out current batch events finalizes the existing running attempt")
+    void timeoutEventsFinalizesRunningAttempt() {
         MongoTemplate mongoTemplate = mongoTemplate();
         DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
         when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
@@ -306,13 +306,13 @@ class DqlEventRepositoryTest {
         assertEquals(DqlRecoveryAttemptResultEnum.TIMEOUT.name(), set.get(DqlEventDto.FIELD_LAST_RECOVERY_RESULT));
         assertEquals(1, updateCaptor.getValue().getUpdateObject()
                 .get("$inc", Document.class).get(DqlEventDto.FIELD_RECOVERY_COUNT));
-        DqlRecoveryAttemptDto attempt = (DqlRecoveryAttemptDto) updateCaptor.getValue().getUpdateObject()
-                .get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS);
-        assertEquals("TIMEOUT-DQLB-1", attempt.getAttemptId());
-        assertEquals("DQLB-1", attempt.getBatchId());
-        assertEquals(DqlRecoveryAttemptResultEnum.TIMEOUT.name(), attempt.getResult());
-        assertEquals(now, attempt.getStartedAt());
-        assertEquals(now, attempt.getFinishedAt());
+        Document attemptSet = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryAttemptResultEnum.TIMEOUT.name(),
+                attemptSet.get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.result"));
+        assertEquals("Recovery batch timed out",
+                attemptSet.get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.message"));
+        assertEquals(now, attemptSet.get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.finished_at"));
+        assertFalse(updateCaptor.getValue().getUpdateObject().containsKey("$push"));
     }
 
     @Test
@@ -376,6 +376,40 @@ class DqlEventRepositoryTest {
         assertEquals(DqlRecoveryCallbackResultEnum.DUPLICATE,
                 repository.completeEventIdempotent("DQL-1", "DQLB-1", attempt));
         verify(mongoTemplate).findOne(any(Query.class), eq(DqlEventEntity.class));
+    }
+
+    @Test
+    @DisplayName("terminal event result updates the existing running attempt instead of appending another record")
+    void terminalEventResultUpdatesExistingRunningAttempt() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("A-1");
+        attempt.setBatchId("DQLB-1");
+        attempt.setStartedAt(new Date(1000L));
+        attempt.setFinishedAt(new Date(2000L));
+        attempt.setResult(DqlRecoveryAttemptResultEnum.FAILED.name());
+        attempt.setMessage("payload lookup failed");
+        attempt.setErrorCode("RECOVERY_FAILED");
+        attempt.setErrorDetails("details");
+
+        assertEquals(DqlRecoveryCallbackResultEnum.APPLIED,
+                repository.failEventIdempotent("DQL-1", "DQLB-1", attempt));
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertFalse(update.containsKey("$push"));
+        Document set = update.get("$set", Document.class);
+        assertEquals(DqlRecoveryAttemptResultEnum.FAILED.name(),
+                set.get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.result"));
+        assertEquals("payload lookup failed",
+                set.get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$.message"));
+        assertEquals("details",
+                set.get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS + ".$." + DqlRecoveryAttemptDto.FIELD_ERROR_DETAILS));
     }
 
     @Test

@@ -15,6 +15,7 @@ public class DqlEventQueryVo implements Serializable {
     private String dmlType;
     private String errorType;
     private String status;
+    private String errorCode;
     private Date startTime;
     private Date endTime;
     private long skip;

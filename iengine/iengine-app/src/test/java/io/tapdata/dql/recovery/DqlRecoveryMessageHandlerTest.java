@@ -36,6 +36,59 @@ class DqlRecoveryMessageHandlerTest {
     }
 
     @Test
+    @DisplayName("reports BATCH_STARTED before the coordinator can report EVENT_STARTED")
+    void reportsBatchStartedBeforeCoordinatorCanReportEventStarted() {
+        List<String> calls = new java.util.ArrayList<>();
+        DqlRecoveryReportSender reporter = (command, report) -> calls.add(report.getType());
+        DqlRecoveryCoordinator coordinator = command -> {
+            calls.add("COORDINATOR_STARTED");
+            reporter.reportEventStarted(command, "event-1", "attempt-1", 1L);
+        };
+        DqlRecoveryMessageHandler handler = new DqlRecoveryMessageHandler(
+                coordinator, reporter, contextProvider(), AGENT_ID);
+
+        DqlRecoveryHandleResult result = handler.handle(message());
+
+        assertEquals(DqlRecoveryHandleResult.Outcome.ACCEPTED, result.getOutcome());
+        assertEquals(List.of("BATCH_STARTED", "COORDINATOR_STARTED", "EVENT_STARTED"), calls);
+    }
+
+    @Test
+    @DisplayName("reports BATCH_FAILED when coordinator startup fails after BATCH_STARTED")
+    void reportsBatchFailureWhenCoordinatorStartupFails() {
+        List<String> calls = new java.util.ArrayList<>();
+        DqlRecoveryReportSender reporter = (command, report) -> calls.add(report.getType());
+        DqlRecoveryCoordinator coordinator = command -> {
+            throw new IllegalStateException("runner unavailable");
+        };
+        DqlRecoveryMessageHandler handler = new DqlRecoveryMessageHandler(
+                coordinator, reporter, contextProvider(), AGENT_ID);
+
+        DqlRecoveryHandleResult failed = handler.handle(message());
+        DqlRecoveryHandleResult duplicate = handler.handle(message());
+
+        assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, failed.getOutcome());
+        assertEquals(DqlRecoveryHandleResult.Outcome.DUPLICATE, duplicate.getOutcome());
+        assertEquals(List.of("BATCH_STARTED", "BATCH_FAILED"), calls);
+    }
+
+    @Test
+    @DisplayName("reports BATCH_FAILED when the recovery coordinator is not configured")
+    void reportsBatchFailureWhenCoordinatorIsUnavailable() {
+        DqlRecoveryReportSender reporter = mock(DqlRecoveryReportSender.class);
+        DqlRecoveryMessageHandler handler = new DqlRecoveryMessageHandler(
+                null, reporter, contextProvider(), AGENT_ID);
+
+        DqlRecoveryHandleResult failed = handler.handle(message());
+
+        assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, failed.getOutcome());
+        assertTrue(failed.getMessage().contains("coordinator"));
+        verify(reporter).reportBatchFailed(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.contains("coordinator"),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
     @DisplayName("rejects an invalid message without starting recovery or reporting a callback")
     void rejectsInvalidMessage() {
         DqlRecoveryCoordinator coordinator = mock(DqlRecoveryCoordinator.class);
@@ -108,8 +161,8 @@ class DqlRecoveryMessageHandlerTest {
     }
 
     @Test
-    @DisplayName("allows retry after coordinator startup fails before the batch is accepted")
-    void releasesBatchAfterCoordinatorFailure() {
+    @DisplayName("fails the batch after coordinator startup fails")
+    void failsBatchAfterCoordinatorFailure() {
         DqlRecoveryCoordinator coordinator = mock(DqlRecoveryCoordinator.class);
         DqlRecoveryReportSender reporter = mock(DqlRecoveryReportSender.class);
         doThrow(new IllegalStateException("runner unavailable"))
@@ -120,14 +173,17 @@ class DqlRecoveryMessageHandlerTest {
         DqlRecoveryHandleResult retry = handler.handle(message());
 
         assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, failed.getOutcome());
-        assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, retry.getOutcome());
-        verify(coordinator, org.mockito.Mockito.times(2)).start(org.mockito.ArgumentMatchers.any());
-        verify(reporter, never()).reportBatchStarted(org.mockito.ArgumentMatchers.any());
+        assertEquals(DqlRecoveryHandleResult.Outcome.DUPLICATE, retry.getOutcome());
+        verify(coordinator).start(org.mockito.ArgumentMatchers.any());
+        verify(reporter).reportBatchStarted(org.mockito.ArgumentMatchers.any());
+        verify(reporter).reportBatchFailed(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("runner unavailable"),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
-    @DisplayName("does not start a second coordinator when the initial callback fails")
-    void callbackFailureKeepsBatchClaimed() {
+    @DisplayName("releases the batch claim when the initial callback fails")
+    void callbackFailureReleasesBatchClaim() {
         DqlRecoveryCoordinator coordinator = mock(DqlRecoveryCoordinator.class);
         DqlRecoveryReportSender reporter = mock(DqlRecoveryReportSender.class);
         doThrow(new IllegalStateException("TM unavailable"))
@@ -138,11 +194,12 @@ class DqlRecoveryMessageHandlerTest {
         DqlRecoveryHandleResult duplicate = handler.handle(message());
 
         assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, failed.getOutcome());
-        assertEquals(DqlRecoveryHandleResult.Outcome.DUPLICATE, duplicate.getOutcome());
-        verify(coordinator).start(org.mockito.ArgumentMatchers.any());
-        verify(reporter).reportBatchFailed(org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.eq("TM unavailable"),
-                org.mockito.ArgumentMatchers.anyLong());
+        assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, duplicate.getOutcome());
+        verify(coordinator, never()).start(org.mockito.ArgumentMatchers.any());
+        verify(reporter, org.mockito.Mockito.times(2))
+                .reportBatchStarted(org.mockito.ArgumentMatchers.any());
+        verify(reporter, never()).reportBatchFailed(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     private DqlRecoveryTaskContextProvider contextProvider() {

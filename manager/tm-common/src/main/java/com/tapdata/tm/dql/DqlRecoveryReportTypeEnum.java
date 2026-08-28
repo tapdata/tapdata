@@ -2,6 +2,7 @@ package com.tapdata.tm.dql;
 
 public enum DqlRecoveryReportTypeEnum {
     BATCH_STARTED,
+    BATCH_HEARTBEAT,
     EVENT_STARTED,
     EVENT_RESULT,
     BATCH_FINISHED,

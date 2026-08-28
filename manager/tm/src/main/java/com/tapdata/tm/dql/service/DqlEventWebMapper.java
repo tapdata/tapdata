@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
+import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.vo.DqlEventDetailVo;
 import com.tapdata.tm.dql.vo.DqlEventListVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryAttemptVo;
@@ -105,12 +106,59 @@ final class DqlEventWebMapper {
         if (attempts == null || attempts.isEmpty()) {
             return attempts == null ? null : List.of();
         }
-        int fromIndex = Math.max(0, attempts.size() - 20);
-        List<DqlRecoveryAttemptVo> result = new ArrayList<>(attempts.size() - fromIndex);
-        for (int index = attempts.size() - 1; index >= fromIndex; index--) {
-            result.add(toAttempt(attempts.get(index)));
+
+        // A recovery attempt is one logical lifecycle identified by batchId + attemptId.
+        // Older records may contain both the RUNNING snapshot and its terminal snapshot,
+        // so collapse those snapshots before applying the public history limit.
+        Map<String, Integer> positions = new LinkedHashMap<>();
+        List<DqlRecoveryAttemptDto> latest = new ArrayList<>();
+        for (int index = attempts.size() - 1; index >= 0; index--) {
+            DqlRecoveryAttemptDto attempt = attempts.get(index);
+            String key = attemptKey(attempt, index);
+            Integer position = positions.get(key);
+            if (position == null) {
+                positions.put(key, latest.size());
+                latest.add(attempt);
+            } else if (!isTerminal(latest.get(position)) && isTerminal(attempt)) {
+                latest.set(position, attempt);
+            }
+            if (latest.size() >= 20 && index > 0) {
+                // Continue scanning only as far as needed to replace a RUNNING
+                // snapshot with an older terminal snapshot of the same attempt.
+                boolean hasRunning = latest.stream().anyMatch(item -> !isTerminal(item));
+                if (!hasRunning) {
+                    break;
+                }
+            }
+        }
+        List<DqlRecoveryAttemptVo> result = new ArrayList<>(Math.min(20, latest.size()));
+        for (int index = 0; index < Math.min(20, latest.size()); index++) {
+            result.add(toAttempt(latest.get(index)));
         }
         return result;
+    }
+
+    private String attemptKey(DqlRecoveryAttemptDto attempt, int index) {
+        if (attempt == null) {
+            return "legacy-null-" + index;
+        }
+        String batchId = attempt.getBatchId();
+        String attemptId = attempt.getAttemptId();
+        if ((batchId == null || batchId.isBlank()) && (attemptId == null || attemptId.isBlank())) {
+            return "legacy-" + index;
+        }
+        return String.valueOf(batchId) + '\u0000' + String.valueOf(attemptId);
+    }
+
+    private boolean isTerminal(DqlRecoveryAttemptDto attempt) {
+        if (attempt == null) {
+            return false;
+        }
+        DqlRecoveryAttemptResultEnum result = DqlRecoveryAttemptResultEnum.parse(attempt.getResult());
+        return result == DqlRecoveryAttemptResultEnum.SUCCESS
+                || result == DqlRecoveryAttemptResultEnum.FAILED
+                || result == DqlRecoveryAttemptResultEnum.SKIPPED
+                || result == DqlRecoveryAttemptResultEnum.TIMEOUT;
     }
 
     private DqlRecoveryAttemptVo toAttempt(DqlRecoveryAttemptDto attempt) {

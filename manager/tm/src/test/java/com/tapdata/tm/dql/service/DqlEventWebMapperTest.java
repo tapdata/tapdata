@@ -104,6 +104,34 @@ class DqlEventWebMapperTest {
         assertTrue(result.getRecoveryAttempts().isEmpty());
     }
 
+    @Test
+    @DisplayName("detail mapping collapses running and terminal snapshots of one recovery attempt")
+    void detailMappingCollapsesRecoveryAttemptSnapshots() {
+        DqlEventDto event = event();
+        DqlRecoveryAttemptDto running = new DqlRecoveryAttemptDto();
+        running.setAttemptId("A-1");
+        running.setBatchId("DQLB-1");
+        running.setStartedAt(new Date(1000L));
+        running.setResult("RUNNING");
+
+        DqlRecoveryAttemptDto failed = new DqlRecoveryAttemptDto();
+        failed.setAttemptId("A-1");
+        failed.setBatchId("DQLB-1");
+        failed.setStartedAt(new Date(1000L));
+        failed.setFinishedAt(new Date(2000L));
+        failed.setResult("FAILED");
+        failed.setMessage("reprocessing failed");
+        failed.setErrorDetails("duplicate key");
+        event.setRecoveryAttempts(List.of(running, failed));
+
+        DqlEventDetailVo result = mapper.toDetail(event);
+
+        assertEquals(1, result.getRecoveryAttempts().size());
+        assertEquals("FAILED", result.getRecoveryAttempts().get(0).getResult());
+        assertEquals("reprocessing failed", result.getRecoveryAttempts().get(0).getMessage());
+        assertEquals("duplicate key", result.getRecoveryAttempts().get(0).getErrorMessage());
+    }
+
     private DqlEventDto event() {
         DqlEventDto event = new DqlEventDto();
         event.setId("64f000000000000000000001");

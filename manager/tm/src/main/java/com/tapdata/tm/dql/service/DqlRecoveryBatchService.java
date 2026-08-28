@@ -49,6 +49,10 @@ public class DqlRecoveryBatchService {
     private static final long DEFAULT_BATCH_TIMEOUT_MILLIS =
             DqlRuntimeConfig.DEFAULT_RECOVERY_BATCH_TIMEOUT_SECONDS * 1000L;
     private static final String RECOVERY_BATCH_TIMEOUT_MESSAGE = "Recovery batch timed out";
+    private static final String RECOVERY_DISPATCH_TIMEOUT_MESSAGE =
+            "DQL reprocessing timed out before Engine accepted the recovery batch";
+    private static final String RECOVERY_HEARTBEAT_TIMEOUT_MESSAGE =
+            "DQL reprocessing timed out because the Engine heartbeat expired";
     private static final String AUDIT_BATCH_CREATED = "BATCH_CREATED";
     private static final String AUDIT_BATCH_DISPATCHED = "BATCH_DISPATCHED";
     private static final String AUDIT_BATCH_STARTED = "BATCH_STARTED";
@@ -301,6 +305,7 @@ public class DqlRecoveryBatchService {
                 .orElseThrow(() -> new BizException("IllegalArgument", "type"));
         switch (type) {
             case BATCH_STARTED -> handleBatchStarted(batch);
+            case BATCH_HEARTBEAT -> handleBatchHeartbeat(batch);
             case EVENT_STARTED -> handleEventStarted(batch, report);
             case EVENT_RESULT -> handleEventResult(batch, report);
             case BATCH_FINISHED -> finishBatch(batch, report);
@@ -316,13 +321,21 @@ public class DqlRecoveryBatchService {
      */
     public int timeoutExpiredBatches(Date now) {
         Date current = now == null ? new Date() : now;
-        long timeoutMillis = runtimeConfig().getRecoveryBatchTimeoutSeconds() * 1000L;
-        Date deadline = new Date(current.getTime() - timeoutMillis);
-        List<DqlRecoveryBatchDto> timedOut = Optional.ofNullable(batchRepository.findTimedOut(deadline))
+        DqlRuntimeConfig config = runtimeConfig();
+        Date dispatchDeadline = deadline(current, config.getRecoveryDispatchTimeoutSeconds());
+        Date heartbeatDeadline = deadline(current, config.getRecoveryHeartbeatTimeoutSeconds());
+        Date legacyDeadline = deadline(current, config.getRecoveryBatchTimeoutSeconds());
+        List<DqlRecoveryBatchDto> timedOut = Optional.ofNullable(batchRepository.findTimedOut(
+                        dispatchDeadline, heartbeatDeadline, legacyDeadline))
                 .orElse(List.of());
         int finalized = 0;
         for (DqlRecoveryBatchDto batch : timedOut) {
             if (batch == null || StringUtils.isBlank(batch.getBatchId())) {
+                continue;
+            }
+            DqlRecoveryBatchDto latest = Optional.ofNullable(batchRepository.findByBatchId(batch.getBatchId()))
+                    .orElse(batch);
+            if (!isTimedOut(latest, current, config)) {
                 continue;
             }
             long timedOutEvents = eventRepository.timeoutEvents(
@@ -333,13 +346,13 @@ public class DqlRecoveryBatchService {
             if (eventRepository.countReprocessingByBatchId(batch.getBatchId()) > 0) {
                 continue;
             }
-            DqlRecoveryBatchDto latest = Optional.ofNullable(batchRepository.findByBatchId(batch.getBatchId()))
-                    .orElse(batch);
             DqlRecoveryBatchStatusEnum timeoutStatus = timeoutStatus(latest);
+            String timeoutMessage = timeoutMessage(latest);
             if (batchRepository.finishTimedOut(
-                    latest.getBatchId(), timeoutStatus, RECOVERY_BATCH_TIMEOUT_MESSAGE)) {
+                    latest.getBatchId(), timeoutStatus, timeoutMessage,
+                    dispatchDeadline, heartbeatDeadline, legacyDeadline)) {
                 appendAudit(latest, timeoutStatus.name(), AUDIT_BATCH_TIMEOUT,
-                        null, null, RECOVERY_BATCH_TIMEOUT_MESSAGE);
+                        null, null, timeoutMessage);
                 alarmService.notifyRecoveryFailed(latest);
                 releaseTaskLock(latest);
                 finalized++;
@@ -484,6 +497,8 @@ public class DqlRecoveryBatchService {
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.CREATED,
                 DqlRecoveryBatchStatusEnum.DISPATCHED, DqlRecoveryBatchStatusEnum.RUNNING);
         try {
+            eventRepository.finalizeRunningAttempts(batch.getBatchId(), batchEventIds(batch),
+                    DqlRecoveryAttemptResultEnum.FAILED, message, new Date());
             eventRepository.releaseBatchLocks(batch.getBatchId(), DqlEventStatusEnum.RECOVERY_FAILED);
             batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.FAILED, message);
             appendAudit(batch, DqlRecoveryBatchStatusEnum.FAILED.name(), AUDIT_BATCH_FAILED,
@@ -503,6 +518,17 @@ public class DqlRecoveryBatchService {
         batchRepository.markRunning(batch.getBatchId());
         appendAudit(batch, DqlRecoveryBatchStatusEnum.RUNNING.name(), AUDIT_BATCH_STARTED,
                 null, null, null);
+    }
+
+    private void handleBatchHeartbeat(DqlRecoveryBatchDto batch) {
+        DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (isTerminal(actual)) {
+            return;
+        }
+        requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.RUNNING);
+        // TM receipt time is authoritative for liveness. Engine clocks must not
+        // be able to extend the batch lease with a future timestamp.
+        batchRepository.touchHeartbeat(batch.getBatchId(), new Date());
     }
 
     private void handleEventStarted(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {
@@ -624,6 +650,44 @@ public class DqlRecoveryBatchService {
         return success > 0
                 ? DqlRecoveryBatchStatusEnum.PARTIAL_FAILED
                 : DqlRecoveryBatchStatusEnum.FAILED;
+    }
+
+    private String timeoutMessage(DqlRecoveryBatchDto batch) {
+        DqlRecoveryBatchStatusEnum status = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (status == DqlRecoveryBatchStatusEnum.DISPATCHED) {
+            return RECOVERY_DISPATCH_TIMEOUT_MESSAGE;
+        }
+        if (status == DqlRecoveryBatchStatusEnum.RUNNING && batch.getPingTime() != null) {
+            return RECOVERY_HEARTBEAT_TIMEOUT_MESSAGE;
+        }
+        return RECOVERY_BATCH_TIMEOUT_MESSAGE;
+    }
+
+    private Date deadline(Date now, long timeoutSeconds) {
+        return new Date(now.getTime() - timeoutSeconds * 1000L);
+    }
+
+    private boolean isTimedOut(DqlRecoveryBatchDto batch,
+                               Date now,
+                               DqlRuntimeConfig config) {
+        if (batch == null || now == null || config == null) {
+            return false;
+        }
+        DqlRecoveryBatchStatusEnum status = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (status == DqlRecoveryBatchStatusEnum.DISPATCHED) {
+            return beforeOrAt(batch.getUpdated(), deadline(now, config.getRecoveryDispatchTimeoutSeconds()));
+        }
+        if (status != DqlRecoveryBatchStatusEnum.RUNNING) {
+            return false;
+        }
+        if (batch.getPingTime() != null) {
+            return beforeOrAt(batch.getPingTime(), deadline(now, config.getRecoveryHeartbeatTimeoutSeconds()));
+        }
+        return beforeOrAt(batch.getUpdated(), deadline(now, config.getRecoveryBatchTimeoutSeconds()));
+    }
+
+    private boolean beforeOrAt(Date value, Date deadline) {
+        return value != null && !value.after(deadline);
     }
 
     private String previewBlockedReason(DqlEventDto event,

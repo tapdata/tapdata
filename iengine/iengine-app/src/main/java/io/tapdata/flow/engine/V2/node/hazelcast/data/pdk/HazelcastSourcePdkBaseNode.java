@@ -99,6 +99,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadFunction
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionOneByOneFunctionProxy;
 import io.tapdata.dql.recovery.DqlSourceReadGate;
+import io.tapdata.dql.recovery.DqlRecoveryRuntimeRegistry;
+import io.tapdata.dql.recovery.DqlReplaySourceNode;
+import io.tapdata.dql.recovery.HazelcastDqlReplaySourceNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadOneByOneFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
@@ -198,6 +201,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
      */
     protected DynamicLinkedBlockingQueue<TapdataEvent> eventQueue;
     private final DqlSourceReadGate dqlSourceReadGate = new DqlSourceReadGate();
+    private DqlReplaySourceNode dqlRecoverySourceBoundary;
     private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
     protected StreamReadFuncAspect streamReadFuncAspect;
     protected TapdataEvent pendingEvent;
@@ -328,7 +332,34 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             initTapCodecsFilterManager();
             initToTapValueConcurrent();
             reportPrometheusTaskRunning();
+            registerDqlRecoverySourceBoundary();
         });
+    }
+
+    /**
+     * Publishes this live source only after its queue, connector and source
+     * runner have been initialized.  The recovery coordinator uses this
+     * registry to inject at the source boundary; it never writes to the
+     * source connector directly.
+     */
+    private void registerDqlRecoverySourceBoundary() {
+        TaskDto taskDto = dataProcessorContext.getTaskDto();
+        if (taskDto == null || !taskDto.isNormalTask()
+                || taskDto.getId() == null || taskDto.getVersion() == null
+                || taskDto.getDag() == null || getNode() == null
+                || StringUtils.isBlank(getNode().getId())) {
+            return;
+        }
+        dqlRecoverySourceBoundary = new HazelcastDqlReplaySourceNode(this);
+        DqlRecoveryRuntimeRegistry.global().register(
+                taskDto.getId().toHexString(),
+                taskDto.getVersion(),
+                taskDto.getDag(),
+                getNode().getId(),
+                dqlRecoverySourceBoundary
+        );
+        logger.info("DQL recovery source boundary registered for task {} and source node {}",
+                taskDto.getId(), getNode().getId());
     }
 
     private void reportPrometheusTaskRunning() {
@@ -1991,6 +2022,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueRunner).ifPresent(ExecutorService::shutdownNow), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueConcurrentProcessor).ifPresent(SimpleConcurrentProcessorImpl::close), TAG);
         } finally {
+            TaskDto taskDto = dataProcessorContext == null ? null : dataProcessorContext.getTaskDto();
+            if (taskDto != null && taskDto.getId() != null && taskDto.getVersion() != null
+                    && getNode() != null) {
+                DqlRecoveryRuntimeRegistry.global().unregister(
+                        taskDto.getId().toHexString(),
+                        taskDto.getVersion(),
+                        getNode().getId(),
+                        dqlRecoverySourceBoundary
+                );
+            }
+            dqlRecoverySourceBoundary = null;
             dqlSourceReadGate.close();
             super.doClose();
         }

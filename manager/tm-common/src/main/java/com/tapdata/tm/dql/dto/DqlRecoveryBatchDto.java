@@ -34,6 +34,7 @@ public class DqlRecoveryBatchDto implements Serializable {
     public static final String FIELD_FAILED_COUNT = "failed_count";
     public static final String FIELD_SKIPPED_COUNT = "skipped_count";
     public static final String FIELD_STARTED_AT = "started_at";
+    public static final String FIELD_PING_TIME = "ping_time";
     public static final String FIELD_FINISHED_AT = "finished_at";
     public static final String FIELD_MESSAGE = "message";
     public static final String FIELD_CREATED = "created";
@@ -66,6 +67,7 @@ public class DqlRecoveryBatchDto implements Serializable {
     private Integer failedCount;
     private Integer skippedCount;
     private Date startedAt;
+    private Date pingTime;
     private Date finishedAt;
     private String message;
     private Date created;

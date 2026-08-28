@@ -16,6 +16,7 @@ import com.tapdata.tm.dql.vo.DqlEventReportVo;
 import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
+import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import com.tapdata.tm.dql.vo.DqlStormGuardReportVo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -176,6 +177,28 @@ public class DqlEventService {
             detail.setCurrentBatch(batchRepository.findByBatchId(event.getCurrentBatchId()));
         }
         return detail;
+    }
+
+    /**
+     * Returns only the immutable payload needed by Engine to replay a DQL event.
+     * The endpoint deliberately avoids exposing the persistence DTO and its internal fields.
+     */
+    public DqlRecoveryPayloadVo recoveryPayload(String eventId, UserDetail user) {
+        checkMenuPermission(user);
+        DqlEventDto event = eventRepository.findByEventId(eventId);
+        if (event == null) {
+            throw new BizException("DqlEvent.NotFound", eventId);
+        }
+        checkEventTaskPermission(event, user);
+        DqlRecoveryPayloadVo payload = new DqlRecoveryPayloadVo();
+        payload.setPayloadFormat(event.getPayloadFormat());
+        payload.setPayloadData(event.getPayloadData());
+        payload.setPayloadHash(event.getPayloadHash());
+        payload.setPayloadSize(event.getPayloadSize());
+        payload.setPayloadComplete(event.getPayloadComplete());
+        payload.setPayloadPreview(event.getPayloadPreview());
+        payload.setPayloadPreviewTruncated(event.getPayloadPreviewTruncated());
+        return payload;
     }
 
     public DqlEventSummaryVo summary(DqlEventQueryVo query, UserDetail user) {

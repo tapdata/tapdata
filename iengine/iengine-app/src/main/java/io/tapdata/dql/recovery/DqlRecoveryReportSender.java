@@ -12,6 +12,10 @@ public interface DqlRecoveryReportSender {
         send(command, DqlRecoveryReport.batchStarted(command.getBatchId(), System.currentTimeMillis()));
     }
 
+    default void reportBatchHeartbeat(DqlRecoveryMessageDto command) {
+        send(command, DqlRecoveryReport.batchHeartbeat(command.getBatchId(), System.currentTimeMillis()));
+    }
+
     default void reportEventStarted(DqlRecoveryMessageDto command,
                                     String eventId,
                                     String attemptId,
