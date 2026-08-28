@@ -45,7 +45,7 @@ class DqlEventWebMapperTest {
 
     @Test
     @DisplayName("detail mapping masks nested preview values and keeps only recent attempts")
-    void detailMappingSanitizesPreviewAndAttempts() {
+    void detailMappingSanitizesPreviewAndAttempts() throws Exception {
         DqlEventDto event = event();
         event.setEventKey(new LinkedHashMap<>(Map.of("id", 1001, "password", "secret")));
         Map<String, Object> preview = new LinkedHashMap<>();
@@ -64,6 +64,20 @@ class DqlEventWebMapperTest {
 
         DqlEventDetailVo result = mapper.toDetail(event);
 
+        assertEquals(event.getStatus(), result.getStatus());
+        assertEquals("source-node-1", result.getSourceNodeId());
+        assertEquals("source-node-name", result.getSourceNodeName());
+        assertEquals("target-node-1", result.getTargetNodeId());
+        assertEquals("target-node-name", result.getTargetNodeName());
+        assertEquals("failed-node-1", result.getFailedNodeId());
+        assertEquals("failed-node-name", result.getFailedNodeName());
+        String json = new ObjectMapper().writeValueAsString(result);
+        assertTrue(json.contains("\"sourceNodeId\":\"source-node-1\""));
+        assertTrue(json.contains("\"sourceNodeName\":\"source-node-name\""));
+        assertTrue(json.contains("\"targetNodeId\":\"target-node-1\""));
+        assertTrue(json.contains("\"targetNodeName\":\"target-node-name\""));
+        assertTrue(json.contains("\"failedNodeId\":\"failed-node-1\""));
+        assertTrue(json.contains("\"failedNodeName\":\"failed-node-name\""));
         assertEquals("{\"id\":1001,\"password\":\"******\"}", result.getEventKey());
         assertEquals("******", result.getPayloadPreview().get("token"));
         assertEquals(512, ((String) result.getPayloadPreview().get("longText")).length());
@@ -107,6 +121,12 @@ class DqlEventWebMapperTest {
         event.setStatus(DqlEventStatusEnum.PENDING.name());
         event.setRecoveryCount(0);
         event.setPayloadComplete(true);
+        event.setSourceNodeId("source-node-1");
+        event.setSourceNodeName("source-node-name");
+        event.setTargetNodeId("target-node-1");
+        event.setTargetNodeName("target-node-name");
+        event.setFailedNodeId("failed-node-1");
+        event.setFailedNodeName("failed-node-name");
         return event;
     }
 }

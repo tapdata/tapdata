@@ -1,7 +1,10 @@
 package io.tapdata.task.skiperrorevent;
 
 import com.tapdata.tm.commons.function.ThrowableFunction;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.SkipErrorDataAspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
@@ -59,6 +62,16 @@ class C12EngineCaptureRegressionTest {
         task.setAgentId("agent-1");
         task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
         task.setStatus(TaskDto.STATUS_RUNNING);
+        DAG dag = mock(DAG.class);
+        Node<?> sourceNode = mock(Node.class);
+        when(sourceNode.getId()).thenReturn("source-node-1");
+        when(sourceNode.getName()).thenReturn("Mongo source");
+        Node targetNode = mock(Node.class);
+        when(targetNode.getId()).thenReturn("target-node-1");
+        when(targetNode.getName()).thenReturn("MySQL target");
+        when(dag.getSourceNodes()).thenReturn(List.of(sourceNode));
+        when(dag.getTargetNodes()).thenReturn(List.of(targetNode));
+        task.setDag(dag);
         skipErrorEventAspectTask.setTask(task);
 
         TaskDto.SkipErrorEvent skipConfig = new TaskDto.SkipErrorEvent();
@@ -117,6 +130,32 @@ class C12EngineCaptureRegressionTest {
     }
 
     @Test
+    void targetCaptureShouldRecordSourceTargetAndFailedNodeMetadata() {
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("id", 1001));
+        TapCodeException failure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+        when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
+                .thenReturn(acknowledgement("dql-event-1"));
+
+        assertNotNull(skipErrorEventAspectTask.skipErrorDataNoeAspectImpl(
+                targetAspect(new TapTable("orders"), event, records -> {
+                    throw failure;
+                })));
+
+        org.mockito.ArgumentCaptor<DqlEventReport> reportCaptor =
+                org.mockito.ArgumentCaptor.forClass(DqlEventReport.class);
+        verify(reporter).report(eq("task-1"), reportCaptor.capture());
+        DqlEventReport report = reportCaptor.getValue();
+        assertEquals("source-node-1", report.getSourceNodeId());
+        assertEquals("Mongo source", report.getSourceNodeName());
+        assertEquals("target-node-1", report.getTargetNodeId());
+        assertEquals("MySQL target", report.getTargetNodeName());
+        assertEquals("target-node-1", report.getFailedNodeId());
+        assertEquals("MySQL target", report.getFailedNodeName());
+    }
+
+    @Test
     void batchNetworkFailureShouldStayOnExistingTaskRetryPath() {
         List<TapRecordEvent> events = List.of(insertEvent(1), insertEvent(2));
         List<List<TapRecordEvent>> applied = new ArrayList<>();
@@ -169,6 +208,12 @@ class C12EngineCaptureRegressionTest {
         when(aspect.getTapRecordEvents()).thenReturn(events);
         when(aspect.getPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
         when(aspect.getWriteRecordFunction()).thenReturn(writeFunction);
+        DataProcessorContext context = mock(DataProcessorContext.class);
+        Node targetNode = mock(Node.class);
+        when(targetNode.getId()).thenReturn("target-node-1");
+        when(targetNode.getName()).thenReturn("MySQL target");
+        when(context.getNode()).thenReturn(targetNode);
+        when(aspect.getDataProcessorContext()).thenReturn(context);
         return aspect;
     }
 

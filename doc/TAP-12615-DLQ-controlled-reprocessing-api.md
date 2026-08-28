@@ -101,8 +101,9 @@
 
 |字段|类型|用途|
 |---|---|---|
-|`sourceNodeName` / `targetNodeName`|string?|详情中的源、目标节点名称。|
-|`failedNodeName` / `stage`|string?|失败节点和阶段，例如 SOURCE、TRANSFORM、TARGET。|
+|`sourceNodeId` / `sourceNodeName`|string?|详情中的源节点 ID 和名称。|
+|`targetNodeId` / `targetNodeName`|string?|详情中的目标节点 ID 和名称。|
+|`failedNodeId` / `failedNodeName` / `stage`|string?|失败节点 ID、名称和阶段，例如 SOURCE、TRANSFORM、TARGET。|
 |`tableId`|string?|预留表标识。|
 |`captureSeq`|number?|捕获序号，预览和重放顺序的稳定 tie\-breaker。|
 |`eventKey` / `eventKeyMissing`|string? / boolean?|业务键及是否缺失。缺失时需标记不可安全重处理。|

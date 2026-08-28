@@ -109,8 +109,8 @@ GET /api/dql-events/{eventId}
 
 | 前端区域 | 关键响应字段 |
 | --- | --- |
-| 任务与表流向 | `taskName`、`sourceTable`、`targetTable`、`sourceNodeName`、`targetNodeName` |
-| 失败位置 | `failedNodeName`、`stage`、`tableId`、`dmlType`、`eventTime`、`failedAt`、`captureSeq` |
+| 任务与表流向 | `taskName`、`sourceTable`、`targetTable`、`sourceNodeId`、`sourceNodeName`、`targetNodeId`、`targetNodeName` |
+| 失败位置 | `failedNodeId`、`failedNodeName`、`stage`、`tableId`、`dmlType`、`eventTime`、`failedAt`、`captureSeq` |
 | Payload 元数据 | `eventKey`、`eventKeyMissing`、`payloadFormat`、`payloadHash`、`payloadSize`、`payloadComplete` |
 | 错误信息 | `errorType`、`errorCode`、`errorDetails`、`rawErrorRef` |
 | Payload 安全预览 | `payloadPreview`、`payloadPreviewTruncated`、`payloadComplete` |

@@ -3,8 +3,10 @@ package io.tapdata.task.skiperrorevent;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
@@ -266,6 +268,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         vo.setLimit(0L);
                         return true;
                     case SkipData:
+                    case DQL:
                         return true;
                     // case SkipTableForMigrateSnapshot:
                     // 此配置将复制任务的全量同步「跳过错误表」功能配置合并
@@ -492,7 +495,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
             TapTable table = resolveProcessorTable(aspect, tableId);
             reportDqlEvent(table, event, tableId, aspect.getError(), classification,
-                    failedStage, aspect.getNodeId(), aspect.getNodeName(), null);
+                    failedStage, aspect.getNodeId(), aspect.getNodeName(), null, null);
             logSkipEvent(event, aspect.getError());
             committed = true;
             return new AspectInterceptResult().intercepted(true);
@@ -523,7 +526,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             getTypeMetrics(tableId, METRICS_SYNC).addAndGet(aspect.getTapRecordEvents().size());
         } catch (Throwable e1) {
             if (aspect.getTapRecordEvents().size() == 1) {
-                if (!checkSkip(table, tableId, aspect.getTapRecordEvents().get(0), e1)) {
+                if (!checkSkip(table, tableId, aspect.getTapRecordEvents().get(0), e1,
+                        aspect.getDataProcessorContext())) {
                     throwAsRuntime(e1);
                 }
             } else if (shouldSplitBatch(aspect, e1)) {
@@ -532,7 +536,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         aspect.getWriteRecordFunction().apply(Collections.singletonList(tapRecordEvent));
                         getTypeMetrics(tableId, METRICS_SYNC).addAndGet(1);
                     } catch (Throwable e2) {
-                        if (!checkSkip(table, tableId, tapRecordEvent, e2)) {
+                        if (!checkSkip(table, tableId, tapRecordEvent, e2,
+                                aspect.getDataProcessorContext())) {
                             throwAsRuntime(e2);
                         }
                     }
@@ -651,7 +656,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private boolean checkSkip(TapTable table,
                                String tableName,
                                TapRecordEvent tapRecordEvent,
-                               Throwable ex) {
+                               Throwable ex,
+                               DataProcessorContext dataProcessorContext) {
         if (DqlRecoveryCaptureGuard.isRecoveryRecord(tapRecordEvent)) {
             DqlRecoveryCaptureGuard.notifyFailure(tapRecordEvent, ex);
             return false;
@@ -675,7 +681,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             if (!checkSkipByLimitMode(tableName, syncCounts, skipMetric.get())) {
                 return false;
             }
-            reportDqlEvent(table, tapRecordEvent, tableName, ex, classification);
+            reportDqlEvent(table, tapRecordEvent, tableName, ex, classification,
+                    dataProcessorContext);
             logSkipEvent(tapRecordEvent, ex);
             committed = true;
             return true;
@@ -716,7 +723,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     private boolean isSkipDataEnabled() {
         return skipErrorEvent != null
-                && skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.SkipData;
+                && (skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.SkipData
+                || skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.DQL);
     }
 
     private boolean isDqlEventEnabled() {
@@ -729,7 +737,17 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                 Throwable error,
                                 DqlClassificationResult classification) {
         reportDqlEvent(table, event, tableId, error, classification,
-                DqlFailedStage.TARGET_WRITE, null, null, tableId);
+                DqlFailedStage.TARGET_WRITE, null, null, tableId, null);
+    }
+
+    private void reportDqlEvent(TapTable table,
+                                TapRecordEvent event,
+                                String tableId,
+                                Throwable error,
+                                DqlClassificationResult classification,
+                                DataProcessorContext dataProcessorContext) {
+        reportDqlEvent(table, event, tableId, error, classification,
+                DqlFailedStage.TARGET_WRITE, null, null, tableId, dataProcessorContext);
     }
 
     private void reportDqlEvent(TapTable table,
@@ -740,13 +758,14 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                 DqlFailedStage failedStage,
                                 String failedNodeId,
                                 String failedNodeName,
-                                String targetTable) {
+                                String targetTable,
+                                DataProcessorContext dataProcessorContext) {
         try {
             if (dqlEventReporter == null) {
                 throw new DqlEventReportException(taskId, "DQL TM reporter is unavailable");
             }
             DqlEventReport report = buildDqlEventReport(table, event, tableId, error, classification,
-                    failedStage, failedNodeId, failedNodeName, targetTable);
+                    failedStage, failedNodeId, failedNodeName, targetTable, dataProcessorContext);
             dqlEventReporter.report(taskId, report);
         } catch (DqlEventReportException exception) {
             throw exception;
@@ -761,7 +780,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                                Throwable error,
                                                DqlClassificationResult classification) {
         return buildDqlEventReport(table, event, tableId, error, classification,
-                DqlFailedStage.TARGET_WRITE, null, null, tableId);
+                DqlFailedStage.TARGET_WRITE, null, null, tableId, null);
     }
 
     private DqlEventReport buildDqlEventReport(TapTable table,
@@ -772,7 +791,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                                DqlFailedStage failedStage,
                                                String failedNodeId,
                                                String failedNodeName,
-                                               String targetTable) {
+                                               String targetTable,
+                                               DataProcessorContext dataProcessorContext) {
         TaskDto currentTask = getTask();
         DqlEventReport report = new DqlEventReport();
         if (currentTask != null) {
@@ -783,8 +803,17 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         }
         report.setTaskRecordId(report.getTaskRecordId() == null ? taskId : report.getTaskRecordId());
         report.setFailedStage(failedStage == null ? null : failedStage.name());
-        report.setFailedNodeId(failedNodeId);
-        report.setFailedNodeName(failedNodeName);
+        TaskDto dagTask = currentTask;
+        if ((dagTask == null || dagTask.getDag() == null)
+                && dataProcessorContext != null && dataProcessorContext.getTaskDto() != null) {
+            dagTask = dataProcessorContext.getTaskDto();
+        }
+        Node<?> sourceNode = boundaryNode(dagTask == null || dagTask.getDag() == null
+                ? null : dagTask.getDag().getSourceNodes());
+        Node<?> targetNode = targetNode(dataProcessorContext,
+                dagTask == null || dagTask.getDag() == null
+                        ? null : dagTask.getDag().getTargetNodes());
+        setNodeMetadata(report, sourceNode, targetNode, failedNodeId, failedNodeName);
         report.setSourceTable(event.getTableId());
         report.setTargetTable(targetTable);
         report.setTableId(tableId);
@@ -802,6 +831,36 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         identity.applyTo(report);
         classification.applyTo(report);
         return report;
+    }
+
+    private Node<?> boundaryNode(List<Node> nodes) {
+        return nodes == null || nodes.isEmpty() ? null : nodes.get(0);
+    }
+
+    private Node<?> targetNode(DataProcessorContext dataProcessorContext, List<Node> targetNodes) {
+        if (dataProcessorContext != null && dataProcessorContext.getNode() != null) {
+            return dataProcessorContext.getNode();
+        }
+        return boundaryNode(targetNodes);
+    }
+
+    private void setNodeMetadata(DqlEventReport report,
+                                 Node<?> sourceNode,
+                                 Node<?> targetNode,
+                                 String failedNodeId,
+                                 String failedNodeName) {
+        if (sourceNode != null) {
+            report.setSourceNodeId(sourceNode.getId());
+            report.setSourceNodeName(sourceNode.getName());
+        }
+        if (targetNode != null) {
+            report.setTargetNodeId(targetNode.getId());
+            report.setTargetNodeName(targetNode.getName());
+        }
+        report.setFailedNodeId(StringUtils.isBlank(failedNodeId) && targetNode != null
+                ? targetNode.getId() : failedNodeId);
+        report.setFailedNodeName(StringUtils.isBlank(failedNodeName) && targetNode != null
+                ? targetNode.getName() : failedNodeName);
     }
 
     private TapTable resolveProcessorTable(SkipErrorProcessAspect aspect, String tableId) {

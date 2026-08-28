@@ -75,10 +75,14 @@ final class DqlEventWebMapper {
         result.setEventTime(event.getEventTime());
         result.setFailedAt(event.getFailedAt());
         result.setCaptureSeq(event.getCaptureSeq());
+        result.setStatus(event.getStatus());
         result.setRecoveryCount(event.getRecoveryCount());
         result.setLastRecoveryTime(event.getLastRecoveryTime());
+        result.setSourceNodeId(event.getSourceNodeId());
         result.setSourceNodeName(event.getSourceNodeName());
+        result.setTargetNodeId(event.getTargetNodeId());
         result.setTargetNodeName(event.getTargetNodeName());
+        result.setFailedNodeId(event.getFailedNodeId());
         result.setFailedNodeName(event.getFailedNodeName());
         result.setStage(event.getFailedStage());
         result.setTableId(event.getTableId());

@@ -239,8 +239,11 @@ export interface DqlRecoveryAttempt {
 }
 
 export interface DqlEventDetail extends DqlEvent {
+  sourceNodeId?: string
   sourceNodeName?: string
+  targetNodeId?: string
   targetNodeName?: string
+  failedNodeId?: string
   failedNodeName?: string
   stage?: string
   tableId?: string
@@ -419,12 +422,12 @@ export interface DqlRecoveryBatch {
 任务与表流向：
 
 - `taskName`
-- `sourceNodeName` → `targetNodeName`
+- `sourceNodeId` / `sourceNodeName` → `targetNodeId` / `targetNodeName`
 - `sourceTable` → `targetTable`
 
 失败位置：
 
-- `failedNodeName`
+- `failedNodeId` / `failedNodeName`
 - `stage`
 - `tableId`
 - `dmlType`

@@ -1,915 +1,336 @@
-# G13 DQL POC 场景测试用例与执行记录
+# G13 DQL POC 场景测试用例
 
-## 1. 文档目的
+## 1. 文档目的与代码实现分析
 
-本文是一套可以从零执行的 DQL POC 测试用例，不是验收大纲。测试人员按照 TC-00 到 TC-13 的顺序执行，每个用例都记录：
+本文在现有“重复下单导致唯一索引冲突”用例基础上，补充可用于 POC 联调的 DQL 场景。所有场景都以真实任务、真实源/目标连接器和真实 TM/Engine 运行结果为准，不通过手工修改 `dql_events` 来制造成功结果。
 
-1. 具体的页面操作或命令；
-2. 需要观察的任务、目标表、异常事件列表或浏览器 Network；
-3. 每一步的预期结果；
-4. 用例通过和失败的判定。
+当前实现的关键行为如下：
 
-本用例固定使用 MongoDB 源端 -> MongoDB 目标端、CDC 任务和一张订单表。除登录态、任务 ID、连接 ID、事件 ID 外，不允许临时替换名称或数据，否则后续查询无法直接复用。
+| DQL 能力 | 代码实现依据 | POC 观察点 |
+| --- | --- | --- |
+| 目标记录级异常捕获 | `SkipErrorEventAspectTask` + `DqlExceptionClassifier` | 单条唯一键、类型、长度、非空或 `SKIPPABLE_DATA` 错误进入 DQL，任务继续运行 |
+| Processor/JavaScript 单条异常 | `skipErrorProcessAspectHandle` | `TRANSFORM_ERROR`、失败节点和原始 Payload 被记录 |
+| Payload、预览和记录身份 | `DqlPayloadSerializer`、`DqlPayloadPreviewBuilder`、`DqlEventIdentityGenerator` | `payloadData`、安全预览、`eventKey`/`recordIdentity` 可查询，敏感字段不泄露 |
+| 共享异常与未知异常保护 | `DqlExceptionClassifier`、`DlqStormGuard` | 网络/连接异常走任务级重试；未知异常超过窗口阈值后停止继续写入 DQL |
+| 事件持久化与幂等 | `DqlEventService.report`、`DqlEventReporter` | 同一事件重复上报不新增主记录，首次落库触发 `TASK_DQL_EVENT` |
+| 单条/批量恢复 | `DqlRecoveryBatchService`、`DqlRecoveryCoordinatorImpl` | 预览、排序、锁定、`dqlRecovery` 下发、attempt 和批次计数完整闭环 |
+| 运行中/暂停任务恢复 | `DqlSourceReadGate`、`DqlRecoveryOnlyRunner` | 运行中任务暂停普通 Source 读取；暂停任务不启动普通 Source reader |
+| 恢复失败防递归与补偿 | `DqlRecoveryCaptureGuard`、TM 超时扫描 | 恢复失败只结束当前 attempt，不生成新的 DQL 主记录；锁最终释放 |
+| 后续成功覆盖风险 | `reportRecordSuccess` | 同记录后续普通写入成功后，原 DQL 事件标记 `overwriteRisk` |
 
-> 重要：本用例使用 MongoDB validator 制造稳定的记录级写入失败。它可以证明“异常记录进入 DQL、任务继续处理、修复后可恢复”，但 MongoDB validator 返回的错误在当前分类器中通常是 TARGET_WRITE_ERROR，不能人为标成 POISON_RECORD。只有目标连接器明确返回 PDK SKIPPABLE_DATA 错误码时，才执行本文的严格 POISON_RECORD 分支。
+其中，目标 MongoDB validator 或 MySQL 约束错误通常会被分类为 `TARGET_WRITE_ERROR`；只有目标连接器明确返回 PDK `SKIPPABLE_DATA` 错误码时，才应验证 `POISON_RECORD`。不能根据业务字段 `scenario=POISON` 直接修改或推断 DQL 类型。
 
-## 2. 固定环境和变量
+## 2. 共通前置条件和证据
 
-### 2.1 版本和服务
+### 2.1 固定数据和变量
 
-在 TM 仓库目录执行：
+新增场景沿用现有用例中的环境：MongoDB 源集合 `customer_orders`，MySQL 目标表 `dql_poc_orders_1`，任务已开启 DQL/记录级异常处理并处于运行中。每次执行新场景使用不重复的 `user_id`、`order_no` 和 `op_seq`。
 
-~~~bash
-cd /Users/gavinxiao/kit/tapdata/tapdata
-git branch --show-current
-git log -1 --oneline
-~~~
+执行前记录以下动态变量：
 
-预期：
+```text
+TASK_ID       = DQL 任务 ID
+EVENT_ID      = DQL 事件 ID
+BATCH_ID      = DQL 恢复批次 ID
+ACCESS_TOKEN  = 当前登录 Web 的访问令牌（如需直接调用 API）
+```
 
-- 当前分支为 TAP-12615-DLQ-4.22，或当前 POC 约定的包含 DQL 改动的分支；
-- TM、Engine、Web 均来自同一套可互通的构建版本；
-- Web 可通过 http://localhost:3030 访问，TM API 可通过 http://localhost:3000/api 访问。
+任务配置必须核对：
 
-本文使用以下固定值：
+- `skipErrorEvent.errorMode` 为 `SkipData`；当前兼容代码也接受 `DQL`，但 POC 优先使用契约值 `SkipData`；
+- `dql.event.enabled=true`；
+- `limitMode` 和 `limit` 足以容纳当前场景，例如 `SkipByLimit`/`100`；
+- 目标表存在主键或唯一业务键，且恢复场景使用支持幂等写入的配置。
 
-| 项目 | 固定值 |
-|---|---|
-| Web | http://localhost:3030 |
-| TM API | http://localhost:3000/api |
-| 控制面 MongoDB | localhost:27017，由本地 compose 提供 |
-| 源 MongoDB | 容器 dql-poc-source，宿主端口 27018 |
-| 目标 MongoDB | 容器 dql-poc-target，宿主端口 27019 |
-| Engine 连接源/目标时的主机 | host.docker.internal |
-| 源数据库/集合 | dql_poc_source.dql_poc_orders |
-| 目标数据库/集合 | dql_poc_target.dql_poc_orders |
-| 源连接名称 | DQL-POC-SOURCE |
-| 目标连接名称 | DQL-POC-TARGET |
-| 任务名称 | DQL-POC-MONGO-CDC |
-| 任务类型 | cdc / 页面上的“增量（CDC）” |
+### 2.2 共通查询
 
-首次创建任务后记录以下动态值：
+每个场景开始和结束时保存任务状态、目标表记录数和控制面 MongoDB 的 DQL 数量：
 
-~~~text
-TASK_ID       = 页面或 GET /api/Task 返回的任务 ID
-SOURCE_DS_ID  = DQL-POC-SOURCE 的连接 ID
-TARGET_DS_ID  = DQL-POC-TARGET 的连接 ID
-ACCESS_TOKEN  = 当前登录 Web 使用的访问令牌（如 API 调试需要）
-~~~
+```javascript
+// 在控制面 MongoDB 执行
+db.dql_events.countDocuments({ task_id: TASK_ID })
+db.dql_recovery_batches.countDocuments({ task_id: TASK_ID })
+```
 
-## 3. TC-00：启动 TM、Engine、Web 和独立 MongoDB
+异常事件列表和详情使用以下 API：
 
-### 3.1 启动 TapData 本地服务
-
-在终端执行：
-
-~~~bash
-cd /Users/gavinxiao/kit/tapdata/tapdata
-docker compose -f docker-compose.local.yml up -d mongo tm engine web
-docker compose -f docker-compose.local.yml ps
-~~~
-
-预期：
-
-- tapdata-mongo、TM、Engine、Web 状态为 Up 或 running；
-- TM 的 3000 和 Web 的 3030 端口可用；
-- http://localhost:3030 能打开登录页或已登录首页。
-
-如果本机尚未有用于源端和目标端的独立 MongoDB，执行以下命令。只允许在没有同名容器时执行：
-
-~~~bash
-docker run -d --name dql-poc-source \
-  --add-host=host.docker.internal:host-gateway \
-  -p 27018:27017 \
-  mongo:6.0 --replSet rs0 --bind_ip_all
-
-docker run -d --name dql-poc-target \
-  --add-host=host.docker.internal:host-gateway \
-  -p 27019:27017 \
-  mongo:6.0 --replSet rs0 --bind_ip_all
-
-docker exec dql-poc-source mongosh --quiet --eval \
-  'rs.initiate({_id:"rs0",members:[{_id:0,host:"host.docker.internal:27018"}]})'
-
-docker exec dql-poc-target mongosh --quiet --eval \
-  'rs.initiate({_id:"rs0",members:[{_id:0,host:"host.docker.internal:27019"}]})'
-~~~
-
-### 3.2 验证 MongoDB 可连接
-
-执行：
-
-~~~bash
-mongosh "mongodb://localhost:27018/?directConnection=true" --quiet --eval \
-  'printjson({ping:db.adminCommand({ping:1}).ok,state:rs.status().myState})'
-
-mongosh "mongodb://localhost:27019/?directConnection=true" --quiet --eval \
-  'printjson({ping:db.adminCommand({ping:1}).ok,state:rs.status().myState})'
-~~~
-
-预期：源端和目标端都返回 ping: 1、state: 1。如果 rs.status() 不是主节点状态 1，不要创建任务，先修复副本集连接地址。
-
-TC-00 通过标准：TM、Engine、Web 均已启动；源端 27018、目标端 27019 可以从宿主机访问；Engine 能通过 host.docker.internal:27018/27019 访问两端。
-
-## 4. TC-01：构建源表和目标表
-
-### 4.1 创建源集合
-
-源集合允许 amount 和 eventTime 暂时出现错误类型，这样可以输入格式错误数据。执行：
-
-~~~bash
-mongosh "mongodb://localhost:27018/?directConnection=true" --quiet
-~~~
-
-在 mongosh 中粘贴：
-
-~~~javascript
-use dql_poc_source
-db.dropDatabase()
-
-db.createCollection("dql_poc_orders", {
-  validator: {
-    $jsonSchema: {
-      bsonType: "object",
-      required: ["_id", "orderNo", "amount", "eventTime", "status", "scenario", "opSeq"],
-      properties: {
-        _id: { bsonType: "string" },
-        orderNo: { bsonType: "string" },
-        amount: { bsonType: ["decimal", "string", "double", "int", "long"] },
-        eventTime: { bsonType: ["date", "string"] },
-        status: { bsonType: "string" },
-        scenario: { bsonType: "string" },
-        opSeq: { bsonType: "int" }
-      }
-    }
-  },
-  validationLevel: "strict",
-  validationAction: "error"
-})
-
-db.dql_poc_orders.createIndex({ orderNo: 1 }, { unique: true })
-db.dql_poc_orders.getIndexes()
-~~~
-
-预期：集合创建成功；索引至少包括 _id_ 和唯一的 orderNo_1；countDocuments() 返回 0。
-
-### 4.2 创建目标集合
-
-打开另一个终端：
-
-~~~bash
-mongosh "mongodb://localhost:27019/?directConnection=true" --quiet
-~~~
-
-在 mongosh 中粘贴：
-
-~~~javascript
-use dql_poc_target
-db.dropDatabase()
-
-db.createCollection("dql_poc_orders", {
-  validator: {
-    $and: [
-      {
-        $jsonSchema: {
-          bsonType: "object",
-          required: ["_id", "orderNo", "amount", "eventTime", "status", "scenario", "opSeq"],
-          properties: {
-            _id: { bsonType: "string" },
-            orderNo: { bsonType: "string" },
-            amount: { bsonType: "decimal" },
-            eventTime: { bsonType: "date" },
-            status: { bsonType: "string" },
-            scenario: { bsonType: "string" },
-            opSeq: { bsonType: "int" }
-          }
-        }
-      },
-      { scenario: { $ne: "POISON" } }
-    ]
-  },
-  validationLevel: "strict",
-  validationAction: "error"
-})
-
-db.dql_poc_orders.createIndex({ orderNo: 1 }, { unique: true })
-db.dql_poc_orders.getIndexes()
-~~~
-
-预期：目标集合创建成功；amount 必须为 Decimal128、eventTime 必须为 BSON Date；scenario=POISON 的记录会被拒绝；集合初始为空。
-
-> 这里的 POISON 是业务测试标记，不等于 DQL 的 POISON_RECORD 枚举。当前 MongoDB validator 失败按实际响应通常归类为 TARGET_WRITE_ERROR。
-
-TC-01 通过标准：两端集合结构、字段类型和唯一索引都符合上面定义，且两端记录数为 0。
-
-## 5. TC-02：创建源端和目标端连接
-
-### 5.1 创建源连接
-
-在 http://localhost:3030 登录后：
-
-1. 进入“连接管理”，点击“新建连接”；
-2. 数据库类型选择“MongoDB”；
-3. 连接名称填写 DQL-POC-SOURCE；
-4. Host 填写 host.docker.internal，Port 填写 27018；
-5. Database 填写 dql_poc_source；
-6. 用户名、密码留空，认证关闭；
-7. 点击“测试连接”，成功后点击“保存”；
-8. 记录连接 ID 为 SOURCE_DS_ID。
-
-预期：测试连接成功，连接列表出现 DQL-POC-SOURCE 且状态可用。不要把 Host 填成 localhost，因为对 Engine 容器而言 localhost 是 Engine 自身。
-
-### 5.2 创建目标连接
-
-重复上述操作，填写：
-
-| 页面字段 | 值 |
-|---|---|
-| 连接名称 | DQL-POC-TARGET |
-| Host | host.docker.internal |
-| Port | 27019 |
-| Database | dql_poc_target |
-| 认证 | 关闭 |
-
-预期：测试连接成功，连接列表出现 DQL-POC-TARGET，记录连接 ID 为 TARGET_DS_ID。
-
-### 5.3 API 核对
-
-打开浏览器开发者工具 Network，刷新连接列表，确认出现：
-
-~~~text
-GET /api/Connections
-~~~
-
-预期响应能找到两个刚保存的连接。若页面显示成功但 Network 没有真实请求，或响应中没有这两个连接，TC-02 失败。
-
-## 6. TC-03：创建、配置并启动 CDC 任务
-
-### 6.1 在 Web 创建任务
-
-在 Web 中：
-
-1. 进入“数据开发”，点击“新建任务”；
-2. 任务名称填写 DQL-POC-MONGO-CDC；
-3. 任务类型选择“增量（CDC）”；
-4. 源连接选择 DQL-POC-SOURCE；
-5. 源库选择 dql_poc_source，源表/集合选择 dql_poc_orders；
-6. 目标连接选择 DQL-POC-TARGET；
-7. 目标库选择 dql_poc_target，目标表/集合填写 dql_poc_orders；
-8. 目标端已有数据处理选择“保留目标端”（keepData）；
-9. 如果有写入模式，选择 upsert 或当前版本支持的幂等写入模式；
-10. 保存任务但先不要启动，记录 TASK_ID。
-
-预期：任务保存成功，Network 中出现 POST /api/Task 或对应保存请求，进入任务编辑页。
-
-### 6.2 添加转换脚本节点
-
-在任务 DAG 中添加“JavaScript Processor”（或同义脚本处理节点），内容填写：
-
-~~~javascript
-function process(record) {
-  var after = record.after || {};
-  if (after.scenario === "SCRIPT_FAIL" ||
-      after.scenario === "SEQ_ORDER") {
-    throw new Error("DQL_POC_SCRIPT_FAIL");
-  }
-  return record;
-}
-~~~
-
-点击“测试脚本”或“保存节点”。预期：普通测试记录通过，脚本节点出现在源端到目标端的 DAG 中。
-
-### 6.3 配置记录级异常处理
-
-打开高级设置或错误处理设置：
-
-1. 异常数据处理选择“跳过异常数据”，对应后端 SkipData；
-2. 异常数量限制模式选择“按数量跳过”，对应 SkipByLimit；
-3. 限制数量填写 100，比例字段（如果有）填写 100；
-4. 保存任务。
-
-保存后必须在 Network 的任务响应中核对：
-
-~~~json
-"skipErrorEvent": {
-  "errorMode": "SkipData",
-  "limitMode": "SkipByLimit",
-  "limit": 100
-}
-~~~
-
-不要把页面上仅用于展示的 DLQ 文案直接当作后端枚举值。若响应为 DLQ、为空，或 GET 任务不是 SkipData，停止执行并记录为前后端配置契约错误。
-
-### 6.4 设置重试参数
-
-如果页面可配置任务重试，设置重试间隔 5 秒、最大重试时间 1 分钟。页面没有字段时，用已登录的 ACCESS_TOKEN 执行：
-
-~~~bash
-curl -sS -X PATCH \
-  "http://localhost:3000/api/Task/$TASK_ID?access_token=$ACCESS_TOKEN" \
-  -H 'Content-Type: application/json' \
-  --data '{
-    "retryIntervalSecond": 5,
-    "maxRetryTimeMinute": 1,
-    "skipErrorEvent": {
-      "errorMode": "SkipData",
-      "limitMode": "SkipByLimit",
-      "limit": 100,
-      "rate": 100
-    }
-  }'
-~~~
-
-预期：返回成功状态码，且响应中的重试参数和 skipErrorEvent.errorMode=SkipData 正确。
-
-### 6.5 启动前核对和启动
-
-执行：
-
-~~~bash
-curl -sS \
-  "http://localhost:3000/api/Task/$TASK_ID?access_token=$ACCESS_TOKEN" \
-  -H 'Accept: application/json'
-~~~
-
-任务启动前必须满足：类型为 cdc（某些响应使用 syncType）；源/目标连接和表正确；skipErrorEvent.errorMode=SkipData；DAG 有脚本节点；重试为 5 秒/1 分钟。
-
-点击“启动任务”，或执行：
-
-~~~bash
-curl -sS -X PUT \
-  "http://localhost:3000/api/Task/start/$TASK_ID?access_token=$ACCESS_TOKEN"
-~~~
-
-预期：出现 PUT /api/Task/start/{TASK_ID} 或对应页面请求；任务状态变为运行中；任务进入 CDC 监听，不因源端暂无数据而结束。
-
-任务不能启动、状态不是运行中、或 SkipData 没有真正保存，TC-03 失败。后续事件结果不能用于证明 DQL。
-
-## 7. TC-04：正常记录基线
-
-### 7.1 插入原始数据
-
-在源端执行：
-
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.insertMany([
-  {
-    _id: "N-001", orderNo: "ORD-N-001",
-    amount: Decimal128.fromString("10.00"),
-    eventTime: ISODate("2026-08-28T09:00:00.001Z"),
-    status: "CREATED", scenario: "NORMAL", opSeq: NumberInt(1)
-  },
-  {
-    _id: "N-002", orderNo: "ORD-N-002",
-    amount: Decimal128.fromString("20.00"),
-    eventTime: ISODate("2026-08-28T09:00:00.002Z"),
-    status: "CREATED", scenario: "NORMAL", opSeq: NumberInt(1)
-  }
-])
-~~~
-
-预期：返回 acknowledged: true 和 insertedIds，源端记录数增加 2。
-
-### 7.2 检查目标端和 DQL
-
-等待不超过 30 秒，在目标端执行：
-
-~~~javascript
-use dql_poc_target
-db.dql_poc_orders.find(
-  { _id: { $in: ["N-001", "N-002"] } },
-  { _id: 1, orderNo: 1, amount: 1, eventTime: 1, status: 1, scenario: 1, opSeq: 1 }
-).sort({ _id: 1 }).toArray()
-~~~
-
-预期：目标有两条记录，字段值一致，amount 为 Decimal128、eventTime 为 BSON Date，任务仍运行中；异常事件 summary 和列表没有新增这两条记录。
-
-TC-04 通过标准：两条正常记录成功 CDC 到目标，任务不停止，DQL 事件数不增加。
-
-## 8. TC-05：短暂目标故障只触发任务级重试
-
-### 8.1 制造故障和写入
-
-先在源端写入：
-
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.insertOne({
-  _id: "T-001", orderNo: "ORD-T-001",
-  amount: Decimal128.fromString("30.00"),
-  eventTime: ISODate("2026-08-28T09:01:00.001Z"),
-  status: "CREATED", scenario: "TARGET_SHORT_OUTAGE", opSeq: NumberInt(1)
-})
-~~~
-
-立即在另一个终端执行：
-
-~~~bash
-docker stop dql-poc-target
-sleep 10
-docker start dql-poc-target
-~~~
-
-如果 T-001 已经在停机前到达目标，再写入 T-002，内容同上但 _id/orderNo 改为 T-002/ORD-T-002，金额为 31.00。
-
-### 8.2 观察任务级重试
-
-在任务详情查看状态和日志，或执行：
-
-~~~bash
-docker logs --since 2m tapdata-engine 2>&1 | rg 'retry|connection|timeout|T-001|T-002'
-~~~
-
-预期：
-
-- 目标不可用期间出现连接失败、超时或任务级 retry 日志；
-- 任务不会因为一条记录被置为错误；
-- 目标恢复后，T-001/T-002 最终写入目标；
-- DQL 异常事件数量不增加；
-- 不会把目标整体不可用期间的积压数据批量写入 DQL。
-
-TC-05 通过标准：短暂故障走任务级重试，正常记录最终到达目标，DQL 事件数不变。若每条记录都生成 DQL，TC-05 失败。
-
-## 9. TC-06：持续共享故障导致任务错误，不批量生成 DQL
-
-### 9.1 停止目标并写入积压
-
-执行：
-
-~~~bash
-docker stop dql-poc-target
-~~~
-
-目标停止后 5 秒内在源端执行：
-
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.insertMany([
-  {
-    _id: "S-001", orderNo: "ORD-S-001", amount: Decimal128.fromString("40.00"),
-    eventTime: ISODate("2026-08-28T09:02:00.001Z"),
-    status: "CREATED", scenario: "TARGET_LONG_OUTAGE", opSeq: NumberInt(1)
-  },
-  {
-    _id: "S-002", orderNo: "ORD-S-002", amount: Decimal128.fromString("41.00"),
-    eventTime: ISODate("2026-08-28T09:02:00.002Z"),
-    status: "CREATED", scenario: "TARGET_LONG_OUTAGE", opSeq: NumberInt(1)
-  },
-  {
-    _id: "S-003", orderNo: "ORD-S-003", amount: Decimal128.fromString("42.00"),
-    eventTime: ISODate("2026-08-28T09:02:00.003Z"),
-    status: "CREATED", scenario: "TARGET_LONG_OUTAGE", opSeq: NumberInt(1)
-  }
-])
-~~~
-
-保持目标停止至少 90 秒，覆盖本任务的 1 分钟最大重试时间。
-
-### 9.2 观察任务和 DQL
-
-预期：
-
-- 任务经历重试后进入错误或失败状态；
-- 日志记录目标共享故障和重试耗尽；
-- 配置的告警渠道收到任务错误告警；
-- S-001、S-002、S-003 不会因为共享目标故障被批量创建为 DQL 事件；
-- 异常事件总数不应按积压数量增加。
-
-这里的“任务保持运行”不适用于持续共享故障；它只适用于短暂故障和记录级异常。
-
-### 9.3 恢复任务
-
-执行：
-
-~~~bash
-docker start dql-poc-target
-mongosh "mongodb://localhost:27019/?directConnection=true" --quiet --eval \
-  'printjson({ping:db.adminCommand({ping:1}).ok,state:rs.status().myState})'
-curl -sS -X PUT \
-  "http://localhost:3000/api/Task/start/$TASK_ID?access_token=$ACCESS_TOKEN"
-~~~
-
-预期：Mongo 返回 ping:1/state:1；任务重新运行；CDC 从可用位点继续；目标最终出现三条 S-*。若 oplog 已超出保留范围，应记录为环境容量问题，不能当作 DQL 恢复通过。
-
-## 10. TC-07：格式错误记录进入 DQL，正常记录继续到达
-
-### 10.1 插入格式错误和正常记录
-
-源端执行：
-
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.insertMany([
-  {
-    _id: "M-001", orderNo: "ORD-M-001", amount: "not-a-number",
-    eventTime: ISODate("2026-08-28T09:03:00.001Z"),
-    status: "CREATED", scenario: "MALFORMED_AMOUNT", opSeq: NumberInt(1)
-  },
-  {
-    _id: "N-003", orderNo: "ORD-N-003", amount: Decimal128.fromString("50.00"),
-    eventTime: ISODate("2026-08-28T09:03:00.002Z"),
-    status: "CREATED", scenario: "NORMAL_AFTER_MALFORMED", opSeq: NumberInt(1)
-  }
-])
-~~~
-
-预期：源端两条都写入成功。
-
-### 10.2 检查事件
-
-在“高级功能 / 异常事件”等待列表刷新，或在 Network 确认：
-
-~~~text
-GET /api/dql-events/summary
-GET /api/dql-events?skip=0&limit=20&order=-failedAt
-~~~
-
-打开 M-001 详情。预期：
-
-- M-001 生成一条 DQL 事件；
-- 状态初始为 PENDING 或 NOT_REPROCESSABLE，以接口实际返回为准；
-- 当前 MongoDB validator 路径预期 errorType=TARGET_WRITE_ERROR；
-- 事件原始数据含 _id=M-001、orderNo=ORD-M-001、amount="not-a-number"；
-- 任务继续运行；
-- N-003 正常写入目标。
-
-### 10.3 可选的严格 MALFORMED_RECORD 分支
-
-如果 DAG 节点列表有“字段类型转换”节点：
-
-1. 在脚本节点前增加该节点；
-2. 将 amount 配置为 Decimal128/数字类型，转换失败策略为抛出；
-3. 保存并重启任务；
-4. 插入 amount="still-not-a-number" 的 M-002；
-5. 查看事件详情。
-
-只有 Engine/PDK 抛出被分类器识别的数值转换异常时，类型才应为 MALFORMED_RECORD。如果实际是 TARGET_WRITE_ERROR 或 UNKNOWN_RECORD_ERROR，按实际响应记录，不修改结果。
-
-## 11. TC-08：转换脚本失败，修复后恢复事件
-
-### 11.1 插入脚本失败记录和正常记录
-
-保持 TC-03 的脚本，在源端执行：
-
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.insertMany([
-  {
-    _id: "X-001", orderNo: "ORD-X-001", amount: Decimal128.fromString("60.00"),
-    eventTime: ISODate("2026-08-28T09:04:00.001Z"),
-    status: "CREATED", scenario: "SCRIPT_FAIL", opSeq: NumberInt(1)
-  },
-  {
-    _id: "N-004", orderNo: "ORD-N-004", amount: Decimal128.fromString("61.00"),
-    eventTime: ISODate("2026-08-28T09:04:00.002Z"),
-    status: "CREATED", scenario: "NORMAL_AFTER_SCRIPT_FAIL", opSeq: NumberInt(1)
-  }
-])
-~~~
-
-### 11.2 预期结果
-
-- X-001 生成一条事件；
-- 事件类型为 TRANSFORM_ERROR，详情含 DQL_POC_SCRIPT_FAIL；
-- 原始数据可查看；
-- 任务保持运行；
-- N-004 正常到达目标。
-
-如果 X-001 使整个任务停止，说明脚本异常没有走记录级跳过路径，TC-08 失败。
-
-### 11.3 修复脚本和恢复
-
-将脚本改为：
-
-~~~javascript
-function process(record) {
-  return record;
-}
-~~~
-
-保存脚本并确认任务运行，然后在 Web 中：
-
-1. 刷新异常事件列表；
-2. 打开 X-001 详情；
-3. 确认状态为 PENDING 或 RECOVERY_FAILED；
-4. 点击“预览”，确认只选择 X-001 和 TASK_ID；
-5. 点击“提交恢复”；
-6. 等待状态从 REPROCESSING 变为 RECOVERED；
-7. 在目标端查询 _id="X-001"。
-
-预期请求：
-
-~~~text
-POST /api/dql-events/recovery/preview
-POST /api/dql-events/recovery
-GET  /api/dql-events/{EVENT_ID}
-~~~
-
-预期结果：预览通过后才能提交；恢复成功后事件为 RECOVERED，恢复尝试数增加 1；目标出现 X-001；任务仍运行。若点击恢复没有这些请求，或只改变前端列表，TC-08 失败。
-
-## 12. TC-09：稳定失败的业务 Poison Record
-
-### 12.1 插入 Poison 和正常记录
-
-目标集合当前禁止 scenario=POISON。源端执行：
-
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.insertMany([
-  {
-    _id: "P-001", orderNo: "ORD-P-001", amount: Decimal128.fromString("70.00"),
-    eventTime: ISODate("2026-08-28T09:05:00.001Z"),
-    status: "CREATED", scenario: "POISON", opSeq: NumberInt(1)
-  },
-  {
-    _id: "N-005", orderNo: "ORD-N-005", amount: Decimal128.fromString("71.00"),
-    eventTime: ISODate("2026-08-28T09:05:00.002Z"),
-    status: "CREATED", scenario: "NORMAL_AFTER_POISON", opSeq: NumberInt(1)
-  }
-])
-~~~
-
-### 12.2 预期结果
-
-- P-001 进入一条事件；
-- 当前 MongoDB 路径预期 errorType=TARGET_WRITE_ERROR；
-- 详情能看到原始 scenario=POISON；
-- 任务继续运行；
-- N-005 正常到达目标；
-- 刷新详情不会产生重复事件。
-
-### 12.3 修复业务规则并恢复
-
-在目标端移除 scenario != POISON 条件，保留字段类型校验：
-
-~~~javascript
-use dql_poc_target
-db.runCommand({
-  collMod: "dql_poc_orders",
-  validator: {
-    $jsonSchema: {
-      bsonType: "object",
-      required: ["_id", "orderNo", "amount", "eventTime", "status", "scenario", "opSeq"],
-      properties: {
-        _id: { bsonType: "string" },
-        orderNo: { bsonType: "string" },
-        amount: { bsonType: "decimal" },
-        eventTime: { bsonType: "date" },
-        status: { bsonType: "string" },
-        scenario: { bsonType: "string" },
-        opSeq: { bsonType: "int" }
-      }
-    }
-  },
-  validationLevel: "strict",
-  validationAction: "error"
-})
-~~~
-
-在 Web 对 P-001 执行“预览 -> 提交恢复”。预期事件变为 RECOVERED，目标出现 P-001，任务保持运行。
-
-### 12.4 严格 POISON_RECORD 分支
-
-只有目标连接器明确返回 PDK SKIPPABLE_DATA 时才执行：
-
-1. 使用该连接器规定的可稳定复现的 skippable 数据；
-2. 记录原始输入和连接器错误码；
-3. 重复本节 12.2；
-4. 只有实际接口返回 errorType=POISON_RECORD 才判定严格枚举通过。
-
-如果只能得到 MongoDB 文档校验失败，不得把它改写成 POISON_RECORD。报告中分别记录“业务 Poison 行为验证”和“严格 POISON_RECORD 枚举未验证/不适用”。
-
-## 13. TC-10：同一业务键 Insert、Update、Delete 顺序和最终状态
-
-### 13.1 产生三条失败事件
-
-把脚本恢复为 TC-03 的版本，使 scenario=SEQ_ORDER 抛出异常。在源端连续执行，不要在三条命令之间手工等待：
-
-~~~javascript
-use dql_poc_source
-
-db.dql_poc_orders.insertOne({
-  _id: "Q-001", orderNo: "ORD-Q-001", amount: Decimal128.fromString("80.00"),
-  eventTime: ISODate("2026-08-28T09:06:00.001Z"),
-  status: "CREATED", scenario: "SEQ_ORDER", opSeq: NumberInt(1)
-})
-
-db.dql_poc_orders.updateOne(
-  { _id: "Q-001" },
-  { $set: {
-      amount: Decimal128.fromString("85.00"),
-      status: "PAID",
-      eventTime: ISODate("2026-08-28T09:06:00.002Z"),
-      opSeq: NumberInt(2),
-      scenario: "SEQ_ORDER"
-  }}
-)
-
-db.dql_poc_orders.deleteOne({ _id: "Q-001" })
-~~~
-
-预期：源端最终查不到 Q-001；CDC 中存在 Insert、Update、Delete 三个变更。
-
-### 13.2 检查并按服务端顺序恢复
-
-在异常事件列表按任务 TASK_ID、关键字 ORD-Q-001 查询，打开三条详情并记录 EVENT_ID。预期三条事件属于同一任务、同一源表/目标表，DML 类型分别为 Insert、Update、Delete。
-
-然后：
-
-1. 选择这三条事件；
-2. 点击“预览”；
-3. 检查返回的 orderedEvents；
-4. 确认顺序为 opSeq=1 -> 2 -> 3，或由事件时间和服务端稳定排序得到同样结果；
-5. 确认三条事件属于同一个 TASK_ID；
-6. 提交恢复；
-7. 轮询详情直到三条都为 RECOVERED。
-
-预期：
-
-- Preview 拒绝跨任务混选；
-- 预览顺序来自服务端，不以页面当前数组顺序为准；
-- Recovery 按 Insert、Update、Delete 执行；
-- 目标最终查不到 Q-001，证明 Delete 没有在 Insert 前执行，也没有只恢复最后一条。
-
-## 14. TC-11：逐项核查 Web 操作是否真正调用 API
-
-此用例验证列表、筛选、刷新、详情、预览、恢复不是前端假数据或只改本地状态。
-
-### 14.1 打开异常事件页
-
-开发者工具 Network 勾选 Preserve log，进入“高级功能 / 异常事件”。预期至少看到：
-
-~~~text
-GET /api/dql-events/summary
-GET /api/dql-events?skip=0&limit=20&order=-failedAt
-~~~
-
-### 14.2 验证筛选
-
-每次清空上一个条件后执行下一个：
-
-| 页面操作 | 预期请求 | 预期结果 |
-|---|---|---|
-| 关键字输入 X-001 并查询 | GET /api/dql-events?...&keyword=X-001 | 只显示匹配事件 |
-| 选择任务 DQL-POC-MONGO-CDC | GET /api/dql-events?...&taskId=TASK_ID | 只显示该任务事件 |
-| 选择 TRANSFORM_ERROR | GET /api/dql-events?...&errorType=TRANSFORM_ERROR | 只显示脚本错误 |
-| 选择 DML Update | 请求包含 dmlType | 只显示 Update 事件 |
-| 点击重置 | 重新请求默认列表和 summary | 条件清空、恢复默认 |
-
-每次都必须出现新的 HTTP 请求，或出现防抖后的新请求。没有请求、URL 没带筛选条件、或只是前端静态过滤，判定 Web 适配失败。
-
-### 14.3 验证刷新
-
-1. 记下当前列表第一条事件；
-2. 在源端制造新的脚本失败记录 X-002；
-3. 点击刷新；
-4. 查看 Network 和列表。
-
-预期：重新调用 summary 和列表接口；X-002 出现在列表；loading 在请求结束后消失；不能只排序或复用旧响应。
-
-### 14.4 验证详情、预览、恢复
-
-点击事件行和恢复操作，预期请求：
-
-~~~text
+```text
+GET  /api/dql-events/summary?taskId={TASK_ID}
+GET  /api/dql-events?taskId={TASK_ID}&skip=0&limit=20&order=-failedAt
 GET  /api/dql-events/{EVENT_ID}
 POST /api/dql-events/recovery/preview
 POST /api/dql-events/recovery
-~~~
+GET  /api/dql-events/recovery-batches/{BATCH_ID}
+```
 
-预期：详情对应服务端的 EVENT_ID；Preview 失败时不发送 Recovery；Recovery 成功后详情轮询并显示 RECOVERED；列表刷新后与详情一致。
+可重处理事件的最低预期是：`status=PENDING` 或 `RECOVERY_FAILED`、`payloadComplete=true`、存在 `recordIdentity`/业务键。完整 Payload 缺失时状态为 `NOT_REPROCESSABLE`，不应强行提交恢复。
 
-## 15. TC-12：错误路径和权限路径
+## 3. 场景 1：重复下单导致唯一索引冲突
 
-### 15.1 跨任务恢复
+这是现有场景，保留其业务背景和数据。它验证目标写入的单条唯一约束错误能被隔离并进入 DQL。
 
-准备两个不同任务的事件，或在 API 调试工具中把两个 TASK_ID 的事件一起放入 Preview。
+1. 使用 Mongo 作为源表，插入三条历史订单数据：
 
-预期：Preview 返回 4xx/业务校验失败，指出事件必须属于同一任务；页面不允许提交。
+   ```javascript
+   db.customer_orders.insertMany([{
+     user_id: "1", order_no: "1", amount_text: "UID",
+     event_time: new ISODate(), status: "PAYED", scenario: "i", op_seq: 1
+   }, {
+     user_id: "2", order_no: "2", amount_text: "CNX",
+     event_time: 111, status: "OVER", scenario: "ei", op_seq: 2
+   }, {
+     user_id: "3", order_no: "3", amount_text: "IF",
+     event_time: new ISODate(), status: "PAYED", scenario: "ie", op_seq: 3
+   }])
+   ```
 
-### 15.2 不可恢复事件
+2. 创建并启动订单表同步到 MySQL 表的 TapData 任务，任务开启 DQL 异常处理。
+3. 在目标表为订单号增加唯一索引：
 
-选择状态为 NOT_REPROCESSABLE 的事件（如果当前版本能产生），打开详情并点击恢复。
+   ```sql
+   CREATE UNIQUE INDEX idx_unique_order_no
+     ON dql_poc_orders_1 (order_no);
+   ```
 
-预期：详情可查看，但恢复按钮禁用，不发送 Recovery 请求。
+4. 源端再次插入重复订单号，模拟用户重复点击下单：
 
-### 15.3 重复提交
+   ```javascript
+   db.customer_orders.insertOne({
+     user_id: "1", order_no: "1", amount_text: "UID",
+     event_time: new ISODate(), status: "PAYED", scenario: "i", op_seq: 2
+   })
+   ```
 
-对 REPROCESSING 或 RECOVERED 的事件再次点击恢复。
+5. 查看任务状态和异常事件列表。
 
-预期：按钮禁用，或 API 返回幂等成功/冲突；不能产生第二个并行恢复批次。
+预期结果：
 
-### 15.4 非法事件 ID
+- 任务保持运行，不因单条记录失败而中断；
+- 新增一条 DQL 主记录，`exceptionScope=RECORD`、`routeDecision=RECORD_DLQ`、`errorType=TARGET_WRITE_ERROR`；
+- 事件详情能看到原始记录、错误信息、脱敏预览、事件身份和业务键；
+- 触发 `TASK_DQL_EVENT` 告警，DQL 计数与跳过计数各增加 1；
+- 如果历史数据中的 `event_time=111` 另行触发类型错误，应按另一条事件记录，不能把它与唯一索引冲突合并计算。
 
-请求：
+## 4. 场景 2：I/U/D 混合数据中的记录级异常隔离
 
-~~~text
-GET /api/dql-events/not-exist-event-id
-~~~
+本场景验证 DQL 对 Insert、Update、Delete 事件的 Payload 和身份处理，同时确认目标约束错误只影响失败记录。
 
-预期：返回 404 或统一业务错误；页面显示可理解的提示，不显示空白成功页。
+1. 在源端插入两个正常订单，并保证目标端已同步：
 
-## 16. TC-13：最终对账和清理
+   ```javascript
+   db.customer_orders.insertMany([
+     { user_id: "M-001", order_no: "M-001", amount_text: "10.00",
+       event_time: new ISODate(), status: "CREATED", scenario: "MIX_I", op_seq: 1 },
+     { user_id: "M-002", order_no: "M-002", amount_text: "20.00",
+       event_time: new ISODate(), status: "CREATED", scenario: "MIX_I", op_seq: 1 }
+   ])
+   ```
 
-### 16.1 目标数据对账
+2. 更新 `M-001` 的状态，验证 Update 正常同步：
 
-源端执行：
+   ```javascript
+   db.customer_orders.updateOne(
+     { user_id: "M-001" },
+     { $set: { status: "PAYED", op_seq: 2 } }
+   )
+   ```
 
-~~~javascript
-use dql_poc_source
-db.dql_poc_orders.countDocuments()
-db.dql_poc_orders.find({
-  _id: { $in: ["N-001", "N-002", "T-001", "T-002", "S-001", "S-002",
-               "S-003", "N-003", "N-004", "N-005"] }
-}).count()
-~~~
+3. 删除 `M-002`，验证 Delete 正常同步：
 
-目标端执行：
+   ```javascript
+   db.customer_orders.deleteOne({ user_id: "M-002" })
+   ```
 
-~~~javascript
-use dql_poc_target
-db.dql_poc_orders.countDocuments()
-db.dql_poc_orders.find({
-  _id: { $in: ["N-001", "N-002", "T-001", "T-002", "S-001", "S-002",
-               "S-003", "N-003", "N-004", "N-005"] }
-}).count()
-db.dql_poc_orders.find({ _id: "Q-001" }).count()
-~~~
+4. 预先在目标端写入 `order_no=M-003`，再在源端插入另一条 `order_no=M-003` 的记录，制造 Insert 唯一键冲突。
+5. 预先在目标端写入 `order_no=M-004`，再将源端 `M-001` 更新为 `order_no=M-004`，制造 Update 唯一键冲突。
+6. 紧接着插入一条正常订单 `M-005`，验证异常后续记录仍可处理。
+
+预期结果：
+
+- `M-001` 的正常 Update 和 `M-002` 的 Delete 到达目标，不产生 DQL；
+- Insert 冲突和 Update 冲突分别产生一条 DQL，事件的 `dmlType` 分别为 `I`、`U`（以实际 API 枚举格式为准）；
+- 两条事件的 Payload、`eventKey`、`recordIdentity` 与对应源记录一致，不能把同一批数据错误合并成一条事件；
+- `M-005` 正常写入目标，任务继续运行；
+- 若目标连接器支持可控的 Delete 记录级约束错误，可额外对 Delete 注入同类错误，预期新增 `dmlType=D` 的事件；如果只能制造任务级/共享错误，则不把该错误归入 Delete DQL 场景。
+
+## 5. 场景 3：JavaScript 转换异常与单条恢复
+
+本场景覆盖 Processor 失败、错误分类、事件详情、TM 恢复预览、Engine 回放和恢复防递归。
+
+1. 在源到目标之间增加 JavaScript Processor，脚本使用现有任务支持的处理函数格式：
+
+   ```javascript
+   function process(record) {
+     var after = record.after || {};
+     if (after.scenario === "SCRIPT_FAIL") {
+       throw new Error("DQL_POC_SCRIPT_FAIL");
+     }
+     return record;
+   }
+   ```
+
+2. 插入一条 `scenario=SCRIPT_FAIL` 的订单，随后立即插入一条正常订单。
+3. 在事件详情中记录 `EVENT_ID`，查看任务日志、事件列表和目标表。
+4. 将脚本修复为：
+
+   ```javascript
+   function process(record) {
+     return record;
+   }
+   ```
+
+5. 先预览恢复：
+
+   ```bash
+   curl -sS -X POST "http://localhost:3000/api/dql-events/recovery/preview?access_token=$ACCESS_TOKEN" \
+     -H 'Content-Type: application/json' \
+     --data '{"eventIds":["EVENT_ID"],"mode":"AUTO"}'
+   ```
+
+6. 确认 `canSubmit=true` 后提交恢复：
+
+   ```bash
+   curl -sS -X POST "http://localhost:3000/api/dql-events/recovery?access_token=$ACCESS_TOKEN" \
+     -H 'Content-Type: application/json' \
+     --data '{"eventIds":["EVENT_ID"],"confirm":true,"mode":"AUTO"}'
+   ```
+
+7. 轮询批次详情和事件详情，直到批次、attempt 和事件进入终态。
+
+预期结果：
+
+- 脚本错误产生一条 `TRANSFORM_ERROR`，`failedStage=PROCESSOR`、`routeDecision=RECORD_DLQ`，并包含 `DQL_POC_SCRIPT_FAIL`；
+- 任务不停止，脚本失败后的正常订单成功到达目标；
+- 预览返回该事件可恢复，提交后批次经过 `CREATED/DISPATCHED/RUNNING`，事件经过 `REPROCESSING` 最终变为 `RECOVERED`；
+- `recovery_attempts` 新增一次 `SUCCESS`，目标端出现被恢复的订单；
+- DQL 主记录数量不新增，恢复写入失败时也只能结束当前恢复事件为 `RECOVERY_FAILED`，不能递归创建新的 DQL 主记录；
+- 运行中任务应能在恢复前暂停普通 Source 读取、恢复完成后重新开放；暂停任务变体应使用 recovery-only runner，且不启动普通 Source reader。
+
+## 6. 场景 4：批量恢复顺序、幂等和无丢失
+
+本场景使用三个已捕获且可恢复的 DQL 事件，验证 TM 固化顺序、批次锁、Engine 串行屏障和数量对账。
+
+1. 准备三个不同事件时间的目标唯一键冲突，分别记录 `EVENT_A`、`EVENT_B`、`EVENT_C`。清理目标端原有冲突行，但不要修改 `dql_events`。
+2. 以非时间顺序提交预览，例如：
+
+   ```json
+   {
+     "eventIds": ["EVENT_C", "EVENT_A", "EVENT_B"],
+     "mode": "AUTO"
+   }
+   ```
+
+3. 检查预览中的 `orderedEvents`，再提交恢复：
+
+   ```json
+   {
+     "eventIds": ["EVENT_C", "EVENT_A", "EVENT_B"],
+     "confirm": true,
+     "mode": "AUTO"
+   }
+   ```
+
+4. 记录返回的 `BATCH_ID`，同时检查 `dql_recovery_batches.ordered_event_ids`、Engine 日志中的 `dqlRecovery.orderedEventIds` 和每个事件的 attempt 顺序。
+5. 如果消息或回调测试工具支持，重复投递同一个批次消息和同一个 attempt 回调；否则至少保存 TM 的重复回调响应和批次详情作为证据。
+
+预期结果：
+
+- `orderedEvents` 和 `ordered_event_ids` 使用 `task_id ASC → event_time ASC → capture_seq ASC → event_id ASC`，与用户原始选择顺序无关；
+- 同一任务同一时刻只能存在一个活动恢复批次，重复发起被拒绝；
+- Engine 每次只推进一个事件，前一个事件收到成功、失败或超时结果后才处理下一个；
+- 三条事件各只有一个有效终态 attempt，重复消息/回调不重复增加成功、失败或跳过计数；
+- 目标唯一键无重复，DQL 主记录不新增；
+- 对账公式成立：`输入记录数 = 首次成功数 + DQL 数`，`DQL 数 = 已恢复数 + 未恢复数`，`批次 selectedCount = successCount + failedCount + skippedCount`。
+
+## 7. 场景 5：共享故障与未知异常 Storm Guard
+
+### 7.1 目标短暂不可用：只走任务级重试
+
+1. 在源端插入一条格式正常的订单。
+2. 在目标写入窗口内，通过目标连接代理、防火墙或目标容器短暂停止制造连接拒绝/超时，持续时间短于任务最大重试时间。
+3. 恢复目标连接，观察 Engine 日志、任务状态、目标数据和 DQL 数量。
 
 预期：
 
-- 正常记录以及恢复成功的 X-001、P-001 符合目标 schema；
-- Q-001 因 Delete 恢复成功而不存在；
-- 尚未修复的事件才允许暂时不在目标；
-- 源/目标差异必须逐条解释，不能只看总数。
+- `SocketTimeoutException`、`ConnectException`、`SocketException`、`IOException` 或对应共享错误码被分类为 `TASK_RETRY`；
+- 任务重试后从原进度继续，记录最终到达目标；
+- 故障期间不把共享异常拆成逐条 DQL，DQL 数量不因积压数据批量增长。
 
-### 16.2 DQL 事件对账
+### 7.2 未知单条异常风暴：触发保护而非无限写 DQL
 
-查询：
+1. 使用测试 Processor 或测试连接器制造“单条可定位、但不属于 `DqlExceptionClassifier` 已知错误码”的异常；不要使用普通 JavaScript 执行异常，因为它会优先被分类为 `TRANSFORM_ERROR`。
+2. 在 60 秒窗口内，对同一任务/节点/表/错误码/归一化消息注入超过 20 条同类异常。
+3. 检查事件数量、任务路由、日志和告警。
 
-~~~text
-GET /api/dql-events?skip=0&limit=100&order=-failedAt&taskId=TASK_ID
-GET /api/dql-events/summary
-~~~
+POC 默认阈值为：`windowSeconds=60`、`maxEvents=20`、`maxBatchRatio=0.2`、`decision=TASK_RETRY`。
 
-逐条核对 eventId、任务 ID、源/目标表、DML 类型、错误类型、状态、恢复尝试次数和最后失败原因。预期每条记录级异常只有一个主事件；重复刷新和打开详情不会增加事件数；每次恢复都有可追踪结果。
+预期：
 
-### 16.3 清理 POC 资源
+- 阈值内的未知单条异常可产生有限的 `UNKNOWN_RECORD_ERROR` DQL；
+- 第 21 条及之后同一 guard key 的事件不继续新增 DQL，转为 `TASK_RETRY`（若设置为 `TASK_ERROR`，按设置验证）；
+- 触发 `TASK_DQL_STORM_GUARD` 告警，告警只包含安全摘要/guard key，不包含完整 Payload、原始异常堆栈或归一化敏感文本；
+- 若没有可控未知异常注入点，应将本子场景标记为“待外部环境”，不得用已知脚本异常冒充 Storm Guard 端到端证据。
 
-确认报告和日志已保存后，只清理本文创建的资源：
+## 8. 场景 6：恢复失败、超时和补偿收敛
 
-~~~bash
-docker rm -f dql-poc-source dql-poc-target
-~~~
+本场景验证 DQL 恢复链路的失败状态、告警、锁释放和防递归。
 
-如需停止 TapData 本地服务：
+1. 选择一个 `PENDING` 或 `RECOVERY_FAILED` 事件，保持目标约束冲突不修复，提交单条恢复。
+2. 观察 `EVENT_STARTED`、`EVENT_RESULT` 和批次详情。
+3. 对另一个事件提交恢复后，在 Engine 回调前停止 Engine，或阻断目标写入使 barrier 超时。若需要缩短等待时间，只在隔离 POC 环境中设置较小的 `dql.recovery.eventTimeoutSeconds`/`dql.recovery.batchTimeoutSeconds`，并重新启动任务或创建新批次使配置快照生效。
+4. 恢复 TM/Engine，等待回调或 TM 超时扫描完成。
 
-~~~bash
-cd /Users/gavinxiao/kit/tapdata/tapdata
-docker compose -f docker-compose.local.yml stop mongo tm engine web
-~~~
+预期结果：
 
-不得删除控制面数据库或其他测试数据。
+- 目标约束仍存在时，当前事件变为 `RECOVERY_FAILED`，追加一个失败 attempt，触发 `TASK_DQL_RECOVERY_FAILED`；
+- `continueOnEventFailure=true` 时，单事件失败不阻止批次按策略继续处理其他事件，批次最终为 `PARTIAL_FAILED` 或 `FAILED`；
+- barrier 超时或 Engine 进程终止后，TM 超时扫描能把遗留事件和批次收敛到终态，并释放事件锁、任务锁；
+- 重复回调不覆盖已有终态，不重复增加批次计数；
+- 恢复过程中的目标/Processor 错误不新增 `dql_events` 主记录，原始失败原因保留在 recovery attempt/批次审计中。
 
-## 17. 测试记录模板
+## 9. 场景 7：事件查询、后续成功覆盖风险、权限和 TTL
 
-每个用例执行后按以下格式填写，不要只填写“通过”：
+本场景验证 DQL 事件的 Web/API 交接和生命周期证据。
 
-~~~text
-用例编号：TC-__
-执行时间：
-执行人：
-任务 ID：
-源连接 ID：
-目标连接 ID：
+1. 使用事件列表分别按 `taskId`、`sourceTable`、`targetTable`、`dmlType`、`errorType`、`status` 和 `keyword` 查询；再调用 summary 和 detail 接口。
+2. 对有菜单权限但无目标任务权限的用户执行列表、详情、恢复预览；再用无菜单权限用户重复执行。
+3. 对一个已经进入 DQL 的业务记录产生同一记录身份的后续普通成功写入，观察 Engine 到 TM 的 `record-success/report` 回调和事件详情。
+4. 在控制面 MongoDB 检查初始化索引和 TTL 字段：
 
-实际执行命令/页面操作：
+   ```javascript
+   db.dql_events.getIndexes()
+   db.dql_recovery_batches.getIndexes()
+   db.dql_events.findOne({ event_id: EVENT_ID }, {
+     event_id: 1, status: 1, ttl_at: 1, overwrite_risk: 1,
+     recovery_count: 1, recovery_attempts: 1
+   })
+   ```
 
-实际请求：
-  Method/URL：
-  Request Body：
-  Response Code：
+预期结果：
 
-实际观察：
-  任务状态：
-  源端结果：
-  目标端结果：
-  DQL 事件 ID：
-  errorType：
-  status：
-  recoveryAttempts：
+- 列表、summary、detail 的字段和状态计数一致；
+- 无权限用户不能读取或操作其他任务事件，跨任务恢复预览被服务端拒绝；
+- 后续同记录普通写入成功后，原事件 `overwriteRisk=true`，详情出现覆盖风险提示；恢复操作不因该回调自动生成新主记录；
+- `dql_events` 和 `dql_recovery_batches` 均存在 `{ttl_at: 1}` 的 14 天 TTL 索引，索引名分别为 `idx_dql_event_ttl`、`idx_dql_batch_ttl`；
+- 新建事件的 `ttl_at` 与 `created` 接近，恢复活动推进时 `ttl_at` 刷新；POC 不需要真实等待 14 天，只需保留索引、字段和刷新证据。
 
-预期与实际差异：
-最终结论：PASS / FAIL / BLOCKED
-失败证据：日志、截图、Network HAR 或响应体路径
-~~~
+## 10. 覆盖矩阵和通过标准
 
-最终 POC 结论必须同时给出：
+| 场景 | 主要覆盖功能 | 关键证据 |
+| --- | --- | --- |
+| 场景 1 | 唯一键冲突、记录级路由、DQL 告警 | 1 条 `TARGET_WRITE_ERROR`，任务运行中 |
+| 场景 2 | I/U/D、Payload、身份、异常后续处理 | DML 类型、事件身份、正常记录到达目标 |
+| 场景 3 | Processor 捕获、单条恢复、Source gate、防递归 | `TRANSFORM_ERROR`、`RECOVERED`、无新增 DQL |
+| 场景 4 | 批量恢复、顺序、锁、幂等、无丢失 | `ordered_event_ids`、批次计数和对账公式 |
+| 场景 5 | 共享重试、Storm Guard、任务级路由 | 无共享故障批量 DQL，超过阈值后受保护 |
+| 场景 6 | 恢复失败、超时、补偿、恢复告警 | attempt 终态、锁释放、`PARTIAL_FAILED/FAILED` |
+| 场景 7 | 查询、详情、权限、覆盖风险、TTL | API 结果、权限边界、索引和 `ttl_at` |
 
-1. 正常 CDC 是否联通；
-2. 共享故障是否走任务级重试/错误；
-3. 记录级异常是否进入 DQL 且不拖停任务；
-4. Web 的列表、筛选、刷新、详情、预览、恢复是否逐项调用真实 API；
-5. 恢复成功后目标数据和事件状态是否逐条对账；
-6. 哪些错误类型是当前 MongoDB POC 实际验证出的，哪些严格枚举因连接器错误码未提供而未验证。
+POC 总体通过需要同时满足：
+
+1. 记录级错误只影响对应记录，任务和后续正常记录按预期继续；
+2. DQL 主记录、Payload、身份、状态、告警和事件数量可以相互对账；
+3. 单条/批量恢复能按服务端顺序执行，成功、失败、超时和重复回调都能收敛；
+4. 共享故障不被误判为记录级 DQL，未知异常风暴不会无限增长 DQL；
+5. 目标表具备幂等能力时才对无重复作结论，不将 Exactly-Once 泛化到无幂等目标；
+6. 不设置吞吐和延迟阈值，本文只验证功能、路由、状态、顺序、计数、告警、安全和恢复结果。
