@@ -6,6 +6,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.dto.UserLogDto;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 
 public interface UserLogService {
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, Boolean rename);
@@ -21,4 +22,8 @@ public interface UserLogService {
     void addUserLog(Modular modular, Operation OperationType, String parameter1, UserDetail userDetail);
 
     Page<UserLogDto> find(Filter filter, UserDetail userDetail);
+
+    UserLogDto findById(String id, UserDetail userDetail);
+
+    void addAuditLog(AuditLogParam auditLogParam);
 }

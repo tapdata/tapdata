@@ -23,8 +23,8 @@ import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.repository.UserRepository;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.user.repository.UserRepository;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -786,7 +786,27 @@ public class UserServiceImplTest {
         doCallRealMethod().when(userService).validateUserSettingFields(anyString(), any(), any(UserDetail.class), anyBoolean());
         doCallRealMethod().when(userService).validateRoleUsers(anyList());
         userService.updateUserSetting(id, settingJson, userDetail, locale, true);
-        verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.UPDATE, "671b091f4193690843a27c9a", "671b091f4193690843a27c9a", "test@tapdata.io");
+        verify(userLogService, new Times(2)).addAuditLog(any(AuditLogParam.class));
+    }
+
+    @Test
+    void testUpdateUserSettingDoesNotAuditUnchangedAccountStatus() {
+        String id = "675fa0e310853b4b042db50c";
+        UserDetail userDetail = mock(UserDetail.class);
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        User before = new User();
+        before.setAccountStatus(1);
+        UserDto result = new UserDto();
+        result.setAccountStatus(1);
+        when(repository.findOne(any(Query.class))).thenReturn(Optional.of(before));
+        when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+        when(userService.findById(any(ObjectId.class))).thenReturn(result);
+        doCallRealMethod().when(userService).updateUserSetting(id, "{\"account_status\":1}", userDetail, Locale.CHINA, true);
+        doCallRealMethod().when(userService).validateUserSettingFields(anyString(), any(), any(UserDetail.class), anyBoolean());
+
+        userService.updateUserSetting(id, "{\"account_status\":1}", userDetail, Locale.CHINA, true);
+
+        verify(userLogService, never()).addAuditLog(any(AuditLogParam.class));
     }
 
     @Test
@@ -849,7 +869,7 @@ public class UserServiceImplTest {
             when(userServiceImpl.getUserDetail(any(User.class))).thenReturn(userDetail);
             doCallRealMethod().when(userServiceImpl).save(request, userDetail);
             userServiceImpl.save(request, userDetail);
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.CREATE, userDetail, "675fa0e310853b4b042db50c", "test", true);
+            verify(userLogService, new Times(1)).addAuditLog(any(AuditLogParam.class));
         }
         @Test
         void testWithEmail() {
@@ -866,7 +886,7 @@ public class UserServiceImplTest {
             when(userServiceImpl.getUserDetail(any(User.class))).thenReturn(userDetail);
             doCallRealMethod().when(userServiceImpl).save(request, userDetail);
             userServiceImpl.save(request, userDetail);
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.CREATE, userDetail, "675fa0e310853b4b042db50c", "test", false);
+            verify(userLogService, new Times(1)).addAuditLog(any(AuditLogParam.class));
         }
     }
 

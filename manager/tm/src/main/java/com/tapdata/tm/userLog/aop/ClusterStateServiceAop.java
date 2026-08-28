@@ -1,18 +1,18 @@
 package com.tapdata.tm.userLog.aop;
 
 import com.tapdata.tm.cluster.dto.UpdateAgentVersionParam;
-import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.constant.ClusterOperationTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.userLog.constant.Modular;
-import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.AfterThrowing;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +32,6 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 @Aspect
 @Component
-@Slf4j
 public class ClusterStateServiceAop {
 
     @Autowired
@@ -40,9 +39,6 @@ public class ClusterStateServiceAop {
 
     @Autowired
     WorkerService workerService;
-
-    @Autowired
-    ClusterStateService clusterStateService;
 
 
     @Pointcut("execution(* com.tapdata.tm.cluster.service.ClusterStateService.updateAgent(..))")
@@ -56,27 +52,60 @@ public class ClusterStateServiceAop {
      *
      * @return
      */
-    @After("updateAgentPointcut()")
-    public Object afterUpdateAgentPointcut(JoinPoint joinPoint) {
+    @AfterReturning("updateAgentPointcut()")
+    public void afterUpdateAgentPointcut(JoinPoint joinPoint) {
         if (!shouldRecord()) {
-            //log.info("不是来自用户操作");
-            return null;
+            return;
         }
-        log.debug("点击agent 自动升级");
         Object[] args = joinPoint.getArgs();
         UpdateAgentVersionParam updateAgentVersionParam = (UpdateAgentVersionParam) args[0];
         UserDetail userDetail = (UserDetail) args[1];
+        recordLifecycleAudit(updateAgentVersionParam, userDetail, AuditOutcome.SUCCESS, null);
+    }
 
-        Query query = Query.query(Criteria.where("process_id").is(updateAgentVersionParam.getProcessId()).and("worker_type").is("connector"));
-        WorkerDto workerDto = workerService.findOne(query);
-        if (ClusterOperationTypeEnum.restart.name().equals(updateAgentVersionParam.getOp())){
-            userLogService.addUserLog(Modular.AGENT, Operation.RESTART_AGENT, userDetail, workerDto.getTcmInfo().getAgentName());
-        }else if (ClusterOperationTypeEnum.start.name().equals(updateAgentVersionParam.getOp())){
-            userLogService.addUserLog(Modular.AGENT, Operation.START, userDetail, workerDto.getTcmInfo().getAgentName());
-        }else {
-            userLogService.addUserLog(Modular.AGENT, Operation.UPDATE, userDetail, workerDto.getTcmInfo().getAgentName());
+    @AfterThrowing("updateAgentPointcut()")
+    public void afterUpdateAgentFailure(JoinPoint joinPoint) {
+        if (!shouldRecord()) {
+            return;
         }
-        return null;
+        Object[] args = joinPoint.getArgs();
+        recordLifecycleAudit((UpdateAgentVersionParam) args[0], (UserDetail) args[1],
+                AuditOutcome.FAILURE, "service_operation_failed");
+    }
+
+    private void recordLifecycleAudit(UpdateAgentVersionParam updateParam, UserDetail operator,
+                                      AuditOutcome outcome, String failureReason) {
+        Query query = Query.query(Criteria.where("process_id").is(updateParam.getProcessId())
+                .and("worker_type").is("connector"));
+        WorkerDto worker = workerService.findOne(query);
+        String action = ClusterOperationTypeEnum.restart.name().equals(updateParam.getOp()) ? "restart"
+                : ClusterOperationTypeEnum.start.name().equals(updateParam.getOp()) ? "start" : "update";
+        AuditLogParam param = new AuditLogParam();
+        param.setEventType(AuditEventType.SERVICE_LIFECYCLE);
+        param.setOutcome(outcome);
+        param.setUserId(operator == null ? "SYSTEM" : operator.getUserId());
+        param.setUsername(operator == null ? "SYSTEM" : operator.getUsername());
+        param.setAction(action);
+        param.setObjectName(resolveServiceName(worker, updateParam.getProcessId()));
+        param.setServiceNode(resolveServiceNode(worker, updateParam.getProcessId()));
+        param.setFailureReason(failureReason);
+        userLogService.addAuditLog(param);
+    }
+
+    private String resolveServiceName(WorkerDto worker, String processId) {
+        return worker != null && worker.getTcmInfo() != null
+                && StringUtils.isNotBlank(worker.getTcmInfo().getAgentName())
+                ? worker.getTcmInfo().getAgentName() : processId;
+    }
+
+    private String resolveServiceNode(WorkerDto worker, String processId) {
+        if (worker == null) {
+            return processId;
+        }
+        if (StringUtils.isNotBlank(worker.getHostname())) {
+            return worker.getHostname();
+        }
+        return StringUtils.isNotBlank(worker.getWorkerIp()) ? worker.getWorkerIp() : processId;
     }
 
 

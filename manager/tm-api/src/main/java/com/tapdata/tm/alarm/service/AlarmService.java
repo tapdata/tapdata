@@ -17,6 +17,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,4 +74,15 @@ public interface AlarmService {
     void updateTaskAlarm(AlarmVO alarm);
 
     void taskRetryAlarm(String taskId,Map<String, Object> params);
+
+    /**
+     * Immediately notify a workflow ALARM step (in-app + email).
+     * Persist-success is independent of channel delivery; implementations must not throw.
+     */
+    default Map<String, Object> notifyWorkflowAlarm(AlarmInfo info, UserDetail operator) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("emailSent", false);
+        result.put("skipReason", "unsupported");
+        return result;
+    }
 }

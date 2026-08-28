@@ -13,7 +13,9 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
@@ -349,24 +351,22 @@ public class WorkerController extends BaseController {
             operation = com.tapdata.tm.userLog.constant.Operation.STOP;
         }
         boolean isTcmRequest = update.containsKey("isTCM") && update.getBoolean("isTCM");
+        WorkerDto lifecycleWorker = null;
         if (isTcmRequest && operation != null) {
             try {
                 Filter filter = new Filter();
                 filter.setWhere(where);
 
-                WorkerDto worker = workerService.findOne(filter, userDetail);
-                if (worker != null && worker.getTcmInfo() != null) {
-                    userLogService.addUserLog(
-                            Modular.AGENT, operation,
-                            userDetail, worker.getTcmInfo().getAgentName());
+                lifecycleWorker = workerService.findOne(filter, userDetail);
+                if (lifecycleWorker != null && lifecycleWorker.getTcmInfo() != null) {
                     if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)
                     || com.tapdata.tm.userLog.constant.Operation.DELETE.equals(operation)) {
-                        workerService.sendStopWorkWs(worker.getProcessId(), userDetail);
+                        workerService.sendStopWorkWs(lifecycleWorker.getProcessId(), userDetail);
                     }
                 }
             } catch (Exception e) {
-                // Ignore record agent operation log error
-                log.error("Record update worker operation fail", e);
+                recordWorkerLifecycle(userDetail, lifecycleWorker, operation, AuditOutcome.FAILURE, "service_stop_failed");
+                throw e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
             }
         }
 
@@ -376,7 +376,18 @@ public class WorkerController extends BaseController {
             update = _body;
         }
 
-        long count = workerService.updateByWhere(where, update, userDetail);
+        long count;
+        try {
+            count = workerService.updateByWhere(where, update, userDetail);
+            if (isTcmRequest && operation != null) {
+                recordWorkerLifecycle(userDetail, lifecycleWorker, operation, AuditOutcome.SUCCESS, null);
+            }
+        } catch (RuntimeException e) {
+            if (isTcmRequest && operation != null) {
+                recordWorkerLifecycle(userDetail, lifecycleWorker, operation, AuditOutcome.FAILURE, "service_status_update_failed");
+            }
+            throw e;
+        }
         /*if (reqBody.contains("\"$set\"") || reqBody.contains("\"$setOnInsert\"") || reqBody.contains("\"$unset\"")) {
             UpdateDto<WorkerDto> updateDto = JsonUtil.parseJsonUseJackson(reqBody, new TypeReference<UpdateDto<WorkerDto>>(){});
 
@@ -391,6 +402,26 @@ public class WorkerController extends BaseController {
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
         return success(countValue);
+    }
+
+    private void recordWorkerLifecycle(UserDetail operator, WorkerDto worker,
+                                       com.tapdata.tm.userLog.constant.Operation operation,
+                                       AuditOutcome outcome, String failureReason) {
+        AuditLogParam param = new AuditLogParam();
+        param.setEventType(AuditEventType.SERVICE_LIFECYCLE);
+        param.setOutcome(outcome);
+        param.setUserId(operator == null ? "SYSTEM" : operator.getUserId());
+        param.setUsername(operator == null ? "SYSTEM" : operator.getUsername());
+        param.setAction(operation == null ? "stop" : operation.getValue());
+        String processId = worker == null ? null : worker.getProcessId();
+        param.setObjectName(worker != null && worker.getTcmInfo() != null
+                && StringUtils.isNotBlank(worker.getTcmInfo().getAgentName())
+                ? worker.getTcmInfo().getAgentName() : processId);
+        param.setServiceNode(worker != null && StringUtils.isNotBlank(worker.getHostname())
+                ? worker.getHostname() : worker != null && StringUtils.isNotBlank(worker.getWorkerIp())
+                ? worker.getWorkerIp() : processId);
+        param.setFailureReason(failureReason);
+        userLogService.addAuditLog(param);
     }
 
 

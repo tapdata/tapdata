@@ -8,6 +8,10 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.param.EnterpriseUpdateParam;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
+import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
@@ -31,8 +35,12 @@ import java.util.Map;
 @RequestMapping("/api/Settings")
 @Setter(onMethod_ = {@Autowired})
 public class SettingsController extends BaseController {
+    private static final String SYSTEM_SETTINGS = "systemSettings";
+    private static final String ALARM_SETTINGS = "alarmSettings";
+
     private SettingsService settingsService;
     private AlarmSettingService alarmSettingService;
+    private UserLogService userLogService;
 
     /**
      * flowEgine启动时候调用
@@ -71,33 +79,59 @@ public class SettingsController extends BaseController {
             _body.put("$set", body);
             body = _body;
         }
-        long count = settingsService.updateByWhere(where, body);
-        HashMap<String, Long> countValue = new HashMap<>();
-        countValue.put("count", count);
-        return success(countValue);
+        String changedFields = extractChangedFields(body);
+        try {
+            long count = settingsService.updateByWhere(where, body);
+            recordConfigurationChange("update", SYSTEM_SETTINGS, changedFields, AuditOutcome.SUCCESS);
+            HashMap<String, Long> countValue = new HashMap<>();
+            countValue.put("count", count);
+            return success(countValue);
+        } catch (RuntimeException e) {
+            recordConfigurationChange("update", SYSTEM_SETTINGS, changedFields, AuditOutcome.FAILURE);
+            throw e;
+        }
     }
 
     @Operation(summary = "企业版修改配置")
     @PostMapping("/enterpriseUpdate")
     public ResponseMessage enterpriseUpdate(@RequestParam("where") String whereJson, @RequestBody EnterpriseUpdateParam enterpriseUpdateParam) {
         Where where = parseWhere(whereJson);
-        Long count = settingsService.enterpriseUpdate(where, JsonUtil.toJson(enterpriseUpdateParam));
-        Map retMap = new HashMap();
-        retMap.put("count", count);
-        return success(retMap);
+        String changedFields = extractChangedFields(Document.parse(JsonUtil.toJson(enterpriseUpdateParam)));
+        try {
+            Long count = settingsService.enterpriseUpdate(where, JsonUtil.toJson(enterpriseUpdateParam));
+            recordConfigurationChange("update", SYSTEM_SETTINGS, changedFields, AuditOutcome.SUCCESS);
+            Map retMap = new HashMap();
+            retMap.put("count", count);
+            return success(retMap);
+        } catch (RuntimeException e) {
+            recordConfigurationChange("update", SYSTEM_SETTINGS, changedFields, AuditOutcome.FAILURE);
+            throw e;
+        }
     }
 
     @Operation(summary = "Settings save")
     @PatchMapping("/save")
     public ResponseMessage<Void> save(@RequestBody List<SettingsDto> settingsDto) {
-        settingsService.save(settingsDto);
+        try {
+            settingsService.save(settingsDto);
+            recordConfigurationChange("save", SYSTEM_SETTINGS, null, AuditOutcome.SUCCESS);
+        } catch (RuntimeException e) {
+            recordConfigurationChange("save", SYSTEM_SETTINGS, null, AuditOutcome.FAILURE);
+            throw e;
+        }
         return success();
     }
 
     @Operation(summary = "alarm save")
     @PostMapping("/alarm_save")
     public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
-        alarmSettingService.saveAlarmSetting(alarms, getLoginUser());
+        try {
+            alarmSettingService.saveAlarmSetting(alarms, getLoginUser());
+            recordConfigurationChange("save", ALARM_SETTINGS, null, AuditOutcome.SUCCESS);
+        } catch (RuntimeException e) {
+            recordConfigurationChange("save", ALARM_SETTINGS, null, AuditOutcome.FAILURE);
+            throw e;
+        }
         return success();
     }
 
@@ -110,9 +144,41 @@ public class SettingsController extends BaseController {
     @Operation(summary = "update rule by key")
     @PostMapping("/alarm_update")
     public ResponseMessage<Void> updateAlarm(@RequestBody UpdateRuleDto ruleDto) {
-        alarmSettingService.updateSystemNotify(ruleDto, getLoginUser());
+        try {
+            alarmSettingService.updateSystemNotify(ruleDto, getLoginUser());
+            recordConfigurationChange("update", ALARM_SETTINGS, "systemNotificationRule", AuditOutcome.SUCCESS);
+        } catch (RuntimeException e) {
+            recordConfigurationChange("update", ALARM_SETTINGS, "systemNotificationRule", AuditOutcome.FAILURE);
+            throw e;
+        }
 
         return success();
+    }
+
+    private String extractChangedFields(Document body) {
+        if (body == null) {
+            return "";
+        }
+        return body.entrySet().stream()
+                .flatMap(entry -> entry.getValue() instanceof Document
+                        ? ((Document) entry.getValue()).keySet().stream()
+                        : java.util.stream.Stream.of(entry.getKey()))
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private void recordConfigurationChange(String action, String objectName, String changedFields, AuditOutcome outcome) {
+        AuditLogParam auditLogParam = new AuditLogParam();
+        auditLogParam.setEventType(AuditEventType.CONFIGURATION_CHANGE);
+        auditLogParam.setOutcome(outcome);
+        auditLogParam.setUserId(getLoginUser().getUserId());
+        auditLogParam.setUsername(getLoginUser().getUsername());
+        auditLogParam.setAction(action);
+        auditLogParam.setObjectName(objectName);
+        if (changedFields != null) {
+            auditLogParam.setChangeSummary(changedFields);
+        }
+        userLogService.addAuditLog(auditLogParam);
     }
 
 

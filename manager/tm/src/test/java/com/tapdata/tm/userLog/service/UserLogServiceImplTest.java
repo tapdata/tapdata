@@ -12,6 +12,7 @@ import com.tapdata.tm.userLog.repository.UserLogRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +23,7 @@ import java.util.Locale;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -163,6 +165,56 @@ public class UserLogServiceImplTest {
             String message = userLogService.renderI18nMessage(dto, Locale.US);
 
             assertEquals("User {user} deleted all items in Notification", message);
+        }
+    }
+
+    @Nested
+    class ResolveSourceIp {
+        @BeforeEach
+        void beforeEach() {
+            userLogService = new UserLogServiceImpl(mock(UserLogRepository.class));
+        }
+
+        @Test
+        void shouldUseValidatedDirectPeerAddress() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setRemoteAddr("203.0.113.8");
+
+            assertEquals("203.0.113.8", userLogService.resolveSourceIp(request));
+        }
+
+        @Test
+        void shouldNormalizeLoopbackAddress() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setRemoteAddr("0:0:0:0:0:0:0:1");
+
+            assertEquals("127.0.0.1", userLogService.resolveSourceIp(request));
+        }
+
+        @Test
+        void shouldRejectUntrustedForwardedForChain() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setRemoteAddr("10.0.0.2");
+            request.addHeader("X-Forwarded-For", "198.51.100.10, 10.0.0.1");
+
+            assertNull(userLogService.resolveSourceIp(request));
+        }
+
+        @Test
+        void shouldRejectUntrustedRealIpHeader() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setRemoteAddr("10.0.0.2");
+            request.addHeader("X-Real-IP", "198.51.100.10");
+
+            assertNull(userLogService.resolveSourceIp(request));
+        }
+
+        @Test
+        void shouldRejectInvalidDirectPeerAddress() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setRemoteAddr("not-an-ip");
+
+            assertNull(userLogService.resolveSourceIp(request));
         }
     }
 

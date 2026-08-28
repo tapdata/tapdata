@@ -9,12 +9,16 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserServiceImpl;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
 import com.tapdata.tm.userLog.constant.UserLogTemplateKey;
 import com.tapdata.tm.userLog.constant.UserLogType;
 import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.dto.User;
 import com.tapdata.tm.userLog.entity.UserLogs;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.repository.UserLogRepository;
+import com.tapdata.tm.utils.IpUtil;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
@@ -23,12 +27,26 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.*;
 
 @Slf4j
 @Service
 public class UserLogServiceImpl extends BaseService implements UserLogService{
+    private static final String UNAUTHENTICATED_USER = "UNAUTHENTICATED";
+    private static final List<String> FORWARDED_IP_HEADERS = List.of(
+            "Forwarded",
+            "X-Forwarded-For",
+            "X-Real-IP",
+            "Proxy-Client-IP",
+            "WL-Proxy-Client-IP",
+            "HTTP_CLIENT_IP",
+            "HTTP_X_FORWARDED_FOR"
+    );
+
     @Autowired
     private UserLogRepository userLogRepository;
     @Autowired
@@ -151,12 +169,17 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             userLogs.setOperation(operation != null ? operation.getValue() : null);
             userLogs.setUserId(userDetail.getUserId());
             String userName = StringUtils.isEmpty(userDetail.getUsername()) ? userDetail.getEmail() : userDetail.getUsername();
-            userLogs.setUsername(systemStart ? "system" : userName);
+            userLogs.setUsername(systemStart ? "SYSTEM" : userName);
+            userLogs.setIp(resolveSourceIp());
             userLogs.setSourceId(sourceId);
             userLogs.setType(type.getValue());
+            userLogs.setEventType(resolveEventType(modular, operation, type));
+            userLogs.setOutcome(AuditOutcome.SUCCESS.getValue());
+            userLogs.setEventId(UUID.randomUUID().toString());
+            userLogs.setObjectName(safeValue(parameter1));
 
-            userLogs.setParameter1(parameter1);
-            userLogs.setParameter2(parameter2);
+            userLogs.setParameter1(safeValue(parameter1));
+            userLogs.setParameter2(safeValue(parameter2));
             /*      userLogs.setParameter3(parameter3);*/
 
             User user = new User();
@@ -172,6 +195,115 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         } catch (Exception e) {
             log.error("执行插入操作日志失败", e);
         }
+    }
+
+    @Override
+    public void addAuditLog(AuditLogParam auditLogParam) {
+        if (auditLogParam == null) {
+            return;
+        }
+        try {
+            UserLogs userLogs = new UserLogs();
+            String userId = StringUtils.isNotBlank(auditLogParam.getUserId())
+                    ? auditLogParam.getUserId() : UNAUTHENTICATED_USER;
+            String username = StringUtils.isNotBlank(auditLogParam.getUsername())
+                    ? auditLogParam.getUsername() : userId;
+            userLogs.setUserId(userId);
+            userLogs.setCustomId(auditLogParam.getCustomerId());
+            userLogs.setUsername(username);
+            userLogs.setIp(resolveSourceIp());
+            userLogs.setEventType(auditLogParam.getEventType() == null
+                    ? AuditEventType.ADMIN_OPERATION.getValue() : auditLogParam.getEventType().getValue());
+            userLogs.setOutcome(auditLogParam.getOutcome() == null
+                    ? AuditOutcome.FAILURE.getValue() : auditLogParam.getOutcome().getValue());
+            userLogs.setOperation(safeValue(auditLogParam.getAction()));
+            userLogs.setParameter1(safeValue(auditLogParam.getParameter1()));
+            userLogs.setObjectName(safeValue(auditLogParam.getObjectName()));
+            userLogs.setFailureReason(safeValue(auditLogParam.getFailureReason()));
+            userLogs.setChangeSummary(safeValue(auditLogParam.getChangeSummary()));
+            userLogs.setServiceNode(safeValue(auditLogParam.getServiceNode()));
+            userLogs.setComponentType(safeValue(auditLogParam.getComponentType()));
+            userLogs.setInstanceName(safeValue(auditLogParam.getInstanceName()));
+            userLogs.setLoginMethod(safeValue(auditLogParam.getLoginMethod()));
+            userLogs.setEventId(UUID.randomUUID().toString());
+            userLogs.setType(UserLogType.USER_OPERATION.getValue());
+            userLogs.setModular(Modular.SYSTEM.getValue());
+            userLogs.setCreateAt(new Date());
+            userLogs.setLastUpdAt(new Date());
+            userLogs.setLastUpdBy(username);
+            userLogRepository.getMongoOperations().insert(userLogs, userLogRepository.getCollectionName());
+        } catch (Exception e) {
+            log.error("Failed to insert audit log", e);
+        }
+    }
+
+    @Override
+    public UserLogDto findById(String id, UserDetail userDetail) {
+        if (!ObjectId.isValid(id)) {
+            return null;
+        }
+        return userLogRepository.findById(new ObjectId(id), userDetail)
+                .map(entity -> (UserLogDto) convertToDto(entity, UserLogDto.class, "password"))
+                .orElse(null);
+    }
+
+    private String resolveSourceIp() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes == null) {
+                return null;
+            }
+            return resolveSourceIp(attributes.getRequest());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    String resolveSourceIp(HttpServletRequest request) {
+        if (request == null || FORWARDED_IP_HEADERS.stream()
+                .map(request::getHeader)
+                .anyMatch(StringUtils::isNotBlank)) {
+            return null;
+        }
+        return normalizeIp(request.getRemoteAddr());
+    }
+
+    private String resolveEventType(Modular modular, Operation operation, UserLogType type) {
+        if (modular == Modular.SYSTEM && (operation == Operation.LOGIN || operation == Operation.LOGOUT)) {
+            return AuditEventType.LOGIN.getValue();
+        }
+        if (modular == Modular.USER || modular == Modular.ROLE || modular == Modular.ACCESS_CODE) {
+            return AuditEventType.ADMIN_OPERATION.getValue();
+        }
+        if (modular == Modular.AGENT && (operation == Operation.START || operation == Operation.STOP
+                || operation == Operation.RESTART_AGENT || operation == Operation.DELETE)) {
+            return AuditEventType.SERVICE_LIFECYCLE.getValue();
+        }
+        return type == UserLogType.USER_OPERATION
+                ? AuditEventType.USER_OPERATION.getValue() : type.getValue();
+    }
+
+    private String normalizeIp(String ip) {
+        String normalized = ip == null ? "" : ip.trim();
+        if ("::1".equals(normalized) || "0:0:0:0:0:0:0:1".equals(normalized)) {
+            return "127.0.0.1";
+        }
+        if (normalized.startsWith("::ffff:")) {
+            normalized = normalized.substring("::ffff:".length());
+        }
+        return IpUtil.check(normalized) == null ? null : normalized;
+    }
+
+    private String safeValue(String value) {
+        if (StringUtils.isBlank(value)) {
+            return value;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.contains("password=") || lower.contains("token=") || lower.contains("secret=")
+                || lower.contains("private_key") || lower.contains("privatekey") || lower.contains("cookie=")) {
+            return "[REDACTED]";
+        }
+        return value;
     }
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, Boolean rename) {
@@ -226,6 +358,9 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
 
         if (filter == null) {
             filter = new Filter();
+        }
+        if (filter.getSort().isEmpty()) {
+            filter.setSort(Collections.singletonList("createAt DESC"));
         }
 
         List<UserLogs> entityList = userLogRepository.findAll(filter, userDetail);
