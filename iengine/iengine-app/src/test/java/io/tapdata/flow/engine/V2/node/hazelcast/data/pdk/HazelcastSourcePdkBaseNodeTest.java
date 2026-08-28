@@ -94,6 +94,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -1614,6 +1615,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			PartitionTableOffset currentOffset = new PartitionTableOffset();
 			currentOffset.setTableCompleted(false);
 			currentOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			currentOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
 
 			SyncProgress progress = new SyncProgress();
 			Map<String, Object> offsets = new ConcurrentHashMap<>();
@@ -1626,6 +1628,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			currentOffset.getCompletedPartitions().put("partition-1", 100L);
 
 			assertNotSame(currentOffset, snapshot);
+			assertSame(currentOffset.getPartitions(), snapshot.getPartitions());
 			assertFalse(snapshot.getTableCompleted());
 			assertTrue(snapshot.getCompletedPartitions().isEmpty());
 		}

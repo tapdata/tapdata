@@ -69,7 +69,11 @@ public class PartitionsCompletedRunnable implements Runnable {
 		}
 
 		aspectManager.executeAspect(batchReadFuncAspect.state(DataFunctionAspect.STATE_END));
-		sourcePdkDataNodeEx1.enqueue(new TapdataCompleteTableSnapshotEvent(tapTable.getId()));
+		TapdataCompleteTableSnapshotEvent completeTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tapTable.getId());
+		if (partitionTableOffset != null) {
+			completeTableSnapshotEvent.setBatchOffset(partitionTableOffset.copy());
+		}
+		sourcePdkDataNodeEx1.enqueue(completeTableSnapshotEvent);
 		//partition split done and read partitions done, start entering CDC stage.
 		sourcePdkDataNodeEx1.handleEnterCDCStage(partitionsReader, tapTable);
 		jobCompleted.completed(null, null);

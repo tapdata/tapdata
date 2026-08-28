@@ -3,7 +3,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +36,7 @@ public class PartitionTableOffset implements Serializable {
 
 	public PartitionTableOffset copy() {
 		PartitionTableOffset copy = new PartitionTableOffset();
-		copy.partitions = partitions == null ? null : new ArrayList<>(partitions);
+		copy.partitions = partitions;
 		copy.completedPartitions = completedPartitions == null ? null : new ConcurrentHashMap<>(completedPartitions);
 		copy.table = table;
 		copy.tableCompleted = tableCompleted;
