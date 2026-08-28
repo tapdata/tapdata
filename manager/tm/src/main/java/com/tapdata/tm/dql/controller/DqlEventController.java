@@ -73,6 +73,7 @@ public class DqlEventController extends BaseController {
     @Operation(summary = "Query DLQ exception events")
     @GetMapping("/api/dql-events")
     public ResponseMessage<Page<DqlEventListVo>> page(@RequestParam(name = "taskId", required = false) String taskId,
+                                                   @RequestParam(name = "eventId", required = false) String eventId,
                                                    @RequestParam(name = "taskName", required = false) String taskName,
                                                    @RequestParam(name = "sourceTable", required = false) String sourceTable,
                                                    @RequestParam(name = "targetTable", required = false) String targetTable,
@@ -86,7 +87,7 @@ public class DqlEventController extends BaseController {
                                                    @RequestParam(name = "skip", required = false, defaultValue = "0") long skip,
                                                    @RequestParam(name = "limit", required = false, defaultValue = "20") int limit,
                                                    @RequestParam(name = "order", required = false) String order) {
-        return success(eventService.page(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, errorCode, skip, limit, order), getLoginUser()));
+        return success(eventService.page(query(taskId, eventId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, errorCode, skip, limit, order), getLoginUser()));
     }
 
     /**
@@ -95,6 +96,7 @@ public class DqlEventController extends BaseController {
     @Operation(summary = "Query DLQ exception event summary")
     @GetMapping("/api/dql-events/summary")
     public ResponseMessage<DqlEventSummaryVo> summary(@RequestParam(name = "taskId", required = false) String taskId,
+                                                      @RequestParam(name = "eventId", required = false) String eventId,
                                                       @RequestParam(name = "taskName", required = false) String taskName,
                                                       @RequestParam(name = "sourceTable", required = false) String sourceTable,
                                                       @RequestParam(name = "targetTable", required = false) String targetTable,
@@ -105,7 +107,7 @@ public class DqlEventController extends BaseController {
                                                       @RequestParam(name = "status", required = false) String status,
                                                       @RequestParam(name = "startTime", required = false) Long startTime,
                                                       @RequestParam(name = "endTime", required = false) Long endTime) {
-        return success(eventService.summary(query(taskId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, errorCode, 0L, 0, null), getLoginUser()));
+        return success(eventService.summary(query(taskId, eventId, taskName, sourceTable, targetTable, keyword, dmlType, errorType, status, startTime, endTime, errorCode, 0L, 0, null), getLoginUser()));
     }
 
     /**
@@ -179,6 +181,7 @@ public class DqlEventController extends BaseController {
     }
 
     private DqlEventQueryVo query(String taskId,
+                                  String eventId,
                                   String taskName,
                                   String sourceTable,
                                   String targetTable,
@@ -194,6 +197,7 @@ public class DqlEventController extends BaseController {
                                   String order) {
         DqlEventQueryVo query = new DqlEventQueryVo();
         query.setTaskId(taskId);
+        query.setEventId(eventId);
         query.setTaskName(taskName);
         query.setSourceTable(sourceTable);
         query.setTargetTable(targetTable);

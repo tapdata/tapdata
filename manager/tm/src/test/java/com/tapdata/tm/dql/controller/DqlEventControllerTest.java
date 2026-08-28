@@ -136,6 +136,7 @@ class DqlEventControllerTest {
 
         ResponseMessage<Page<DqlEventListVo>> response = controller.page(
                 "64f000000000000000000001",
+                "event-1",
                 "sync",
                 "orders",
                 "orders_sink",
@@ -156,6 +157,7 @@ class DqlEventControllerTest {
         DqlEventQueryVo query = captor.getValue();
         assertSame(page, response.getData());
         assertEquals("64f000000000000000000001", query.getTaskId());
+        assertEquals("event-1", query.getEventId());
         assertEquals("sync", query.getTaskName());
         assertEquals("orders", query.getSourceTable());
         assertEquals("orders_sink", query.getTargetTable());
@@ -176,8 +178,9 @@ class DqlEventControllerTest {
     void pageDefaultsToTwentyItems() throws Exception {
         RequestParam limit = java.util.Arrays.stream(DqlEventController.class
                         .getMethod("page", String.class, String.class, String.class, String.class, String.class,
-                                String.class, String.class, String.class, Long.class, Long.class, long.class, int.class, String.class)
-                        .getParameterAnnotations()[11])
+                                String.class, String.class, String.class, String.class, String.class,
+                                Long.class, Long.class, long.class, int.class, String.class)
+                        .getParameterAnnotations()[13])
                 .filter(RequestParam.class::isInstance)
                 .map(RequestParam.class::cast)
                 .findFirst()
@@ -214,12 +217,13 @@ class DqlEventControllerTest {
         when(eventService.summary(org.mockito.ArgumentMatchers.any(DqlEventQueryVo.class), eq(user))).thenReturn(summary);
 
         ResponseMessage<DqlEventSummaryVo> response = controller.summary(
-                null, null, null, null, null, null, null, null, "RECOVERY_FAILED", null, null
+                null, "event-1", null, null, null, null, null, null, null, "RECOVERY_FAILED", null, null
         );
 
         ArgumentCaptor<DqlEventQueryVo> captor = ArgumentCaptor.forClass(DqlEventQueryVo.class);
         verify(eventService).summary(captor.capture(), eq(user));
         assertSame(summary, response.getData());
+        assertEquals("event-1", captor.getValue().getEventId());
         assertEquals("RECOVERY_FAILED", captor.getValue().getStatus());
         assertEquals(0L, captor.getValue().getSkip());
         assertEquals(0, captor.getValue().getLimit());

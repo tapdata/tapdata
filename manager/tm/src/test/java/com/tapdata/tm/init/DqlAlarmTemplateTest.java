@@ -18,11 +18,13 @@ class DqlAlarmTemplateTest {
 
     private static final Map<String, Set<String>> REQUIRED_PARAMETERS = Map.of(
             "TASK_DQL_EVENT", Set.of("taskName", "eventId", "sourceTable", "targetTable", "dmlType",
-                    "errorType", "errorCode", "failedAt", "pageUrl", "alarmDate"),
-            "TASK_DQL_SAVE_FAILED", Set.of("taskName", "taskId", "eventId", "errorCode", "errorMessage",
+                    "errorType", "errorCode", "safeReason", "pendingCount", "failedAt", "pageUrl", "alarmDate"),
+            "TASK_DQL_SAVE_FAILED", Set.of("taskName", "taskId", "eventId", "errorCode",
+                    "sourceTable", "targetTable", "dmlType", "errorType", "safeReason", "pendingCount",
                     "failedAt", "pageUrl", "alarmDate"),
             "TASK_DQL_RECOVERY_FAILED", Set.of("taskName", "taskId", "batchId", "operatorName", "recoveryStatus",
-                    "successCount", "failedCount", "skippedCount", "failedAt", "pageUrl", "alarmDate"),
+                    "selectedCount", "successCount", "failedCount", "skippedCount", "remainingCount", "safeReason",
+                    "failedAt", "pageUrl", "alarmDate"),
             "TASK_DQL_STORM_GUARD", Set.of("taskName", "taskId", "guardKey", "guardWindowSeconds",
                     "guardThreshold", "suppressedCountEstimate", "routeDecision", "safeReason", "pageUrl", "alarmDate"));
 

@@ -8,6 +8,7 @@ import java.util.Date;
 @Data
 public class DqlEventQueryVo implements Serializable {
     private String taskId;
+    private String eventId;
     private String taskName;
     private String sourceTable;
     private String targetTable;

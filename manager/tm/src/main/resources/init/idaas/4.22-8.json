@@ -1,0 +1,121 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {"key": "TASK_DQL_EVENT"},
+        "u": {"$setOnInsert": {
+          "type": "TASK",
+          "open": true,
+          "key": "TASK_DQL_EVENT",
+          "sort": 12,
+          "notify": ["SYSTEM", "EMAIL"],
+          "interval": 300,
+          "unit": "SECOND",
+          "emailAlarmTitle": "【TapData DQL】异常事件进入 DLQ - {taskName}",
+          "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 异常事件告警</h1><p>任务 <strong>{taskName}</strong> 的异常事件已进入 DLQ，请及时处理。</p><p><strong>表：</strong>{sourceTable} → {targetTable}</p><p><strong>事件 ID：</strong>{eventId}</p><p><strong>DML / 错误类型：</strong>{dmlType} / {errorType}</p><p><strong>错误码：</strong>{errorCode}</p><p><strong>首次失败时间：</strong>{failedAt}</p><p><strong>当前待处理数量：</strong>{pendingCount}</p><p><strong>错误原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>",
+          "variables": [
+            {"name": "taskName", "label": "public_task_name", "icon": "IconLucideFileText"},
+            {"name": "sourceTable", "label": "packages_business_dql_source_table", "icon": "IconLucideFileText"},
+            {"name": "targetTable", "label": "packages_business_dql_target_table", "icon": "IconLucideFileText"},
+            {"name": "eventId", "label": "packages_business_dql_event_id", "icon": "IconLucideHash"},
+            {"name": "dmlType", "label": "packages_business_dql_dml_type", "icon": "IconLucideFileText"},
+            {"name": "errorType", "label": "packages_business_dql_error_type", "icon": "IconLucideTriangleAlert"},
+            {"name": "errorCode", "label": "packages_business_dql_error_code", "icon": "IconLucideHash"},
+            {"name": "classificationReason", "label": "packages_business_dql_classification_reason", "icon": "IconLucideFileText"},
+            {"name": "safeReason", "label": "packages_business_dql_safe_reason", "icon": "IconLucideTriangleAlert"},
+            {"name": "pendingCount", "label": "packages_business_dql_pending_count", "icon": "IconLucideHash"},
+            {"name": "failedAt", "label": "packages_business_dql_failed_at", "icon": "IconLucideClock"},
+            {"name": "pageUrl", "label": "packages_business_dql_page_url", "icon": "IconLucideFileText"},
+            {"name": "alarmDate", "label": "packages_business_dql_alarm_date", "icon": "IconLucideClock"}
+          ]
+        }},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_EVENT", "notify": ["SYSTEM"], "emailAlarmTitle": "[TapData DQL] Event created - {taskName}", "emailAlarmContent": "DQL event created for {taskName}: {eventId}"},
+        "u": {"$set": {
+          "notify": ["SYSTEM", "EMAIL"],
+          "emailAlarmTitle": "【TapData DQL】异常事件进入 DLQ - {taskName}",
+          "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 异常事件告警</h1><p>任务 <strong>{taskName}</strong> 的异常事件已进入 DLQ，请及时处理。</p><p><strong>表：</strong>{sourceTable} → {targetTable}</p><p><strong>事件 ID：</strong>{eventId}</p><p><strong>DML / 错误类型：</strong>{dmlType} / {errorType}</p><p><strong>错误码：</strong>{errorCode}</p><p><strong>首次失败时间：</strong>{failedAt}</p><p><strong>当前待处理数量：</strong>{pendingCount}</p><p><strong>错误原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>",
+          "variables": [{"name": "taskName", "label": "public_task_name", "icon": "IconLucideFileText"}, {"name": "sourceTable", "label": "packages_business_dql_source_table", "icon": "IconLucideFileText"}, {"name": "targetTable", "label": "packages_business_dql_target_table", "icon": "IconLucideFileText"}, {"name": "eventId", "label": "packages_business_dql_event_id", "icon": "IconLucideHash"}, {"name": "dmlType", "label": "packages_business_dql_dml_type", "icon": "IconLucideFileText"}, {"name": "errorType", "label": "packages_business_dql_error_type", "icon": "IconLucideTriangleAlert"}, {"name": "errorCode", "label": "packages_business_dql_error_code", "icon": "IconLucideHash"}, {"name": "classificationReason", "label": "packages_business_dql_classification_reason", "icon": "IconLucideFileText"}, {"name": "safeReason", "label": "packages_business_dql_safe_reason", "icon": "IconLucideTriangleAlert"}, {"name": "pendingCount", "label": "packages_business_dql_pending_count", "icon": "IconLucideHash"}, {"name": "failedAt", "label": "packages_business_dql_failed_at", "icon": "IconLucideClock"}, {"name": "pageUrl", "label": "packages_business_dql_page_url", "icon": "IconLucideFileText"}, {"name": "alarmDate", "label": "packages_business_dql_alarm_date", "icon": "IconLucideClock"}]
+        }},
+        "upsert": false
+      },
+      {
+        "q": {"key": "TASK_DQL_SAVE_FAILED"},
+        "u": {"$setOnInsert": {
+          "type": "TASK", "open": true, "key": "TASK_DQL_SAVE_FAILED", "sort": 13, "notify": ["SYSTEM", "EMAIL"], "interval": 300, "unit": "SECOND",
+          "emailAlarmTitle": "【TapData DQL】异常事件写入 DLQ 失败 - {taskName}",
+          "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 写入 DLQ 失败</h1><p>任务 <strong>{taskName}</strong> 的异常事件未能完整写入 DLQ。</p><p><strong>表：</strong>{sourceTable} → {targetTable}</p><p><strong>事件 ID：</strong>{eventId}</p><p><strong>DML / 错误类型：</strong>{dmlType} / {errorType}</p><p><strong>错误码：</strong>{errorCode}</p><p><strong>首次失败时间：</strong>{failedAt}</p><p><strong>当前待处理数量：</strong>{pendingCount}</p><p><strong>错误原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>",
+          "variables": [{"name": "taskName", "label": "public_task_name", "icon": "IconLucideFileText"}, {"name": "taskId", "label": "packages_business_dql_task_id", "icon": "IconLucideHash"}, {"name": "sourceTable", "label": "packages_business_dql_source_table", "icon": "IconLucideFileText"}, {"name": "targetTable", "label": "packages_business_dql_target_table", "icon": "IconLucideFileText"}, {"name": "eventId", "label": "packages_business_dql_event_id", "icon": "IconLucideHash"}, {"name": "dmlType", "label": "packages_business_dql_dml_type", "icon": "IconLucideFileText"}, {"name": "errorType", "label": "packages_business_dql_error_type", "icon": "IconLucideTriangleAlert"}, {"name": "safeReason", "label": "packages_business_dql_safe_reason", "icon": "IconLucideTriangleAlert"}, {"name": "pendingCount", "label": "packages_business_dql_pending_count", "icon": "IconLucideHash"}, {"name": "failedAt", "label": "packages_business_dql_failed_at", "icon": "IconLucideClock"}, {"name": "pageUrl", "label": "packages_business_dql_page_url", "icon": "IconLucideFileText"}, {"name": "alarmDate", "label": "packages_business_dql_alarm_date", "icon": "IconLucideClock"}]
+        }},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_SAVE_FAILED", "notify": ["SYSTEM"], "emailAlarmTitle": "[TapData DQL] Event save failed - {taskName}", "emailAlarmContent": "DQL event save failed for {taskName}: {errorMessage}"},
+        "u": {"$set": {"notify": ["SYSTEM", "EMAIL"], "emailAlarmTitle": "【TapData DQL】异常事件写入 DLQ 失败 - {taskName}", "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 写入 DLQ 失败</h1><p>任务 <strong>{taskName}</strong> 的异常事件未能完整写入 DLQ。</p><p><strong>表：</strong>{sourceTable} → {targetTable}</p><p><strong>事件 ID：</strong>{eventId}</p><p><strong>DML / 错误类型：</strong>{dmlType} / {errorType}</p><p><strong>错误码：</strong>{errorCode}</p><p><strong>首次失败时间：</strong>{failedAt}</p><p><strong>当前待处理数量：</strong>{pendingCount}</p><p><strong>错误原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>", "variables": [{"name":"taskName","label":"public_task_name","icon":"IconLucideFileText"},{"name":"taskId","label":"packages_business_dql_task_id","icon":"IconLucideHash"},{"name":"sourceTable","label":"packages_business_dql_source_table","icon":"IconLucideFileText"},{"name":"targetTable","label":"packages_business_dql_target_table","icon":"IconLucideFileText"},{"name":"eventId","label":"packages_business_dql_event_id","icon":"IconLucideHash"},{"name":"dmlType","label":"packages_business_dql_dml_type","icon":"IconLucideFileText"},{"name":"errorType","label":"packages_business_dql_error_type","icon":"IconLucideTriangleAlert"},{"name":"safeReason","label":"packages_business_dql_safe_reason","icon":"IconLucideTriangleAlert"},{"name":"pendingCount","label":"packages_business_dql_pending_count","icon":"IconLucideHash"},{"name":"failedAt","label":"packages_business_dql_failed_at","icon":"IconLucideClock"},{"name":"pageUrl","label":"packages_business_dql_page_url","icon":"IconLucideFileText"},{"name":"alarmDate","label":"packages_business_dql_alarm_date","icon":"IconLucideClock"}]}},
+        "upsert": false
+      },
+      {
+        "q": {"key": "TASK_DQL_RECOVERY_FAILED"},
+        "u": {"$setOnInsert": {
+          "type": "TASK", "open": true, "key": "TASK_DQL_RECOVERY_FAILED", "sort": 14, "notify": ["SYSTEM", "EMAIL"], "interval": 300, "unit": "SECOND",
+          "emailAlarmTitle": "【TapData DQL】重处理批次失败 - {taskName}",
+          "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 重处理批次失败</h1><p>任务 <strong>{taskName}</strong> 的人工重处理批次出现失败。</p><p><strong>批次 ID：</strong>{batchId}</p><p><strong>操作人：</strong>{operatorName}</p><p><strong>选择 / 成功 / 失败 / 跳过：</strong>{selectedCount} / {successCount} / {failedCount} / {skippedCount}</p><p><strong>剩余待处理数量：</strong>{remainingCount}</p><p><strong>状态：</strong>{recoveryStatus}</p><p><strong>失败时间：</strong>{failedAt}</p><p><strong>错误原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>",
+          "variables": [{"name": "taskName", "label": "public_task_name", "icon": "IconLucideFileText"}, {"name": "taskId", "label": "packages_business_dql_task_id", "icon": "IconLucideHash"}, {"name": "batchId", "label": "packages_business_dql_batch_id", "icon": "IconLucideHash"}, {"name": "operatorName", "label": "packages_business_dql_operator", "icon": "IconLucideFileText"}, {"name": "recoveryStatus", "label": "packages_business_dql_recovery_status", "icon": "IconLucideTriangleAlert"}, {"name": "selectedCount", "label": "packages_business_dql_selected_count", "icon": "IconLucideHash"}, {"name": "successCount", "label": "packages_business_dql_success_count", "icon": "IconLucideHash"}, {"name": "failedCount", "label": "packages_business_dql_failed_count", "icon": "IconLucideHash"}, {"name": "skippedCount", "label": "packages_business_dql_skipped_count", "icon": "IconLucideHash"}, {"name": "remainingCount", "label": "packages_business_dql_remaining_count", "icon": "IconLucideHash"}, {"name": "safeReason", "label": "packages_business_dql_safe_reason", "icon": "IconLucideTriangleAlert"}, {"name": "failedAt", "label": "packages_business_dql_failed_at", "icon": "IconLucideClock"}, {"name": "pageUrl", "label": "packages_business_dql_page_url", "icon": "IconLucideFileText"}, {"name": "alarmDate", "label": "packages_business_dql_alarm_date", "icon": "IconLucideClock"}]
+        }},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_RECOVERY_FAILED", "notify": ["SYSTEM"], "emailAlarmTitle": "[TapData DQL] Recovery failed - {taskName}", "emailAlarmContent": "DQL recovery failed for {taskName}: {batchId}"},
+        "u": {"$set": {"notify": ["SYSTEM", "EMAIL"], "emailAlarmTitle": "【TapData DQL】重处理批次失败 - {taskName}", "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 重处理批次失败</h1><p>任务 <strong>{taskName}</strong> 的人工重处理批次出现失败。</p><p><strong>批次 ID：</strong>{batchId}</p><p><strong>操作人：</strong>{operatorName}</p><p><strong>选择 / 成功 / 失败 / 跳过：</strong>{selectedCount} / {successCount} / {failedCount} / {skippedCount}</p><p><strong>剩余待处理数量：</strong>{remainingCount}</p><p><strong>状态：</strong>{recoveryStatus}</p><p><strong>失败时间：</strong>{failedAt}</p><p><strong>错误原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>", "variables": [{"name":"taskName","label":"public_task_name","icon":"IconLucideFileText"},{"name":"taskId","label":"packages_business_dql_task_id","icon":"IconLucideHash"},{"name":"batchId","label":"packages_business_dql_batch_id","icon":"IconLucideHash"},{"name":"operatorName","label":"packages_business_dql_operator","icon":"IconLucideFileText"},{"name":"recoveryStatus","label":"packages_business_dql_recovery_status","icon":"IconLucideTriangleAlert"},{"name":"selectedCount","label":"packages_business_dql_selected_count","icon":"IconLucideHash"},{"name":"successCount","label":"packages_business_dql_success_count","icon":"IconLucideHash"},{"name":"failedCount","label":"packages_business_dql_failed_count","icon":"IconLucideHash"},{"name":"skippedCount","label":"packages_business_dql_skipped_count","icon":"IconLucideHash"},{"name":"remainingCount","label":"packages_business_dql_remaining_count","icon":"IconLucideHash"},{"name":"safeReason","label":"packages_business_dql_safe_reason","icon":"IconLucideTriangleAlert"},{"name":"failedAt","label":"packages_business_dql_failed_at","icon":"IconLucideClock"},{"name":"pageUrl","label":"packages_business_dql_page_url","icon":"IconLucideFileText"},{"name":"alarmDate","label":"packages_business_dql_alarm_date","icon":"IconLucideClock"}]}},
+        "upsert": false
+      },
+      {
+        "q": {"key": "TASK_DQL_STORM_GUARD"},
+        "u": {"$setOnInsert": {
+          "type": "TASK", "open": true, "key": "TASK_DQL_STORM_GUARD", "sort": 15, "notify": ["SYSTEM", "EMAIL"], "interval": 300, "unit": "SECOND",
+          "emailAlarmTitle": "【TapData DQL】异常事件风暴保护触发 - {taskName}",
+          "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 风暴保护告警</h1><p>任务 <strong>{taskName}</strong> 在窗口 {guardWindowSeconds} 秒内触发了异常事件保护。</p><p><strong>保护阈值 / 抑制估算：</strong>{guardThreshold} / {suppressedCountEstimate}</p><p><strong>路由决策：</strong>{routeDecision}</p><p><strong>原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>",
+          "variables": [{"name": "taskName", "label": "public_task_name", "icon": "IconLucideFileText"}, {"name": "taskId", "label": "packages_business_dql_task_id", "icon": "IconLucideHash"}, {"name": "guardKey", "label": "packages_business_dql_guard_key", "icon": "IconLucideHash"}, {"name": "guardWindowSeconds", "label": "packages_business_dql_guard_window", "icon": "IconLucideClock"}, {"name": "guardThreshold", "label": "packages_business_dql_guard_threshold", "icon": "IconLucideHash"}, {"name": "suppressedCountEstimate", "label": "packages_business_dql_suppressed_count", "icon": "IconLucideHash"}, {"name": "routeDecision", "label": "packages_business_dql_route_decision", "icon": "IconLucideFileText"}, {"name": "safeReason", "label": "packages_business_dql_safe_reason", "icon": "IconLucideTriangleAlert"}, {"name": "pageUrl", "label": "packages_business_dql_page_url", "icon": "IconLucideFileText"}, {"name": "alarmDate", "label": "packages_business_dql_alarm_date", "icon": "IconLucideClock"}]
+        }},
+        "upsert": true
+      },
+      {
+        "q": {"key": "TASK_DQL_STORM_GUARD", "notify": ["SYSTEM"], "emailAlarmTitle": "[TapData DQL] Storm guard activated - {taskName}", "emailAlarmContent": "DQL storm guard routed events to task handling for {taskName}: {safeReason}"},
+        "u": {"$set": {"notify": ["SYSTEM", "EMAIL"], "emailAlarmTitle": "【TapData DQL】异常事件风暴保护触发 - {taskName}", "emailAlarmContent": "<div class=\"email-content-root\" style=\"max-width:600px;margin:20px auto;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;line-height:1.6;border:1px solid #e5e7eb;border-radius:12px\"><h1 style=\"font-size:20px;text-align:center;color:#111827\">DQL 风暴保护告警</h1><p>任务 <strong>{taskName}</strong> 在窗口 {guardWindowSeconds} 秒内触发了异常事件保护。</p><p><strong>保护阈值 / 抑制估算：</strong>{guardThreshold} / {suppressedCountEstimate}</p><p><strong>路由决策：</strong>{routeDecision}</p><p><strong>原因：</strong>{safeReason}</p><p><a href=\"{pageUrl}\">进入 TapData 异常事件页面</a></p><p style=\"color:#9ca3af;font-size:12px;text-align:center\">告警时间：{alarmDate}</p></div>", "variables": [{"name":"taskName","label":"public_task_name","icon":"IconLucideFileText"},{"name":"taskId","label":"packages_business_dql_task_id","icon":"IconLucideHash"},{"name":"guardKey","label":"packages_business_dql_guard_key","icon":"IconLucideHash"},{"name":"guardWindowSeconds","label":"packages_business_dql_guard_window","icon":"IconLucideClock"},{"name":"guardThreshold","label":"packages_business_dql_guard_threshold","icon":"IconLucideHash"},{"name":"suppressedCountEstimate","label":"packages_business_dql_suppressed_count","icon":"IconLucideHash"},{"name":"routeDecision","label":"packages_business_dql_route_decision","icon":"IconLucideFileText"},{"name":"safeReason","label":"packages_business_dql_safe_reason","icon":"IconLucideTriangleAlert"},{"name":"pageUrl","label":"packages_business_dql_page_url","icon":"IconLucideFileText"},{"name":"alarmDate","label":"packages_business_dql_alarm_date","icon":"IconLucideClock"}]}},
+        "upsert": false
+      }
+    ]
+  },
+  {
+    "update": "Task",
+    "updates": [
+      {
+        "q": {
+          "syncType": {"$in": ["migrate", "sync", "logCollector", "mem_cache"]},
+          "alarmSettings": {
+            "$elemMatch": {
+              "key": {"$in": ["TASK_DQL_EVENT", "TASK_DQL_SAVE_FAILED", "TASK_DQL_RECOVERY_FAILED", "TASK_DQL_STORM_GUARD"]},
+              "notify": ["SYSTEM"]
+            }
+          }
+        },
+        "u": {
+          "$set": {
+            "alarmSettings.$[dql].notify": ["SYSTEM", "EMAIL"]
+          }
+        },
+        "arrayFilters": [
+          {
+            "dql.key": {"$in": ["TASK_DQL_EVENT", "TASK_DQL_SAVE_FAILED", "TASK_DQL_RECOVERY_FAILED", "TASK_DQL_STORM_GUARD"]},
+            "dql.notify": ["SYSTEM"]
+          }
+        ],
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]

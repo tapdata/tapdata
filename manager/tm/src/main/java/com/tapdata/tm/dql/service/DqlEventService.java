@@ -124,17 +124,17 @@ public class DqlEventService {
             }
             return saved;
         } catch (RuntimeException cause) {
-            notifySaveFailed(taskId, cause);
+            notifySaveFailed(taskId, dto, cause);
             throw new BizException(cause);
         }
     }
 
-    private void notifySaveFailed(String taskId, RuntimeException cause) {
+    private void notifySaveFailed(String taskId, DqlEventDto event, RuntimeException cause) {
         if (alarmService == null) {
             return;
         }
         try {
-            alarmService.notifySaveFailed(taskId, saveFailureReason(cause));
+            alarmService.notifySaveFailed(taskId, event, saveFailureReason(cause));
         } catch (RuntimeException ignored) {
             // An alarm failure must not mask the persistence failure returned to Engine.
         }

@@ -302,6 +302,16 @@ public class DqlEventRepository {
         return mongoTemplate.count(new Query(buildCriteria(queryVo, visibleTaskIds)), entityClass);
     }
 
+    public long countPendingByTaskId(String taskId) {
+        if (StringUtils.isBlank(taskId)) {
+            return 0;
+        }
+        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_TASK_ID).is(taskId)
+                .and(DqlEventDto.FIELD_STATUS).in(DqlEventStatusEnum.PENDING.name(),
+                        DqlEventStatusEnum.RECOVERY_FAILED.name()));
+        return mongoTemplate.count(query, entityClass);
+    }
+
     public long countByStatus(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo, DqlEventStatusEnum status) {
         return countByStatus(queryVo, status, null);
     }
@@ -764,6 +774,7 @@ public class DqlEventRepository {
         }
         if (queryVo != null) {
             addEquals(criteria, DqlEventDto.FIELD_TASK_ID, queryVo.getTaskId());
+            addEquals(criteria, DqlEventDto.FIELD_EVENT_ID, queryVo.getEventId());
             addRegex(criteria, DqlEventDto.FIELD_TASK_NAME, queryVo.getTaskName());
             addRegex(criteria, DqlEventDto.FIELD_SOURCE_TABLE, queryVo.getSourceTable());
             addRegex(criteria, DqlEventDto.FIELD_TARGET_TABLE, queryVo.getTargetTable());

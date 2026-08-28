@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.vo.DqlStormGuardReportVo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,8 +37,15 @@ public class DqlEventAlarmService {
     @Autowired(required = false)
     private AlarmService alarmService;
 
+    @Autowired(required = false)
+    private DqlEventRepository eventRepository;
+
     public void setAlarmService(AlarmService alarmService) {
         this.alarmService = alarmService;
+    }
+
+    public void setEventRepository(DqlEventRepository eventRepository) {
+        this.eventRepository = eventRepository;
     }
 
     public void notifyEventCreated(DqlEventDto event) {
@@ -50,23 +60,40 @@ public class DqlEventAlarmService {
         put(params, "dmlType", event.getDmlType());
         put(params, "errorType", event.getErrorType());
         put(params, "errorCode", event.getErrorCode());
+        put(params, "classificationReason", event.getClassificationReason());
+        put(params, "safeReason", StringUtils.isNotBlank(event.getErrorDetails())
+                ? event.getErrorDetails() : event.getClassificationReason());
+        put(params, "pendingCount", pendingCount(event.getTaskId()));
         put(params, "failedAt", event.getFailedAt());
-        put(params, "pageUrl", "/exception-events");
+        put(params, "pageUrl", eventPageUrl(event.getTaskId(), event.getEventId()));
         put(params, "alarmDate", Instant.now().toString());
         save(AlarmKeyEnum.TASK_DQL_EVENT, event.getAgentId(), event.getTaskId(), event.getTaskName(), params);
     }
 
     public void notifySaveFailed(String taskId, String reason) {
+        notifySaveFailed(taskId, null, reason);
+    }
+
+    public void notifySaveFailed(String taskId, DqlEventDto event, String reason) {
         Map<String, Object> params = new LinkedHashMap<>();
-        put(params, "taskName", taskId);
+        String eventId = event == null || StringUtils.isBlank(event.getEventId()) ? "unknown" : event.getEventId();
+        put(params, "taskName", event == null ? taskId : event.getTaskName());
         put(params, "taskId", taskId);
-        put(params, "eventId", "unknown");
+        put(params, "eventId", eventId);
+        put(params, "sourceTable", event == null ? null : event.getSourceTable());
+        put(params, "targetTable", event == null ? null : event.getTargetTable());
+        put(params, "dmlType", event == null ? null : event.getDmlType());
+        put(params, "errorType", event == null ? null : event.getErrorType());
         put(params, "errorCode", "DQL_EVENT_SAVE_FAILED");
         put(params, "errorMessage", reason);
-        put(params, "failedAt", new Date());
-        put(params, "pageUrl", "/exception-events");
+        put(params, "classificationReason", event == null ? null : event.getClassificationReason());
+        put(params, "safeReason", reason);
+        put(params, "failedAt", event == null || event.getFailedAt() == null ? new Date() : event.getFailedAt());
+        put(params, "pendingCount", pendingCount(taskId));
+        put(params, "pageUrl", eventPageUrl(taskId, "unknown".equals(eventId) ? null : eventId));
         put(params, "alarmDate", Instant.now().toString());
-        save(AlarmKeyEnum.TASK_DQL_SAVE_FAILED, null, taskId, taskId, params);
+        save(AlarmKeyEnum.TASK_DQL_SAVE_FAILED, event == null ? null : event.getAgentId(), taskId,
+                event == null ? taskId : event.getTaskName(), params);
     }
 
     public void notifyRecoveryFailed(DqlRecoveryBatchDto batch) {
@@ -108,8 +135,10 @@ public class DqlEventAlarmService {
         put(params, "successCount", defaultCount(batch.getSuccessCount()));
         put(params, "failedCount", defaultCount(batch.getFailedCount()));
         put(params, "skippedCount", defaultCount(batch.getSkippedCount()));
+        put(params, "selectedCount", defaultCount(batch.getSelectedCount()));
+        put(params, "remainingCount", pendingCount(batch.getTaskId()));
         put(params, "failedAt", batch.getFinishedAt() == null ? new Date() : batch.getFinishedAt());
-        put(params, "pageUrl", "/exception-events");
+        put(params, "pageUrl", eventPageUrl(batch.getTaskId(), null));
         put(params, "alarmDate", Instant.now().toString());
         save(key, batch.getAgentId(), batch.getTaskId(), batch.getTaskName(), params);
     }
@@ -126,6 +155,34 @@ public class DqlEventAlarmService {
 
     private Integer defaultCount(Integer value) {
         return value == null ? 0 : Math.max(0, value);
+    }
+
+    private long pendingCount(String taskId) {
+        if (eventRepository == null || StringUtils.isBlank(taskId)) {
+            return 0;
+        }
+        try {
+            return Math.max(0, eventRepository.countPendingByTaskId(taskId));
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Failed to count pending DQL events for task {}", taskId, exception);
+            return 0;
+        }
+    }
+
+    private String eventPageUrl(String taskId, String eventId) {
+        StringBuilder url = new StringBuilder("/exception-events");
+        if (StringUtils.isNotBlank(taskId)) {
+            url.append("?taskId=").append(encode(taskId));
+        }
+        if (StringUtils.isNotBlank(eventId)) {
+            url.append(url.indexOf("?") >= 0 ? '&' : '?')
+                    .append("eventId=").append(encode(eventId));
+        }
+        return url.toString();
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private String safeText(String value) {

@@ -39,6 +39,8 @@ class DqlEventAlarmServiceTest {
         event.setDmlType("UPDATE");
         event.setErrorType("TARGET_WRITE");
         event.setErrorCode("DQL-1001");
+        event.setClassificationReason("target write rejected");
+        event.setErrorDetails("target write rejected: password=should-not-be-mailed");
         event.setFailedAt(new Date(1_700_000_000_000L));
         event.setPayloadData(Map.of("password", "must-not-enter-alarm"));
 
@@ -53,6 +55,10 @@ class DqlEventAlarmServiceTest {
         assertEquals("task-1", alarm.getTaskId());
         assertEquals("Orders", alarm.getName());
         assertEquals("event-1", alarm.getParam().get("eventId"));
+        assertEquals("[redacted]", alarm.getParam().get("safeReason"));
+        assertEquals("target write rejected", alarm.getParam().get("classificationReason"));
+        assertEquals(0L, alarm.getParam().get("pendingCount"));
+        assertEquals("/exception-events?taskId=task-1&eventId=event-1", alarm.getParam().get("pageUrl"));
         assertFalse(alarm.getParam().containsKey("payloadData"));
         assertFalse(alarm.getParam().containsKey("payload_data"));
     }
@@ -76,6 +82,30 @@ class DqlEventAlarmServiceTest {
         assertDoesNotThrow(() -> service.notifyRecoveryFailed(batch));
         assertNotNull(batch);
         assertEquals(0, saved.size());
+    }
+
+    @Test
+    void recoveryAlarmIncludesSelectionAndRemainingCounts() {
+        List<AlarmInfo> saved = new ArrayList<>();
+        DqlEventAlarmService service = service(saved, false);
+        DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+        batch.setBatchId("batch-1");
+        batch.setTaskId("task-1");
+        batch.setTaskName("Orders");
+        batch.setOperatorName("operator");
+        batch.setStatus("PARTIAL_FAILED");
+        batch.setSelectedCount(3);
+        batch.setSuccessCount(1);
+        batch.setFailedCount(1);
+        batch.setSkippedCount(1);
+
+        service.notifyBatchPartialFailed(batch);
+
+        assertEquals(1, saved.size());
+        Map<String, Object> params = saved.get(0).getParam();
+        assertEquals(3, params.get("selectedCount"));
+        assertEquals(0L, params.get("remainingCount"));
+        assertEquals("/exception-events?taskId=task-1", params.get("pageUrl"));
     }
 
     @Test

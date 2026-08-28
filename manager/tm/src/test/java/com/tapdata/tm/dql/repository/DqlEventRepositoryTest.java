@@ -124,6 +124,22 @@ class DqlEventRepositoryTest {
     }
 
     @Test
+    @DisplayName("pending count is scoped to the task and reprocessable statuses")
+    void countPendingByTaskIdUsesPendingStatus() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.count(any(Query.class), eq(DqlEventEntity.class))).thenReturn(7L);
+
+        assertEquals(7L, repository.countPendingByTaskId("task-1"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).count(queryCaptor.capture(), eq(DqlEventEntity.class));
+        assertEquals("task-1", queryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_TASK_ID));
+        assertEquals(List.of(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name()),
+                queryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_STATUS, Document.class).get("$in"));
+    }
+
+    @Test
     @DisplayName("capture sequence is atomically incremented on the task document")
     void nextCaptureSeqUsesAtomicTaskUpdate() {
         MongoTemplate mongoTemplate = mongoTemplate();

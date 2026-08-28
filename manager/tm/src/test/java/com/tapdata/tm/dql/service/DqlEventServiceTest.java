@@ -159,7 +159,7 @@ class DqlEventServiceTest {
 
         assertEquals(BizException.SYSTEM_ERROR, exception.getErrorCode());
         assertSame(cause, exception.getCause());
-        verify(alarmService).notifySaveFailed(eq(TASK_ID), contains("database unavailable"));
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), any(DqlEventDto.class), contains("database unavailable"));
         verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
     }
 
@@ -176,7 +176,7 @@ class DqlEventServiceTest {
 
         assertEquals(BizException.SYSTEM_ERROR, exception.getErrorCode());
         assertNotNull(exception.getCause());
-        verify(alarmService).notifySaveFailed(eq(TASK_ID), contains("returned no event"));
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), any(DqlEventDto.class), contains("returned no event"));
         verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
     }
 
@@ -190,16 +190,36 @@ class DqlEventServiceTest {
         when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
         when(eventRepository.upsert(any(DqlEventDto.class))).thenThrow(cause);
         doThrow(new IllegalStateException("alarm unavailable"))
-                .when(alarmService).notifySaveFailed(eq(TASK_ID), any(String.class));
+                .when(alarmService).notifySaveFailed(eq(TASK_ID), any(DqlEventDto.class), any(String.class));
 
         BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, reportVo()));
 
         assertEquals(BizException.SYSTEM_ERROR, exception.getErrorCode());
         assertSame(cause, exception.getCause());
         ArgumentCaptor<String> reasonCaptor = forClass(String.class);
-        verify(alarmService).notifySaveFailed(eq(TASK_ID), reasonCaptor.capture());
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), any(DqlEventDto.class), reasonCaptor.capture());
         assertEquals("IllegalStateException", reasonCaptor.getValue());
         verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
+    }
+
+    @Test
+    @DisplayName("save failure alarm retains the event context needed for DLQ diagnosis")
+    void saveFailureAlarmRetainsEventContext() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
+        DqlEventService service = new DqlEventService(eventRepository, alarmService);
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenThrow(new IllegalStateException("database unavailable"));
+
+        assertThrows(BizException.class, () -> service.report(TASK_ID, reportVo()));
+
+        ArgumentCaptor<DqlEventDto> eventCaptor = forClass(DqlEventDto.class);
+        verify(alarmService).notifySaveFailed(eq(TASK_ID), eventCaptor.capture(), any(String.class));
+        assertEquals("sync_order", eventCaptor.getValue().getTaskName());
+        assertEquals("orders", eventCaptor.getValue().getSourceTable());
+        assertEquals("U", eventCaptor.getValue().getDmlType());
+        assertEquals("TRANSFORM_ERROR", eventCaptor.getValue().getErrorType());
+        assertEquals("JS_PROCESS_FAILED", eventCaptor.getValue().getErrorCode());
     }
 
     @Test
