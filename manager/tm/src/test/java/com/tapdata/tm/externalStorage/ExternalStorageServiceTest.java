@@ -4,7 +4,9 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
@@ -17,6 +19,7 @@ import com.tapdata.tm.permissions.service.DataPermissionService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -24,17 +27,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
  class ExternalStorageServiceTest {
-
-
-     private String actualData;
 
      @Test
      void findForCloudTest() {
@@ -45,6 +46,84 @@ import static org.mockito.Mockito.when;
     @Test
      void findForDaasTest() {
         testFilter("daas", false);
+    }
+
+    @Test
+    void restoreMaskedSensitiveFieldsShouldRestoreAccessTokenAndMongoUri() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+        ObjectId id = new ObjectId();
+
+        ExternalStorageDto externalStorage = new ExternalStorageDto();
+        externalStorage.setId(id);
+        externalStorage.setType(ExternalStorageType.mongodb.name());
+        externalStorage.setUri("mongodb://test:" + ExternalStorageDto.MASK_PWD + "@127.0.0.1:27017/test");
+        externalStorage.setAccessToken(ExternalStorageDto.MASK_PWD);
+        externalStorage.setSslCA(ExternalStorageDto.MASK_PWD);
+        externalStorage.setSslKey(ExternalStorageDto.MASK_PWD);
+        externalStorage.setSslPass(ExternalStorageDto.MASK_PWD);
+
+        ExternalStorageEntity oldExternalStorage = new ExternalStorageEntity();
+        oldExternalStorage.setUri("mongodb://test:password@127.0.0.1:27017/test");
+        oldExternalStorage.setAccessToken("token");
+        oldExternalStorage.setSslCA("ca");
+        oldExternalStorage.setSslKey("key");
+        oldExternalStorage.setSslPass("pass");
+        when(repository.findById(id.toHexString())).thenReturn(Optional.of(oldExternalStorage));
+
+        ReflectionTestUtils.invokeMethod(externalStorageService, "restoreMaskedSensitiveFields", externalStorage);
+
+        assertEquals("mongodb://test:password@127.0.0.1:27017/test", externalStorage.getUri());
+        assertEquals("token", externalStorage.getAccessToken());
+        assertEquals("ca", externalStorage.getSslCA());
+        assertEquals("key", externalStorage.getSslKey());
+        assertEquals("pass", externalStorage.getSslPass());
+    }
+
+    @Test
+    void restoreMaskedSensitiveFieldsShouldRestoreAccessTokenWithoutSslMask() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+        ObjectId id = new ObjectId();
+
+        ExternalStorageDto externalStorage = new ExternalStorageDto();
+        externalStorage.setId(id);
+        externalStorage.setAccessToken(ExternalStorageDto.MASK_PWD);
+
+        ExternalStorageEntity oldExternalStorage = new ExternalStorageEntity();
+        oldExternalStorage.setAccessToken("token");
+        when(repository.findById(id.toHexString())).thenReturn(Optional.of(oldExternalStorage));
+
+        ReflectionTestUtils.invokeMethod(externalStorageService, "restoreMaskedSensitiveFields", externalStorage);
+
+        assertEquals("token", externalStorage.getAccessToken());
+    }
+
+    @Test
+    void restoreMaskedSensitiveFieldsShouldRejectMaskedValueWhenIdIsNull() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+
+        ExternalStorageDto externalStorage = new ExternalStorageDto();
+        externalStorage.setSslCA(ExternalStorageDto.MASK_PWD);
+
+        assertThrows(BizException.class,
+                () -> ReflectionTestUtils.invokeMethod(externalStorageService, "restoreMaskedSensitiveFields", externalStorage));
+    }
+
+    @Test
+    void restoreMaskedSensitiveFieldsShouldNotQueryRepositoryWhenNothingMasked() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+
+        ExternalStorageDto externalStorage = new ExternalStorageDto();
+        externalStorage.setId(new ObjectId());
+        externalStorage.setSslCA("ca");
+        externalStorage.setAccessToken("token");
+
+        ReflectionTestUtils.invokeMethod(externalStorageService, "restoreMaskedSensitiveFields", externalStorage);
+
+        Mockito.verify(repository, Mockito.never()).findById(Mockito.anyString());
     }
 
 
@@ -77,7 +156,7 @@ import static org.mockito.Mockito.when;
             when(repository.findAll(filter)).thenReturn(list);
         }
         when(repository.findAll(Query.query(Criteria.where("init").is(true)
-                .and("status").is(DataSourceConnectionDto.STATUS_READY)), userDetail)).thenReturn(new ArrayList<>());
+                .and("status").is(DataSourceConnectionDto.STATUS_READY)))).thenReturn(new ArrayList<>());
         when(repository.count(where, userDetail)).thenReturn(1L);
         try (MockedStatic<DataPermissionService> data = Mockito
                 .mockStatic(DataPermissionService.class)) {

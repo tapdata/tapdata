@@ -106,40 +106,6 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 
 	public ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail) {
-		String type = externalStorageDto.getType();
-		ExternalStorageType externalStorageType = ExternalStorageType.valueOf(type);
-		if (externalStorageType == ExternalStorageType.mongodb) {
-			if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
-				ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
-				char[] password = connectionString.getPassword();
-				if (password != null && password.length != 0) {
-					String pwd = new String(password);
-					if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
-						if (null == externalStorageDto.getId()) {
-							throw new BizException("External.Storage.ID.NULL");
-						}
-						ExternalStorageEntity oldExternalStorage = repository.findById(externalStorageDto.getId().toHexString()).orElse(null);
-						if (null == oldExternalStorage) {
-							return externalStorageDto;
-						}
-						String oldUri = oldExternalStorage.getUri();
-						try {
-							oldUri = AES256Util.Aes256Decode(oldUri);
-						} catch (Exception ignored) {
-						}
-						ConnectionString oldConnectionString = new ConnectionString(oldUri);
-						char[] oldPassword = oldConnectionString.getPassword();
-						if (null == oldPassword || oldPassword.length == 0) {
-							throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
-						}
-						String oldPasswordStr = new String(oldPassword);
-						String uri = StringUtils.replaceOnce(externalStorageDto.getUri(), ExternalStorageDto.MASK_PWD, oldPasswordStr);
-						externalStorageDto.setUri(uri);
-					}
-				}
-			}
-		}
-
 		return save(externalStorageDto, userDetail);
 	}
 
@@ -326,18 +292,29 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	}
 
 	private void restoreMaskedSensitiveFields(ExternalStorageDto externalStorage) {
-		if (null == externalStorage || null == externalStorage.getId()) {
+		if (null == externalStorage) {
 			return;
 		}
 		boolean masked = ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())
 				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())
-				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass());
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())
+				|| hasMaskedMongoUri(externalStorage);
 		if (!masked) {
 			return;
 		}
+		if (null == externalStorage.getId()) {
+			// 新建时若前端误传脱敏掩码（理论上不应发生），拒绝保存，避免掩码值入库
+			throw new BizException("External.Storage.ID.NULL");
+		}
 		ExternalStorageEntity oldExternalStorage = repository.findById(externalStorage.getId().toHexString()).orElse(null);
 		if (null == oldExternalStorage) {
-			return;
+			// 更新场景：带掩码字段却找不到旧记录，无法恢复真实值，拒绝保存避免静默失败
+			throw new BizException("External.Storage.ID.NULL");
+		}
+		restoreMaskedMongoUri(externalStorage, oldExternalStorage);
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())) {
+			externalStorage.setAccessToken(oldExternalStorage.getAccessToken());
 		}
 		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())) {
 			externalStorage.setSslCA(oldExternalStorage.getSslCA());
@@ -348,6 +325,42 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())) {
 			externalStorage.setSslPass(oldExternalStorage.getSslPass());
 		}
+	}
+
+	private boolean hasMaskedMongoUri(ExternalStorageDto externalStorage) {
+		if (null == externalStorage || StringUtils.isBlank(externalStorage.getUri())) {
+			return false;
+		}
+		boolean mongoUri = ExternalStorageType.mongodb.name().equals(externalStorage.getType())
+				|| StringUtils.startsWithIgnoreCase(externalStorage.getUri(), "mongodb://")
+				|| StringUtils.startsWithIgnoreCase(externalStorage.getUri(), "mongodb+srv://");
+		if (!mongoUri) {
+			return false;
+		}
+		try {
+			ConnectionString connectionString = new ConnectionString(externalStorage.getUri());
+			char[] password = connectionString.getPassword();
+			return null != password && password.length > 0 && ExternalStorageDto.MASK_PWD.equals(new String(password));
+		} catch (Exception ignored) {
+			return false;
+		}
+	}
+
+	private void restoreMaskedMongoUri(ExternalStorageDto externalStorage, ExternalStorageEntity oldExternalStorage) {
+		if (!hasMaskedMongoUri(externalStorage)) {
+			return;
+		}
+		String oldUri = oldExternalStorage.getUri();
+		try {
+			oldUri = AES256Util.Aes256Decode(oldUri);
+		} catch (Exception ignored) {
+		}
+		ConnectionString oldConnectionString = new ConnectionString(oldUri);
+		char[] oldPassword = oldConnectionString.getPassword();
+		if (null == oldPassword || oldPassword.length == 0) {
+			throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
+		}
+		externalStorage.setUri(StringUtils.replaceOnce(externalStorage.getUri(), ExternalStorageDto.MASK_PWD, new String(oldPassword)));
 	}
 
 	private ExternalStorageDto maskPasswordIfNeed(ExternalStorageDto externalStorageDto) {
