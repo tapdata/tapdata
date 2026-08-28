@@ -124,6 +124,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			externalStorageConfig.compute("sslCA", stringSetter);
 			externalStorageConfig.compute("sslKey", stringSetter);
 			externalStorageConfig.compute("sslPass", stringSetter);
+			externalStorageConfig.compute("accessToken", stringSetter);
 			externalStorageConfig.compute("sslValidate", boolSetter);
 			externalStorageConfig.compute("checkServerIdentity", boolSetter);
 		} else {
@@ -137,6 +138,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			fillString(connectorConfig, externalStorageConfig, "sslCA", dto::getSslCA);
 			fillString(connectorConfig, externalStorageConfig, "sslKey", dto::getSslKey);
 			fillString(connectorConfig, externalStorageConfig, "sslPass", dto::getSslPass);
+			fillString(connectorConfig, externalStorageConfig, "accessToken", dto::getAccessToken);
 			fillBoolean(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
 			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 			testConnectionConfig.put("name", dto.getName());
@@ -155,22 +157,35 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 	}
 
 	private void replaceMaskPwdIfNeed(Map<String, Object> connectorConfig, ExternalStorageDto dto) {
+		// uri 中脱敏的密码还原为库中真实密码，避免测试连接使用掩码值
 		Object uri = connectorConfig.get("uri");
-		if (uri instanceof String && ((String) uri).contains("******")) {
+		if (uri instanceof String && ((String) uri).contains(ExternalStorageDto.MASK_PWD)) {
 			Object uriFormDataSource = dto.getUri();
-			if (null == uriFormDataSource) return;
-			ConnectionString connectionString = new ConnectionString(uriFormDataSource.toString());
-			char[] passwordChars = connectionString.getPassword();
-			if (null != passwordChars && passwordChars.length > 0) {
-				StringBuilder password = new StringBuilder();
-				for (char passwordChar : passwordChars) {
-					password.append(passwordChar);
-				}
-				String username = connectionString.getUsername();
-				if (org.apache.commons.lang3.StringUtils.isNotBlank(username) && org.apache.commons.lang3.StringUtils.isNotBlank(password)) {
-					connectorConfig.put("uri", ((String) uri).replace(username + ":" + "******", username + ":" + password));
+			if (null != uriFormDataSource) {
+				ConnectionString connectionString = new ConnectionString(uriFormDataSource.toString());
+				char[] passwordChars = connectionString.getPassword();
+				if (null != passwordChars && passwordChars.length > 0) {
+					StringBuilder password = new StringBuilder();
+					for (char passwordChar : passwordChars) {
+						password.append(passwordChar);
+					}
+					String username = connectionString.getUsername();
+					if (org.apache.commons.lang3.StringUtils.isNotBlank(username) && org.apache.commons.lang3.StringUtils.isNotBlank(password)) {
+						connectorConfig.put("uri", ((String) uri).replace(username + ":" + ExternalStorageDto.MASK_PWD, username + ":" + password));
+					}
 				}
 			}
+		}
+		// ssl 证书/密钥、accessToken 等脱敏字段还原为库中真实值，避免测试连接使用掩码值
+		replaceMaskedValueIfNeed(connectorConfig, "sslCA", dto.getSslCA());
+		replaceMaskedValueIfNeed(connectorConfig, "sslKey", dto.getSslKey());
+		replaceMaskedValueIfNeed(connectorConfig, "sslPass", dto.getSslPass());
+		replaceMaskedValueIfNeed(connectorConfig, "accessToken", dto.getAccessToken());
+	}
+
+	private void replaceMaskedValueIfNeed(Map<String, Object> connectorConfig, String key, String realValue) {
+		if (ExternalStorageDto.MASK_PWD.equals(connectorConfig.get(key)) && org.apache.commons.lang3.StringUtils.isNotBlank(realValue)) {
+			connectorConfig.put(key, realValue);
 		}
 	}
 
