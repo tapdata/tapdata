@@ -1184,8 +1184,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (initialConcurrent && null != this.initialPartitionConcurrentProcessor && this.initialPartitionConcurrentProcessor.isRunning()) {
                 this.initialPartitionConcurrentProcessor.process(initialEvents, async);
             } else {
-                this.handleTapdataEvents(initialEvents);
+                splitCompleteTableSnapshotEvent2NewBatch(initialEvents, this::handleTapdataEvents);
             }
+        }
+    }
+
+    protected void splitCompleteTableSnapshotEvent2NewBatch(List<TapdataEvent> initialEvents,
+                                                              Consumer<List<TapdataEvent>> subListConsumer) {
+        int beginIndex = 0;
+        int len = initialEvents.size();
+        for (int i = 0; i < len; i++) {
+            if (initialEvents.get(i) instanceof TapdataCompleteTableSnapshotEvent) {
+                if (beginIndex < i) {
+                    subListConsumer.accept(initialEvents.subList(beginIndex, i));
+                }
+                subListConsumer.accept(Collections.singletonList(initialEvents.get(i)));
+                beginIndex = i + 1;
+            }
+        }
+
+        if (beginIndex < len) {
+            subListConsumer.accept(initialEvents.subList(beginIndex, len));
         }
     }
 
@@ -1925,8 +1944,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
 		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
-			if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
-				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+			if (null != tapdataEvent.getBatchOffset()) {
+				Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+				Map<String, Object> batchOffsetMap;
+				if (batchOffsetObj instanceof Map) {
+					batchOffsetMap = (Map<String, Object>) batchOffsetObj;
+				} else {
+					batchOffsetMap = new ConcurrentHashMap<>();
+					syncProgress.setBatchOffsetObj(batchOffsetMap);
+				}
+				batchOffsetMap.put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+				flushOffset.set(true);
 			}
 		} else {
 			if (!offsetCallbackEnable) {

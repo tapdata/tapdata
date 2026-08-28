@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.DataFunctionAspect;
@@ -73,6 +74,7 @@ public class PartitionsCompletedRunnable implements Runnable {
 		if (partitionTableOffset != null) {
 			completeTableSnapshotEvent.setBatchOffset(partitionTableOffset.copy());
 		}
+		completeTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
 		sourcePdkDataNodeEx1.enqueue(completeTableSnapshotEvent);
 		//partition split done and read partitions done, start entering CDC stage.
 		sourcePdkDataNodeEx1.handleEnterCDCStage(partitionsReader, tapTable);

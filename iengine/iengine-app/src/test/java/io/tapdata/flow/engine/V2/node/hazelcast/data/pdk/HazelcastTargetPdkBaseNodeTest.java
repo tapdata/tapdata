@@ -61,6 +61,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -3323,6 +3324,37 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	class FlushSyncProgressMapTest {
 		@Test
+		void testCompleteTableSnapshotInitializesAndFlushesBatchOffset() {
+			String sourceNodeId = "sourceNodeId";
+			String targetNodeId = "targetNodeId";
+			String tableId = "testTableId";
+			PartitionTableOffset completedOffset = new PartitionTableOffset().tableCompleted(true);
+			TapdataCompleteTableSnapshotEvent tapdataEvent = new TapdataCompleteTableSnapshotEvent(tableId);
+			tapdataEvent.setBatchOffset(completedOffset);
+			tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+			tapdataEvent.setNodeIds(List.of(sourceNodeId));
+
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(targetNodeId);
+			processorBaseContext = mock(ProcessorBaseContext.class);
+			when(processorBaseContext.getNode()).thenReturn(node);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
+			AtomicBoolean flushOffset = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+
+			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
+
+			SyncProgress syncProgress = syncProgressMap.get(sourceNodeId + "," + targetNodeId);
+			assertNotNull(syncProgress);
+			assertTrue(syncProgress.getBatchOffsetObj() instanceof Map);
+			assertSame(completedOffset, ((Map<?, ?>) syncProgress.getBatchOffsetObj()).get(tableId));
+			assertTrue(flushOffset.get());
+		}
+
+		@Test
 		void testForTapdataHeartbeatEvent() {
 			TapdataEvent tapdataEvent = new TapdataHeartbeatEvent();
 			tapdataEvent.setSyncStage(mock(SyncStage.class));
@@ -3343,6 +3375,33 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
 			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
 			assertTrue(flushOffset.get());
+		}
+	}
+
+	@Nested
+	class SplitCompleteTableSnapshotEvent2NewBatchTest {
+		@Test
+		void testCompleteEventIsProcessedAfterPrecedingDmlBatch() {
+			TapdataEvent firstDml = new TapdataEvent();
+			firstDml.setTapEvent(new TapInsertRecordEvent());
+			TapdataEvent secondDml = new TapdataEvent();
+			secondDml.setTapEvent(new TapInsertRecordEvent());
+			TapdataCompleteTableSnapshotEvent completeEvent = new TapdataCompleteTableSnapshotEvent("table1");
+			TapdataEvent nextTableDml = new TapdataEvent();
+			nextTableDml.setTapEvent(new TapInsertRecordEvent());
+
+			Consumer<List<TapdataEvent>> consumer = mock(Consumer.class);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode)
+					.splitCompleteTableSnapshotEvent2NewBatch(anyList(), any());
+
+			hazelcastTargetPdkBaseNode.splitCompleteTableSnapshotEvent2NewBatch(
+					List.of(firstDml, secondDml, completeEvent, nextTableDml), consumer);
+
+			ArgumentCaptor<List<TapdataEvent>> batches = ArgumentCaptor.forClass(List.class);
+			verify(consumer, times(3)).accept(batches.capture());
+			assertEquals(List.of(firstDml, secondDml), batches.getAllValues().get(0));
+			assertEquals(List.of(completeEvent), batches.getAllValues().get(1));
+			assertEquals(List.of(nextTableDml), batches.getAllValues().get(2));
 		}
 	}
 
