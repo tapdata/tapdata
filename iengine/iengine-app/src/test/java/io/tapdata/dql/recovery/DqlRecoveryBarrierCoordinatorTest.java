@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -76,11 +77,54 @@ class DqlRecoveryBarrierCoordinatorTest {
     }
 
     @Test
+    void registeredCaptureFailurePreservesOriginalMessageAndStack() throws Exception {
+        RecordingBoundary boundary = new RecordingBoundary(false);
+        DqlRecoveryBarrierCoordinator coordinator = new DqlRecoveryBarrierCoordinator(boundary);
+        coordinator.register("event-with-error");
+        RuntimeException failure = new RuntimeException("Duplicate entry '2' for key 'idx_unique_order_no'");
+
+        CountDownLatch waiting = new CountDownLatch(1);
+        AtomicReference<DqlRecoveryBarrier.Result> result = new AtomicReference<>();
+        Thread waiter = new Thread(() -> {
+            waiting.countDown();
+            try {
+                result.set(coordinator.awaitResult("event-with-error", 2000L));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        waiter.start();
+        assertTrue(waiting.await(1, TimeUnit.SECONDS));
+        assertTrue(boundary.barrierEnqueued.await(1, TimeUnit.SECONDS));
+        assertTrue(DqlRecoveryFailureRegistry.fail("event-with-error", failure));
+        waiter.join(1000L);
+
+        assertEquals(DqlRecoveryBarrier.Outcome.FAILED, result.get().outcome());
+        assertEquals(failure.getMessage(), result.get().message());
+        assertTrue(result.get().errorDetails().contains(failure.getClass().getName()));
+    }
+
+    @Test
     void timeoutIsTerminalAndDoesNotLeaveBarrierStateBehind() throws Exception {
         RecordingBoundary boundary = new RecordingBoundary(false);
         DqlRecoveryBarrierCoordinator coordinator = new DqlRecoveryBarrierCoordinator(boundary);
 
         assertEquals(DqlRecoveryBarrier.Outcome.TIMEOUT, coordinator.await("event-1", 1L));
+        assertEquals(0, coordinator.activeBarrierCount());
+    }
+
+    @Test
+    void jobInitializationFailureIsReportedInsteadOfBeingMisclassifiedAsTimeout() throws Exception {
+        RecordingBoundary boundary = new RecordingBoundary(false);
+        RuntimeException failure = new RuntimeException("Init node failed, connection is null");
+        DqlRecoveryBarrierCoordinator coordinator = new DqlRecoveryBarrierCoordinator(
+                boundary, null, () -> failure);
+
+        DqlRecoveryBarrier.Result result = coordinator.awaitResult("event-init-failure", 1L);
+
+        assertEquals(DqlRecoveryBarrier.Outcome.FAILED, result.outcome());
+        assertEquals(failure.getMessage(), result.message());
+        assertTrue(result.errorDetails().contains(failure.getClass().getName()));
         assertEquals(0, coordinator.activeBarrierCount());
     }
 

@@ -128,6 +128,17 @@ class DqlRecoveryTaskLockRepositoryTest {
         assertEquals("BATCH-1", query.get("batch_id"));
     }
 
+    @Test
+    @DisplayName("detects an unexpired task lock")
+    void detectsActiveLock() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryTaskLockRepository repository = new DqlRecoveryTaskLockRepository(mongoTemplate);
+        when(mongoTemplate.exists(any(Query.class), eq(DqlRecoveryTaskLockEntity.class))).thenReturn(true);
+
+        assertTrue(repository.existsActive("TASK-1", new Date(2000L)));
+        verify(mongoTemplate).exists(any(Query.class), eq(DqlRecoveryTaskLockEntity.class));
+    }
+
     private MongoTemplate mongoTemplate() {
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         IndexOperations indexOperations = mock(IndexOperations.class);

@@ -191,6 +191,12 @@ public class DqlEventService {
         }
         checkEventTaskPermission(event, user);
         DqlRecoveryPayloadVo payload = new DqlRecoveryPayloadVo();
+        payload.setSourceNodeId(event.getSourceNodeId());
+        payload.setSourceNodeName(event.getSourceNodeName());
+        payload.setFailedNodeId(event.getFailedNodeId());
+        payload.setFailedNodeName(event.getFailedNodeName());
+        payload.setTargetNodeId(event.getTargetNodeId());
+        payload.setTargetNodeName(event.getTargetNodeName());
         payload.setPayloadFormat(event.getPayloadFormat());
         payload.setPayloadData(event.getPayloadData());
         payload.setPayloadHash(event.getPayloadHash());

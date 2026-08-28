@@ -46,6 +46,7 @@ import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.TransactionOperator;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
@@ -1125,7 +1126,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						CommonUtils.AnyError writeRunnable = () -> {
 											if (!assertConnectorNodeActive(connectorNode, pdkMethodInvoker)) return;
 							BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer = (writtenRecordEvents, writeListResult) -> {
-												if (obsLogger.isDebugEnabled()) {
+									if (writeListResult != null && MapUtils.isNotEmpty(writeListResult.getErrorMap())) {
+										for (Map.Entry<TapRecordEvent, Throwable> error : writeListResult.getErrorMap().entrySet()) {
+											if (DqlRecoveryCaptureGuard.isRecoveryRecord(error.getKey())) {
+												DqlRecoveryCaptureGuard.notifyFailure(error.getKey(), error.getValue());
+											}
+										}
+									}
+																				if (obsLogger.isDebugEnabled()) {
 													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
 													if (MapUtils.isNotEmpty(errorMap)) {
 														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {

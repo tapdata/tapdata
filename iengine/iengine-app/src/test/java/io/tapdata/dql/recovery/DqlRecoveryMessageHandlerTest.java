@@ -108,9 +108,10 @@ class DqlRecoveryMessageHandlerTest {
     @Test
     @DisplayName("rejects a message for a different agent or task version")
     void rejectsWrongTaskContext() {
+        DqlRecoveryReportSender reporter = mock(DqlRecoveryReportSender.class);
         DqlRecoveryMessageHandler handler = new DqlRecoveryMessageHandler(
                 mock(DqlRecoveryCoordinator.class),
-                mock(DqlRecoveryReportSender.class),
+                reporter,
                 taskId -> new DqlRecoveryTaskContext(taskId, 7L, "another-agent"),
                 AGENT_ID
         );
@@ -119,6 +120,9 @@ class DqlRecoveryMessageHandlerTest {
 
         assertEquals(DqlRecoveryHandleResult.Outcome.REJECTED, result.getOutcome());
         assertTrue(result.getMessage().contains("agent"));
+        verify(reporter).reportBatchFailed(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("recovery task agent does not match current agent"),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test

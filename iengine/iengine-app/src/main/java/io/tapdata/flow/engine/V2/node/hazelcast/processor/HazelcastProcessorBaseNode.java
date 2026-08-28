@@ -289,8 +289,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	private boolean interceptProcessorError(TapdataEvent tapdataEvent, Throwable error) {
 		if (DqlRecoveryCaptureGuard.isRecovery(tapdataEvent)) {
-			DqlRecoveryCaptureGuard.notifyFailure(tapdataEvent, error);
-			return false;
+			// A replay failure belongs to the current DQL attempt.  It must
+			// release that attempt's barrier and be consumed here; routing it to
+			// the normal task error handler would terminate the temporary replay
+			// job before the coordinator can report the failed event.
+			return DqlRecoveryCaptureGuard.notifyFailure(tapdataEvent, error);
 		}
 		AspectInterceptResult interceptResult = executeAspect(new SkipErrorProcessAspect()
 				.processorBaseContext(processorBaseContext)

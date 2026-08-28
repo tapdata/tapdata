@@ -760,6 +760,27 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    /**
+     * Engine-internal task restart entry point.  DQL recovery must restore a
+     * task through TM's state machine instead of changing the task state or
+     * enqueueing an Engine-local start directly.  The system flag also lets
+     * the recovery operation pass its own active-recovery guard.
+     */
+    @Operation(summary = "系统后台恢复同步任务")
+    @PostMapping("systemStart/{id}")
+    public ResponseMessage<Void> systemStart(
+            HttpServletRequest request,
+            @PathVariable("id") String id
+    ) {
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+            taskService.startDqlRecovery(objectId, userDetail);
+            return null;
+        });
+        return success();
+    }
+
     @Operation(summary = "子任务已经成功运行回调接口")
     @PostMapping("running/{id}")
     public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id,

@@ -6,6 +6,8 @@ import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.dql.serializer.DqlPayloadSerializer;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -55,6 +57,16 @@ class DqlRecoveryCaptureGuardTest {
         assertTrue(DqlRecoveryCaptureGuard.isRecoveryRecord(record));
         assertTrue(DqlRecoveryCaptureGuard.eventId(record).isPresent());
         assertTrue(DqlRecoveryCaptureGuard.eventId(record).get().equals("event-2"));
+    }
+
+    @Test
+    void recoveryStateMapNamespaceUsesTemporaryTaskId() {
+        TaskDto task = new TaskDto();
+        ObjectId taskId = new ObjectId();
+        task.setId(taskId);
+
+        assertTrue(DqlRecoveryCaptureGuard.stateMapNamespace(task).endsWith(taskId.toHexString()));
+        assertTrue(DqlRecoveryCaptureGuard.stateMapNamespace(task).startsWith("DQL_RECOVERY_"));
     }
 
     private TapdataDqlRecoveryEvent recoveryEvent(String eventId) {

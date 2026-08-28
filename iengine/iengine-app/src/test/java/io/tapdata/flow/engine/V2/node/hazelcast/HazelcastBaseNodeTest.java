@@ -31,6 +31,7 @@ import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.DataNodeInitAspect;
 import io.tapdata.aspect.ProcessorNodeInitAspect;
 import io.tapdata.common.SettingService;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
@@ -1229,6 +1230,28 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	class InitExternalStorageTest {
+		@Test
+		@DisplayName("DQL recovery disabled placeholder does not initialize external storage")
+		void testDqlRecoveryDisabledPlaceholderSkipsExternalStorageInitialization() {
+			Map<String, Object> taskAttrs = new HashMap<>();
+			taskAttrs.put(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, Boolean.TRUE);
+			taskDto.setAttrs(taskAttrs);
+			Map<String, Object> nodeAttrs = new HashMap<>();
+			nodeAttrs.put("disabled", Boolean.TRUE);
+			tableNode.setAttrs(nodeAttrs);
+
+			ExternalStorageDto configuredStorage = new ExternalStorageDto();
+			configuredStorage.setId(new ObjectId());
+			Map<String, ExternalStorageDto> externalStorageDtoMap = new HashMap<>();
+			externalStorageDtoMap.put(configuredStorage.getId().toHexString(), configuredStorage);
+			when(processorBaseContext.getTaskConfig()).thenReturn(TaskConfig.create().externalStorageDtoMap(externalStorageDtoMap));
+
+			ExternalStorageDto actual = hazelcastBaseNode.initExternalStorage();
+
+			assertNotNull(actual);
+			assertNotSame(configuredStorage, actual);
+		}
+
 		@Test
 		void testInitExternalStorage() {
 			ReflectionTestUtils.setField(hazelcastBaseNode, "clientMongoOperator", mockClientMongoOperator);

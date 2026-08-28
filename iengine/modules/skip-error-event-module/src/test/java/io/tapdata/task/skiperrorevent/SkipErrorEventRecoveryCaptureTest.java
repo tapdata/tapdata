@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -66,9 +66,7 @@ class SkipErrorEventRecoveryCaptureTest {
                 throw failure;
             });
 
-            Throwable thrown = assertThrows(Throwable.class, () -> task.skipErrorDataNoeAspectImpl(aspect));
-
-            assertSame(failure, thrown);
+            org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> task.skipErrorDataNoeAspectImpl(aspect));
             assertSame(failure, notified.get());
             verifyNoInteractions(reporter);
         } finally {
@@ -92,7 +90,7 @@ class SkipErrorEventRecoveryCaptureTest {
                     .inputEvent(recoveryEvent)
                     .error(failure);
 
-            org.junit.jupiter.api.Assertions.assertNull(task.skipErrorProcessAspectHandle(aspect));
+            assertTrue(task.skipErrorProcessAspectHandle(aspect).isIntercepted());
             assertSame(failure, notified.get());
             verifyNoInteractions(reporter);
         } finally {

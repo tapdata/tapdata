@@ -13,6 +13,19 @@ public interface DqlRecoveryBarrier {
 
     Outcome await(String eventId, long timeoutMillis) throws InterruptedException;
 
+    /**
+     * Waits for the event and retains the failure details delivered by the
+     * target capture boundary.  The default keeps older barrier
+     * implementations source-compatible while allowing the production
+     * coordinator to return the original connector exception.
+     */
+    default Result awaitResult(String eventId, long timeoutMillis) throws InterruptedException {
+        return new Result(await(eventId, timeoutMillis), null, null);
+    }
+
+    record Result(Outcome outcome, String message, String errorDetails) {
+    }
+
     enum Outcome {
         SUCCESS,
         FAILED,

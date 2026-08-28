@@ -112,6 +112,9 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private void save2TaskAttrs() {
+        if (DqlRecoveryCaptureGuard.isRecoveryTask(getTask())) {
+            return;
+        }
         Update update = Update.update(String.format("attrs.%s", TaskDto.ATTRS_SKIP_ERROR_EVENT), syncAndSkipMap);
         clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskId)), update, ConnectorConstant.TASK_COLLECTION);
     }
@@ -254,21 +257,23 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             }
             this.logger = new SplitFileLogger(Level.INFO, taskId);
 
-            synchronized (storeFuture) {
-                stopStoreFuture();
-                AtomicLong lastStoreTimes = new AtomicLong(System.currentTimeMillis());
-                storeFuture.set(EXECUTOR.scheduleWithFixedDelay(() -> {
-                    try {
-                        long nowTime = System.currentTimeMillis();
-                        if (lastStoreTimes.get() < lastSkipTimes) {
-                            Thread.currentThread().setName(String.format("%s-skipErrorEvent", taskId));
-                            save2TaskAttrs();
-                            lastStoreTimes.set(nowTime);
+            if (!DqlRecoveryCaptureGuard.isRecoveryTask(getTask())) {
+                synchronized (storeFuture) {
+                    stopStoreFuture();
+                    AtomicLong lastStoreTimes = new AtomicLong(System.currentTimeMillis());
+                    storeFuture.set(EXECUTOR.scheduleWithFixedDelay(() -> {
+                        try {
+                            long nowTime = System.currentTimeMillis();
+                            if (lastStoreTimes.get() < lastSkipTimes) {
+                                Thread.currentThread().setName(String.format("%s-skipErrorEvent", taskId));
+                                save2TaskAttrs();
+                                lastStoreTimes.set(nowTime);
+                            }
+                        } catch (Exception e) {
+                            logger.warn("Skip error event store failed: {}", e.getMessage());
                         }
-                    } catch (Exception e) {
-                        logger.warn("Skip error event store failed: {}", e.getMessage());
-                    }
-                }, 0, 5, TimeUnit.SECONDS));
+                    }, 0, 5, TimeUnit.SECONDS));
+                }
             }
 
             Optional.ofNullable(getTask().getAttrs()).map(
@@ -463,7 +468,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         ? null : currentTask.getDag().getTargetNodes());
         DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
                 event, targetTable, taskRecordId, null,
-                updateConditionFields(targetNode, targetTable, event));
+                updateConditionFields(writeTargetNode(dataProcessorContext, targetNode), targetTable, event));
         identity.applyTo(report);
         dqlEventReporter.reportRecordSuccess(taskId, report);
     }
@@ -501,8 +506,12 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             return null;
         }
         if (DqlRecoveryCaptureGuard.isRecoveryRecord(event)) {
-            DqlRecoveryCaptureGuard.notifyFailure(event, aspect.getError());
-            return null;
+            // The replay coordinator owns the attempt result.  Do not let a
+            // replay-only processor error fall through to normal task-level
+            // error handling.
+            return DqlRecoveryCaptureGuard.notifyFailure(event, aspect.getError())
+                    ? new AspectInterceptResult().intercepted(true)
+                    : null;
         }
         if (!isSkipDataEnabled() || !isDqlEventEnabled() || dqlEventReporter == null) {
             return null;
@@ -707,8 +716,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                Throwable ex,
                                DataProcessorContext dataProcessorContext) {
         if (DqlRecoveryCaptureGuard.isRecoveryRecord(tapRecordEvent)) {
-            DqlRecoveryCaptureGuard.notifyFailure(tapRecordEvent, ex);
-            return false;
+            // A failed replay record is handled by the recovery barrier.  A
+            // true result tells the per-record splitter to consume this
+            // record instead of rethrowing and killing the temporary job.
+            return DqlRecoveryCaptureGuard.notifyFailure(tapRecordEvent, ex);
         }
         DqlClassificationResult classification = classify(ex, tapRecordEvent, DqlBatchContext.singleRecord());
         AtomicLong skipMetric = reserveSkipCandidate(tableName, classification);
@@ -878,7 +889,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         DqlPayloadSnapshot payload = dqlPayloadSerializer.serialize(event);
         DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
                 event, table, report.getTaskRecordId(), null,
-                updateConditionFields(targetNode, table, event));
+                updateConditionFields(writeTargetNode(dataProcessorContext, targetNode), table, event));
         DqlPayloadPreview preview = dqlPayloadPreviewBuilder.build(event, identity.getEventKey());
         payload.setPayloadPreview(preview.getPayloadPreview());
         payload.setPayloadPreviewTruncated(preview.isTruncated());
@@ -893,10 +904,35 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private Node<?> targetNode(DataProcessorContext dataProcessorContext, List<Node> targetNodes) {
+        // The node in the processor context is the node currently executing,
+        // not necessarily the task's final target. A processor failure must
+        // retain the downstream processing path during DQL replay, so resolve
+        // target metadata from the DAG boundary first.
+        Node<?> boundaryTarget = boundaryNode(targetNodes);
+        if (boundaryTarget != null) {
+            return boundaryTarget;
+        }
         if (dataProcessorContext != null && dataProcessorContext.getNode() != null) {
             return dataProcessorContext.getNode();
         }
-        return boundaryNode(targetNodes);
+        return null;
+    }
+
+    /**
+     * The DAG boundary is the correct source for target metadata when a
+     * processor fails, but a target write's update-condition configuration is
+     * carried by the node currently executing. Keep those two concerns
+     * separate so a mocked/incomplete DAG boundary cannot erase the business
+     * key of a target write.
+     */
+    private Node<?> writeTargetNode(DataProcessorContext dataProcessorContext, Node<?> boundaryTarget) {
+        if (dataProcessorContext != null) {
+            Node<?> executionNode = dataProcessorContext.getNode();
+            if (executionNode instanceof TableNode || executionNode instanceof DatabaseNode) {
+                return executionNode;
+            }
+        }
+        return boundaryTarget;
     }
 
     private List<String> updateConditionFields(Node<?> targetNode,

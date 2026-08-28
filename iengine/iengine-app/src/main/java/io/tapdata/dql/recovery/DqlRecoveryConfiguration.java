@@ -6,6 +6,8 @@ import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import io.tapdata.common.SettingService;
 import io.tapdata.dql.client.DqlTmClient;
 import io.tapdata.dql.reporter.DqlEventReporter;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,15 +65,23 @@ public class DqlRecoveryConfiguration {
     public DqlRecoveryCoordinator dqlRecoveryCoordinator(
             DqlRecoveryEventSource eventSource,
             DqlRecoveryReportSender reportSender,
-            DqlRecoveryRuntimeRegistry runtimeRegistry,
             DqlRuntimeConfig runtimeConfig,
-            @Qualifier("dqlRecoveryExecutor") ExecutorService executor) {
+            @Qualifier("dqlRecoveryExecutor") ExecutorService executor,
+            TapdataTaskScheduler taskScheduler,
+            HazelcastTaskService taskService) {
         DqlRecoveryEventSink unavailableSink = event -> {
             throw new IllegalStateException("DQL recovery source boundary is unavailable");
         };
         DqlRecoveryBarrier unavailableBarrier = (eventId, timeoutMillis) -> {
             throw new IllegalStateException("DQL recovery barrier is unavailable");
         };
+        if (HazelcastTaskService.getHazelcastInstance() == null) {
+            throw new IllegalStateException("DQL recovery requires an initialized Hazelcast instance");
+        }
+        DqlRecoveryBatchRuntimeFactory batchRuntimeFactory = new HazelcastDqlRecoveryBatchRuntimeFactory(
+                new TapdataDqlRecoveryTaskLifecycle(taskScheduler),
+                taskService,
+                HazelcastTaskService.getHazelcastInstance());
         return new DqlRecoveryCoordinatorImpl(
                 eventSource,
                 unavailableSink,
@@ -81,9 +91,11 @@ public class DqlRecoveryConfiguration {
                 runtimeConfig.getRecoveryEventTimeoutSeconds() * 1_000L,
                 executor,
                 command -> null,
-                runtimeRegistry::openSourceBoundary,
-                (command, sourceBoundary) -> new DqlRecoveryBarrierCoordinator(sourceBoundary),
-                runtimeConfig
+                command -> null,
+                (command, sourceBoundary) -> unavailableBarrier,
+                runtimeConfig,
+                DqlRecoveryCoordinatorImpl.DEFAULT_HEARTBEAT_EXECUTOR,
+                batchRuntimeFactory
         );
     }
 }

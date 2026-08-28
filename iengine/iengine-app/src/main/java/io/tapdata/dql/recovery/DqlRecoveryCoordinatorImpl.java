@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataDqlRecoveryEvent;
 import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
+import io.tapdata.dql.model.DqlRecoveryNodeState;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private static final Logger LOGGER = LogManager.getLogger(DqlRecoveryCoordinatorImpl.class);
-    private static final ScheduledExecutorService DEFAULT_HEARTBEAT_EXECUTOR =
+    public static final ScheduledExecutorService DEFAULT_HEARTBEAT_EXECUTOR =
             Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
     public static final long DEFAULT_BARRIER_TIMEOUT_MILLIS =
             DqlRuntimeConfig.DEFAULT_RECOVERY_EVENT_TIMEOUT_SECONDS * 1_000L;
@@ -64,6 +65,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private final BarrierFactory barrierFactory;
     private final DqlRuntimeConfig runtimeConfig;
     private final ScheduledExecutorService heartbeatExecutor;
+    private final DqlRecoveryBatchRuntimeFactory batchRuntimeFactory;
     private final ConcurrentMap<String, AtomicBoolean> activeBatches = new ConcurrentHashMap<>();
     private final Object idleMonitor = new Object();
 
@@ -76,7 +78,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         this(eventSource, eventSink, barrier, reportSender,
                 DqlRecoveryExecutionPolicy.from(runtimeConfig),
                 barrierTimeoutMillis(runtimeConfig), executor, command -> null, command -> null,
-                (command, sourceBoundary) -> barrier, effectiveConfig(runtimeConfig));
+                (command, sourceBoundary) -> barrier, effectiveConfig(runtimeConfig),
+                DEFAULT_HEARTBEAT_EXECUTOR, null);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -88,7 +91,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       Executor executor) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
                 barrierTimeoutMillis, executor, command -> null, command -> null,
-                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults());
+                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults(),
+                DEFAULT_HEARTBEAT_EXECUTOR, null);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -101,7 +105,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
                 barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, command -> null,
-                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults());
+                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults(),
+                DEFAULT_HEARTBEAT_EXECUTOR, null);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -115,7 +120,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       SourceBoundaryFactory sourceBoundaryFactory) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy,
                 barrierTimeoutMillis, executor, recoveryOnlyRunnerFactory, sourceBoundaryFactory,
-                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults());
+                (command, sourceBoundary) -> barrier, DqlRuntimeConfig.defaults(),
+                DEFAULT_HEARTBEAT_EXECUTOR, null);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -145,7 +151,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       DqlRuntimeConfig runtimeConfig) {
         this(eventSource, eventSink, barrier, reportSender, executionPolicy, barrierTimeoutMillis, executor,
                 recoveryOnlyRunnerFactory, sourceBoundaryFactory, barrierFactory, runtimeConfig,
-                DEFAULT_HEARTBEAT_EXECUTOR);
+                DEFAULT_HEARTBEAT_EXECUTOR, null);
     }
 
     public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
@@ -160,6 +166,24 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       BarrierFactory barrierFactory,
                                       DqlRuntimeConfig runtimeConfig,
                                       ScheduledExecutorService heartbeatExecutor) {
+        this(eventSource, eventSink, barrier, reportSender, executionPolicy, barrierTimeoutMillis, executor,
+                recoveryOnlyRunnerFactory, sourceBoundaryFactory, barrierFactory, runtimeConfig,
+                heartbeatExecutor, null);
+    }
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      DqlRecoveryExecutionPolicy executionPolicy,
+                                      long barrierTimeoutMillis,
+                                      Executor executor,
+                                      DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory,
+                                      SourceBoundaryFactory sourceBoundaryFactory,
+                                      BarrierFactory barrierFactory,
+                                      DqlRuntimeConfig runtimeConfig,
+                                      ScheduledExecutorService heartbeatExecutor,
+                                      DqlRecoveryBatchRuntimeFactory batchRuntimeFactory) {
         this.eventSource = Objects.requireNonNull(eventSource, "eventSource must not be null");
         this.eventSink = Objects.requireNonNull(eventSink, "eventSink must not be null");
         this.barrier = Objects.requireNonNull(barrier, "barrier must not be null");
@@ -177,6 +201,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         this.barrierFactory = Objects.requireNonNull(barrierFactory, "barrierFactory must not be null");
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig must not be null");
         this.heartbeatExecutor = Objects.requireNonNull(heartbeatExecutor, "heartbeatExecutor must not be null");
+        this.batchRuntimeFactory = batchRuntimeFactory;
     }
 
     @Override
@@ -216,6 +241,19 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private void executeBatch(DqlRecoveryMessageDto command,
                               List<String> orderedEventIds,
                               AtomicBoolean terminal) {
+        if (batchRuntimeFactory != null) {
+            ScheduledFuture<?> heartbeat = startHeartbeat(command, terminal);
+            try {
+                executeManagedBatch(command, orderedEventIds, terminal);
+			} catch (Throwable exception) {
+				failBatchOnce(command, terminal, message(exception));
+            } finally {
+                stopHeartbeat(heartbeat);
+                activeBatches.remove(command.getBatchId(), terminal);
+                signalIdle();
+            }
+            return;
+        }
         DqlRecoveryOnlyRunner recoveryOnlyRunner = null;
         ScheduledFuture<?> heartbeat = startHeartbeat(command, terminal);
         DqlRecoveryFailureCompensator compensator = new DqlRecoveryFailureCompensator(
@@ -274,6 +312,61 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         }
     }
 
+    /**
+     * New recovery path: stop the real task and let the runtime factory build
+     * an isolated copy of the original DAG before any event is injected.
+     */
+    private void executeManagedBatch(DqlRecoveryMessageDto command,
+                                     List<String> orderedEventIds,
+                                     AtomicBoolean terminal) {
+        List<DqlRecoveryEvent> events = new java.util.ArrayList<>(orderedEventIds.size());
+        for (String eventId : orderedEventIds) {
+            DqlRecoveryEvent event = eventSource.loadEvent(eventId);
+            if (event == null || event.payload() == null) {
+                throw new IllegalStateException("DQL event payload was not found: " + eventId);
+            }
+            events.add(event);
+        }
+
+        java.util.concurrent.atomic.AtomicReference<DqlRecoveryBatchRuntime> runtimeRef =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        DqlRecoveryFailureCompensator compensator = new DqlRecoveryFailureCompensator(failure -> {
+            DqlRecoveryBatchRuntime runtime = runtimeRef.get();
+            failBatchOnce(command, terminal, failure, runtime == null ? List.of() : runtime.nodeStates());
+        });
+        try {
+            DqlRecoveryBatchRuntime runtime = batchRuntimeFactory.open(command, List.copyOf(events));
+            if (runtime == null) {
+                throw new IllegalStateException("DQL recovery batch runtime is unavailable");
+            }
+            runtimeRef.set(runtime);
+            compensator.addCleanup(runtime::close);
+            DqlRecoveryBarrier batchBarrier = Objects.requireNonNull(
+                    runtime.barrier(), "DQL recovery batch barrier must not be null");
+            for (int index = 0; index < events.size(); index++) {
+                if (terminal.get()) {
+                    return;
+                }
+                String eventId = orderedEventIds.get(index);
+                batchBarrier.register(eventId);
+                EventExecutionResult result = executeEvent(
+                        command, eventId, runtime, batchBarrier, events.get(index));
+                if (!result.successful() && !executionPolicy.continueAfterFailure()) {
+                    compensator.compensate(new IllegalStateException(result.message()));
+                    return;
+                }
+            }
+            Throwable cleanupFailure = compensator.cleanup();
+            if (cleanupFailure != null) {
+                compensator.compensate(cleanupFailure);
+                return;
+            }
+            finishBatchOnce(command, terminal, runtime.nodeStates());
+		} catch (Throwable exception) {
+			compensator.compensate(exception);
+		}
+    }
+
     private ScheduledFuture<?> startHeartbeat(DqlRecoveryMessageDto command, AtomicBoolean terminal) {
         sendHeartbeat(command);
         long intervalMillis = runtimeConfig.getRecoveryHeartbeatIntervalSeconds() * 1_000L;
@@ -308,12 +401,21 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                               String eventId,
                                               DqlRecoveryEventSink sink,
                                               DqlRecoveryBarrier batchBarrier) {
+        return executeEvent(command, eventId, sink, batchBarrier,
+                DqlRecoveryEvent.payloadOnly(eventSource.load(eventId)));
+    }
+
+    private EventExecutionResult executeEvent(DqlRecoveryMessageDto command,
+                                              String eventId,
+                                              DqlRecoveryEventSink sink,
+                                              DqlRecoveryBarrier batchBarrier,
+                                              DqlRecoveryEvent event) {
         String attemptId = UUID.randomUUID().toString();
         long startedAt = System.currentTimeMillis();
         EventExecutionResult result;
         try {
             reportSender.reportEventStarted(command, eventId, attemptId, startedAt);
-            DqlPayloadSnapshot snapshot = eventSource.load(eventId);
+            DqlPayloadSnapshot snapshot = event == null ? null : event.payload();
             if (snapshot == null) {
                 throw new IllegalStateException("DQL event payload was not found: " + eventId);
             }
@@ -327,15 +429,17 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                     runtimeConfig
             );
             sink.enqueue(recoveryEvent);
-            result = barrierResult(eventId, batchBarrier.await(eventId, barrierTimeoutMillis));
+            result = barrierResult(eventId, batchBarrier.awaitResult(eventId, barrierTimeoutMillis));
         } catch (InterruptedException exception) {
             batchBarrier.cancel(eventId);
             Thread.currentThread().interrupt();
-            result = EventExecutionResult.failureResult("recovery barrier interrupted for event " + eventId,
-                    "TIMEOUT");
+            result = EventExecutionResult.failureResult(
+                    "recovery barrier interrupted for event " + eventId,
+                    "TIMEOUT", null, io.tapdata.exception.ExceptionUtil.getStackString(exception));
         } catch (RuntimeException exception) {
             batchBarrier.cancel(eventId);
-            result = EventExecutionResult.failureResult(message(exception), "FAILED");
+            result = EventExecutionResult.failureResult(message(exception), "FAILED", null,
+                    io.tapdata.exception.ExceptionUtil.getStackString(exception));
         }
 
         try {
@@ -345,6 +449,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                     attemptId,
                     result.result(),
                     result.message(),
+                    result.errorCode(),
+                    result.errorDetails(),
                     startedAt,
                     System.currentTimeMillis()
             );
@@ -355,20 +461,31 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         return result;
     }
 
-    private EventExecutionResult barrierResult(String eventId, DqlRecoveryBarrier.Outcome outcome) {
-        if (outcome == DqlRecoveryBarrier.Outcome.SUCCESS) {
+    private EventExecutionResult barrierResult(String eventId, DqlRecoveryBarrier.Result barrierResult) {
+        if (barrierResult == null || barrierResult.outcome() == DqlRecoveryBarrier.Outcome.SUCCESS) {
             return EventExecutionResult.successResult();
         }
-        if (outcome == DqlRecoveryBarrier.Outcome.TIMEOUT) {
-            return EventExecutionResult.failureResult("recovery barrier timed out for event " + eventId, "TIMEOUT");
+        if (barrierResult.outcome() == DqlRecoveryBarrier.Outcome.TIMEOUT) {
+            return EventExecutionResult.failureResult(
+                    "recovery barrier timed out for event " + eventId,
+                    "TIMEOUT", null, barrierResult.errorDetails());
         }
-        return EventExecutionResult.failureResult("recovery barrier failed for event " + eventId, "FAILED");
+        String failureMessage = StringUtils.defaultIfBlank(
+                barrierResult.message(), "recovery barrier failed for event " + eventId);
+        return EventExecutionResult.failureResult(
+                failureMessage, "FAILED", null, barrierResult.errorDetails());
     }
 
     private void finishBatchOnce(DqlRecoveryMessageDto command, AtomicBoolean terminal) {
+        finishBatchOnce(command, terminal, List.of());
+    }
+
+    private void finishBatchOnce(DqlRecoveryMessageDto command,
+                                 AtomicBoolean terminal,
+                                 List<DqlRecoveryNodeState> nodeStates) {
         if (terminal.compareAndSet(false, true)) {
             try {
-                reportSender.reportBatchFinished(command, null, System.currentTimeMillis());
+                reportSender.reportBatchFinished(command, null, System.currentTimeMillis(), nodeStates);
             } catch (RuntimeException exception) {
                 terminal.compareAndSet(true, false);
                 throw exception;
@@ -377,8 +494,15 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     }
 
     private void failBatchOnce(DqlRecoveryMessageDto command, AtomicBoolean terminal, String message) {
+        failBatchOnce(command, terminal, message, List.of());
+    }
+
+    private void failBatchOnce(DqlRecoveryMessageDto command,
+                               AtomicBoolean terminal,
+                               String message,
+                               List<DqlRecoveryNodeState> nodeStates) {
         if (terminal.compareAndSet(false, true)) {
-            reportSender.reportBatchFailed(command, message, System.currentTimeMillis());
+            reportSender.reportBatchFailed(command, message, System.currentTimeMillis(), nodeStates);
         }
     }
 
@@ -412,13 +536,24 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         return effectiveConfig(config).getRecoveryEventTimeoutSeconds() * 1_000L;
     }
 
-    private record EventExecutionResult(boolean successful, String result, String message) {
+    private record EventExecutionResult(boolean successful,
+                                        String result,
+                                        String message,
+                                        String errorCode,
+                                        String errorDetails) {
         private static EventExecutionResult successResult() {
-            return new EventExecutionResult(true, "SUCCESS", null);
+            return new EventExecutionResult(true, "SUCCESS", null, null, null);
         }
 
         private static EventExecutionResult failureResult(String message, String result) {
-            return new EventExecutionResult(false, result, message);
+            return failureResult(message, result, null, null);
+        }
+
+        private static EventExecutionResult failureResult(String message,
+                                                          String result,
+                                                          String errorCode,
+                                                          String errorDetails) {
+            return new EventExecutionResult(false, result, message, errorCode, errorDetails);
         }
     }
 

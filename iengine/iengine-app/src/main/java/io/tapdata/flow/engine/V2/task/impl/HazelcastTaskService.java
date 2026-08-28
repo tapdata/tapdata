@@ -63,6 +63,9 @@ import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.common.utils.StopWatch;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.dql.recovery.DqlRecoveryDagPlanner;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
+import io.tapdata.dql.recovery.DqlRecoveryReplaySourceProcessor;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -113,6 +116,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.DependsOn;
@@ -271,6 +275,67 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
+	/**
+	 * Starts a temporary Jet job for DQL replay.  It is intentionally not
+	 * registered in TapdataTaskScheduler's formal task-client map and its DAG
+	 * contains only the cloned task nodes plus a queue-backed replay source.
+	 */
+	public TaskClient<TaskDto> startDqlRecoveryTask(TaskDto taskDto,
+			DqlRecoveryDagPlanner.Plan recoveryPlan,
+			String recoveryQueueName) {
+		if (taskDto == null || recoveryPlan == null || StringUtils.isBlank(recoveryQueueName)) {
+			throw new IllegalArgumentException("DQL recovery task, plan and queue are required");
+		}
+		TaskDto recoveryTaskDto = new TaskDto();
+		BeanUtils.copyProperties(taskDto, recoveryTaskDto);
+		String formalTaskId = taskDto.getId().toHexString();
+		// The replay job must not share task-scoped Engine state with the
+		// formal job.  The DAG/node ids remain the original ids for topology
+		// and payload semantics, while the temporary task namespace isolates
+		// env maps, metrics, token buckets and connector runtime state.
+		recoveryTaskDto.setId(new org.bson.types.ObjectId());
+		Map<String, Object> recoveryAttrs = recoveryTaskDto.getAttrs() == null
+				? new HashMap<>() : new HashMap<>(recoveryTaskDto.getAttrs());
+		recoveryAttrs.put(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, Boolean.TRUE);
+		recoveryTaskDto.setAttrs(recoveryAttrs);
+		recoveryTaskDto.setDag(recoveryPlan.dag());
+		recoveryPlan.dag().setTaskId(recoveryTaskDto.getId());
+		HazelcastTaskClient taskClient = HazelcastTaskClient.createDqlRecovery(
+				recoveryTaskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance);
+		try {
+			// The replay job uses the normal target/processor nodes, so it must
+			// also have the normal aspect session.  In particular,
+			// SkipErrorEventAspectTask is the Engine boundary that converts a
+			// target write exception into the recovery barrier failure signal.
+			// Keep this session keyed by the temporary task id; the formal task
+			// session must remain untouched while it is stopped for replay.
+			startDqlRecoveryAspectSession(recoveryTaskDto);
+			DqlRecoveryDagBuild build = new DqlRecoveryDagBuild(
+					recoveryPlan.failedNodeId(), recoveryQueueName, formalTaskId);
+			JetDag jetDag = task2HazelcastDAG(recoveryTaskDto, true, false, build);
+			JobConfig jobConfig = new JobConfig();
+			jobConfig.setName("DQL-Recovery-" + recoveryQueueName);
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
+			Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
+			taskClient.setJob(job);
+			return taskClient;
+		} catch (Throwable throwable) {
+			taskClient.close();
+			if (throwable instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			throw new IllegalStateException("Failed to start DQL recovery task", throwable);
+		}
+	}
+
+	static void startDqlRecoveryAspectSession(TaskDto recoveryTaskDto) {
+		AspectUtils.executeAspect(dqlRecoveryTaskStartAspect(recoveryTaskDto));
+	}
+
+	static TaskStartAspect dqlRecoveryTaskStartAspect(TaskDto recoveryTaskDto) {
+		return new TaskStartAspect().task(recoveryTaskDto).log(new TapLog());
+	}
+
 	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient, boolean open) {
 		Job job;
 		try {
@@ -379,14 +444,25 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	@SneakyThrows
 	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce, boolean open) {
+		return task2HazelcastDAG(taskDto, deduce, open, null);
+	}
+
+	@SneakyThrows
+	protected JetDag task2HazelcastDAG(TaskDto taskDto,
+			Boolean deduce,
+			boolean open,
+			DqlRecoveryDagBuild recoveryBuild) {
 		CpuMemoryCollector.startTask(taskDto);
-		handleDagWhenProcessAfterMerge(taskDto);
+		if (recoveryBuild == null) {
+			handleDagWhenProcessAfterMerge(taskDto);
+		}
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
 		if (deduce) {
 			if (taskDto.isPreviewTask()) {
 				tapTableMapHashMap = transformSchemaWhenPreview(taskDto);
 			} else {
-				tapTableMapHashMap = engineTransformSchema(taskDto);
+				tapTableMapHashMap = engineTransformSchema(taskDto,
+						recoveryBuild == null ? taskDto.getId().toHexString() : recoveryBuild.formalTaskId());
 			}
 		} else {
 			tapTableMapHashMap = new HashMap<>();
@@ -395,7 +471,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
 		Long tmCurrentTime = taskDtoAtomicReference.get().getTmCurrentTime();
-		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0 && taskDto.isNormalTask()) {
+		if (recoveryBuild == null && null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0 && taskDto.isNormalTask()) {
 			Map<String, Object> params = new HashMap<>();
 			params.put("id", taskDto.getId().toHexString());
 			params.put("time", tmCurrentTime);
@@ -409,7 +485,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		TaskConfig taskConfig = getTaskConfig(taskDtoAtomicReference.get());
-		if (taskDto.isNormalTask()) {
+		if (taskDto.isNormalTask() && recoveryBuild == null) {
 			initSourceInitialCounter(taskDtoAtomicReference.get());
 			// init snapshot order (only for normal task)
 			checkMergeTaskReBuildCache(taskDtoAtomicReference.get());
@@ -418,23 +494,40 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 		final List<Node> nodes = taskDtoAtomicReference.get().getDag().getNodes();
 		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
+		final Set<String> disabledNodeIds = recoveryBuild == null
+				? Collections.emptySet()
+				: nodes.stream()
+					.filter(Node::disabledNode)
+					.map(Node::getId)
+					.collect(Collectors.toSet());
+		final List<Edge> runtimeEdges = recoveryBuild == null
+				? edges
+				: edges.stream()
+					.filter(edge -> !disabledNodeIds.contains(edge.getSource()))
+					.filter(edge -> !disabledNodeIds.contains(edge.getTarget()))
+					.filter(edge -> !recoveryBuild.failedNodeId().equals(edge.getTarget()))
+					.toList();
+		final boolean dqlRecovery = recoveryBuild != null;
 		Map<String, Vertex> vertexMap = new HashMap<>();
 		Map<String, AbstractProcessor> hazelcastBaseNodeMap = new HashMap<>();
 		Map<String, Node<?>> nodeMap = nodes.stream().collect(Collectors.toMap(Element::getId, n -> n));
 
 		final ConfigurationCenter config = (ConfigurationCenter) configurationCenter.clone();
 		if (CollectionUtils.isNotEmpty(nodes)) {
-			// Generate AutoInspectNode
-			try {
-				AutoInspectNode inspectNode = AutoInspectNodeUtil.firstAutoInspectNode(taskDtoAtomicReference.get());
-				if (null != inspectNode) {
-					ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("Enable automatic data verification");
-					nodes.add(inspectNode);
-					nodeMap.put(inspectNode.getId(), inspectNode);
-					edges.add(new Edge(inspectNode.getFromNode().getId(), inspectNode.getId()));
+			// A temporary recovery job must not add automatic-inspection nodes or
+			// edges to the cloned graph; they are unrelated to replay semantics.
+			if (recoveryBuild == null) {
+				try {
+					AutoInspectNode inspectNode = AutoInspectNodeUtil.firstAutoInspectNode(taskDtoAtomicReference.get());
+					if (null != inspectNode) {
+						ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("Enable automatic data verification");
+						nodes.add(inspectNode);
+						nodeMap.put(inspectNode.getId(), inspectNode);
+						edges.add(new Edge(inspectNode.getFromNode().getId(), inspectNode.getId()));
+					}
+				} catch (AutoInspectException e) {
+					ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).warn(e.getMessage());
 				}
-			} catch (AutoInspectException e) {
-				ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).warn(e.getMessage());
 			}
 
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
@@ -484,7 +577,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 
 					ShareCdcUtil.fillConfigNamespace(logCollectorNode, this::getConnection);
-				} else if (node instanceof CacheNode) {
+				} else if (node instanceof CacheNode && (recoveryBuild == null || !node.disabledNode())) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
 					Node<?> sourceNode = null;
 					if (edge.isPresent()) {
@@ -494,7 +587,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 						}
 					}
 					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, taskDtoAtomicReference.get(), clientMongoOperator);
-				} else if (node instanceof MergeTableNode){
+				} else if (node instanceof MergeTableNode && (recoveryBuild == null || !node.disabledNode())){
 					cleanMergeNode(taskDto,node.getId());
 				}
 				List<Node> predecessors = node.predecessors();
@@ -508,7 +601,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 						hazelcastBaseNode = createNode(new CreateNodeEntity()
 								.withTaskDto(taskDto)
 								.withNodes(nodes)
-								.withEdges(edges)
+								.withEdges(runtimeEdges)
 								.withNode(node)
 								.withPredecessors(predecessors)
 								.withSuccessors(successors)
@@ -518,6 +611,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 								.withMergeTableMap(null)
 								.withTapTableMap(finalTapTableMap)
 								.withTaskConfig(taskConfig)
+								.withDqlRecovery(dqlRecovery)
 								.withOpen(open)
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
@@ -532,10 +626,30 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				dag.vertex(vertex);
 				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent, tableNode);
 			}
-			handleEdge(dag, edges, nodeMap, vertexMap);
+			if (recoveryBuild != null) {
+				Vertex replaySource = createDqlRecoveryReplayVertex(
+						recoveryBuild.vertexName(), recoveryBuild.queueName());
+				replaySource.localParallelism(1);
+				dag.vertex(replaySource);
+				int queueSize = CommonUtils.getPropertyInt(JET_EDGE_QUEUE_SIZE_PROP_KEY, DEFAULT_JET_EDGE_QUEUE_SIZE);
+				dag.edge(com.hazelcast.jet.core.Edge.from(replaySource)
+						.to(vertexMap.get(recoveryBuild.failedNodeId()))
+						.setConfig(new EdgeConfig().setQueueSize(queueSize)));
+			}
+			handleEdge(dag, runtimeEdges, nodeMap, vertexMap);
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap);
+	}
+
+	/**
+	 * Builds the queue-backed replay source without capturing the mutable DAG
+	 * build descriptor in the serializable Jet processor supplier.  Jet sends
+	 * the supplier to every member when the DAG is submitted; only the stable
+	 * queue name belongs in that serialized closure.
+	 */
+	static Vertex createDqlRecoveryReplayVertex(String vertexName, String queueName) {
+		return new Vertex(vertexName, () -> new DqlRecoveryReplaySourceProcessor(queueName));
 	}
 
 	protected void handleDagWhenProcessAfterMerge(TaskDto taskDto) {
@@ -654,6 +768,23 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		final TaskConfig taskConfig = createNodeEntity.getTaskConfig();
 		final boolean open = createNodeEntity.isOpen();
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
+		if (createNodeEntity.isDqlRecovery() && node.disabledNode()) {
+			// Disabled nodes in the temporary graph are structural placeholders
+			// only. Do not instantiate a source, target, cache or connector-backed
+			// processor for them: an isolated replay must never read or write
+			// through a branch that was excluded by the planner.
+			HazelcastBlank newNode = new HazelcastBlank(
+					DataProcessorContext.newBuilder()
+							.withTaskDto(taskDto)
+							.withNode(node)
+							.withNodeSchemas(nodeSchemas)
+							.withTapTableMap(tapTableMap)
+							.withTaskConfig(taskConfig)
+							.build()
+			);
+			MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, newNode);
+			return newNode;
+		}
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
 				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
 			HazelcastBlank newNode = new HazelcastBlank(
@@ -1200,13 +1331,18 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	protected Map<String, TapTableMap<String, TapTable>> engineTransformSchema(TaskDto taskDto) {
+		return engineTransformSchema(taskDto, taskDto.getId().toHexString());
+	}
+
+	protected Map<String, TapTableMap<String, TapTable>> engineTransformSchema(TaskDto taskDto,
+			String transformTaskId) {
 		AspectUtils.executeAspect(new EngineDeductionAspect().start());
 		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
 		try {
 			com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
 			TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
+					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + transformTaskId,
 					TransformerWsMessageDto.class);
 			transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
 			if (taskDto.isPreviewTask()) {
@@ -1370,6 +1506,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		TapTableMap<String, TapTable> tapTableMap;
 		TaskConfig taskConfig;
 		boolean open;
+		boolean dqlRecovery;
 
 		public CreateNodeEntity() {
 			//do nothing
@@ -1425,6 +1562,23 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		CreateNodeEntity withOpen(boolean open) {
 			this.open = open;
 			return this;
+		}
+		CreateNodeEntity withDqlRecovery(boolean dqlRecovery) {
+			this.dqlRecovery = dqlRecovery;
+			return this;
+		}
+	}
+
+	private record DqlRecoveryDagBuild(String failedNodeId, String queueName, String formalTaskId) {
+		private DqlRecoveryDagBuild {
+			if (StringUtils.isBlank(failedNodeId) || StringUtils.isBlank(queueName)
+					|| StringUtils.isBlank(formalTaskId)) {
+				throw new IllegalArgumentException("DQL recovery failed node, queue and formal task are required");
+			}
+		}
+
+		private String vertexName() {
+			return "DQL_RECOVERY_SOURCE-" + queueName;
 		}
 	}
 }

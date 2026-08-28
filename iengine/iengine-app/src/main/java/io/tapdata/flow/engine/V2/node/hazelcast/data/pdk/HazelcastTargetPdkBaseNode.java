@@ -85,6 +85,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.flow.engine.V2.util.TaskAnalyze;
+import io.tapdata.dql.recovery.DqlRecoveryBarrierSignalStore;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -1294,6 +1295,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				Optional.of(tapdataEvent)
 						.flatMap(event -> Optional.ofNullable(((TapdataCountDownLatchEvent) event).getCountDownLatch()))
 						.ifPresent(CountDownLatch::countDown);
+				String barrierId = ((TapdataCountDownLatchEvent) tapdataEvent).getDqlRecoveryBarrierId();
+				if (StringUtils.isNotBlank(barrierId) && jetContext != null) {
+					DqlRecoveryBarrierSignalStore.signal(jetContext.hazelcastInstance(), barrierId);
+				}
 			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
 				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
             } else if (tapdataEvent instanceof TapdataRecoveryEvent recoveryEvent) {
@@ -2519,4 +2524,3 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 }
-

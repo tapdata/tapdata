@@ -242,8 +242,7 @@ WHERE user_id IN ('seed-M-003', 'seed-M-004');
 
    ```javascript
    function process(record) {
-     var after = record.after || {};
-     if (after.scenario === "SCRIPT_FAIL") {
+     if (record.scenario === "SCRIPT_FAIL") {
        throw new Error("DQL_POC_SCRIPT_FAIL");
      }
      return record;

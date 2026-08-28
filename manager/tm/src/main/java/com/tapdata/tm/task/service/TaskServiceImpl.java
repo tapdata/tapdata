@@ -95,6 +95,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
+import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -404,6 +405,8 @@ public class TaskServiceImpl extends TaskService{
     private MetadataInstancesCompareService metadataInstancesCompareService;
     private AnalyzerService analyzerService;
     private TaskRebalanceJobService taskRebalanceJobService;
+
+    private DqlRecoveryTaskLockRepository dqlRecoveryTaskLockRepository;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -4580,8 +4583,14 @@ public class TaskServiceImpl extends TaskService{
         start(id, user);
     }
 
+    @Override
+    public void startDqlRecovery(ObjectId id, UserDetail user) {
+        TaskDto taskDto = checkExistById(id, user);
+        startInternal(taskDto, user, "11", true);
+    }
+
     public void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
-        start(taskDto, user, startFlag);
+        startInternal(taskDto, user, startFlag, false);
     }
     /**
      * 状态机启动子任务之前执行
@@ -4592,7 +4601,14 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        startInternal(taskDto, user, startFlag, false);
+    }
+
+    private void startInternal(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
         assertTaskNotRebalancing(taskDto.getId(), user);
+        if (!system) {
+            assertDqlRecoveryNotRunning(taskDto);
+        }
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
@@ -4695,6 +4711,16 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException("Task.StartCheckModelFailed");
         } else {
             run(taskDto, user);
+        }
+    }
+
+    private void assertDqlRecoveryNotRunning(TaskDto taskDto) {
+        if (dqlRecoveryTaskLockRepository == null || taskDto == null || taskDto.getId() == null) {
+            return;
+        }
+        String taskId = taskDto.getId().toHexString();
+        if (dqlRecoveryTaskLockRepository.existsActive(taskId, new Date())) {
+            throw new BizException("DqlRecovery.BatchAlreadyRunning");
         }
     }
 

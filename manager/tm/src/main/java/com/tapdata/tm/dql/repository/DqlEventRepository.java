@@ -368,6 +368,47 @@ public class DqlEventRepository {
     }
 
     /**
+     * Finalizes events which were claimed by a recovery batch but never
+     * emitted EVENT_STARTED. This closes the batch lifecycle even when the
+     * Engine fails while preparing the recovery runtime or before it can
+     * process the first event.
+     *
+     * <p>The batch id is part of the attempt identity and the query excludes
+     * events that already contain an attempt for this batch. Consequently a
+     * repeated BATCH_FAILED callback is a no-op.</p>
+     */
+    public long finalizeUnstartedAttempts(String batchId,
+                                          List<String> eventIds,
+                                          DqlRecoveryAttemptDto attempt,
+                                          Date now) {
+        if (StringUtils.isBlank(batchId) || attempt == null
+                || StringUtils.isBlank(attempt.getAttemptId())
+                || !StringUtils.equals(batchId, attempt.getBatchId())
+                || !DqlRecoveryAttemptResultEnum.FAILED.name().equals(attempt.getResult())
+                || now == null) {
+            return 0;
+        }
+        Criteria criteria = Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
+                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name())
+                .and(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
+                .not()
+                .elemMatch(Criteria.where(DqlRecoveryAttemptDto.FIELD_BATCH_ID).is(batchId));
+        if (eventIds != null && !eventIds.isEmpty()) {
+            criteria.and(DqlEventDto.FIELD_EVENT_ID).in(eventIds);
+        }
+        Query query = Query.query(criteria);
+        Update update = recoveryFailureUpdate(DqlRecoveryAttemptResultEnum.FAILED, now)
+                .push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
+        if (attempt.getOperatorId() != null) {
+            update.set(DqlEventDto.FIELD_LAST_RECOVERY_USER_ID, attempt.getOperatorId());
+        }
+        if (attempt.getOperatorName() != null) {
+            update.set(DqlEventDto.FIELD_LAST_RECOVERY_USER_NAME, attempt.getOperatorName());
+        }
+        return modifiedCount(mongoTemplate.updateMulti(query, update, entityClass));
+    }
+
+    /**
      * Moves all still-running events for a batch to recovery failure when the batch times out.
      * Existing RUNNING attempts are updated in place. Events that never emitted EVENT_STARTED
      * receive one stable synthetic timeout attempt as a compatibility fallback.

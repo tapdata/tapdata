@@ -140,6 +140,7 @@ class DqlEventControllerTest {
                 "orders",
                 "orders_sink",
                 "JS_PROCESS_FAILED",
+                "DUPLICATE_KEY",
                 "U",
                 "TRANSFORM_ERROR",
                 "PENDING",
@@ -159,6 +160,7 @@ class DqlEventControllerTest {
         assertEquals("orders", query.getSourceTable());
         assertEquals("orders_sink", query.getTargetTable());
         assertEquals("JS_PROCESS_FAILED", query.getKeyword());
+        assertEquals("DUPLICATE_KEY", query.getErrorCode());
         assertEquals("U", query.getDmlType());
         assertEquals("TRANSFORM_ERROR", query.getErrorType());
         assertEquals("PENDING", query.getStatus());
@@ -212,7 +214,7 @@ class DqlEventControllerTest {
         when(eventService.summary(org.mockito.ArgumentMatchers.any(DqlEventQueryVo.class), eq(user))).thenReturn(summary);
 
         ResponseMessage<DqlEventSummaryVo> response = controller.summary(
-                null, null, null, null, null, null, null, "RECOVERY_FAILED", null, null
+                null, null, null, null, null, null, null, null, "RECOVERY_FAILED", null, null
         );
 
         ArgumentCaptor<DqlEventQueryVo> captor = ArgumentCaptor.forClass(DqlEventQueryVo.class);

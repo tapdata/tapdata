@@ -13,6 +13,7 @@ import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryNodeStateDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
@@ -309,7 +310,7 @@ public class DqlRecoveryBatchService {
             case EVENT_STARTED -> handleEventStarted(batch, report);
             case EVENT_RESULT -> handleEventResult(batch, report);
             case BATCH_FINISHED -> finishBatch(batch, report);
-            case BATCH_FAILED -> failBatch(batch, report.getMessage());
+            case BATCH_FAILED -> failBatch(batch, report.getMessage(), report.getNodeStates());
             default -> throw new BizException("IllegalArgument", "type");
         }
     }
@@ -468,6 +469,9 @@ public class DqlRecoveryBatchService {
         }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.RUNNING);
         try {
+            if (report.getNodeStates() != null) {
+                batchRepository.updateNodeStates(batch.getBatchId(), report.getNodeStates());
+            }
             int selected = Optional.ofNullable(batch.getSelectedCount()).orElse(0);
             int success = Optional.ofNullable(batch.getSuccessCount()).orElse(0);
             int failed = Optional.ofNullable(batch.getFailedCount()).orElse(0);
@@ -490,15 +494,22 @@ public class DqlRecoveryBatchService {
         }
     }
 
-    private void failBatch(DqlRecoveryBatchDto batch, String message) {
+    private void failBatch(DqlRecoveryBatchDto batch, String message,
+                           List<DqlRecoveryNodeStateDto> nodeStates) {
         if (DqlRecoveryBatchStatusEnum.FAILED.name().equalsIgnoreCase(batch.getStatus())) {
             return;
         }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.CREATED,
                 DqlRecoveryBatchStatusEnum.DISPATCHED, DqlRecoveryBatchStatusEnum.RUNNING);
         try {
+            if (nodeStates != null) {
+                batchRepository.updateNodeStates(batch.getBatchId(), nodeStates);
+            }
+            Date now = new Date();
             eventRepository.finalizeRunningAttempts(batch.getBatchId(), batchEventIds(batch),
-                    DqlRecoveryAttemptResultEnum.FAILED, message, new Date());
+                    DqlRecoveryAttemptResultEnum.FAILED, message, now);
+            eventRepository.finalizeUnstartedAttempts(batch.getBatchId(), batchEventIds(batch),
+                    batchFailureAttempt(batch, message, now), now);
             eventRepository.releaseBatchLocks(batch.getBatchId(), DqlEventStatusEnum.RECOVERY_FAILED);
             batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.FAILED, message);
             appendAudit(batch, DqlRecoveryBatchStatusEnum.FAILED.name(), AUDIT_BATCH_FAILED,
@@ -507,6 +518,24 @@ public class DqlRecoveryBatchService {
         } finally {
             releaseTaskLock(batch);
         }
+    }
+
+    private DqlRecoveryAttemptDto batchFailureAttempt(DqlRecoveryBatchDto batch,
+                                                      String message,
+                                                      Date now) {
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("BATCH_FAILED-" + batch.getBatchId());
+        attempt.setBatchId(batch.getBatchId());
+        attempt.setOperatorId(batch.getOperatorId());
+        attempt.setOperatorName(batch.getOperatorName());
+        attempt.setTaskVersion(batch.getTaskVersion());
+        Date startedAt = Optional.ofNullable(batch.getStartedAt())
+                .orElse(Optional.ofNullable(batch.getUpdated()).orElse(now));
+        attempt.setStartedAt(startedAt);
+        attempt.setFinishedAt(now);
+        attempt.setResult(DqlRecoveryAttemptResultEnum.FAILED.name());
+        attempt.setMessage(message);
+        return attempt;
     }
 
     private void handleBatchStarted(DqlRecoveryBatchDto batch) {
@@ -933,9 +962,6 @@ public class DqlRecoveryBatchService {
 
     private record RecoveryTaskContext(TaskDto task, boolean agentAvailable) {
         private String taskRecoveryReason(DqlEventDto event) {
-            if (!TaskDto.STATUS_RUNNING.equals(task.getStatus()) && !TaskDto.STATUS_STOP.equals(task.getStatus())) {
-                return "task status " + task.getStatus() + " does not support recovery";
-            }
             if (task.getVersion() == null || task.getVersion() < 1L) {
                 return "current task version is unavailable";
             }

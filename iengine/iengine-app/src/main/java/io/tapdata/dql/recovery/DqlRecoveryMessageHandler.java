@@ -65,6 +65,7 @@ public class DqlRecoveryMessageHandler {
         }
 
         boolean batchStartedReported = false;
+        boolean batchStartedReportAttempted = false;
         try {
             validateTaskContext(command);
             if (coordinator == null) {
@@ -83,6 +84,7 @@ public class DqlRecoveryMessageHandler {
             // EVENT_STARTED before start() returns. TM accepts that callback
             // only after the batch has transitioned from DISPATCHED to
             // RUNNING, so publish BATCH_STARTED first.
+            batchStartedReportAttempted = true;
             reportSender.reportBatchStarted(command);
             batchStartedReported = true;
             coordinator.start(command);
@@ -97,6 +99,14 @@ public class DqlRecoveryMessageHandler {
                         message -> reportBatchFailed(command, message)
                 ).compensate(exception);
             } else {
+                if (!batchStartedReportAttempted) {
+                    // TM has already marked the batch DISPATCHED and the
+                    // events are locked. Validation failures happen before
+                    // BATCH_STARTED and therefore must still converge through
+                    // BATCH_FAILED; otherwise TM can only discover them after
+                    // its timeout.
+                    reportBatchFailed(command, safeMessage(exception));
+                }
                 batchRegistry.release(command.getBatchId());
             }
             return DqlRecoveryHandleResult.rejected(safeMessage(exception));

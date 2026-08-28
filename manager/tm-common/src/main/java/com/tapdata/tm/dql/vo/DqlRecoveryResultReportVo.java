@@ -1,8 +1,10 @@
 package com.tapdata.tm.dql.vo;
 
 import lombok.Data;
+import com.tapdata.tm.dql.dto.DqlRecoveryNodeStateDto;
 
 import java.io.Serializable;
+import java.util.List;
 
 @Data
 public class DqlRecoveryResultReportVo implements Serializable {
@@ -17,4 +19,5 @@ public class DqlRecoveryResultReportVo implements Serializable {
     private Long startedAt;
     private Long pingTime;
     private Long finishedAt;
+    private List<DqlRecoveryNodeStateDto> nodeStates;
 }

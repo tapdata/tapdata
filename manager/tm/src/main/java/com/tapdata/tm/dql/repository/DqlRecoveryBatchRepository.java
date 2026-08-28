@@ -5,6 +5,7 @@ import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryNodeStateDto;
 import com.tapdata.tm.dql.entity.DqlRecoveryBatchEntity;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -249,6 +250,17 @@ public class DqlRecoveryBatchRepository {
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
+    }
+
+    public void updateNodeStates(String batchId, List<DqlRecoveryNodeStateDto> nodeStates) {
+        if (StringUtils.isBlank(batchId) || nodeStates == null) {
+            return;
+        }
+        Date now = new Date();
+        mongoTemplate.updateFirst(batchQuery(batchId), new Update()
+                .set(DqlRecoveryBatchDto.FIELD_NODE_STATES, nodeStates)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now), entityClass);
     }
 
     public void recordSourceReadResult(String batchId,

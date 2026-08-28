@@ -3,6 +3,8 @@ package io.tapdata.dql.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * Engine request body for the TM DQL recovery callback.
  *
@@ -30,6 +32,7 @@ public class DqlRecoveryReport {
     private Long startedAt;
     private Long pingTime;
     private Long finishedAt;
+    private List<DqlRecoveryNodeState> nodeStates;
 
     public static DqlRecoveryReport batchStarted(String batchId, long startedAt) {
         DqlRecoveryReport report = new DqlRecoveryReport();

@@ -5,6 +5,7 @@ import com.tapdata.tm.dql.config.DqlRuntimeConfig;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
+import io.tapdata.dql.model.DqlRecoveryNodeState;
 import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.serializer.DqlPayloadSerializer;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -95,6 +96,42 @@ class DqlRecoveryCoordinatorImplTest {
         assertEquals(List.of("event-1", "event-2"), loaded);
         assertEquals(List.of("FAILED", "SUCCESS"), eventResults(reports));
         assertEquals("BATCH_FINISHED", reports.get(reports.size() - 1).getType());
+    }
+
+    @Test
+    void reportsReplayFailureDetailsInsteadOfReplacingThemWithBarrierMessage() throws Exception {
+        List<DqlRecoveryReport> reports = new ArrayList<>();
+        RuntimeException failure = new RuntimeException("Duplicate entry '2' for key 'idx_unique_order_no'");
+        DqlRecoveryBarrier barrier = new DqlRecoveryBarrier() {
+            @Override
+            public Outcome await(String eventId, long timeoutMillis) {
+                return Outcome.FAILED;
+            }
+
+            @Override
+            public Result awaitResult(String eventId, long timeoutMillis) {
+                return new Result(Outcome.FAILED, failure.getMessage(),
+                        io.tapdata.exception.ExceptionUtil.getStackString(failure));
+            }
+        };
+        DqlRecoveryCoordinatorImpl coordinator = coordinator(
+                eventId -> completeSnapshot(),
+                event -> {
+                },
+                barrier,
+                reports,
+                () -> false
+        );
+
+        coordinator.start(command("batch-original-error", "event-1"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        DqlRecoveryReport eventResult = reports.stream()
+                .filter(report -> "EVENT_RESULT".equals(report.getType()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(failure.getMessage(), eventResult.getMessage());
+        assertTrue(eventResult.getErrorDetails().contains(failure.getClass().getName()));
     }
 
     @Test
@@ -348,6 +385,80 @@ class DqlRecoveryCoordinatorImplTest {
         } finally {
             heartbeatExecutor.shutdownNow();
         }
+    }
+
+    @Test
+    void managedRecoveryLoadsNodeMetadataInjectsIntoTemporaryRuntimeAndRestoresIt() throws Exception {
+        List<DqlRecoveryReport> reports = new ArrayList<>();
+        List<String> enqueued = new ArrayList<>();
+        AtomicInteger closeCount = new AtomicInteger();
+        DqlRecoveryNodeState hiddenNode = new DqlRecoveryNodeState(
+                "unrelated", "Unrelated", false, true, true, null);
+        DqlRecoveryBatchRuntime runtime = new DqlRecoveryBatchRuntime() {
+            @Override
+            public void enqueue(com.tapdata.entity.TapdataDqlRecoveryEvent event) {
+                enqueued.add(event.getEventId());
+            }
+
+            @Override
+            public DqlRecoveryBarrier barrier() {
+                return (eventId, timeoutMillis) -> DqlRecoveryBarrier.Outcome.SUCCESS;
+            }
+
+            @Override
+            public List<DqlRecoveryNodeState> nodeStates() {
+                return List.of(hiddenNode);
+            }
+
+            @Override
+            public void close() {
+                closeCount.incrementAndGet();
+            }
+        };
+        DqlRecoveryEvent event = new DqlRecoveryEvent(
+                completeSnapshot(), "source", "Source", "failed", "Failed", "target", "Target");
+        DqlRecoveryEventSource source = new DqlRecoveryEventSource() {
+            @Override
+            public DqlPayloadSnapshot load(String eventId) {
+                return event.payload();
+            }
+
+            @Override
+            public DqlRecoveryEvent loadEvent(String eventId) {
+                return event;
+            }
+        };
+        DqlRecoveryBatchRuntimeFactory runtimeFactory = (command, events) -> {
+            assertEquals(List.of(event), events);
+            return runtime;
+        };
+        DqlRecoveryCoordinatorImpl coordinator = new DqlRecoveryCoordinatorImpl(
+                source,
+                ignored -> {
+                    throw new AssertionError("managed recovery must not use legacy sink");
+                },
+                (eventId, timeoutMillis) -> {
+                    throw new AssertionError("managed recovery must use temporary runtime barrier");
+                },
+                (command, report) -> reports.add(report),
+                () -> false,
+                1000L,
+                executor,
+                command -> null,
+                command -> null,
+                (command, sourceBoundary) -> null,
+                DqlRuntimeConfig.defaults(),
+                DqlRecoveryCoordinatorImpl.DEFAULT_HEARTBEAT_EXECUTOR,
+                runtimeFactory
+        );
+
+        coordinator.start(command("event-1"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        assertEquals(List.of("event-1"), enqueued);
+        assertEquals(1, closeCount.get());
+        assertEquals("BATCH_FINISHED", reports.get(reports.size() - 1).getType());
+        assertEquals(List.of(hiddenNode), reports.get(reports.size() - 1).getNodeStates());
     }
 
     private boolean awaitReport(List<DqlRecoveryReport> reports,

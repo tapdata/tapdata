@@ -85,6 +85,15 @@ public class DqlRecoveryTaskLockRepository {
         }
     }
 
+    public boolean existsActive(String taskId, Date now) {
+        if (StringUtils.isBlank(taskId) || now == null) {
+            return false;
+        }
+        Query query = Query.query(Criteria.where(DqlRecoveryTaskLockEntity.FIELD_TASK_ID).is(taskId)
+                .and(DqlRecoveryTaskLockEntity.FIELD_EXPIRE_AT).gt(now));
+        return mongoTemplate.exists(query, DqlRecoveryTaskLockEntity.class);
+    }
+
     public boolean release(String taskId, String batchId) {
         if (StringUtils.isAnyBlank(taskId, batchId)) {
             return false;

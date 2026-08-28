@@ -16,6 +16,8 @@ import com.tapdata.tm.taskinspect.TaskInspectUtils;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
@@ -29,11 +31,14 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,6 +53,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	public static final int MAX_RETRY_TIME = 3;
 	public static final long RESET_RETRY_DURATION_HOUR = TimeUnit.HOURS.toMillis(2L);
 	public static final int WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME = 5;
+	private static final int WAIT_JET_JOB_TERMINAL_STATUS_TIME = 60;
+	private static final long WAIT_JET_JOB_TERMINAL_STATUS_INTERVAL_MILLIS = 100L;
 	private Logger logger = LogManager.getLogger(HazelcastTaskClient.class);
 
 	private Job job;
@@ -69,11 +76,27 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private final ITaskInspect taskInspect;
 	private final AutoRecovery autoRecovery;
 	private final ISkipErrorTable skipErrorTable;
+	private final boolean recoveryClient;
     private final long createTime = System.currentTimeMillis();
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
 											 ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
-		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance);
+		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance, false);
+	}
+
+	/**
+	 * Creates a client for a temporary DQL replay job.  It deliberately does
+	 * not register the formal task's ping monitor, retry state, or task-inspect
+	 * state.  The temporary job has its own task id and owns only its own
+	 * aspect session; it must not own the formal task lifecycle.
+	 */
+	public static HazelcastTaskClient createDqlRecovery(TaskDto taskDto,
+											 ClientMongoOperator clientMongoOperator,
+											 ClientMongoOperator pingClientMongoOperator,
+											 ConfigurationCenter configurationCenter,
+											 HazelcastInstance hazelcastInstance) {
+		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, pingClientMongoOperator,
+				configurationCenter, hazelcastInstance, true);
 	}
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
@@ -81,14 +104,23 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
-							   ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
+								   ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
+		this(job, taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance, false);
+	}
+
+	private HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator,
+								   ClientMongoOperator pingClientMongoOperator,
+								   ConfigurationCenter configurationCenter,
+								   HazelcastInstance hazelcastInstance,
+								   boolean recoveryClient) {
 		this.job = job;
 		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
 		this.pingClientMongoOperator = pingClientMongoOperator;
 		this.configurationCenter = configurationCenter;
 		this.hazelcastInstance = hazelcastInstance;
-		if (!taskDto.isTestTask() && !taskDto.isPreviewTask()) {
+		this.recoveryClient = recoveryClient;
+		if (!recoveryClient && !taskDto.isTestTask() && !taskDto.isPreviewTask()) {
 			this.monitorManager = new MonitorManager();
 			try {
 				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, pingClientMongoOperator, new SupplierImpl<>(this::stop), new ConsumerImpl<>(this::terminalMode));
@@ -100,12 +132,12 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		} else {
 			this.autoRecovery = null;
         }
-        this.skipErrorTable = ISkipErrorTable.create(taskDto, clientMongoOperator);
+		this.skipErrorTable = recoveryClient ? null : ISkipErrorTable.create(taskDto, clientMongoOperator);
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
 		this.retrying = new AtomicBoolean(false);
-        this.taskInspect = TaskInspectHelper.create(taskDto, clientMongoOperator);
+		this.taskInspect = recoveryClient ? null : TaskInspectHelper.create(taskDto, clientMongoOperator);
 	}
 
 	@Override
@@ -173,29 +205,46 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			return false;
 		}
 		try {
+			JobStatus status = getJetStatus();
 			for (int i = 0; i < WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME; i++) {
-				if (getJetStatus() == JobStatus.STARTING) {
+				if (status == JobStatus.STARTING) {
 					try {
 						TimeUnit.SECONDS.sleep(1L);
 					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
 						break;
 					}
+					status = getJetStatus();
 				} else {
 					break;
 				}
 			}
-			if (job.getStatus() == JobStatus.RUNNING) {
-				job.suspend();
-			}
-			if (job.getStatus() == JobStatus.SUSPENDED) {
-				job.cancel();
-			}
 
-			if (job.getStatus().isTerminal()) {
-				close();
-				return true;
+			// Jet suspend is asynchronous.  In particular, after suspend() returns
+			// the public status can remain RUNNING while Jet is internally in
+			// SUSPEND_FORCEFUL.  Issuing cancel() during that window fails with
+			// "Job is already terminating".  Only request cancellation once Jet has
+			// reached SUSPENDED (or when a STARTING job can be cancelled directly),
+			// then let waitForTerminalStatus observe the remaining transitions.
+			boolean cancelRequested = false;
+			if (status == JobStatus.RUNNING) {
+				try {
+					job.suspend();
+				} catch (IllegalStateException exception) {
+					if (!isJetTerminationInProgress(exception)) {
+						throw exception;
+					}
+					// A previous stop request may have already submitted suspend.  Keep
+					// observing that request instead of treating it as a new failure.
+					cancelRequested = isJetCancelInProgress(exception);
+					logger.info("Jet job {} is already transitioning to stop; continue waiting. reason={}",
+							job.getId(), exception.getMessage());
+				}
+			} else if (status == JobStatus.SUSPENDED || status == JobStatus.STARTING) {
+				job.cancel();
+				cancelRequested = true;
 			}
-			return false;
+			return waitForTerminalStatus(cancelRequested);
 		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
 			logger.warn("Job with id {} not found in Hazelcast cluster when stopping. Task: {}[{}]. Considering task as stopped.",
 					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
@@ -204,8 +253,56 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		}
 	}
 
+	private boolean waitForTerminalStatus(boolean cancelRequested) {
+		long deadline = System.currentTimeMillis()
+				+ TimeUnit.SECONDS.toMillis(WAIT_JET_JOB_TERMINAL_STATUS_TIME);
+		try {
+			while (System.currentTimeMillis() < deadline) {
+				JobStatus status = getJetStatus();
+				if (status.isTerminal()) {
+					close();
+					return true;
+				}
+				// Do not cancel while a previously requested suspend is still
+				// transitioning.  SUSPENDED is the first public state in which
+				// Jet accepts the follow-up cancel command.
+				if (!cancelRequested && status == JobStatus.SUSPENDED) {
+					try {
+						job.cancel();
+						cancelRequested = true;
+					} catch (IllegalStateException exception) {
+						if (!isJetTerminationInProgress(exception)) {
+							throw exception;
+						}
+						// Another cancellation won the race.  It is already sufficient;
+						// wait for Jet to report the terminal state.
+						cancelRequested = true;
+					}
+				}
+				TimeUnit.MILLISECONDS.sleep(WAIT_JET_JOB_TERMINAL_STATUS_INTERVAL_MILLIS);
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
+		return false;
+	}
+
+	private boolean isJetTerminationInProgress(IllegalStateException exception) {
+		return exception.getMessage() != null && exception.getMessage().contains("already terminating");
+	}
+
+	private boolean isJetCancelInProgress(IllegalStateException exception) {
+		return exception.getMessage() != null && exception.getMessage().contains("CANCEL");
+	}
+
 	@Override
 	public void close() {
+		if (recoveryClient) {
+			CommonUtils.ignoreAnyError(
+					() -> AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error)), TAG);
+			cleanupRecoveryTaskState();
+			return;
+		}
 		CommonUtils.handleAnyError(
 				() -> AdjustBatchSizeFactory.unregister(taskDto.getId().toHexString()),
 				err -> logger.warn("Unregister 'Adjust batch size' task failed, error: {}", err.getMessage())
@@ -268,6 +365,17 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		CommonUtils.ignoreAnyError(() -> TokenBucketRateLimiter.get().remove(taskDto.getId().toHexString()), TAG);
 	}
 
+	private void cleanupRecoveryTaskState() {
+		String taskId = taskDto == null || taskDto.getId() == null ? null : taskDto.getId().toHexString();
+		if (taskId == null) {
+			return;
+		}
+		CommonUtils.ignoreAnyError(() -> CpuMemoryCollector.unregisterTask(taskId), TAG);
+		CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskId), TAG);
+		CommonUtils.ignoreAnyError(() -> PdkStateMap.globalStateMap(hazelcastInstance).remove(TaskEnvMap.name(taskId)), TAG);
+		CommonUtils.ignoreAnyError(() -> TokenBucketRateLimiter.get().remove(taskId), TAG);
+	}
+
 	@Override
 	public void join() {
 		this.job.join();
@@ -281,7 +389,19 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	@Override
-	public Throwable getError() {
+	public synchronized Throwable getError() {
+		if (error == null && recoveryClient && job != null) {
+			try {
+				if (job.getFuture().isCompletedExceptionally()) {
+					job.getFuture().join();
+				}
+			} catch (CompletionException | java.util.concurrent.CancellationException exception) {
+				error = unwrapJobFailure(exception);
+			} catch (RuntimeException exception) {
+				logger.debug("Failed to read DQL recovery job failure, jobId={}: {}",
+						job.getId(), exception.getMessage());
+			}
+		}
 		return error;
 	}
 
@@ -349,5 +469,26 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
     public void setJob(Job job) {
 		this.job = job;
+		if (recoveryClient && job != null) {
+			try {
+				job.getFuture().whenComplete((ignored, failure) -> {
+					if (failure != null) {
+						error(unwrapJobFailure(failure));
+					}
+				});
+			} catch (RuntimeException exception) {
+				logger.warn("Failed to observe DQL recovery job failure, jobId={}: {}",
+						job.getId(), exception.getMessage());
+			}
+		}
+	}
+
+	private Throwable unwrapJobFailure(Throwable failure) {
+		Throwable current = failure;
+		while ((current instanceof CompletionException || current instanceof ExecutionException)
+				&& current.getCause() != null) {
+			current = current.getCause();
+		}
+		return current;
 	}
 }

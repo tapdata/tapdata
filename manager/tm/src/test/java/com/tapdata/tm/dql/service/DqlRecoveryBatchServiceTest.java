@@ -122,6 +122,31 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
+    @DisplayName("event result keeps the Engine replay error message and stack")
+    void eventResultKeepsReplayErrorDetails() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+        when(eventRepository.failEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.APPLIED);
+        DqlRecoveryResultReportVo report = report("DQLB-1", "DQL-1", "EVENT_RESULT");
+        report.setResult(DqlRecoveryAttemptResultEnum.FAILED.name());
+        report.setMessage("Duplicate entry '2' for key 'idx_unique_order_no'");
+        report.setErrorDetails("java.sql.SQLIntegrityConstraintViolationException: Duplicate entry '2'");
+
+        service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlRecoveryAttemptDto> attempt = ArgumentCaptor.forClass(DqlRecoveryAttemptDto.class);
+        verify(eventRepository).failEventIdempotent(eq("DQL-1"), eq("DQLB-1"), attempt.capture());
+        assertEquals(report.getMessage(), attempt.getValue().getMessage());
+        assertEquals(report.getErrorDetails(), attempt.getValue().getErrorDetails());
+    }
+
+    @Test
     @DisplayName("event result rejects an event that is not owned by the current batch")
     void eventResultRejectsEventOutsideCurrentBatchLock() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
@@ -697,8 +722,8 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
-    @DisplayName("preview blocks an event when the task status does not support recovery")
-    void previewBlocksUnsupportedTaskStatus() {
+    @DisplayName("preview allows an event when the task is not running")
+    void previewAllowsNonRunningTaskStatus() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
         DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
         TaskService taskService = mock(TaskService.class);
@@ -712,8 +737,10 @@ class DqlRecoveryBatchServiceTest {
 
         DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
 
-        assertFalse(preview.isCanSubmit());
-        assertEquals("task status edit does not support recovery", preview.getBlockedEvents().get(0).getMessage());
+        assertTrue(preview.isCanSubmit());
+        assertEquals(List.of("DQL-1"), preview.getOrderedEvents().stream()
+                .map(DqlRecoveryPreviewVo.OrderedEvent::getEventId)
+                .toList());
     }
 
     @Test
@@ -1132,6 +1159,14 @@ class DqlRecoveryBatchServiceTest {
 
         verify(eventRepository).finalizeRunningAttempts(eq("DQLB-1"), eq(List.of("DQL-1")),
                 eq(DqlRecoveryAttemptResultEnum.FAILED), eq("agent stopped"), any());
+        ArgumentCaptor<DqlRecoveryAttemptDto> fallbackAttempt =
+                ArgumentCaptor.forClass(DqlRecoveryAttemptDto.class);
+        verify(eventRepository).finalizeUnstartedAttempts(
+                eq("DQLB-1"), eq(List.of("DQL-1")), fallbackAttempt.capture(), any());
+        assertEquals("DQLB-1", fallbackAttempt.getValue().getBatchId());
+        assertEquals(DqlRecoveryAttemptResultEnum.FAILED.name(), fallbackAttempt.getValue().getResult());
+        assertEquals("agent stopped", fallbackAttempt.getValue().getMessage());
+        assertEquals("BATCH_FAILED-DQLB-1", fallbackAttempt.getValue().getAttemptId());
         verify(eventRepository).releaseBatchLocks("DQLB-1", DqlEventStatusEnum.RECOVERY_FAILED);
         verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.FAILED, "agent stopped");
         verify(alarmService).notifyRecoveryFailed(batch);

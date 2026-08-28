@@ -23,6 +23,11 @@ public final class MongoDqlRecoveryEventSource implements DqlRecoveryEventSource
 
     @Override
     public DqlPayloadSnapshot load(String eventId) {
+        return loadEvent(eventId).payload();
+    }
+
+    @Override
+    public DqlRecoveryEvent loadEvent(String eventId) {
         if (eventId == null || eventId.isBlank()) {
             throw new IllegalArgumentException("DQL eventId must not be blank");
         }
@@ -35,6 +40,9 @@ public final class MongoDqlRecoveryEventSource implements DqlRecoveryEventSource
         snapshot.setPayloadComplete(event.getPayloadComplete());
         snapshot.setPayloadPreview(event.getPayloadPreview());
         snapshot.setPayloadPreviewTruncated(event.getPayloadPreviewTruncated());
-        return snapshot;
+        return new DqlRecoveryEvent(snapshot,
+                event.getSourceNodeId(), event.getSourceNodeName(),
+                event.getFailedNodeId(), event.getFailedNodeName(),
+                event.getTargetNodeId(), event.getTargetNodeName());
     }
 }

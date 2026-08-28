@@ -38,6 +38,7 @@ import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
@@ -326,6 +327,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected ExternalStorageDto initExternalStorage() {
 		if (processorBaseContext.getTaskDto().isPreviewTask()) {
+			return new ExternalStorageDto();
+		}
+		// DQL recovery keeps disabled nodes in the DAG as structural placeholders so
+		// that the original topology can be restored after replay.  Those nodes must
+		// not initialize connector-specific external storage: the placeholder context
+		// intentionally has no Connections object and never processes data.
+		Node node = processorBaseContext.getNode();
+		if (node != null && node.disabledNode()
+				&& DqlRecoveryCaptureGuard.isRecoveryTask(processorBaseContext.getTaskDto())) {
 			return new ExternalStorageDto();
 		}
 		return ExternalStorageUtil.getExternalStorage(

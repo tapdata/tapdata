@@ -28,6 +28,8 @@ import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
+import io.tapdata.dql.recovery.DqlRecoveryTaskSnapshot;
+import io.tapdata.dql.recovery.DqlRecoveryTaskStopException;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
@@ -138,6 +140,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final Object startTaskLock = new Object();
 	private volatile long lastStartTaskTime = 0L;
 	private static final long START_TASK_RATE_LIMIT_MILLIS = 5000L; // 5秒限流间隔
+	private static final long DQL_RECOVERY_STOP_POLL_INTERVAL_MILLIS = 100L;
 
 	// 批量启动任务的并发控制
 	private static final double BATCH_SIZE_RATIO = 0.7; // 使用线程池70%的线程用于批量启动
@@ -578,6 +581,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
 				.ifPresent(log -> log.info("This task is already running"));
 			clientMongoOperator.updateById(new Update(), taskStatusResource(taskDto, "running"), taskId, TaskOpRespDto.class);
+			taskDto.setStatus(TaskDto.STATUS_RUNNING);
+			if (taskClient.getTask() != null) {
+				taskClient.getTask().setStatus(TaskDto.STATUS_RUNNING);
+			}
 			return;
 		}
 
@@ -594,6 +601,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				// 防止任务异常状态下再次启动任务
 				throw new RuntimeException("Update task status to 'running' failed");
 			}
+			// The DTO was commonly selected while it was still wait_run.  Keep the
+			// in-memory task consistent with the TM claim before creating the Jet job;
+			// DQL recovery uses the live client status when it has to take a snapshot.
+			taskDto.setStatus(TaskDto.STATUS_RUNNING);
 
 			// Apply rate limiting after claiming: TM already knows the task is running so the
 			// wait_run overtime timer will not fire while we wait here.
@@ -994,6 +1005,345 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		taskDtoTaskClient.terminalMode(TerminalMode.STOP_GRACEFUL);
 		taskDtoTaskClient.getTask().setSnapShotInterrupt(true);
 		stopTaskAndClear(taskDtoTaskClient, StopTaskResource.STOPPED, taskId);
+	}
+
+	/**
+	 * Stops a formal task synchronously for DQL recovery and returns the exact
+	 * pre-recovery state.  DQL must never use only the source read gate because
+	 * the rest of the task would still be alive and could race with replay.
+	 */
+	public DqlRecoveryTaskSnapshot stopTaskForDqlRecovery(String taskId, Long expectedVersion) {
+		if (StringUtils.isBlank(taskId)) {
+			throw new IllegalArgumentException("taskId must not be blank");
+		}
+		try {
+			DqlRecoveryTaskSnapshot snapshot = taskLock.call(taskId, () -> {
+				TaskClient<TaskDto> client = taskClientMap.get(taskId);
+				TaskDto task = client == null ? loadTaskForDqlRecovery(taskId) : client.getTask();
+				if (task == null || task.getId() == null) {
+					throw new IllegalStateException("DQL recovery task is unavailable: " + taskId);
+				}
+				verifyDqlRecoveryTaskVersion(taskId, expectedVersion, task);
+				String taskStatus = task.getStatus();
+				String liveStatus = client == null ? null : client.getStatus();
+
+				// STOPPING is a real TM state, not a stop failure.  The formal Jet job
+				// may still report RUNNING while the asynchronous stop is in flight;
+				// wait for the normal stopping -> stop transition in that case.  A
+				// stale client on an already stopped task is handled by the same path.
+				if (TaskDto.STATUS_STOPPING.equalsIgnoreCase(taskStatus)) {
+					return new DqlRecoveryTaskSnapshot(task, taskStatus);
+				}
+				if (TaskDto.STATUS_STOP.equalsIgnoreCase(taskStatus)
+						&& client != null
+						&& !isTerminalDqlRecoveryClientStatus(liveStatus)) {
+					DqlRecoveryTaskSnapshot stoppedSnapshot = new DqlRecoveryTaskSnapshot(task, taskStatus);
+					requestTaskStopThroughTm(taskId, task, stoppedSnapshot, true);
+					return stoppedSnapshot;
+				}
+
+				// The task DTO can be stale: startTask claims wait_run as running before
+				// the DTO held by HazelcastTaskClient is refreshed.  The live client is
+				// authoritative whenever it says the formal job is actually running.
+				if (TaskDto.STATUS_RUNNING.equalsIgnoreCase(liveStatus)) {
+					DqlRecoveryTaskSnapshot runningSnapshot = new DqlRecoveryTaskSnapshot(task, TaskDto.STATUS_RUNNING);
+					requestTaskStopThroughTm(taskId, task, runningSnapshot, false);
+					return runningSnapshot;
+				}
+				if (TaskDto.STATUS_STOPPING.equalsIgnoreCase(taskStatus)
+						|| TaskDto.STATUS_STOPPING.equalsIgnoreCase(liveStatus)) {
+					return new DqlRecoveryTaskSnapshot(task, taskStatus);
+				}
+				if (TaskDto.STATUS_RUNNING.equalsIgnoreCase(taskStatus)) {
+					if (client == null) {
+						throw new IllegalStateException("DQL recovery formal task client is unavailable: " + taskId);
+					}
+					DqlRecoveryTaskSnapshot runningSnapshot = new DqlRecoveryTaskSnapshot(task, TaskDto.STATUS_RUNNING);
+					requestTaskStopThroughTm(taskId, task, runningSnapshot, false);
+					return runningSnapshot;
+				}
+				if (StringUtils.isBlank(taskStatus)) {
+					throw new IllegalStateException("DQL recovery task status is unavailable: " + taskId);
+				}
+				// Any other TM state is not running.  It is safe to create the
+				// recovery-only job without changing the formal task state, and the
+				// snapshot makes restore a deliberate no-op for that state.
+				return new DqlRecoveryTaskSnapshot(task, taskStatus);
+			});
+			if (snapshot.wasRunning()
+					|| TaskDto.STATUS_STOPPING.equalsIgnoreCase(snapshot.statusBefore())
+					|| TaskDto.STATUS_STOP.equalsIgnoreCase(snapshot.statusBefore())) {
+				try {
+					return waitForDqlRecoveryTaskToStop(taskId, expectedVersion, snapshot);
+				} catch (DqlRecoveryTaskStopException stopException) {
+					throw stopException;
+				} catch (InterruptedException exception) {
+					Thread.currentThread().interrupt();
+					throw new DqlRecoveryTaskStopException(
+							"DQL recovery was interrupted while waiting for formal task stop: task=" + taskId,
+							snapshot, exception);
+				} catch (RuntimeException exception) {
+					throw new DqlRecoveryTaskStopException(
+							"DQL recovery could not complete formal task stop: task=" + taskId
+									+ ", reason=" + exception.getMessage(), snapshot, exception);
+				}
+			}
+			return snapshot;
+		} catch (Exception exception) {
+			if (exception instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			throw new IllegalStateException("DQL recovery task stop failed: " + taskId, exception);
+		}
+	}
+
+	private void verifyDqlRecoveryTaskVersion(String taskId, Long expectedVersion, TaskDto task) {
+		if (expectedVersion != null && !Objects.equals(expectedVersion, task.getVersion())) {
+			throw new IllegalStateException(String.format(
+					"DQL recovery task version is unavailable: task=%s, expected=%s, actual=%s",
+					taskId, expectedVersion, task.getVersion()));
+		}
+	}
+
+	private void requestTaskStopThroughTm(String taskId,
+			TaskDto task,
+			DqlRecoveryTaskSnapshot snapshot,
+			boolean force) {
+		try {
+			// TM owns the task state transition and sends the stop operation back to
+			// the Engine.  Do not call TaskClient.stop() here: doing both would submit
+			// two Jet stop operations concurrently.
+			String resource = taskStatusResource(task, "systemStop");
+			if (force) {
+				resource += resource.contains("?") ? "&force=true" : "?force=true";
+			}
+			clientMongoOperator.updateById(new Update(), resource,
+					taskId, TaskOpRespDto.class);
+		} catch (RuntimeException exception) {
+			throw new DqlRecoveryTaskStopException(
+					"DQL recovery failed to request formal task stop through TM: task=" + taskId
+							+ ", reason=" + exception.getMessage(),
+						snapshot, exception);
+		}
+	}
+
+	private DqlRecoveryTaskSnapshot waitForDqlRecoveryTaskToStop(String taskId,
+			Long expectedVersion,
+			DqlRecoveryTaskSnapshot snapshot) throws InterruptedException {
+		TaskDto task = loadTaskForDqlRecovery(taskId);
+		long timeoutMillis = dqlRecoveryWaitTimeoutMillis();
+		long deadline = System.currentTimeMillis() + timeoutMillis;
+		while (true) {
+			if (task == null || task.getId() == null) {
+				throw new IllegalStateException("DQL recovery task is unavailable: " + taskId);
+			}
+			verifyDqlRecoveryTaskVersion(taskId, expectedVersion, task);
+			TaskClient<TaskDto> client = taskClientMap.get(taskId);
+			String liveStatus = client == null ? null : client.getStatus();
+			if (TaskDto.STATUS_STOP.equalsIgnoreCase(task.getStatus())) {
+				if (client == null || isTerminalDqlRecoveryClientStatus(liveStatus)) {
+					if (client != null) {
+						clearTaskCacheAfterStopped(client);
+					}
+					return snapshot;
+				}
+			}
+			if (!TaskDto.STATUS_STOP.equalsIgnoreCase(task.getStatus())
+					&& !TaskDto.STATUS_STOPPING.equalsIgnoreCase(task.getStatus())
+					&& !TaskDto.STATUS_STOPPING.equalsIgnoreCase(liveStatus)) {
+				throw new IllegalStateException(
+						"DQL recovery formal task entered unexpected stop state: task=" + taskId
+								+ ", status=" + task.getStatus());
+			}
+			if (System.currentTimeMillis() >= deadline) {
+				throw new IllegalStateException(
+						"DQL recovery formal task stop timed out: task=" + taskId
+								+ ", status=" + task.getStatus());
+			}
+
+			// stopping is a normal asynchronous transition.  Keep the recovery
+			// alive until TM and the live client settle; do not report this wait as
+			// a failed recovery batch.
+			Thread.sleep(DQL_RECOVERY_STOP_POLL_INTERVAL_MILLIS);
+			task = loadTaskForDqlRecovery(taskId);
+		}
+	}
+
+	private boolean isTerminalDqlRecoveryClientStatus(String status) {
+		return TaskDto.STATUS_ERROR.equalsIgnoreCase(status)
+				|| TaskDto.STATUS_COMPLETE.equalsIgnoreCase(status);
+	}
+
+	/** Restores a task only when it was running before recovery. */
+	public void restoreTaskAfterDqlRecovery(DqlRecoveryTaskSnapshot snapshot) {
+		if (snapshot == null || !snapshot.wasRunning()) {
+			return;
+		}
+		String taskId = snapshot.task().getId().toHexString();
+		try {
+			taskLock.call(taskId, () -> {
+				// TM owns both the asynchronous stop transition and the WebSocket
+				// stop operation delivered to the Engine.  Do not stop an existing
+				// TaskClient directly here, otherwise compensation races the same
+				// stop operation and may submit a second Jet termination.
+				ensureFormalTaskStoppingForDqlRecoveryRestore(snapshot.task(), taskId);
+				return null;
+			});
+			waitForTaskStoppedInTm(taskId);
+			taskLock.call(taskId, () -> {
+				// stopTaskForDqlRecovery temporarily sets this flag so the formal
+				// job can drain.  Do not leak that internal stop marker into the
+				// restarted task; restore the exact pre-recovery value first.
+				snapshot.task().setSnapShotInterrupt(snapshot.snapshotInterruptBefore());
+				startTaskThroughTmForDqlRecovery(snapshot.task());
+				return null;
+			});
+			waitForDqlRecoveryTaskTakeover(snapshot.task());
+		} catch (Exception exception) {
+			if (exception instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			throw new IllegalStateException("DQL recovery failed to restore task: " + taskId, exception);
+		}
+	}
+
+	private void startTaskThroughTmForDqlRecovery(TaskDto task) {
+		String taskId = task.getId().toHexString();
+		String resource = taskStatusResourceWithId(task, "systemStart", taskId);
+		try {
+			logger.info("Call {} api to restore DQL recovery task [{}] status through TM", resource, task.getName());
+			clientMongoOperator.postOne(null, resource, Void.class);
+		} catch (RuntimeException exception) {
+			throw new IllegalStateException(
+					"DQL recovery failed to restore task through TM: task=" + taskId
+							+ ", reason=" + exception.getMessage(), exception);
+		}
+	}
+
+	private String taskStatusResourceWithId(TaskDto taskDto, String statusResource, String taskId) {
+		String resource = taskStatusResource(taskDto, statusResource);
+		int queryStart = resource.indexOf('?');
+		if (queryStart < 0) {
+			return resource + "/" + taskId;
+		}
+		return resource.substring(0, queryStart) + "/" + taskId + resource.substring(queryStart);
+	}
+
+	private void ensureFormalTaskStoppingForDqlRecoveryRestore(TaskDto snapshotTask, String taskId) {
+		TaskDto latest = loadTaskForDqlRecovery(taskId);
+		String currentStatus = latest == null ? snapshotTask.getStatus() : latest.getStatus();
+		if (TaskDto.STATUS_STOPPING.equalsIgnoreCase(currentStatus)
+				|| TaskDto.STATUS_STOP.equalsIgnoreCase(currentStatus)) {
+			// The original stop request already moved TM into its asynchronous
+			// stopping phase.  Do not issue systemStop again during compensation.
+			TaskClient<TaskDto> existingClient = taskClientMap.get(taskId);
+			if (TaskDto.STATUS_STOP.equalsIgnoreCase(currentStatus)
+					&& existingClient != null
+					&& !isTerminalDqlRecoveryClientStatus(existingClient.getStatus())) {
+				requestTaskStopThroughTm(taskId, snapshotTask,
+						new DqlRecoveryTaskSnapshot(snapshotTask, TaskDto.STATUS_RUNNING), true);
+			}
+			return;
+		}
+		if (!TaskDto.STATUS_RUNNING.equalsIgnoreCase(currentStatus)
+				&& !TaskDto.STATUS_WAIT_RUN.equalsIgnoreCase(currentStatus)) {
+			throw new IllegalStateException(
+					"DQL recovery cannot prepare formal task for restore: task=" + taskId
+							+ ", status=" + currentStatus);
+		}
+		try {
+			clientMongoOperator.updateById(new Update(), taskStatusResource(snapshotTask, "systemStop"),
+					taskId, TaskOpRespDto.class);
+		} catch (RuntimeException exception) {
+			// Another stop/cleanup worker may have won the race after the read.
+			// Re-read TM before failing; stopping and stop are both valid states for
+			// the subsequent STOPPED callback.
+			TaskDto after = loadTaskForDqlRecovery(taskId);
+			if (after == null
+					|| (!TaskDto.STATUS_STOPPING.equalsIgnoreCase(after.getStatus())
+					&& !TaskDto.STATUS_STOP.equalsIgnoreCase(after.getStatus()))) {
+				throw exception;
+			}
+			logger.info("DQL recovery restore observed formal task already stopping: task={}, status={}",
+					taskId, after.getStatus());
+		}
+	}
+
+	private void waitForTaskStoppedInTm(String taskId) {
+		long timeoutMillis = dqlRecoveryWaitTimeoutMillis();
+		long deadline = System.currentTimeMillis() + timeoutMillis;
+		while (System.currentTimeMillis() < deadline) {
+			TaskDto latest = loadTaskForDqlRecovery(taskId);
+			if (latest != null && TaskDto.STATUS_STOP.equalsIgnoreCase(latest.getStatus())) {
+				TaskClient<TaskDto> client = taskClientMap.get(taskId);
+				if (client == null) {
+					return;
+				}
+				if (isTerminalDqlRecoveryClientStatus(client.getStatus())) {
+					clearTaskCacheAfterStopped(client);
+					return;
+				}
+			}
+			try {
+				Thread.sleep(DQL_RECOVERY_STOP_POLL_INTERVAL_MILLIS);
+			} catch (InterruptedException exception) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(
+						"DQL recovery interrupted while waiting for formal task to stop: task=" + taskId,
+						exception);
+			}
+		}
+		TaskDto latest = loadTaskForDqlRecovery(taskId);
+		String actualStatus = latest == null ? "missing" : latest.getStatus();
+		throw new IllegalStateException(
+				"DQL recovery formal task did not reach stable stop state: task=" + taskId
+						+ ", status=" + actualStatus);
+	}
+
+	private long dqlRecoveryWaitTimeoutMillis() {
+		// Unit/integration bootstrap can construct the scheduler before the
+		// SettingService is injected. Recovery still needs a bounded wait in that
+		// case, so use the same default as the task heartbeat timeout.
+		return Math.max(settingService == null ? 60_000L : getJobHeartTimeout(), 5_000L);
+	}
+
+	private void waitForDqlRecoveryTaskTakeover(TaskDto task) throws InterruptedException {
+		String taskId = task.getId().toHexString();
+		long timeoutMillis = dqlRecoveryWaitTimeoutMillis();
+		long deadline = System.currentTimeMillis() + timeoutMillis;
+		while (!taskClientMap.containsKey(taskId) && System.currentTimeMillis() < deadline) {
+			TaskDto latest = clientMongoOperator.findOne(
+					Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+			if (latest != null && TaskDto.STATUS_ERROR.equalsIgnoreCase(latest.getStatus())) {
+				throw new IllegalStateException("DQL recovery failed to restore task, current status=error: " + taskId);
+			}
+			Thread.sleep(100L);
+		}
+		if (!taskClientMap.containsKey(taskId)) {
+			throw new IllegalStateException("DQL recovery task takeover timed out: " + taskId);
+		}
+	}
+
+	private TaskDto loadTaskForDqlRecovery(String taskId) {
+		return clientMongoOperator.findOne(Query.query(where("_id").is(taskId)),
+				ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+	}
+
+	private void ensureTaskStoppedInTm(String taskId) {
+		TaskDto latest = loadTaskForDqlRecovery(taskId);
+		if (latest != null && TaskDto.STATUS_STOP.equalsIgnoreCase(latest.getStatus())) {
+			return;
+		}
+		if (latest != null && TaskDto.STATUS_STOPPING.equalsIgnoreCase(latest.getStatus())) {
+			waitForTaskStoppedInTm(taskId);
+			return;
+		}
+		if (latest == null || !TaskDto.STATUS_STOP.equalsIgnoreCase(latest.getStatus())) {
+			String actualStatus = latest == null ? "missing" : latest.getStatus();
+			throw new IllegalStateException(
+					"DQL recovery formal task was not persisted as stopped: task=" + taskId
+							+ ", status=" + actualStatus);
+		}
 	}
 
 	private void stopTaskAndClear(TaskClient<TaskDto> taskDtoTaskClient, StopTaskResource stopped, String taskId) {

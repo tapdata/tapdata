@@ -316,6 +316,43 @@ class DqlEventRepositoryTest {
     }
 
     @Test
+    @DisplayName("batch failure appends a failed attempt for events that never started")
+    void finalizeUnstartedAttemptsAppendsFailedAttempt() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+        Date now = new Date(1787580200000L);
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setAttemptId("BATCH_FAILED-DQLB-1");
+        attempt.setBatchId("DQLB-1");
+        attempt.setStartedAt(now);
+        attempt.setFinishedAt(now);
+        attempt.setResult(DqlRecoveryAttemptResultEnum.FAILED.name());
+        attempt.setMessage("formal task stop failed");
+
+        assertEquals(1L, repository.finalizeUnstartedAttempts(
+                "DQLB-1", List.of("DQL-1"), attempt, now));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateMulti(queryCaptor.capture(), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        assertEquals(DqlEventStatusEnum.REPROCESSING.name(), query.get(DqlEventDto.FIELD_STATUS));
+        assertEquals(List.of("DQL-1"), query.get(DqlEventDto.FIELD_EVENT_ID, Document.class).get("$in"));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        Document set = update.get("$set", Document.class);
+        assertEquals(DqlEventStatusEnum.RECOVERY_FAILED.name(), set.get(DqlEventDto.FIELD_STATUS));
+        assertNull(set.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        assertEquals(now, set.get(DqlEventDto.FIELD_LAST_RECOVERY_TIME));
+        assertEquals(DqlRecoveryAttemptResultEnum.FAILED.name(),
+                set.get(DqlEventDto.FIELD_LAST_RECOVERY_RESULT));
+        assertEquals(1, update.get("$inc", Document.class).get(DqlEventDto.FIELD_RECOVERY_COUNT));
+        assertEquals(attempt, update.get("$push", Document.class).get(DqlEventDto.FIELD_RECOVERY_ATTEMPTS));
+    }
+
+    @Test
     @DisplayName("counting current batch reprocessing events uses both ownership and status")
     void countReprocessingEventsUsesBatchOwnership() {
         MongoTemplate mongoTemplate = mongoTemplate();

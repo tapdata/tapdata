@@ -73,4 +73,6 @@ public class DqlRecoveryBatchEntity extends Entity {
     private Date updated;
     @Field(DqlRecoveryBatchDto.FIELD_TTL_AT)
     private Date ttlAt;
+    @Field(DqlRecoveryBatchDto.FIELD_NODE_STATES)
+    private List<com.tapdata.tm.dql.dto.DqlRecoveryNodeStateDto> nodeStates;
 }

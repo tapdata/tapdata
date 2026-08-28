@@ -7,8 +7,10 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.SkipErrorProcessAspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -161,6 +163,35 @@ class C12EngineCaptureRegressionTest {
         assertEquals("MySQL target", report.getTargetNodeName());
         assertEquals("target-node-1", report.getFailedNodeId());
         assertEquals("MySQL target", report.getFailedNodeName());
+    }
+
+    @Test
+    void processorCaptureShouldUseFinalTargetAsReplayBoundary() {
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("id", 1001));
+        TapdataEvent input = new TapdataEvent();
+        input.setTapEvent(event);
+        TapCodeException failure = new TapCodeException(PDKExCode_10.WRITE_TYPE);
+        when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
+                .thenReturn(acknowledgement("dql-event-1"));
+
+        AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                new SkipErrorProcessAspect()
+                        .inputEvent(input)
+                        .error(failure)
+                        .processStage(io.tapdata.dql.classifier.DqlFailedStage.PROCESSOR)
+                        .nodeId("processor-node-1")
+                        .nodeName("processor"));
+
+        assertTrue(result.isIntercepted());
+        org.mockito.ArgumentCaptor<DqlEventReport> reportCaptor =
+                org.mockito.ArgumentCaptor.forClass(DqlEventReport.class);
+        verify(reporter).report(eq("task-1"), reportCaptor.capture());
+        DqlEventReport report = reportCaptor.getValue();
+        assertEquals("processor-node-1", report.getFailedNodeId());
+        assertEquals("target-node-1", report.getTargetNodeId());
+        assertEquals("MySQL target", report.getTargetNodeName());
     }
 
     @Test

@@ -44,6 +44,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
+import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
@@ -3553,6 +3554,7 @@ class TaskServiceImplTest {
     class StartWithFlagTest{
         private String startFlag;
         private LockControlService lockControlService;
+        private DqlRecoveryTaskLockRepository dqlRecoveryTaskLockRepository;
         private DisruptorService disruptorService;
         private LogCollectorService logCollectorService;
         private ScheduleService scheduleService;
@@ -3565,6 +3567,7 @@ class TaskServiceImplTest {
             logCollectorService = mock(LogCollectorService.class);
             scheduleService = mock(ScheduleService.class);
             iLicenseService = mock(ILicenseService.class);
+            dqlRecoveryTaskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
             UserDataReportService userDataReportService = mock(UserDataReportService.class);
             ReflectionTestUtils.setField(taskService,"userDataReportService",userDataReportService);
             ReflectionTestUtils.setField(taskService,"lockControlService",lockControlService);
@@ -3572,6 +3575,7 @@ class TaskServiceImplTest {
             ReflectionTestUtils.setField(taskService,"logCollectorService",logCollectorService);
             ReflectionTestUtils.setField(taskService,"scheduleService",scheduleService);
             ReflectionTestUtils.setField(taskService,"iLicenseService",iLicenseService);
+            ReflectionTestUtils.setField(taskService,"dqlRecoveryTaskLockRepository",dqlRecoveryTaskLockRepository);
             when(taskDto.getShareCdcEnable()).thenReturn(true);
             when(taskDto.getSyncType()).thenReturn("sync");
             when(taskDto.getTaskRecordId()).thenReturn("111");
@@ -3580,6 +3584,40 @@ class TaskServiceImplTest {
             when(taskDto.getId()).thenReturn(mock(ObjectId.class));
             when(iLicenseService.checkTaskPipelineLimit(taskDto, user)).thenReturn(true);
         }
+
+        @Test
+        @DisplayName("does not start a task while its DQL recovery lock is active")
+        void testStartBlockedByDqlRecovery() {
+            ObjectId taskId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(taskService.checkExistById(taskId, user)).thenReturn(taskDto);
+            when(dqlRecoveryTaskLockRepository.existsActive(eq(taskId.toHexString()), any(Date.class))).thenReturn(true);
+            doCallRealMethod().when(taskService).start(taskDto, user, startFlag);
+
+            BizException exception = assertThrows(BizException.class,
+                    () -> taskService.start(taskDto, user, startFlag));
+
+            assertEquals("DqlRecovery.BatchAlreadyRunning", exception.getErrorCode());
+            verify(iLicenseService, never()).checkTaskPipelineLimit(any(TaskDto.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("allows the TM system start path during its own DQL recovery")
+        void testSystemStartBypassesOwnDqlRecoveryLock() {
+            ObjectId taskId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(taskService.checkExistById(taskId, user)).thenReturn(taskDto);
+            when(dqlRecoveryTaskLockRepository.existsActive(eq(taskId.toHexString()), any(Date.class))).thenReturn(true);
+            when(iLicenseService.checkTaskPipelineLimit(taskDto, user)).thenReturn(false);
+            doCallRealMethod().when(taskService).startDqlRecovery(taskId, user);
+
+            BizException exception = assertThrows(BizException.class,
+                    () -> taskService.startDqlRecovery(taskId, user));
+
+            assertEquals("Task.LicenseScheduleLimit", exception.getErrorCode());
+            verify(iLicenseService).checkTaskPipelineLimit(taskDto, user);
+        }
+
         @Test
         @DisplayName("test start method when dag is invalid")
         void test1(){
