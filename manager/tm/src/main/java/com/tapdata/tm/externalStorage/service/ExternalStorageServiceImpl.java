@@ -52,6 +52,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * @Author: sam
@@ -341,12 +342,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (null == externalStorage) {
 			return;
 		}
-		boolean masked = ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())
-				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())
-				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())
-				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())
-				|| hasMaskedMongoUri(externalStorage);
-		if (!masked) {
+		if (!hasMaskedSensitiveFields(externalStorage)) {
 			return;
 		}
 		if (null == externalStorage.getId()) {
@@ -358,19 +354,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			// 更新场景：带掩码字段却找不到旧记录，无法恢复真实值，拒绝保存避免静默失败
 			throw new BizException("External.Storage.ID.NULL");
 		}
-		restoreMaskedMongoUri(externalStorage, oldExternalStorage);
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())) {
-			externalStorage.setAccessToken(oldExternalStorage.getAccessToken());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())) {
-			externalStorage.setSslCA(oldExternalStorage.getSslCA());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())) {
-			externalStorage.setSslKey(oldExternalStorage.getSslKey());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())) {
-			externalStorage.setSslPass(oldExternalStorage.getSslPass());
-		}
+		restoreMaskedSensitiveFields(externalStorage, oldExternalStorage);
 	}
 
 	private void restoreMaskedSensitiveFields(ExternalStorageDto externalStorage, ExternalStorageEntity oldExternalStorage) {
@@ -380,22 +364,18 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (!hasMaskedSensitiveFields(externalStorage)) {
 			return;
 		}
+		restoreMaskedSensitiveValues(externalStorage, oldExternalStorage);
+	}
+
+	private void restoreMaskedSensitiveValues(ExternalStorageDto externalStorage, ExternalStorageEntity oldExternalStorage) {
 		if (null == oldExternalStorage) {
 			throw new BizException("External.Storage.ID.NULL");
 		}
 		restoreMaskedMongoUri(externalStorage, oldExternalStorage);
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())) {
-			externalStorage.setAccessToken(oldExternalStorage.getAccessToken());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())) {
-			externalStorage.setSslCA(oldExternalStorage.getSslCA());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())) {
-			externalStorage.setSslKey(oldExternalStorage.getSslKey());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())) {
-			externalStorage.setSslPass(oldExternalStorage.getSslPass());
-		}
+		restoreMaskedValue(externalStorage.getAccessToken(), oldExternalStorage.getAccessToken(), externalStorage::setAccessToken);
+		restoreMaskedValue(externalStorage.getSslCA(), oldExternalStorage.getSslCA(), externalStorage::setSslCA);
+		restoreMaskedValue(externalStorage.getSslKey(), oldExternalStorage.getSslKey(), externalStorage::setSslKey);
+		restoreMaskedValue(externalStorage.getSslPass(), oldExternalStorage.getSslPass(), externalStorage::setSslPass);
 	}
 
 	private void restoreMaskedSensitiveFields(UpdateDto<ExternalStorageDto> updateDto, ExternalStorageEntity oldExternalStorage) {
@@ -424,41 +404,22 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			return;
 		}
 		Document setDoc = (Document) setObj;
-		ExternalStorageDto dto = new ExternalStorageDto();
-		dto.setType((String) setDoc.get("type"));
-		dto.setUri((String) setDoc.get("uri"));
-		boolean maskedMongoUri = hasMaskedMongoUri(dto);
-		boolean masked = ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslCA"))
-				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslKey"))
-				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslPass"))
-				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("accessToken"))
-				|| maskedMongoUri;
-		if (!masked) {
+		ExternalStorageDto dto = toExternalStorageDto(doc);
+		if (!hasMaskedSensitiveFields(dto)) {
 			return;
 		}
 		if (null == oldExternalStorage) {
 			throw new BizException("External.Storage.ID.NULL");
 		}
-		restoreMaskedMongoUri(dto, oldExternalStorage);
+		boolean maskedMongoUri = hasMaskedMongoUri(dto);
+		restoreMaskedSensitiveValues(dto, oldExternalStorage);
 		if (maskedMongoUri) {
-			try {
-				setDoc.put("uri", AES256Util.Aes256Encode(dto.getUri()));
-			} catch (Exception ignored) {
-				setDoc.put("uri", dto.getUri());
-			}
+			putEncodedUri(setDoc, dto.getUri());
 		}
-		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("accessToken"))) {
-			setDoc.put("accessToken", oldExternalStorage.getAccessToken());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslCA"))) {
-			setDoc.put("sslCA", oldExternalStorage.getSslCA());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslKey"))) {
-			setDoc.put("sslKey", oldExternalStorage.getSslKey());
-		}
-		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslPass"))) {
-			setDoc.put("sslPass", oldExternalStorage.getSslPass());
-		}
+		putIfPresent(setDoc, "accessToken", dto.getAccessToken());
+		putIfPresent(setDoc, "sslCA", dto.getSslCA());
+		putIfPresent(setDoc, "sslKey", dto.getSslKey());
+		putIfPresent(setDoc, "sslPass", dto.getSslPass());
 	}
 
 	private boolean hasMaskedSensitiveFields(UpdateDto<ExternalStorageDto> updateDto) {
@@ -476,22 +437,26 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	}
 
 	private boolean hasMaskedSensitiveFields(Document doc) {
+		return hasMaskedSensitiveFields(toExternalStorageDto(doc));
+	}
+
+	private ExternalStorageDto toExternalStorageDto(Document doc) {
 		if (null == doc) {
-			return false;
+			return null;
 		}
 		Object setObj = doc.get("$set");
 		if (!(setObj instanceof Document)) {
-			return false;
+			return null;
 		}
 		Document setDoc = (Document) setObj;
 		ExternalStorageDto dto = new ExternalStorageDto();
 		dto.setType((String) setDoc.get("type"));
 		dto.setUri((String) setDoc.get("uri"));
-		return ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslCA"))
-				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslKey"))
-				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslPass"))
-				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("accessToken"))
-				|| hasMaskedMongoUri(dto);
+		dto.setAccessToken((String) setDoc.get("accessToken"));
+		dto.setSslCA((String) setDoc.get("sslCA"));
+		dto.setSslKey((String) setDoc.get("sslKey"));
+		dto.setSslPass((String) setDoc.get("sslPass"));
+		return dto;
 	}
 
 	private boolean hasMaskedMongoUri(ExternalStorageDto externalStorage) {
@@ -504,13 +469,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (!mongoUri) {
 			return false;
 		}
-		try {
-			ConnectionString connectionString = new ConnectionString(externalStorage.getUri());
-			char[] password = connectionString.getPassword();
-			return null != password && password.length > 0 && ExternalStorageDto.MASK_PWD.equals(new String(password));
-		} catch (Exception ignored) {
-			return false;
-		}
+		return StringUtils.contains(externalStorage.getUri(), ExternalStorageDto.MASK_PWD);
 	}
 
 	private void restoreMaskedMongoUri(ExternalStorageDto externalStorage, ExternalStorageEntity oldExternalStorage) {
@@ -528,6 +487,26 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
 		}
 		externalStorage.setUri(StringUtils.replaceOnce(externalStorage.getUri(), ExternalStorageDto.MASK_PWD, new String(oldPassword)));
+	}
+
+	private void restoreMaskedValue(String currentValue, String oldValue, Consumer<String> setter) {
+		if (ExternalStorageDto.MASK_PWD.equals(currentValue)) {
+			setter.accept(oldValue);
+		}
+	}
+
+	private void putEncodedUri(Document setDoc, String uri) {
+		try {
+			setDoc.put("uri", AES256Util.Aes256Encode(uri));
+		} catch (Exception ignored) {
+			setDoc.put("uri", uri);
+		}
+	}
+
+	private void putIfPresent(Document setDoc, String field, String value) {
+		if (setDoc.containsKey(field)) {
+			setDoc.put(field, value);
+		}
 	}
 
 	private ExternalStorageDto maskPasswordIfNeed(ExternalStorageDto externalStorageDto) {
