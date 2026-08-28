@@ -124,6 +124,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			externalStorageConfig.compute("sslCA", stringSetter);
 			externalStorageConfig.compute("sslKey", stringSetter);
 			externalStorageConfig.compute("sslPass", stringSetter);
+			externalStorageConfig.compute("accessToken", stringSetter);
 			externalStorageConfig.compute("sslValidate", boolSetter);
 			externalStorageConfig.compute("checkServerIdentity", boolSetter);
 		} else {
@@ -137,6 +138,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			fillString(connectorConfig, externalStorageConfig, "sslCA", dto::getSslCA);
 			fillString(connectorConfig, externalStorageConfig, "sslKey", dto::getSslKey);
 			fillString(connectorConfig, externalStorageConfig, "sslPass", dto::getSslPass);
+			fillString(connectorConfig, externalStorageConfig, "accessToken", dto::getAccessToken);
 			fillBoolean(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
 			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 			testConnectionConfig.put("name", dto.getName());
@@ -156,7 +158,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 
 	private void replaceMaskPwdIfNeed(Map<String, Object> connectorConfig, ExternalStorageDto dto) {
 		Object uri = connectorConfig.get("uri");
-		if (uri instanceof String && ((String) uri).contains("******")) {
+		if (uri instanceof String && ((String) uri).contains(ExternalStorageDto.MASK_PWD)) {
 			Object uriFormDataSource = dto.getUri();
 			if (null == uriFormDataSource) return;
 			ConnectionString connectionString = new ConnectionString(uriFormDataSource.toString());
@@ -168,7 +170,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 				}
 				String username = connectionString.getUsername();
 				if (org.apache.commons.lang3.StringUtils.isNotBlank(username) && org.apache.commons.lang3.StringUtils.isNotBlank(password)) {
-					connectorConfig.put("uri", ((String) uri).replace(username + ":" + "******", username + ":" + password));
+					connectorConfig.put("uri", ((String) uri).replace(username + ":" + ExternalStorageDto.MASK_PWD, username + ":" + password));
 				}
 			}
 		}
