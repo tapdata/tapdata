@@ -253,6 +253,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Setter(onMethod_ = {@Autowired})
 public class TaskServiceImpl extends TaskService{
     private static final long DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS = 5 * 60 * 1000L;
+    private static final long INITIAL_TASK_VERSION = 1L;
 
     public static final String USER_ID = "user_id";
     public static final String COLLECTION_ID = "collectionId";
@@ -449,6 +450,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto create(TaskDto taskDto, UserDetail user) {
         //新增任务校验
         taskDto.setStatus(TaskDto.STATUS_EDIT);
+        initializeTaskVersion(taskDto);
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
@@ -1364,6 +1366,62 @@ public class TaskServiceImpl extends TaskService{
         return String.valueOf(System.currentTimeMillis());
     }
 
+    private static void initializeTaskVersion(TaskDto taskDto) {
+        if (taskDto.getVersion() == null || taskDto.getVersion() < INITIAL_TASK_VERSION) {
+            taskDto.setVersion(INITIAL_TASK_VERSION);
+        }
+    }
+
+    /**
+     * Older tasks may not have a version because the field was introduced after they were created.
+     * Initialize such a task immediately before its first Engine scheduling operation.
+     */
+    private void ensureTaskVersion(TaskDto taskDto) {
+        Long currentVersion = taskDto.getVersion();
+        if (currentVersion != null && currentVersion >= INITIAL_TASK_VERSION) {
+            return;
+        }
+
+        ObjectId taskId = taskDto.getId();
+        if (taskId == null) {
+            taskDto.setVersion(INITIAL_TASK_VERSION);
+            return;
+        }
+
+        Query query = Query.query(Criteria.where("_id").is(taskId).and("version").is(currentVersion));
+        UpdateResult updateResult = update(query, Update.update("version", INITIAL_TASK_VERSION));
+        if (updateResult != null && updateResult.getMatchedCount() == 0) {
+            TaskDto currentTask = findByTaskId(taskId, "version");
+            if (currentTask == null || currentTask.getVersion() == null
+                    || currentTask.getVersion() < INITIAL_TASK_VERSION) {
+                throw new BizException("SystemError", "Task version is unavailable");
+            }
+            taskDto.setVersion(currentTask.getVersion());
+            return;
+        }
+        taskDto.setVersion(INITIAL_TASK_VERSION);
+    }
+
+    /**
+     * Advance the task generation before reset messages and the new TaskRecord are emitted.
+     * The old version is part of the update predicate so a repeated/concurrent reset cannot
+     * accidentally reuse a generation or advance it twice.
+     */
+    private long advanceTaskVersion(ObjectId taskId, TaskDto taskDto, UserDetail user) {
+        Long currentVersion = taskDto.getVersion();
+        long nextVersion = currentVersion == null || currentVersion < INITIAL_TASK_VERSION
+                ? INITIAL_TASK_VERSION : currentVersion + 1L;
+        Criteria criteria = Criteria.where("_id").is(taskId)
+                .and(STATUS).is(TaskDto.STATUS_RENEWING)
+                .and("version").is(currentVersion);
+        UpdateResult updateResult = update(new Query(criteria), Update.update("version", nextVersion), user);
+        if (updateResult != null && updateResult.getMatchedCount() == 0) {
+            throw new BizException("Task.ResetStatusInvalid");
+        }
+        taskDto.setVersion(nextVersion);
+        return nextVersion;
+    }
+
 
 
     /**
@@ -1412,6 +1470,10 @@ public class TaskServiceImpl extends TaskService{
             log.debug("check task status complete, task name = {}", taskDto.getName());
             taskResetLogService.clearLogByTaskId(id.toHexString());
 
+            long nextTaskVersion = advanceTaskVersion(id, taskDto, user);
+            if (taskSnapshot != null) {
+                taskSnapshot.setVersion(nextTaskVersion);
+            }
 
             sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
 
@@ -4534,6 +4596,7 @@ public class TaskServiceImpl extends TaskService{
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
+        ensureTaskVersion(taskDto);
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
             scheduleService.createTaskRecordForInitial(taskDto);
             update(new Query(Criteria.where("_id").is(taskDto.getId())), taskDto);

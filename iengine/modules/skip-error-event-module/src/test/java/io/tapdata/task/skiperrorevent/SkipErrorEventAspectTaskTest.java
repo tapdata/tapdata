@@ -164,19 +164,49 @@ public class SkipErrorEventAspectTaskTest {
         void logSkipEvent_TapPdkViolateUniqueEx() {
             Throwable ex = new TapPdkViolateUniqueEx("mysql", null, "\"ID\":7,\"NAME\":\"test1\"", null, null);
             skipErrorEventAspectTask.logSkipEvent(tapRecordEvent, ex);
-            verify(log, new Times(2)).warn(anyString(), anyString());
+            verify(log, new Times(2)).warn(anyString(), any(Object[].class));
         }
         @Test
         void logSkipEvent_TapPdkWriteTypeEx() {
             Throwable ex = new TapPdkWriteTypeEx("mysql", null, null, "\"ID\":test,\"NAME\":\"test1\"", null);
             skipErrorEventAspectTask.logSkipEvent(tapRecordEvent, ex);
-            verify(log, new Times(2)).warn(anyString(), anyString());
+            verify(log, new Times(2)).warn(anyString(), any(Object[].class));
         }
         @Test
         void logSkipEvent_TapPdkWriteLengthEx() {
             Throwable ex = new TapPdkWriteLengthEx("mysql", null, null, "\"ID\":7,\"NAME\":\"test1\"", null);
             skipErrorEventAspectTask.logSkipEvent(tapRecordEvent, ex);
-            verify(log, new Times(2)).warn(anyString(), anyString());
+            verify(log, new Times(2)).warn(anyString(), any(Object[].class));
+        }
+
+        @Test
+        void logSkipEventShouldTellCustomerWhyTheRecordWasIsolatedAndThatTaskContinues() {
+            TaskDto task = new TaskDto();
+            task.setName("orders-sync");
+            skipErrorEventAspectTask.setTask(task);
+            tapRecordEvent = TapInsertRecordEvent.create()
+                    .table("orders")
+                    .after(Map.of("id", 7));
+            Throwable ex = new IllegalStateException("duplicate key: orders.id=7");
+
+            skipErrorEventAspectTask.logSkipEvent(tapRecordEvent, ex);
+
+            ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
+            ArgumentCaptor<Object[]> argumentsCaptor = ArgumentCaptor.forClass(Object[].class);
+            verify(log, atLeastOnce()).warn(messageCaptor.capture(), argumentsCaptor.capture());
+            int messageIndex = messageCaptor.getAllValues().indexOf(
+                    "DQL record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}");
+            assertTrue(messageIndex >= 0);
+            Object[] arguments = argumentsCaptor.getAllValues().get(messageIndex);
+            assertEquals("test", arguments[0]);
+            assertEquals("orders-sync", arguments[1]);
+            assertEquals("orders", arguments[2]);
+            assertEquals("INSERT", arguments[3]);
+            assertEquals("N/A", arguments[4]);
+            assertEquals("N/A", arguments[5]);
+            assertEquals("N/A", arguments[6]);
+            assertEquals("duplicate key: orders.id=7", arguments[7]);
+            assertEquals("{\"test\":{}}", arguments[8]);
         }
     }
 

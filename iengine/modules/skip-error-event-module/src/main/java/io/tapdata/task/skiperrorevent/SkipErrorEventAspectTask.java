@@ -117,13 +117,30 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     protected synchronized void logSkipEvent(TapRecordEvent tapRecordEvent, Throwable ex) {
+        logSkipEvent(tapRecordEvent, ex, null, null);
+    }
+
+    protected synchronized void logSkipEvent(TapRecordEvent tapRecordEvent,
+                                              Throwable ex,
+                                              String failedNodeId,
+                                              String failedNodeName) {
         logger.info("task-{} skip event: {}", taskId, tapRecordEvent);
         logger.info("task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
 
         long now = System.currentTimeMillis();
         if (now > nextPrintTimes) {
             String skipInfo = JSON.toJSONString(syncAndSkipMap);
-            log.warn("DQL record isolated: task={}, skip counts={}", taskId, skipInfo);
+            TaskDto currentTask = getTask();
+            String taskName = currentTask == null || StringUtils.isBlank(currentTask.getName())
+                    ? "N/A" : currentTask.getName();
+            String tableName = tapRecordEvent == null || StringUtils.isBlank(tapRecordEvent.getTableId())
+                    ? "N/A" : tapRecordEvent.getTableId();
+            String operation = dmlOperation(tapRecordEvent);
+            String resolvedFailedNodeId = StringUtils.defaultIfBlank(failedNodeId, "N/A");
+            String resolvedFailedNodeName = StringUtils.defaultIfBlank(failedNodeName, "N/A");
+            log.warn("DQL record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}",
+                    taskId, taskName, tableName, operation, resolvedFailedNodeId, resolvedFailedNodeName,
+                    StringUtils.defaultIfBlank(errorCode(ex), "N/A"), exceptionSummary(ex), skipInfo);
             if (ex instanceof TapPdkViolateUniqueEx && ((TapPdkViolateUniqueEx) ex).getData() != null) {
                 log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkViolateUniqueEx) ex).getData());
             }
@@ -136,6 +153,23 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             nextPrintTimes = now + 30 * 1000;
         }
         lastSkipTimes = now;
+    }
+
+    private String exceptionSummary(Throwable error) {
+        if (error == null) {
+            return "N/A";
+        }
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        String summary = null;
+        Throwable current = error;
+        while (current != null && visited.add(current)) {
+            if (StringUtils.isNotBlank(current.getMessage())) {
+                summary = current.getMessage();
+            }
+            current = current.getCause();
+        }
+        return StringUtils.abbreviate(StringUtils.defaultIfBlank(summary,
+                error.getClass().getSimpleName()), 500);
     }
 
     private Map<String, AtomicLong> getTableMetrics(String tableName) {
@@ -510,7 +544,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             TapTable table = resolveProcessorTable(aspect, tableId);
             reportDqlEvent(table, event, tableId, aspect.getError(), classification,
                     failedStage, aspect.getNodeId(), aspect.getNodeName(), null, null);
-            logSkipEvent(event, aspect.getError());
+            logSkipEvent(event, aspect.getError(), aspect.getNodeId(), aspect.getNodeName());
             committed = true;
             return new AspectInterceptResult().intercepted(true);
         } catch (DqlEventReportException exception) {
@@ -697,7 +731,12 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             }
             reportDqlEvent(table, tapRecordEvent, tableName, ex, classification,
                     dataProcessorContext);
-            logSkipEvent(tapRecordEvent, ex);
+            Node<?> failedNode = targetNode(dataProcessorContext,
+                    getTask() == null || getTask().getDag() == null
+                            ? null : getTask().getDag().getTargetNodes());
+            logSkipEvent(tapRecordEvent, ex,
+                    failedNode == null ? null : failedNode.getId(),
+                    failedNode == null ? null : failedNode.getName());
             committed = true;
             return true;
         } catch (DqlEventReportException exception) {
@@ -941,6 +980,19 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             return "D";
         }
         throw new IllegalArgumentException("Unsupported DQL event type: " + event.getClass().getName());
+    }
+
+    private String dmlOperation(TapRecordEvent event) {
+        if (event instanceof TapInsertRecordEvent) {
+            return "INSERT";
+        }
+        if (event instanceof TapUpdateRecordEvent) {
+            return "UPDATE";
+        }
+        if (event instanceof TapDeleteRecordEvent) {
+            return "DELETE";
+        }
+        return "N/A";
     }
 
     private String errorCode(Throwable error) {

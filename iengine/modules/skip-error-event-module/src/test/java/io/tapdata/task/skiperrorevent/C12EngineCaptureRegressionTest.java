@@ -111,6 +111,7 @@ class C12EngineCaptureRegressionTest {
         verify(reporter).report(eq("task-1"), reportCaptor.capture());
         DqlEventReport report = reportCaptor.getValue();
         assertEquals("task-record-1", report.getTaskRecordId());
+        assertEquals(7L, report.getTaskVersion());
         assertEquals("orders", report.getSourceTable());
         assertEquals("orders", report.getTargetTable());
         assertEquals("orders", report.getTableId());

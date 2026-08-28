@@ -872,8 +872,11 @@ public class DqlRecoveryBatchService {
             if (!TaskDto.STATUS_RUNNING.equals(task.getStatus()) && !TaskDto.STATUS_STOP.equals(task.getStatus())) {
                 return "task status " + task.getStatus() + " does not support recovery";
             }
-            if (task.getVersion() == null || event.getTaskVersion() == null) {
-                return "task version is unavailable";
+            if (task.getVersion() == null || task.getVersion() < 1L) {
+                return "current task version is unavailable";
+            }
+            if (event.getTaskVersion() == null || event.getTaskVersion() < 1L) {
+                return "event task version is unavailable";
             }
             if (!task.getVersion().equals(event.getTaskVersion())) {
                 return "task version has changed";

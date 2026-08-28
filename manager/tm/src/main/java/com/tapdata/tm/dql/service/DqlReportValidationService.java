@@ -82,6 +82,7 @@ public class DqlReportValidationService {
     public ValidationResult validateAndSecure(String taskId, DqlEventReportVo report) {
         DqlRuntimeConfig config = runtimeConfig();
         validateTask(taskId);
+        validateTaskVersion(report);
         validateRouteMetadata(report);
         boolean errorDetailsTruncated = secureErrorDetails(report, config);
         securePayload(report, config);
@@ -119,6 +120,12 @@ public class DqlReportValidationService {
         ObjectId objectId = new ObjectId(taskId);
         if (taskRepository != null && !taskRepository.existsById(objectId)) {
             throw new BizException("Task.NotFound", taskId);
+        }
+    }
+
+    private void validateTaskVersion(DqlEventReportVo report) {
+        if (report.getTaskVersion() == null || report.getTaskVersion() < 1L) {
+            throw new BizException("DqlEvent.InvalidTaskVersion", "taskVersion");
         }
     }
 

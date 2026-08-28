@@ -124,6 +124,7 @@ import org.bson.BsonValue;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
@@ -706,6 +707,7 @@ class TaskServiceImplTest {
             TaskDto actual = taskService.create(taskDto, user);
             assertEquals(taskDto, actual);
             assertFalse(actual.getOldVersionTimezone());
+            verify(taskDto).setVersion(1L);
         }
         @Test
         @DisplayName("test create method when cron schedule error")
@@ -2293,6 +2295,7 @@ class TaskServiceImplTest {
             system = true;
             when(taskService.checkExistById(id,user)).thenReturn(taskDto);
             when(taskService.findAgent(taskDto,user)).thenReturn(false);
+            when(taskDto.getVersion()).thenReturn(1L);
             StateMachineResult stateMachineResult = mock(StateMachineResult.class);
             when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW, user)).thenReturn(stateMachineResult);
             when(stateMachineResult.isOk()).thenReturn(true);
@@ -2300,6 +2303,9 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).renew(id,user,system);
             taskService.renew(id,user,system);
             verify(disruptorService,new Times(1)).sendMessage(any(DisruptorTopicEnum.class),any(TaskRecord.class));
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(taskService).update(any(Query.class), updateCaptor.capture(), eq(user));
+            assertEquals(2L, updateCaptor.getValue().getUpdateObject().get("$set", Document.class).get("version"));
         }
         @Test
         @DisplayName("test renew method when state machine result is not ok")
@@ -3603,6 +3609,7 @@ class TaskServiceImplTest {
             when(transformedCheck.getTransformed()).thenReturn(true);
             doCallRealMethod().when(taskService).start(taskDto,user,startFlag);
             taskService.start(taskDto,user,startFlag);
+            verify(taskDto).setVersion(1L);
             verify(taskService,new Times(1)).run(taskDto,user);
         }
 //        @Test

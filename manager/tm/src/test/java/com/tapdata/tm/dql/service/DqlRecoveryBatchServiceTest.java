@@ -536,6 +536,51 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
+    @DisplayName("preview identifies an unavailable current task version")
+    void previewBlocksUnavailableCurrentTaskVersion() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        TaskDto task = recoveryTask("running", 7L, "agent-1");
+        task.setVersion(null);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(task);
+        prepareReadyWorker(workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertEquals("current task version is unavailable", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview identifies an unavailable event task version")
+    void previewBlocksUnavailableEventTaskVersion() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setTaskVersion(null);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask("running", 7L, "agent-1"));
+        prepareReadyWorker(workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertEquals("event task version is unavailable", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
     @DisplayName("preview blocks an event when the task status does not support recovery")
     void previewBlocksUnsupportedTaskStatus() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);

@@ -252,6 +252,7 @@ class DqlReportValidationServiceTest {
 
     private DqlEventReportVo report(Object payload) {
         DqlEventReportVo report = new DqlEventReportVo();
+        report.setTaskVersion(7L);
         report.setPayloadData(payload);
         report.setPayloadSize(128L);
         report.setPayloadComplete(true);

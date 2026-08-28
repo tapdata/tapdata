@@ -92,6 +92,23 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("report rejects an event without a task version")
+    void reportRejectsMissingTaskVersion() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setTaskVersion(null);
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.nextCaptureSeq(TASK_ID)).thenReturn(42L);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, report));
+
+        assertEquals("DqlEvent.InvalidTaskVersion", exception.getErrorCode());
+        verify(eventRepository, never()).upsert(any(DqlEventDto.class));
+    }
+
+    @Test
     @DisplayName("report returns duplicate event without persisting or notifying again")
     void reportReturnsDuplicateWithoutPersistingAgain() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
