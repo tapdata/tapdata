@@ -68,6 +68,58 @@ class DqlEventIdentityGeneratorTest {
     }
 
     @Test
+    @DisplayName("primary index is treated as a business key when field primary-key metadata is absent")
+    void usesPrimaryIndexIdentity() {
+        TapIndex primaryIndex = new TapIndex()
+                .name("PRIMARY")
+                .primary(true)
+                .indexField(new TapIndexField().name("id").fieldAsc(true));
+        TapTable table = new TapTable("orders")
+                .add(new TapField("id", "INT"))
+                .add(primaryIndex);
+        TapInsertRecordEvent event = insertEvent(Map.of("id", 1001, "status", "new"));
+
+        DqlEventIdentity identity = generator.generate(event, table, "record-1", "processor-node");
+
+        assertEquals(Map.of("id", 1001), identity.getEventKey());
+        assertFalse(identity.isEventKeyMissing());
+        assertEquals(DqlRecordIdentityType.PRIMARY_KEY, identity.getRecordIdentityType());
+        assertEquals(List.of("id"), identity.getRecordIdentityFields());
+    }
+
+    @Test
+    @DisplayName("core unique index is treated as a business key")
+    void usesCoreUniqueIndexIdentity() {
+        TapIndex coreUniqueIndex = new TapIndex()
+                .name("uk_order_no")
+                .coreUnique(true)
+                .indexField(new TapIndexField().name("order_no").fieldAsc(true));
+        TapTable table = new TapTable("orders").add(coreUniqueIndex);
+        TapInsertRecordEvent event = insertEvent(Map.of("order_no", "A-100", "status", "new"));
+
+        DqlEventIdentity identity = generator.generate(event, table, "record-1", "processor-node");
+
+        assertEquals(Map.of("order_no", "A-100"), identity.getEventKey());
+        assertFalse(identity.isEventKeyMissing());
+        assertEquals(DqlRecordIdentityType.UNIQUE_INDEX, identity.getRecordIdentityType());
+    }
+
+    @Test
+    @DisplayName("a primary-key flag without a position is still a usable primary key")
+    void usesPrimaryKeyFlagWithoutPosition() {
+        TapTable table = new TapTable("orders")
+                .add(new TapField("id", "INT").isPrimaryKey(true))
+                .add(new TapField("status", "VARCHAR"));
+        TapInsertRecordEvent event = insertEvent(Map.of("id", 1001, "status", "new"));
+
+        DqlEventIdentity identity = generator.generate(event, table, "record-1", "processor-node");
+
+        assertEquals(Map.of("id", 1001), identity.getEventKey());
+        assertFalse(identity.isEventKeyMissing());
+        assertEquals(DqlRecordIdentityType.PRIMARY_KEY, identity.getRecordIdentityType());
+    }
+
+    @Test
     @DisplayName("update condition fields are preferred before unique indexes")
     void usesUpdateConditionIdentity() {
         TapIndex uniqueIndex = new TapIndex()

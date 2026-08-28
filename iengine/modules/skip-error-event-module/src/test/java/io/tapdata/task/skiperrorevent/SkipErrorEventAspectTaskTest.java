@@ -530,6 +530,28 @@ public class SkipErrorEventAspectTaskTest {
         }
 
         @Test
+        void dqlModeShouldCaptureDeterministicProcessorFailureEvenWhenLegacySkipLimitIsZero() {
+            TaskDto.SkipErrorEvent dqlConfig = new TaskDto.SkipErrorEvent();
+            dqlConfig.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.DQL);
+            dqlConfig.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.SkipByLimit);
+            dqlConfig.setLimit(0L);
+            dqlConfig.setRate(0);
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "skipErrorEvent", dqlConfig);
+
+            DqlEventReportResult acknowledgement = new DqlEventReportResult();
+            acknowledgement.setEventId("dql-process-limit-compatibility-1");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenReturn(acknowledgement);
+
+            AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                    processAspect(insertTapdataEvent(1), new TapCodeException(
+                            ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED)));
+
+            assertNotNull(result);
+            assertTrue(result.isIntercepted());
+            verify(reporter).report(eq("task-1"), any(DqlEventReport.class));
+        }
+
+        @Test
         void processorInitializationFailureShouldUseExistingErrorHandlePath() {
             AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
                     processAspect(insertTapdataEvent(1), new TapCodeException(

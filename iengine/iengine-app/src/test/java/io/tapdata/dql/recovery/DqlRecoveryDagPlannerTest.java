@@ -33,6 +33,14 @@ class DqlRecoveryDagPlannerTest {
 
         DqlRecoveryDagPlanner.Plan plan = DqlRecoveryDagPlanner.plan(original, "failed", "target");
 
+        assertEquals(List.of("source"), plan.modelDag().predecessors("failed").stream()
+                .map(Node::getId)
+                .toList(),
+                "schema deduction must retain the original failed-node input edge");
+        assertFalse(plan.modelDag().getNode("source").disabledNode(),
+                "schema deduction must use the complete, enabled topology");
+        plan.materializeRuntime();
+
         assertEquals(List.of("failed", "processor", "target"),
                 plan.retainedNodeIds().stream().sorted().toList());
         assertFalse(plan.dag().getNode("failed").disabledNode());
@@ -62,6 +70,7 @@ class DqlRecoveryDagPlannerTest {
         source.setAttrs(new HashMap<>(Map.of("disabled", true, "custom", "keep")));
 
         DqlRecoveryDagPlanner.Plan plan = DqlRecoveryDagPlanner.plan(original, "failed", "target");
+        plan.materializeRuntime();
 
         assertTrue(plan.hiddenNodes().isEmpty(), "an already disabled source must not be overwritten");
         assertTrue(plan.dag().getNode("source").disabledNode());
@@ -106,6 +115,7 @@ class DqlRecoveryDagPlannerTest {
 
         DqlRecoveryDagPlanner.Plan plan = DqlRecoveryDagPlanner.plan(
                 original, "processor", "processor");
+        plan.materializeRuntime();
 
         assertEquals(List.of("processor", "target"),
                 plan.retainedNodeIds().stream().sorted().toList());

@@ -125,6 +125,10 @@ public class DqlEventIdentityGenerator {
                 return primary;
             }
         }
+        KeySelection primaryIndex = firstIndexKey(event, table);
+        if (primaryIndex.complete()) {
+            return primaryIndex;
+        }
         KeySelection updateCondition = keySelection(event,
                 normalizeFields(updateConditionFields), DqlRecordIdentityType.UPDATE_CONDITION);
         if (updateCondition.complete()) {
@@ -132,7 +136,7 @@ public class DqlEventIdentityGenerator {
         }
         if (table.getIndexList() != null) {
             for (TapIndex index : table.getIndexList()) {
-                if (index == null || !index.isUnique()) {
+                if (!isBusinessIndex(index) || index.isPrimary()) {
                     continue;
                 }
                 List<String> fields = indexFields(index);
@@ -145,6 +149,28 @@ public class DqlEventIdentityGenerator {
         return KeySelection.missing();
     }
 
+    private KeySelection firstIndexKey(TapRecordEvent event, TapTable table) {
+        if (table.getIndexList() == null) {
+            return KeySelection.missing();
+        }
+        for (TapIndex index : table.getIndexList()) {
+            if (index == null || !index.isPrimary()) {
+                continue;
+            }
+            KeySelection primary = keySelection(event, indexFields(index),
+                    DqlRecordIdentityType.PRIMARY_KEY);
+            if (primary.complete()) {
+                return primary;
+            }
+        }
+        return KeySelection.missing();
+    }
+
+    private boolean isBusinessIndex(TapIndex index) {
+        return index != null && (index.isUnique() || index.isPrimary()
+                || Boolean.TRUE.equals(index.getCoreUnique()));
+    }
+
     private List<String> normalizeFields(Collection<String> fields) {
         if (fields == null || fields.isEmpty()) {
             return List.of();
@@ -153,30 +179,32 @@ public class DqlEventIdentityGenerator {
     }
 
     private List<String> primaryKeys(TapTable table) {
-        if (table.getNameFieldMap() == null) {
-            List<String> defaultKeys = table.getDefaultPrimaryKeys();
-            return defaultKeys == null ? List.of() : defaultKeys.stream().filter(this::hasText).toList();
-        }
-        Collection<String> declaredKeys = table.primaryKeys();
-        if (declaredKeys != null && !declaredKeys.isEmpty()) {
-            return declaredKeys.stream().filter(this::hasText).toList();
-        }
-        return table.getNameFieldMap().values().stream()
+        Map<String, TapField> nameFieldMap = table.getNameFieldMap();
+        if (nameFieldMap != null && !nameFieldMap.isEmpty()) {
+            List<String> fieldKeys = nameFieldMap.values().stream()
                 .filter(field -> field != null && (Boolean.TRUE.equals(field.getPrimaryKey())
                         || field.getPrimaryKeyPos() != null && field.getPrimaryKeyPos() > 0))
                 .sorted(Comparator.comparing(TapField::getPrimaryKeyPos,
-                        Comparator.nullsLast(Integer::compareTo)))
+                        Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(TapField::getName,
+                                Comparator.nullsLast(String::compareTo)))
                 .map(TapField::getName)
                 .filter(this::hasText)
                 .toList();
+            if (!fieldKeys.isEmpty()) {
+                return fieldKeys;
+            }
+        }
+        List<String> defaultKeys = table.getDefaultPrimaryKeys();
+        return defaultKeys == null ? List.of() : defaultKeys.stream().filter(this::hasText).toList();
     }
 
     private List<String> indexFields(TapIndex index) {
-        if (index.getIndexFields() == null) {
+        if (index == null || index.getIndexFields() == null || index.getIndexFields().isEmpty()
+                || index.getIndexFields().stream().anyMatch(field -> field == null || !hasText(field.getName()))) {
             return List.of();
         }
         return index.getIndexFields().stream()
-                .filter(field -> field != null && hasText(field.getName()))
                 .map(TapIndexField::getName)
                 .toList();
     }

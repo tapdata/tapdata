@@ -149,7 +149,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 
 				}
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				errorHandle(e);
 			}
 		});
@@ -192,19 +192,26 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected List<TapdataEvent> batchProcess(List<BatchEventWrapper> batchEventWrappers) {
 		List<TapdataEvent> result = new ArrayList<>();
 		List<TapdataEvent> tapdataEvents = new ArrayList<>();
+		List<BatchEventWrapper> processableBatchEventWrappers = new ArrayList<>();
 		for (BatchEventWrapper batchEventWrapper : batchEventWrappers) {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
-			if (tapdataEvent.isDML() && needTransformValue()) {
-				batchEventWrapper.tapValueTransform = transformFromTapValue(tapdataEvent);
+			try {
+				if (tapdataEvent.isDML() && needTransformValue()) {
+					batchEventWrapper.tapValueTransform = transformFromTapValue(tapdataEvent);
+				}
+				processableBatchEventWrappers.add(batchEventWrapper);
+				tapdataEvents.add(tapdataEvent);
+			} catch (Throwable e) {
+				rethrowIfProcessorErrorIsNotIntercepted(tapdataEvent, normalizeProcessorError(tapdataEvent, e));
 			}
-			tapdataEvents.add(batchEventWrapper.getTapdataEvent());
 		}
 
 		AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
 				.processorBaseContext(getProcessorBaseContext())
 				.inputEvents(tapdataEvents)
 				.start(), processorNodeProcessAspect -> {
-			tryProcess(batchEventWrappers, processResults -> {
+			List<BatchProcessResult> successfulProcessResults = new ArrayList<>();
+			tryProcess(processableBatchEventWrappers, processResults -> {
 				if (CollectionUtils.isEmpty(processResults)) {
 					return;
 				}
@@ -217,11 +224,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					if (null == tapdataEvent) {
 						return;
 					}
-					if (tapdataEvent.isDML()) {
-						if (processResult == null) {
-							processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
-						}
-						try {
+					try {
+						if (tapdataEvent.isDML()) {
+							if (processResult == null) {
+								processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
+							}
 							if (needTransformValue()) {
 								if (null != processResult.getTableId()) {
 									transformToTapValue(tapdataEvent, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform);
@@ -229,18 +236,22 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 									transformToTapValue(tapdataEvent, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform);
 								}
 							}
-						} catch (Exception e) {
-							if (isRunning()) {
-								throw e;
-							}
+						}
+
+						result.add(tapdataEvent);
+						successfulProcessResults.add(batchProcessResult);
+					} catch (Throwable e) {
+						if (isRunning()) {
+							rethrowIfProcessorErrorIsNotIntercepted(tapdataEvent, normalizeProcessorError(tapdataEvent, e));
+						} else {
+							result.add(tapdataEvent);
+							successfulProcessResults.add(batchProcessResult);
 						}
 					}
-
-					result.add(tapdataEvent);
 				}
 			});
 			reCalcMemorySize(batchEventWrappers);
-			Optional.ofNullable(processorNodeProcessAspect).ifPresent(aspect -> batchEventWrappers.forEach(cbe -> AspectUtils.accept(aspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent())));
+			Optional.ofNullable(processorNodeProcessAspect).ifPresent(aspect -> successfulProcessResults.forEach(cbe -> AspectUtils.accept(aspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getBatchEventWrapper().getTapdataEvent())));
 		});
 		return result;
 	}
@@ -271,15 +282,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			} else {
 				singleProcess(tapdataEvent, processedEventList);
 			}
-		} catch (TapCodeException e) {
-			if (!interceptProcessorError(tapdataEvent, e)) {
-				errorHandle(e);
-			}
-		} catch (Exception e) {
-			Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
-			Throwable error = null != matchThrowable
-					? matchThrowable
-					: new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, e).addEvent(tapdataEvent.getTapEvent());
+		} catch (Throwable e) {
+			Throwable error = normalizeProcessorError(tapdataEvent, e);
 			if (!interceptProcessorError(tapdataEvent, error)) {
 				errorHandle(error);
 			}
@@ -287,7 +291,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		return result.get();
 	}
 
-	private boolean interceptProcessorError(TapdataEvent tapdataEvent, Throwable error) {
+	protected boolean interceptProcessorError(TapdataEvent tapdataEvent, Throwable error) {
 		if (DqlRecoveryCaptureGuard.isRecovery(tapdataEvent)) {
 			// A replay failure belongs to the current DQL attempt.  It must
 			// release that attempt's barrier and be consumed here; routing it to
@@ -509,35 +513,63 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
 		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
-			if (controlOrIgnoreEvent(tapdataEvent)) {
-				batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
-				continue;
+			try {
+				if (controlOrIgnoreEvent(tapdataEvent)) {
+					batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
+					continue;
+				}
+				tryProcess(tapdataEvent, (event, processResult) -> {
+					if (null == event) {
+						return;
+					}
+					if (tapdataEvent.isDML()) {
+						if (processResult == null) {
+							processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
+						}
+					}
+					BatchEventWrapper finalBatchEventWrapper;
+					if (needCopyBatchEventWrapper()) {
+						try {
+							finalBatchEventWrapper = batchEventWrapper.clone();
+						} catch (Throwable throwable) {
+							throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
+						}
+					} else {
+						finalBatchEventWrapper = batchEventWrapper;
+					}
+					finalBatchEventWrapper.setTapdataEvent(event);
+					BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
+					batchProcessResults.add(batchProcessResult);
+				});
+			} catch (Throwable e) {
+				rethrowIfProcessorErrorIsNotIntercepted(tapdataEvent, normalizeProcessorError(tapdataEvent, e));
 			}
-			tryProcess(tapdataEvent, (event, processResult) -> {
-				if (null == event) {
-					return;
-				}
-				if (tapdataEvent.isDML()) {
-					if (processResult == null) {
-						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
-					}
-				}
-				BatchEventWrapper finalBatchEventWrapper;
-				if (needCopyBatchEventWrapper()) {
-					try {
-						finalBatchEventWrapper = batchEventWrapper.clone();
-					} catch (Throwable throwable) {
-						throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
-					}
-				} else {
-					finalBatchEventWrapper = batchEventWrapper;
-				}
-				finalBatchEventWrapper.setTapdataEvent(event);
-				BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
-				batchProcessResults.add(batchProcessResult);
-			});
 		}
 		consumer.accept(batchProcessResults);
+	}
+
+	protected Throwable normalizeProcessorError(TapdataEvent tapdataEvent, Throwable exception) {
+		Throwable matchThrowable = CommonUtils.matchThrowable(exception, TapCodeException.class);
+		if (matchThrowable != null) {
+			return matchThrowable;
+		}
+		TapEventException normalized = new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, exception);
+		if (tapdataEvent != null && tapdataEvent.getTapEvent() != null) {
+			normalized.addEvent(tapdataEvent.getTapEvent());
+		}
+		return normalized;
+	}
+
+	private void rethrowIfProcessorErrorIsNotIntercepted(TapdataEvent tapdataEvent, Throwable error) {
+		if (!interceptProcessorError(tapdataEvent, error)) {
+			if (error instanceof Error fatalError) {
+				throw fatalError;
+			}
+			if (error instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			throw new RuntimeException(error);
+		}
 	}
 
 	protected void setIgnore(boolean ignore) {

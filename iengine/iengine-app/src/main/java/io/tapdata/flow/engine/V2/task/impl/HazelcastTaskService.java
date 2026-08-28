@@ -298,6 +298,15 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				? new HashMap<>() : new HashMap<>(recoveryTaskDto.getAttrs());
 		recoveryAttrs.put(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, Boolean.TRUE);
 		recoveryTaskDto.setAttrs(recoveryAttrs);
+		// Schema deduction must run against the complete task topology.  The
+		// recovery runtime graph is intentionally cut at the failed node, so it
+		// must not be used as the input to engineTransformSchema.
+		TaskDto schemaTaskDto = new TaskDto();
+		BeanUtils.copyProperties(recoveryTaskDto, schemaTaskDto);
+		schemaTaskDto.setDag(recoveryPlan.modelDag());
+		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap =
+				engineTransformSchema(schemaTaskDto, formalTaskId);
+		recoveryPlan.materializeRuntime();
 		recoveryTaskDto.setDag(recoveryPlan.dag());
 		recoveryPlan.dag().setTaskId(recoveryTaskDto.getId());
 		HazelcastTaskClient taskClient = HazelcastTaskClient.createDqlRecovery(
@@ -312,7 +321,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			startDqlRecoveryAspectSession(recoveryTaskDto);
 			DqlRecoveryDagBuild build = new DqlRecoveryDagBuild(
 					recoveryPlan.failedNodeId(), recoveryQueueName, formalTaskId);
-			JetDag jetDag = task2HazelcastDAG(recoveryTaskDto, true, false, build);
+			JetDag jetDag = task2HazelcastDAG(recoveryTaskDto, false, false, build, tapTableMapHashMap);
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setName("DQL-Recovery-" + recoveryQueueName);
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
@@ -452,12 +461,23 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			Boolean deduce,
 			boolean open,
 			DqlRecoveryDagBuild recoveryBuild) {
+		return task2HazelcastDAG(taskDto, deduce, open, recoveryBuild, null);
+	}
+
+	@SneakyThrows
+	protected JetDag task2HazelcastDAG(TaskDto taskDto,
+			Boolean deduce,
+			boolean open,
+			DqlRecoveryDagBuild recoveryBuild,
+			Map<String, TapTableMap<String, TapTable>> preparedTapTableMapHashMap) {
 		CpuMemoryCollector.startTask(taskDto);
 		if (recoveryBuild == null) {
 			handleDagWhenProcessAfterMerge(taskDto);
 		}
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
-		if (deduce) {
+		if (preparedTapTableMapHashMap != null) {
+			tapTableMapHashMap = preparedTapTableMapHashMap;
+		} else if (deduce) {
 			if (taskDto.isPreviewTask()) {
 				tapTableMapHashMap = transformSchemaWhenPreview(taskDto);
 			} else {
@@ -537,7 +557,8 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				Connections connection = null;
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node, tapTableMapHashMap);
+				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node,
+						tapTableMapHashMap, preparedTapTableMapHashMap != null);
 				CpuMemoryCollector.listeningTables(node.getId(), tapTableMap);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
@@ -701,8 +722,18 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	protected static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node, Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap) {
+		return getTapTableMap(taskDto, tmCurrentTime, node, tapTableMapHashMap, false);
+	}
+
+	protected static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto,
+			Long tmCurrentTime,
+			Node node,
+			Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap,
+			boolean preferPreparedMap) {
 		TapTableMap<String, TapTable> tapTableMap;
-		if (node instanceof AutoInspectNode) {
+		if (preferPreparedMap && tapTableMapHashMap != null && tapTableMapHashMap.containsKey(node.getId())) {
+			tapTableMap = tapTableMapHashMap.get(node.getId());
+		} else if (node instanceof AutoInspectNode) {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, ((AutoInspectNode) node).getTargetNodeId(), System.currentTimeMillis());
 		} else if (node instanceof PreviewTargetNode) {
 			tapTableMap = TapTableMap.create(node.getId());

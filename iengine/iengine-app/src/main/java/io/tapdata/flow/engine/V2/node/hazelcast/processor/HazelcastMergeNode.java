@@ -118,6 +118,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	private List<String> ignoreUpdateEventIdList;
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
 	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
+	private final ThreadLocal<Map<CompletableFuture<Void>, TapdataEvent>> lookupEventByFuture =
+			ThreadLocal.withInitial(IdentityHashMap::new);
+	private final ThreadLocal<Set<TapdataEvent>> isolatedBatchEvents =
+			ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
 	private Map<String, Integer> sourceNodeLevelMap;
 	private String mergeMode;
 	// 针对 UPDATE 场景的优化：在初始化阶段标记“当前表是否存在数组类型的关联字段（面向需要反查的子树）”
@@ -402,6 +406,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	@Override
 	protected void tryProcess(List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
+		lookupEventByFuture.get().clear();
+		isolatedBatchEvents.get().clear();
 		loggerBeforeProcess(tapdataEvents);
 		StopWatch stopWatch = new StopWatch();
 		List<CompletableFuture<Void>> lookupCfs = new ArrayList<>();
@@ -432,8 +438,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				loggerBatchUpdateCache(batchCache);
 			}
 			handleBatchUpdateJoinKey(tapdataEvents);
-			doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
-			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
+			List<BatchEventWrapper> processableEvents = tapdataEvents.stream()
+					.filter(eventWrapper -> !isolatedBatchEvents.get().contains(eventWrapper.getTapdataEvent()))
+					.collect(Collectors.toList());
+			doBatchLookUpConcurrent(processableEvents, lookupCfs);
+			for (BatchEventWrapper batchEventWrapper : processableEvents) {
 				if (controlOrIgnoreEvent(batchEventWrapper.getTapdataEvent())) {
 					if(isIgnoreSubtableUpdate(batchEventWrapper.getTapdataEvent())) {
 						if(nodeLogger.isDebugEnabled()){
@@ -456,6 +465,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			// Let jvm gc
 			lookupCfs = null;
 			batchCache = null;
+			lookupEventByFuture.get().clear();
+			isolatedBatchEvents.get().clear();
 		}
 	}
 
@@ -477,6 +488,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (needLookup(eventWrapper.getTapdataEvent())) {
 				CompletableFuture<Void> lookupCf = lookupAndWrapMergeInfoConcurrent(eventWrapper.getTapdataEvent());
 				lookupCfs.add(lookupCf);
+				lookupEventByFuture.get().put(lookupCf, eventWrapper.getTapdataEvent());
 			}
 		});
 	}
@@ -501,17 +513,63 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 			return true;
 		}).collect(Collectors.toList());
-		if (CollectionUtils.isNotEmpty(batchProcessResults)) {
-			if (CollectionUtils.isNotEmpty(lookupCfs)) {
-				try {
-					CompletableFuture.allOf(lookupCfs.toArray(new CompletableFuture[0])).join();
-				} catch (Exception e) {
-					errorHandle(e);
+		if (CollectionUtils.isEmpty(batchProcessResults)) {
+			return;
+		}
+
+		Set<TapdataEvent> isolatedEvents = Collections.newSetFromMap(new IdentityHashMap<>());
+		if (CollectionUtils.isNotEmpty(lookupCfs)) {
+			try {
+				CompletableFuture.allOf(lookupCfs.toArray(new CompletableFuture[0])).join();
+			} catch (Throwable ignored) {
+				// Inspect every future below so an isolated lookup failure does not
+				// discard successful records from the same processor batch.
+			}
+			Map<CompletableFuture<Void>, TapdataEvent> eventMap = lookupEventByFuture.get();
+			for (CompletableFuture<Void> lookupCf : lookupCfs) {
+				Throwable lookupError = null;
+				if (lookupCf == null) {
+					lookupError = new IllegalStateException("Merge lookup future is null");
+				} else {
+					try {
+						lookupCf.join();
+					} catch (Throwable throwable) {
+						lookupError = unwrapLookupError(throwable);
+					}
+				}
+				if (lookupError == null) {
+					continue;
+				}
+
+				TapdataEvent tapdataEvent = eventMap.get(lookupCf);
+				if (tapdataEvent == null
+						|| !interceptProcessorError(tapdataEvent,
+						normalizeProcessorError(tapdataEvent, lookupError))) {
+					errorHandle(lookupError);
 					return;
 				}
+				isolatedEvents.add(tapdataEvent);
 			}
+		}
+
+		if (!isolatedEvents.isEmpty()) {
+			batchProcessResults = batchProcessResults.stream()
+					.filter(batchProcessResult -> !isolatedEvents.contains(
+							batchProcessResult.getBatchEventWrapper().getTapdataEvent()))
+					.collect(Collectors.toList());
+		}
+		if (CollectionUtils.isNotEmpty(batchProcessResults)) {
 			consumer.accept(batchProcessResults);
 		}
+	}
+
+	private Throwable unwrapLookupError(Throwable error) {
+		Throwable current = error;
+		while ((current instanceof CompletionException || current instanceof ExecutionException)
+				&& current.getCause() != null) {
+			current = current.getCause();
+		}
+		return current;
 	}
 
 	protected CompletableFuture<Void> lookupAndWrapMergeInfoConcurrent(TapdataEvent tapdataEvent) {
@@ -2427,10 +2485,32 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (null == enableUpdateJoinKey || (!enableUpdateJoinKey.isEnableParent() && !enableUpdateJoinKey.isEnableChildren())) {
 				continue;
 			}
-			completableFutures.add(CompletableFuture.runAsync(() -> handleUpdateJoinKey(tapdataEvent), handleUpdateJoinKeyThreadPool));
+			CompletableFuture<Void> future = CompletableFuture.runAsync(
+					() -> handleUpdateJoinKey(tapdataEvent), handleUpdateJoinKeyThreadPool);
+			completableFutures.add(future);
+			lookupEventByFuture.get().put(future, tapdataEvent);
 		}
-		if (CollectionUtils.isNotEmpty(completableFutures)) {
-			CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
+		for (CompletableFuture<Void> future : completableFutures) {
+			try {
+				future.join();
+			} catch (Throwable throwable) {
+				Throwable error = unwrapLookupError(throwable);
+				TapdataEvent tapdataEvent = lookupEventByFuture.get().get(future);
+				if (tapdataEvent != null && interceptProcessorError(
+						tapdataEvent, normalizeProcessorError(tapdataEvent, error))) {
+					isolatedBatchEvents.get().add(tapdataEvent);
+					continue;
+				}
+				if (error instanceof Error fatalError) {
+					throw fatalError;
+				}
+				if (error instanceof RuntimeException runtimeException) {
+					throw runtimeException;
+				}
+				throw new RuntimeException(error);
+			} finally {
+				lookupEventByFuture.get().remove(future);
+			}
 		}
 	}
 
