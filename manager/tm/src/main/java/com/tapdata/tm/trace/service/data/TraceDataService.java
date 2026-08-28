@@ -115,6 +115,7 @@ public class TraceDataService {
             TraceValue filterTraceValue = hasCurrentRecords(traceValue) ? traceValue : step.getFilterTraceValue();
             Node filterNode = hasCurrentRecords(traceValue) ? currentNode : step.getFilterNode();
             TraceQueryCondition filterCondition = hasFilterCondition(step.getCondition()) ? step.getCondition() : step.getFilterCondition();
+            enqueueMergeSiblingsFromRecords(queue, visited, nodeMap, incomingEdges, step, traceValue, fieldNameMapping);
             for (Edge edge : incomingEdges.getOrDefault(currentNode.getId(), Collections.emptyList())) {
                 Node upstreamNode = nodeMap.get(edge.getSource());
                 if (upstreamNode != null) {
@@ -365,8 +366,10 @@ public class TraceDataService {
         condition.setTable(resolveTableName(upstreamNode));
         if (isMergeSubTable(upstreamNode, edge)) {
             condition.setFilters(buildMergeJoinFilters(upstreamNode, edge, currentTraceValue,
-                    currentCondition, fallbackTraceValue, fallbackCondition, errors));
-            addEmptyFilterError(condition, errors, upstreamNode, currentNode);
+                    currentCondition, fallbackTraceValue, fallbackCondition, errors, fieldNameMapping));
+            if (hasCurrentRecords(currentTraceValue) || !isMergeRelatedTable(upstreamNode)) {
+                addEmptyFilterError(condition, errors, upstreamNode, currentNode);
+            }
             return new TraceConditionBuildResult(condition, errors);
         }
 
@@ -377,7 +380,12 @@ public class TraceDataService {
                 : fieldNameMapping.getOrDefault(fallbackNode.getId(), Collections.emptyMap());
         condition.setFilters(buildNormalUpstreamFilters(condition,currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, fallbackCondition, fallbackTraceValue, fallbackFieldMapping, updateConditionFieldList, errors));
-        addEmptyFilterError(condition, errors, upstreamNode, currentNode);
+        if (!(CollectionUtils.isEmpty(condition.getFilters())
+                && !hasCurrentRecords(currentTraceValue)
+                && (TraceUpstreamConditionRewriter.onlyNestedFilterKeys(safeFilters(currentCondition))
+                || isMergeRelatedTable(upstreamNode)))) {
+            addEmptyFilterError(condition, errors, upstreamNode, currentNode);
+        }
         return new TraceConditionBuildResult(condition, errors);
     }
 
@@ -385,24 +393,43 @@ public class TraceDataService {
                                                             TraceQueryCondition downstreamCondition,
                                                             TraceValue fallbackTraceValue,
                                                             TraceQueryCondition fallbackCondition,
-                                                            List<TraceNodeError> errors) {
+                                                            List<TraceNodeError> errors,
+                                                            Map<String, Map<String, String>> fieldNameMapping) {
         List<Map<String, String>> joinKeys = extractJoinKeys(upstreamNode, edge);
-        if (CollectionUtils.isEmpty(joinKeys)) {
+        List<Map<String, Object>> filters = buildMergeJoinFiltersFromRecords(joinKeys, downstreamTraceValue, errors);
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = rewriteMergeFiltersFromCondition(upstreamNode, edge, downstreamCondition, fieldNameMapping);
+        }
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = buildMergeJoinFiltersFromRecords(joinKeys, fallbackTraceValue, errors);
+        }
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = rewriteMergeFiltersFromCondition(upstreamNode, edge, fallbackCondition, fieldNameMapping);
+        }
+        if (CollectionUtils.isEmpty(filters) && CollectionUtils.isEmpty(joinKeys)) {
             errors.add(traceError(ERROR_MERGE_JOIN_KEY_NOT_FOUND,null, null, null, null, null,
                     "table=" + resolveTableName(upstreamNode)));
+        }
+        return distinctFilters(filters);
+    }
+
+    private List<Map<String, Object>> rewriteMergeFiltersFromCondition(Node upstreamNode, Edge edge,
+                                                                       TraceQueryCondition condition,
+                                                                       Map<String, Map<String, String>> fieldNameMapping) {
+        if (!hasFilterCondition(condition)) {
             return Collections.emptyList();
         }
-        List<Map<String, Object>> filters = buildMergeJoinFiltersFromRecords(joinKeys, downstreamTraceValue, errors);
-//        if (CollectionUtils.isEmpty(filters)) {
-//            filters = buildMergeJoinFiltersFromCondition(joinKeys, downstreamCondition, errors);
-//        }
-//        if (CollectionUtils.isEmpty(filters)) {
-//            filters = buildMergeJoinFiltersFromRecords(joinKeys, fallbackTraceValue, errors);
-//        }
-//        if (CollectionUtils.isEmpty(filters)) {
-//            filters = buildMergeJoinFiltersFromCondition(joinKeys, fallbackCondition, errors);
-//        }
-        return distinctFilters(filters);
+        TableProperties properties = resolveTableProperties(upstreamNode, edge);
+        Map<String, String> upstreamFieldMapping = fieldNameMapping == null
+                ? Collections.emptyMap()
+                : fieldNameMapping.getOrDefault(upstreamNode.getId(), Collections.emptyMap());
+        return TraceUpstreamConditionRewriter.rewriteMergeSubTableFilters(
+                safeFilters(condition),
+                properties == null ? null : properties.getPath(),
+                properties == null ? null : properties.getJoinKeys(),
+                properties == null ? null : properties.getTablePk(),
+                upstreamFieldMapping
+        );
     }
 
     private List<Map<String, Object>> buildMergeJoinFiltersFromRecords(List<Map<String, String>> joinKeys,
@@ -510,16 +537,14 @@ public class TraceDataService {
                                                                  List<TraceNodeError> errors) {
         List<Map<String, Object>> filters = rewriteFiltersByFieldMapping(buildCondition,currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, updateConditionFieldList, errors);
-//        if (CollectionUtils.isEmpty(filters)) {
-//            filters = rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors);
-//        }
-//        if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
-//            filters = rewriteFiltersByFieldMapping(buildCondition,fallbackCondition, fallbackTraceValue,
-//                    upstreamFieldMapping, fallbackFieldMapping, updateConditionFieldList, errors);
-//        }
-//        if (CollectionUtils.isEmpty(filters) && !fallbackFieldMapping.isEmpty()) {
-//            filters = rewriteRecordValuesByFieldMapping(fallbackTraceValue, upstreamFieldMapping, fallbackFieldMapping, errors);
-//        }
+        if (CollectionUtils.isEmpty(filters) && !hasCurrentRecords(currentTraceValue)) {
+            filters = TraceUpstreamConditionRewriter.rewriteNormalUpstreamFilters(
+                    safeFilters(currentCondition), currentFieldMapping, upstreamFieldMapping);
+        }
+        if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !hasCurrentRecords(fallbackTraceValue)) {
+            filters = TraceUpstreamConditionRewriter.rewriteNormalUpstreamFilters(
+                    safeFilters(fallbackCondition), fallbackFieldMapping, upstreamFieldMapping);
+        }
         return distinctFilters(filters);
     }
 
@@ -611,21 +636,31 @@ public class TraceDataService {
             CollectionUtils.emptyIfNull(sourceKeys).forEach(key -> {
                 String originName = currentFieldMapping.get(key);
                 Object value = readRecordValue(record, key);
-                if (value != null) {
-                    filter.put(originName, value);
+                String upstreamField = resolveUpstreamFieldName(originName, key, upstreamByOrigin);
+                if (value != null && StringUtils.isNotBlank(upstreamField)) {
+                    filter.put(upstreamField, value);
                 }
             });
         }else{
             sourceFilter.forEach((currentField, currentValue) -> {
                 String originName = currentFieldMapping.get(currentField);
                 Object value = record == null ? currentValue : readRecordValue(record, currentField);
-                if (value != null) {
-                    filter.put(originName, value);
+                String upstreamField = resolveUpstreamFieldName(originName, currentField, upstreamByOrigin);
+                if (value != null && StringUtils.isNotBlank(upstreamField)) {
+                    filter.put(upstreamField, value);
                 }
             });
         }
 
         return filter;
+    }
+
+    private String resolveUpstreamFieldName(String originName, String currentField, Map<String, String> upstreamByOrigin) {
+        if (MapUtils.isEmpty(upstreamByOrigin)) {
+            return firstNotBlank(originName, currentField);
+        }
+        String origin = StringUtils.isNotBlank(originName) ? originName : currentField;
+        return firstNotBlank(upstreamByOrigin.get(origin), upstreamByOrigin.get(currentField));
     }
 
     private List<Map<String, Object>> rewriteRecordValuesByFieldMapping(TraceValue currentTraceValue,
@@ -944,6 +979,62 @@ public class TraceDataService {
     private boolean isMergeSubTable(Node node, Edge edge) {
         TableProperties properties = resolveTableProperties(node, edge);
         return properties != null && StringUtils.equalsIgnoreCase(properties.getTableType(), "subTable");
+    }
+
+    private boolean isMainTable(Node node) {
+        TableProperties properties = resolveTableProperties(node, null);
+        return properties != null && StringUtils.equalsIgnoreCase(properties.getTableType(), "mainTable");
+    }
+
+    private boolean isMergeRelatedTable(Node node) {
+        return isMainTable(node) || isMergeSubTable(node, null);
+    }
+
+    private void enqueueMergeSiblingsFromRecords(Queue<TraceNodeStep> queue, Set<String> visited,
+                                                 Map<String, Node> nodeMap, Map<String, List<Edge>> incomingEdges,
+                                                 TraceNodeStep step, TraceValue traceValue,
+                                                 Map<String, Map<String, String>> fieldNameMapping) {
+        if (!hasCurrentRecords(traceValue) || step == null || step.getDownstreamNode() == null) {
+            return;
+        }
+        Node currentNode = step.getCurrentNode();
+        if (currentNode == null || !isMergeRelatedTable(currentNode)) {
+            return;
+        }
+        TableProperties currentProperties = resolveTableProperties(currentNode, null);
+        if (currentProperties == null) {
+            return;
+        }
+        Node downstreamNode = step.getDownstreamNode();
+        for (Edge edge : incomingEdges.getOrDefault(downstreamNode.getId(), Collections.emptyList())) {
+            Node sibling = nodeMap.get(edge.getSource());
+            if (sibling == null || StringUtils.isBlank(sibling.getId())
+                    || StringUtils.equals(sibling.getId(), currentNode.getId())
+                    || visited.contains(sibling.getId())
+                    || !isMergeRelatedTable(sibling)) {
+                continue;
+            }
+            TableProperties siblingProperties = resolveTableProperties(sibling, null);
+            if (siblingProperties == null) {
+                continue;
+            }
+            List<Map<String, Object>> filters = TraceUpstreamConditionRewriter.rewriteSiblingFiltersFromRecords(
+                    traceValue.getCurrentRecords(),
+                    currentProperties.getJoinKeys(),
+                    currentProperties.getTablePk(),
+                    siblingProperties.getJoinKeys(),
+                    siblingProperties.getTablePk(),
+                    fieldNameMapping.getOrDefault(sibling.getId(), Collections.emptyMap())
+            );
+            if (CollectionUtils.isEmpty(filters)) {
+                continue;
+            }
+            TraceQueryCondition condition = new TraceQueryCondition();
+            condition.setConnectionId(resolveConnectionId(sibling));
+            condition.setTable(resolveTableName(sibling));
+            condition.setFilters(filters);
+            queue.add(new TraceNodeStep(sibling, downstreamNode, condition, traceValue, traceValue, currentNode, condition));
+        }
     }
 
     private TableProperties resolveTableProperties(Node node, Edge edge) {
