@@ -27,6 +27,9 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
+import com.tapdata.tm.dql.service.DqlTaskImpactService;
+import com.tapdata.tm.dql.vo.DqlTaskImpactRequestVo;
+import com.tapdata.tm.dql.vo.DqlTaskImpactVo;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -105,6 +108,7 @@ public class TaskController extends BaseController {
     private TaskErrorEventService taskErrorEventService;
     private CpuMemoryService cpuMemoryService;
     private GroupInfoService groupInfoService;
+    private DqlTaskImpactService dqlTaskImpactService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -489,6 +493,13 @@ public class TaskController extends BaseController {
         taskService.remove(MongoUtils.toObjectId(id), userDetail);
         groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
         return success();
+    }
+
+    @Operation(summary = "查询任务删除或重置对 DQL 记录的影响")
+    @PostMapping("dql-event-impact")
+    public ResponseMessage<List<DqlTaskImpactVo>> dqlEventImpact(
+            @RequestBody(required = false) DqlTaskImpactRequestVo request) {
+        return success(dqlTaskImpactService.check(request, getLoginUser()));
     }
 
     /**

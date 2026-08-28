@@ -17,6 +17,8 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.IndexDefinition;
@@ -56,7 +58,7 @@ class DqlEventRepositoryTest {
         verify(mongoTemplate, never()).createCollection("dql_events");
         IndexOperations indexOperations = mongoTemplate.indexOps("dql_events");
         ArgumentCaptor<IndexDefinition> indexCaptor = ArgumentCaptor.forClass(IndexDefinition.class);
-        verify(indexOperations, times(7)).createIndex(indexCaptor.capture());
+        verify(indexOperations, times(8)).createIndex(indexCaptor.capture());
         assertFalse(indexCaptor.getAllValues().stream()
                 .anyMatch(index -> index.getIndexOptions().containsKey("expireAfterSeconds")));
         IndexDefinition recordIdentityIndex = indexCaptor.getAllValues().stream()
@@ -88,7 +90,7 @@ class DqlEventRepositoryTest {
         new DqlEventRepository(mongoTemplate);
 
         verify(mongoTemplate).createCollection("dql_events");
-        verify(indexOperations, times(7)).createIndex(any(IndexDefinition.class));
+        verify(indexOperations, times(8)).createIndex(any(IndexDefinition.class));
     }
 
     @Test
@@ -137,6 +139,37 @@ class DqlEventRepositoryTest {
         assertEquals("task-1", queryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_TASK_ID));
         assertEquals(List.of(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name()),
                 queryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_STATUS, Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("task impact count matches current task versions and all reprocessable statuses")
+    void countByTaskIdAndVersionGroupsCurrentVersionEvents() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        String firstTaskId = "64f000000000000000000001";
+        String secondTaskId = "64f000000000000000000002";
+        List<Document> mappedResults = List.of(
+                new Document("_id", firstTaskId).append("count", 3L),
+                new Document("_id", secondTaskId).append("count", 1L)
+        );
+        when(mongoTemplate.aggregate(any(Aggregation.class), eq("dql_events"), eq(Document.class)))
+                .thenReturn(new AggregationResults<>(mappedResults, new Document()));
+
+        Map<String, Long> counts = repository.countByTaskIdAndVersion(Map.of(
+                firstTaskId, 4L,
+                secondTaskId, 8L
+        ));
+
+        assertEquals(Map.of(firstTaskId, 3L, secondTaskId, 1L), counts);
+        ArgumentCaptor<Aggregation> aggregationCaptor = ArgumentCaptor.forClass(Aggregation.class);
+        verify(mongoTemplate).aggregate(aggregationCaptor.capture(), eq("dql_events"), eq(Document.class));
+        String aggregation = aggregationCaptor.getValue().toString();
+        assertTrue(aggregation.contains(DqlEventDto.FIELD_TASK_ID));
+        assertTrue(aggregation.contains(DqlEventDto.FIELD_TASK_VERSION));
+        assertTrue(aggregation.contains(DqlEventDto.FIELD_STATUS));
+        assertTrue(aggregation.contains(DqlEventStatusEnum.PENDING.name()));
+        assertTrue(aggregation.contains(DqlEventStatusEnum.REPROCESSING.name()));
+        assertTrue(aggregation.contains(DqlEventStatusEnum.RECOVERY_FAILED.name()));
     }
 
     @Test

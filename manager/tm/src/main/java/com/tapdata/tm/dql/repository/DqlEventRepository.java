@@ -12,15 +12,17 @@ import com.tapdata.tm.dql.entity.DqlEventEntity;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.task.entity.TaskEntity;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.data.mongodb.core.index.PartialIndexFilter;
-import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -47,8 +49,8 @@ public class DqlEventRepository {
         this.mongoTemplate = mongoTemplate;
         this.entityClass = DqlEventEntity.class;
         this.collectionName = Optional.of(entityClass)
-                .map(clz -> clz.getAnnotation(Document.class))
-                .map(Document::value)
+                .map(clz -> clz.getAnnotation(org.springframework.data.mongodb.core.mapping.Document.class))
+                .map(org.springframework.data.mongodb.core.mapping.Document::value)
                 .orElseThrow(() -> new IllegalArgumentException("Class " + entityClass.getSimpleName() + " is not a document"));
         init();
     }
@@ -73,6 +75,11 @@ public class DqlEventRepository {
                 .on(DqlEventDto.FIELD_STATUS, Sort.Direction.ASC)
                 .on(DqlEventDto.FIELD_FAILED_AT, Sort.Direction.DESC)
                 .named("idx_task_status_failed_at"));
+        indexOps.createIndex(new Index()
+                .on(DqlEventDto.FIELD_TASK_ID, Sort.Direction.ASC)
+                .on(DqlEventDto.FIELD_TASK_VERSION, Sort.Direction.ASC)
+                .on(DqlEventDto.FIELD_STATUS, Sort.Direction.ASC)
+                .named("idx_task_version_status"));
         indexOps.createIndex(new Index()
                 .on(DqlEventDto.FIELD_STATUS, Sort.Direction.ASC)
                 .on(DqlEventDto.FIELD_FAILED_AT, Sort.Direction.DESC)
@@ -310,6 +317,45 @@ public class DqlEventRepository {
                 .and(DqlEventDto.FIELD_STATUS).in(DqlEventStatusEnum.PENDING.name(),
                         DqlEventStatusEnum.RECOVERY_FAILED.name()));
         return mongoTemplate.count(query, entityClass);
+    }
+
+    public Map<String, Long> countByTaskIdAndVersion(Map<String, Long> taskVersions) {
+        if (taskVersions == null || taskVersions.isEmpty()) {
+            return Map.of();
+        }
+        List<Criteria> taskVersionCriteria = taskVersions.entrySet().stream()
+                .filter(entry -> StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null)
+                .map(entry -> Criteria.where(DqlEventDto.FIELD_TASK_ID).is(entry.getKey())
+                        .and(DqlEventDto.FIELD_TASK_VERSION).is(entry.getValue()))
+                .toList();
+        if (taskVersionCriteria.isEmpty()) {
+            return Map.of();
+        }
+
+        Criteria matchCriteria = new Criteria().andOperator(
+                new Criteria().orOperator(taskVersionCriteria.toArray(new Criteria[0])),
+                Criteria.where(DqlEventDto.FIELD_STATUS).in(
+                        DqlEventStatusEnum.PENDING.name(),
+                        DqlEventStatusEnum.REPROCESSING.name(),
+                        DqlEventStatusEnum.RECOVERY_FAILED.name())
+        );
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(matchCriteria),
+                Aggregation.group(DqlEventDto.FIELD_TASK_ID).count().as("count")
+        );
+        AggregationResults<Document> results = mongoTemplate.aggregate(aggregation, collectionName, Document.class);
+        if (results == null || results.getMappedResults() == null) {
+            return Map.of();
+        }
+        return results.getMappedResults().stream()
+                .filter(result -> result.getString("_id") != null)
+                .collect(Collectors.toMap(
+                        result -> result.getString("_id"),
+                        result -> {
+                            Number count = result.get("count", Number.class);
+                            return count == null ? 0L : count.longValue();
+                        }
+                ));
     }
 
     public long countByStatus(com.tapdata.tm.dql.vo.DqlEventQueryVo queryVo, DqlEventStatusEnum status) {
