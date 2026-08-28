@@ -16,13 +16,18 @@ import com.tapdata.tm.externalStorage.service.ExternalStorageServiceImpl;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
+import com.tapdata.tm.utils.AES256Util;
+import com.mongodb.client.result.UpdateResult;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -31,8 +36,12 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.eq;
 
 
  class ExternalStorageServiceTest {
@@ -124,6 +133,162 @@ import static org.mockito.Mockito.when;
         ReflectionTestUtils.invokeMethod(externalStorageService, "restoreMaskedSensitiveFields", externalStorage);
 
         Mockito.verify(repository, Mockito.never()).findById(Mockito.anyString());
+    }
+
+    @Test
+    void saveShouldMaskMongoUriBeforeReturn() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = Mockito.spy(new ExternalStorageServiceImpl(repository));
+        UserDetail userDetail = Mockito.mock(UserDetail.class);
+        SettingsService settingsService = Mockito.mock(SettingsService.class);
+        ObjectId id = new ObjectId();
+        ReflectionTestUtils.setField(externalStorageService, "settingsService", settingsService);
+        when(settingsService.isCloud()).thenReturn(true);
+
+        ExternalStorageDto dto = new ExternalStorageDto();
+        dto.setType(ExternalStorageType.mongodb.name());
+        dto.setName("external-storage");
+        dto.setUri("mongodb://admin:password@127.0.0.1:27017/test");
+
+        doNothing().when(externalStorageService).sendTestConnection(any(ExternalStorageDto.class), any(UserDetail.class));
+        when(repository.findOne(any(Query.class))).thenReturn(Optional.empty());
+        when(repository.save(any(ExternalStorageEntity.class), eq(userDetail))).thenAnswer(invocation -> {
+            ExternalStorageEntity entity = invocation.getArgument(0);
+            entity.setId(id);
+            return entity;
+        });
+        when(repository.findById(any(ObjectId.class), eq(userDetail))).thenAnswer(invocation -> {
+            ExternalStorageEntity entity = new ExternalStorageEntity();
+            entity.setId(id);
+            entity.setType(ExternalStorageType.mongodb.name());
+            entity.setUri(AES256Util.Aes256Encode("mongodb://admin:password@127.0.0.1:27017/test"));
+            return Optional.of(entity);
+        });
+
+        ExternalStorageDto saved = externalStorageService.save(dto, userDetail);
+
+        assertEquals("mongodb://admin:******@127.0.0.1:27017/test", saved.getUri());
+        assertTrue(!saved.getUri().contains("password"));
+    }
+
+    @Test
+    void updateByWhereShouldRestoreMaskedFieldsBeforeWriting() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+        UserDetail userDetail = Mockito.mock(UserDetail.class);
+
+        ExternalStorageEntity oldExternalStorage = new ExternalStorageEntity();
+        oldExternalStorage.setUri("mongodb://admin:password@127.0.0.1:27017/test");
+        oldExternalStorage.setAccessToken("token");
+        oldExternalStorage.setSslCA("ca");
+        oldExternalStorage.setSslKey("key");
+        oldExternalStorage.setSslPass("pass");
+        when(repository.findOne(any(Where.class), eq(userDetail))).thenReturn(Optional.of(oldExternalStorage));
+        when(repository.findOne(any(Query.class))).thenReturn(Optional.empty());
+        when(repository.filterToQuery(any(Filter.class))).thenReturn(new Query());
+
+        ExternalStorageDto dto = new ExternalStorageDto();
+        dto.setName("external-storage");
+        dto.setType(ExternalStorageType.mongodb.name());
+        dto.setUri("mongodb://admin:******@127.0.0.1:27017/test");
+        dto.setAccessToken(ExternalStorageDto.MASK_PWD);
+        dto.setSslCA(ExternalStorageDto.MASK_PWD);
+        dto.setSslKey(ExternalStorageDto.MASK_PWD);
+        dto.setSslPass(ExternalStorageDto.MASK_PWD);
+
+        UpdateResult updateResult = Mockito.mock(UpdateResult.class);
+        when(updateResult.getModifiedCount()).thenReturn(1L);
+        when(repository.updateByWhere(any(Query.class), any(ExternalStorageEntity.class), eq(userDetail))).thenReturn(updateResult);
+
+        long count = externalStorageService.updateByWhere(new Where(), dto, userDetail);
+
+        assertEquals(1L, count);
+        ArgumentCaptor<ExternalStorageEntity> entityCaptor = ArgumentCaptor.forClass(ExternalStorageEntity.class);
+        Mockito.verify(repository).updateByWhere(any(Query.class), entityCaptor.capture(), eq(userDetail));
+        ExternalStorageEntity entity = entityCaptor.getValue();
+        assertEquals("mongodb://admin:password@127.0.0.1:27017/test", AES256Util.Aes256Decode(entity.getUri()));
+        assertEquals("token", entity.getAccessToken());
+        assertEquals("ca", entity.getSslCA());
+        assertEquals("key", entity.getSslKey());
+        assertEquals("pass", entity.getSslPass());
+    }
+
+    @Test
+    void upsertByWhereShouldRestoreMaskedFieldsBeforeWriting() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+        UserDetail userDetail = Mockito.mock(UserDetail.class);
+
+        ExternalStorageEntity oldExternalStorage = new ExternalStorageEntity();
+        oldExternalStorage.setUri("mongodb://admin:password@127.0.0.1:27017/test");
+        oldExternalStorage.setAccessToken("token");
+        oldExternalStorage.setSslCA("ca");
+        oldExternalStorage.setSslKey("key");
+        oldExternalStorage.setSslPass("pass");
+        oldExternalStorage.setName("external-storage");
+        when(repository.findOne(any(Where.class), eq(userDetail))).thenReturn(Optional.of(oldExternalStorage));
+        when(repository.findOne(any(Query.class))).thenReturn(Optional.empty());
+        when(repository.filterToQuery(any(Filter.class))).thenReturn(new Query());
+        when(repository.upsert(any(Query.class), any(ExternalStorageEntity.class), eq(userDetail))).thenReturn(1L);
+
+        ExternalStorageDto dto = new ExternalStorageDto();
+        dto.setName("external-storage");
+        dto.setType(ExternalStorageType.mongodb.name());
+        dto.setUri("mongodb://admin:******@127.0.0.1:27017/test");
+        dto.setAccessToken(ExternalStorageDto.MASK_PWD);
+        dto.setSslCA(ExternalStorageDto.MASK_PWD);
+        dto.setSslKey(ExternalStorageDto.MASK_PWD);
+        dto.setSslPass(ExternalStorageDto.MASK_PWD);
+
+        ExternalStorageDto result = externalStorageService.upsertByWhere(new Where(), dto, userDetail);
+
+        ArgumentCaptor<ExternalStorageEntity> entityCaptor = ArgumentCaptor.forClass(ExternalStorageEntity.class);
+        Mockito.verify(repository).upsert(any(Query.class), entityCaptor.capture(), eq(userDetail));
+        ExternalStorageEntity entity = entityCaptor.getValue();
+        assertEquals("mongodb://admin:password@127.0.0.1:27017/test", AES256Util.Aes256Decode(entity.getUri()));
+        assertEquals("token", entity.getAccessToken());
+        assertEquals("ca", entity.getSslCA());
+        assertEquals("key", entity.getSslKey());
+        assertEquals("pass", entity.getSslPass());
+        assertEquals("mongodb://admin:******@127.0.0.1:27017/test", result.getUri());
+        assertEquals(ExternalStorageDto.MASK_PWD, result.getAccessToken());
+    }
+
+    @Test
+    void updateByWhereDocumentShouldRestoreMaskedFieldsAndEncryptUriBeforeWriting() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+        UserDetail userDetail = Mockito.mock(UserDetail.class);
+
+        ExternalStorageEntity oldExternalStorage = new ExternalStorageEntity();
+        oldExternalStorage.setUri("mongodb://admin:password@127.0.0.1:27017/test");
+        oldExternalStorage.setAccessToken("token");
+        oldExternalStorage.setSslCA("ca");
+        oldExternalStorage.setSslKey("key");
+        oldExternalStorage.setSslPass("pass");
+        when(repository.findOne(any(Where.class), eq(userDetail))).thenReturn(Optional.of(oldExternalStorage));
+        when(repository.filterToQuery(any(Filter.class))).thenReturn(new Query());
+        UpdateResult updateResult = Mockito.mock(UpdateResult.class);
+        when(updateResult.getModifiedCount()).thenReturn(1L);
+        when(repository.update(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(updateResult);
+
+        Document setDoc = new Document()
+                .append("type", ExternalStorageType.mongodb.name())
+                .append("uri", "mongodb://admin:******@127.0.0.1:27017/test")
+                .append("accessToken", ExternalStorageDto.MASK_PWD)
+                .append("sslCA", ExternalStorageDto.MASK_PWD)
+                .append("sslKey", ExternalStorageDto.MASK_PWD)
+                .append("sslPass", ExternalStorageDto.MASK_PWD);
+        Document updateDoc = new Document("$set", setDoc);
+
+        long count = externalStorageService.updateByWhere(new Where(), updateDoc, userDetail);
+
+        assertEquals(1L, count);
+        assertEquals("mongodb://admin:password@127.0.0.1:27017/test", AES256Util.Aes256Decode(setDoc.getString("uri")));
+        assertEquals("token", setDoc.getString("accessToken"));
+        assertEquals("ca", setDoc.getString("sslCA"));
+        assertEquals("key", setDoc.getString("sslKey"));
+        assertEquals("pass", setDoc.getString("sslPass"));
     }
 
 

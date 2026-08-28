@@ -12,6 +12,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.base.dto.UpdateDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -41,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.bson.Document;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -99,6 +101,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			result = super.save(externalStorage, userDetail);
 			if (result.getType().equals(ExternalStorageType.mongodb.name())) {
 				sendTestConnection(result, userDetail);
+				result = findById(result.getId(), userDetail);
 			}
 		}
 		return maskPasswordIfNeed(result);
@@ -264,7 +267,38 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 	@Override
 	public ExternalStorageDto upsertByWhere(Where where, ExternalStorageDto dto, UserDetail userDetail) {
+		if (hasMaskedSensitiveFields(dto)) {
+			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
+			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+		}
 		return maskPasswordIfNeed(super.upsertByWhere(where, dto, userDetail));
+	}
+
+	@Override
+	public long updateByWhere(Where where, ExternalStorageDto dto, UserDetail userDetail) {
+		if (hasMaskedSensitiveFields(dto)) {
+			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
+			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+		}
+		return super.updateByWhere(where, dto, userDetail);
+	}
+
+	@Override
+	public long updateByWhere(Where where, UpdateDto<ExternalStorageDto> dto, UserDetail userDetail) {
+		if (hasMaskedSensitiveFields(dto)) {
+			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
+			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+		}
+		return super.updateByWhere(where, dto, userDetail);
+	}
+
+	@Override
+	public long updateByWhere(Query query, ExternalStorageDto dto, UserDetail userDetail) {
+		if (hasMaskedSensitiveFields(dto)) {
+			ExternalStorageEntity oldExternalStorage = repository.findOne(query, userDetail).orElse(null);
+			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+		}
+		return super.updateByWhere(query, dto, userDetail);
 	}
 
 	@Override
@@ -337,6 +371,127 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())) {
 			externalStorage.setSslPass(oldExternalStorage.getSslPass());
 		}
+	}
+
+	private void restoreMaskedSensitiveFields(ExternalStorageDto externalStorage, ExternalStorageEntity oldExternalStorage) {
+		if (null == externalStorage) {
+			return;
+		}
+		if (!hasMaskedSensitiveFields(externalStorage)) {
+			return;
+		}
+		if (null == oldExternalStorage) {
+			throw new BizException("External.Storage.ID.NULL");
+		}
+		restoreMaskedMongoUri(externalStorage, oldExternalStorage);
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())) {
+			externalStorage.setAccessToken(oldExternalStorage.getAccessToken());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())) {
+			externalStorage.setSslCA(oldExternalStorage.getSslCA());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())) {
+			externalStorage.setSslKey(oldExternalStorage.getSslKey());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())) {
+			externalStorage.setSslPass(oldExternalStorage.getSslPass());
+		}
+	}
+
+	private void restoreMaskedSensitiveFields(UpdateDto<ExternalStorageDto> updateDto, ExternalStorageEntity oldExternalStorage) {
+		if (null == updateDto) {
+			return;
+		}
+		restoreMaskedSensitiveFields(updateDto.getSet(), oldExternalStorage);
+		restoreMaskedSensitiveFields(updateDto.getSetOnInsert(), oldExternalStorage);
+	}
+
+	@Override
+	public long updateByWhere(Where where, Document doc, UserDetail userDetail) {
+		if (hasMaskedSensitiveFields(doc)) {
+			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
+			restoreMaskedSensitiveFields(doc, oldExternalStorage);
+		}
+		return super.updateByWhere(where, doc, userDetail);
+	}
+
+	private void restoreMaskedSensitiveFields(Document doc, ExternalStorageEntity oldExternalStorage) {
+		if (null == doc) {
+			return;
+		}
+		Object setObj = doc.get("$set");
+		if (!(setObj instanceof Document)) {
+			return;
+		}
+		Document setDoc = (Document) setObj;
+		ExternalStorageDto dto = new ExternalStorageDto();
+		dto.setType((String) setDoc.get("type"));
+		dto.setUri((String) setDoc.get("uri"));
+		boolean maskedMongoUri = hasMaskedMongoUri(dto);
+		boolean masked = ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslCA"))
+				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslKey"))
+				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslPass"))
+				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("accessToken"))
+				|| maskedMongoUri;
+		if (!masked) {
+			return;
+		}
+		if (null == oldExternalStorage) {
+			throw new BizException("External.Storage.ID.NULL");
+		}
+		restoreMaskedMongoUri(dto, oldExternalStorage);
+		if (maskedMongoUri) {
+			try {
+				setDoc.put("uri", AES256Util.Aes256Encode(dto.getUri()));
+			} catch (Exception ignored) {
+				setDoc.put("uri", dto.getUri());
+			}
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("accessToken"))) {
+			setDoc.put("accessToken", oldExternalStorage.getAccessToken());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslCA"))) {
+			setDoc.put("sslCA", oldExternalStorage.getSslCA());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslKey"))) {
+			setDoc.put("sslKey", oldExternalStorage.getSslKey());
+		}
+		if (ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslPass"))) {
+			setDoc.put("sslPass", oldExternalStorage.getSslPass());
+		}
+	}
+
+	private boolean hasMaskedSensitiveFields(UpdateDto<ExternalStorageDto> updateDto) {
+		return null != updateDto
+				&& (hasMaskedSensitiveFields(updateDto.getSet()) || hasMaskedSensitiveFields(updateDto.getSetOnInsert()));
+	}
+
+	private boolean hasMaskedSensitiveFields(ExternalStorageDto externalStorage) {
+		return null != externalStorage
+				&& (ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslCA())
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslKey())
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getSslPass())
+				|| ExternalStorageDto.MASK_PWD.equals(externalStorage.getAccessToken())
+				|| hasMaskedMongoUri(externalStorage));
+	}
+
+	private boolean hasMaskedSensitiveFields(Document doc) {
+		if (null == doc) {
+			return false;
+		}
+		Object setObj = doc.get("$set");
+		if (!(setObj instanceof Document)) {
+			return false;
+		}
+		Document setDoc = (Document) setObj;
+		ExternalStorageDto dto = new ExternalStorageDto();
+		dto.setType((String) setDoc.get("type"));
+		dto.setUri((String) setDoc.get("uri"));
+		return ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslCA"))
+				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslKey"))
+				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("sslPass"))
+				|| ExternalStorageDto.MASK_PWD.equals(setDoc.get("accessToken"))
+				|| hasMaskedMongoUri(dto);
 	}
 
 	private boolean hasMaskedMongoUri(ExternalStorageDto externalStorage) {
