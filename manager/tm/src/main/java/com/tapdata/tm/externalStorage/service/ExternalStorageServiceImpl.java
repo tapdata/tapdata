@@ -86,7 +86,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 	@Override
 	public <T extends BaseDto> ExternalStorageDto save(ExternalStorageDto externalStorage, UserDetail userDetail) {
-		restoreMaskedSensitiveFields(externalStorage);
+		restoreMaskedSensitiveFields(externalStorage, userDetail);
 		ExternalStorageDto result;
 		if (externalStorage.getId() != null) {
 			Query query = new Query(Criteria.where("_id").is(externalStorage.getId()));
@@ -269,8 +269,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	@Override
 	public ExternalStorageDto upsertByWhere(Where where, ExternalStorageDto dto, UserDetail userDetail) {
 		if (hasMaskedSensitiveFields(dto)) {
-			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
-			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+			restoreMaskedSensitiveFields(dto, findSingleMatched(where, userDetail));
 		}
 		return maskPasswordIfNeed(super.upsertByWhere(where, dto, userDetail));
 	}
@@ -278,8 +277,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	@Override
 	public long updateByWhere(Where where, ExternalStorageDto dto, UserDetail userDetail) {
 		if (hasMaskedSensitiveFields(dto)) {
-			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
-			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+			restoreMaskedSensitiveFields(dto, findSingleMatched(where, userDetail));
 		}
 		return super.updateByWhere(where, dto, userDetail);
 	}
@@ -287,8 +285,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	@Override
 	public long updateByWhere(Where where, UpdateDto<ExternalStorageDto> dto, UserDetail userDetail) {
 		if (hasMaskedSensitiveFields(dto)) {
-			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
-			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+			restoreMaskedSensitiveFields(dto, findSingleMatched(where, userDetail));
 		}
 		return super.updateByWhere(where, dto, userDetail);
 	}
@@ -296,10 +293,36 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	@Override
 	public long updateByWhere(Query query, ExternalStorageDto dto, UserDetail userDetail) {
 		if (hasMaskedSensitiveFields(dto)) {
-			ExternalStorageEntity oldExternalStorage = repository.findOne(query, userDetail).orElse(null);
-			restoreMaskedSensitiveFields(dto, oldExternalStorage);
+			restoreMaskedSensitiveFields(dto, findSingleMatched(query, userDetail));
 		}
 		return super.updateByWhere(query, dto, userDetail);
+	}
+
+	/**
+	 * 掩码还原依赖「读旧值 -> 回填 -> 写库」这一对称流程，而底层写路径是 updateMulti。
+	 * 若 where 命中多条，第一条记录的凭据会被复制到其余所有记录（串写）。
+	 * 因此带掩码字段的更新/upsert 必须先确认 where 精确命中一条，否则拒绝。
+	 */
+	private ExternalStorageEntity findSingleMatched(Where where, UserDetail userDetail) {
+		if (null == where) {
+			return null;
+		}
+		long count = repository.count(where, userDetail);
+		if (count != 1) {
+			throw new BizException("External.Storage.Mask.Restore.Multi", count);
+		}
+		return repository.findOne(where, userDetail).orElse(null);
+	}
+
+	private ExternalStorageEntity findSingleMatched(Query query, UserDetail userDetail) {
+		if (null == query) {
+			return null;
+		}
+		long count = repository.count(query, userDetail);
+		if (count != 1) {
+			throw new BizException("External.Storage.Mask.Restore.Multi", count);
+		}
+		return repository.findOne(query, userDetail).orElse(null);
 	}
 
 	@Override
@@ -338,7 +361,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		return newList;
 	}
 
-	private void restoreMaskedSensitiveFields(ExternalStorageDto externalStorage) {
+	private void restoreMaskedSensitiveFields(ExternalStorageDto externalStorage, UserDetail userDetail) {
 		if (null == externalStorage) {
 			return;
 		}
@@ -349,7 +372,8 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			// 新建时若前端误传脱敏掩码（理论上不应发生），拒绝保存，避免掩码值入库
 			throw new BizException("External.Storage.ID.NULL");
 		}
-		ExternalStorageEntity oldExternalStorage = repository.findById(externalStorage.getId().toHexString()).orElse(null);
+		// 与 findSingleMatched 保持一致，带 userDetail 做数据隔离过滤，避免越权读取他人记录的真实凭据
+		ExternalStorageEntity oldExternalStorage = repository.findById(externalStorage.getId(), userDetail).orElse(null);
 		if (null == oldExternalStorage) {
 			// 更新场景：带掩码字段却找不到旧记录，无法恢复真实值，拒绝保存避免静默失败
 			throw new BizException("External.Storage.ID.NULL");
@@ -389,8 +413,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	@Override
 	public long updateByWhere(Where where, Document doc, UserDetail userDetail) {
 		if (hasMaskedSensitiveFields(doc)) {
-			ExternalStorageEntity oldExternalStorage = repository.findOne(where, userDetail).orElse(null);
-			restoreMaskedSensitiveFields(doc, oldExternalStorage);
+			restoreMaskedSensitiveFields(doc, findSingleMatched(where, userDetail));
 		}
 		return super.updateByWhere(where, doc, userDetail);
 	}
@@ -450,13 +473,18 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		}
 		Document setDoc = (Document) setObj;
 		ExternalStorageDto dto = new ExternalStorageDto();
-		dto.setType((String) setDoc.get("type"));
-		dto.setUri((String) setDoc.get("uri"));
-		dto.setAccessToken((String) setDoc.get("accessToken"));
-		dto.setSslCA((String) setDoc.get("sslCA"));
-		dto.setSslKey((String) setDoc.get("sslKey"));
-		dto.setSslPass((String) setDoc.get("sslPass"));
+		dto.setType(getString(setDoc, "type"));
+		dto.setUri(getString(setDoc, "uri"));
+		dto.setAccessToken(getString(setDoc, "accessToken"));
+		dto.setSslCA(getString(setDoc, "sslCA"));
+		dto.setSslKey(getString(setDoc, "sslKey"));
+		dto.setSslPass(getString(setDoc, "sslPass"));
 		return dto;
+	}
+
+	private String getString(Document setDoc, String key) {
+		Object value = setDoc.get(key);
+		return value instanceof String ? (String) value : null;
 	}
 
 	private boolean hasMaskedMongoUri(ExternalStorageDto externalStorage) {
@@ -469,7 +497,14 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (!mongoUri) {
 			return false;
 		}
-		return StringUtils.contains(externalStorage.getUri(), ExternalStorageDto.MASK_PWD);
+		try {
+			ConnectionString connectionString = new ConnectionString(externalStorage.getUri());
+			char[] password = connectionString.getPassword();
+			return password != null && password.length != 0 && ExternalStorageDto.MASK_PWD.equals(new String(password));
+		} catch (IllegalArgumentException e) {
+			// URI 无法解析时不按脱敏处理，交由后续保存校验流程报错
+			return false;
+		}
 	}
 
 	private void restoreMaskedMongoUri(ExternalStorageDto externalStorage, ExternalStorageEntity oldExternalStorage) {
@@ -481,12 +516,19 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			oldUri = AES256Util.Aes256Decode(oldUri);
 		} catch (Exception ignored) {
 		}
-		ConnectionString oldConnectionString = new ConnectionString(oldUri);
-		char[] oldPassword = oldConnectionString.getPassword();
-		if (null == oldPassword || oldPassword.length == 0) {
-			throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
+		String oldPasswordStr;
+		try {
+			ConnectionString oldConnectionString = new ConnectionString(oldUri);
+			char[] oldPassword = oldConnectionString.getPassword();
+			if (null == oldPassword || oldPassword.length == 0) {
+				throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
+			}
+			oldPasswordStr = new String(oldPassword);
+		} catch (IllegalArgumentException e) {
+			// 旧记录 uri 无法解析（如 AES 解密失败后仍是密文）时给出明确业务错误，而不是裸异常
+			throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", e, oldUri);
 		}
-		externalStorage.setUri(StringUtils.replaceOnce(externalStorage.getUri(), ExternalStorageDto.MASK_PWD, new String(oldPassword)));
+		externalStorage.setUri(StringUtils.replaceOnce(externalStorage.getUri(), ExternalStorageDto.MASK_PWD, oldPasswordStr));
 	}
 
 	private void restoreMaskedValue(String currentValue, String oldValue, Consumer<String> setter) {
@@ -498,8 +540,9 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	private void putEncodedUri(Document setDoc, String uri) {
 		try {
 			setDoc.put("uri", AES256Util.Aes256Encode(uri));
-		} catch (Exception ignored) {
-			setDoc.put("uri", uri);
+		} catch (Exception e) {
+			// 加密失败时抛出而不是把含真实密码的明文 URI 落库
+			throw new BizException("External.Storage.Mask.Restore.Encrypt.Fail", e);
 		}
 	}
 

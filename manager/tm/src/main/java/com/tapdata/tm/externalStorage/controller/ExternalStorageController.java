@@ -293,7 +293,7 @@ public class ExternalStorageController extends BaseController {
 	}
 
 	private ExternalStorageDto maskSensitiveData(ExternalStorageDto externalStorageDto) {
-		if (null != externalStorageDto) {
+		if (null != externalStorageDto && !isAgentReq()) {
 			externalStorageDto.maskSensitiveData();
 		}
 		return externalStorageDto;
