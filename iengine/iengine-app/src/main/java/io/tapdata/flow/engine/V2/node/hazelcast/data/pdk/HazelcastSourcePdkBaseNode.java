@@ -105,6 +105,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.Dynamic
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
@@ -1473,7 +1474,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             if (SyncStage.INITIAL_SYNC == syncStage) {
                 if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
                         TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-                    tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, recordEvent.getTableId()));
+                    tapdataEvent.setBatchOffset(snapshotBatchOffset(recordEvent.getTableId()));
                     tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
                     tapdataEvent.setSourceTime(syncProgress.getSourceTime());
                 }
@@ -1548,6 +1549,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
         CpuMemoryCollector.listening(getNode().getId(), tapdataEvent);
         return tapdataEvent;
+    }
+
+    protected Object snapshotBatchOffset(String tableId) {
+        Object batchOffset = BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId);
+        if (batchOffset instanceof PartitionTableOffset) {
+            return ((PartitionTableOffset) batchOffset).copy();
+        }
+        return batchOffset;
     }
 
     protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {
