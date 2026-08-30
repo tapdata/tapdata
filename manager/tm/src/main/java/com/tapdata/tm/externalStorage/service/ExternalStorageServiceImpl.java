@@ -497,13 +497,16 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 		if (!mongoUri) {
 			return false;
 		}
+		if (!externalStorage.getUri().contains(ExternalStorageDto.MASK_PWD)) {
+			return false;
+		}
 		try {
 			ConnectionString connectionString = new ConnectionString(externalStorage.getUri());
 			char[] password = connectionString.getPassword();
 			return password != null && password.length != 0 && ExternalStorageDto.MASK_PWD.equals(new String(password));
-		} catch (IllegalArgumentException e) {
-			// URI 无法解析时不按脱敏处理，交由后续保存校验流程报错
-			return false;
+		} catch (Exception e) {
+			// 解析失败时保守按脱敏处理，避免把掩码密码当成明文静默落库
+			return true;
 		}
 	}
 
@@ -524,7 +527,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 				throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
 			}
 			oldPasswordStr = new String(oldPassword);
-		} catch (IllegalArgumentException e) {
+		} catch (Exception e) {
 			// 旧记录 uri 无法解析（如 AES 解密失败后仍是密文）时给出明确业务错误，而不是裸异常
 			throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", e, oldUri);
 		}
@@ -547,7 +550,8 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	}
 
 	private void putIfPresent(Document setDoc, String field, String value) {
-		if (setDoc.containsKey(field)) {
+		Object original = setDoc.get(field);
+		if (original instanceof String) {
 			setDoc.put(field, value);
 		}
 	}
@@ -570,7 +574,8 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
 				try {
 					externalStorageDto.setUri(AES256Util.Aes256Decode(externalStorageDto.getUri()));
-				} catch (Exception ignored) {
+				} catch (Exception e) {
+					log.warn("Failed to decode external storage uri, keep original value", e);
 				}
 			}
 		}
@@ -584,7 +589,8 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			if(StringUtils.isNotBlank(externalStorageEntity.getUri())){
 				try {
 					externalStorageEntity.setUri(AES256Util.Aes256Encode(externalStorageEntity.getUri()));
-				} catch (Exception ignored) {
+				} catch (Exception e) {
+					throw new BizException("External.Storage.Mask.Restore.Encrypt.Fail", e);
 				}
 			}
 		}

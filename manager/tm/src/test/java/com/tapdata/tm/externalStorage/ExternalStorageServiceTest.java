@@ -1,5 +1,6 @@
 package com.tapdata.tm.externalStorage;
 
+import com.mongodb.ConnectionString;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -20,6 +21,7 @@ import com.tapdata.tm.utils.AES256Util;
 import com.mongodb.client.result.UpdateResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.bson.Document;
@@ -137,6 +139,22 @@ import static org.mockito.Mockito.eq;
         ReflectionTestUtils.invokeMethod(externalStorageService, "restoreMaskedSensitiveFields", externalStorage, userDetail);
 
         Mockito.verify(repository, Mockito.never()).findById(Mockito.any(ObjectId.class), Mockito.any(UserDetail.class));
+    }
+
+    @Test
+    void hasMaskedMongoUriShouldNotThrowWhenParsingFails() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+
+        ExternalStorageDto externalStorage = new ExternalStorageDto();
+        externalStorage.setType(ExternalStorageType.mongodb.name());
+        externalStorage.setUri("mongodb+srv://admin:******@example.invalid/test");
+
+        try (MockedConstruction<ConnectionString> ignored = Mockito.mockConstruction(ConnectionString.class,
+                (mock, context) -> when(mock.getPassword()).thenThrow(new RuntimeException("parse failed")))) {
+            Boolean masked = ReflectionTestUtils.invokeMethod(externalStorageService, "hasMaskedMongoUri", externalStorage);
+            assertEquals(Boolean.TRUE, masked);
+        }
     }
 
     @Test
@@ -369,6 +387,34 @@ import static org.mockito.Mockito.eq;
     }
 
     @Test
+    void updateByWhereDocumentShouldKeepNonStringMaskedFieldValue() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
+        UserDetail userDetail = Mockito.mock(UserDetail.class);
+
+        ExternalStorageEntity oldExternalStorage = new ExternalStorageEntity();
+        oldExternalStorage.setUri("mongodb://admin:password@127.0.0.1:27017/test");
+        oldExternalStorage.setSslCA("ca");
+        when(repository.findOne(any(Where.class), eq(userDetail))).thenReturn(Optional.of(oldExternalStorage));
+        when(repository.filterToQuery(any(Filter.class))).thenReturn(new Query());
+        when(repository.count(any(Where.class), eq(userDetail))).thenReturn(1L);
+        UpdateResult updateResult = Mockito.mock(UpdateResult.class);
+        when(updateResult.getModifiedCount()).thenReturn(1L);
+        when(repository.update(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(updateResult);
+
+        Document setDoc = new Document()
+                .append("type", ExternalStorageType.mongodb.name())
+                .append("uri", "mongodb://admin:******@127.0.0.1:27017/test")
+                .append("sslCA", 123);
+        Document updateDoc = new Document("$set", setDoc);
+
+        long count = externalStorageService.updateByWhere(new Where(), updateDoc, userDetail);
+
+        assertEquals(1L, count);
+        assertEquals(123, setDoc.get("sslCA"));
+    }
+
+    @Test
     void updateByWhereDocumentShouldRejectWhenEncryptFails() {
         ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
         ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
@@ -388,6 +434,29 @@ import static org.mockito.Mockito.eq;
             assertThrows(BizException.class,
                     () -> externalStorageService.updateByWhere(new Where(), updateDoc, userDetail));
         }
+    }
+
+    @Test
+    void saveShouldRejectWhenEncryptFails() {
+        ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
+        ExternalStorageServiceImpl externalStorageService = Mockito.spy(new ExternalStorageServiceImpl(repository));
+        UserDetail userDetail = Mockito.mock(UserDetail.class);
+        SettingsService settingsService = Mockito.mock(SettingsService.class);
+        ReflectionTestUtils.setField(externalStorageService, "settingsService", settingsService);
+        when(settingsService.isCloud()).thenReturn(true);
+        when(repository.findOne(any(Query.class))).thenReturn(Optional.empty());
+
+        ExternalStorageDto dto = new ExternalStorageDto();
+        dto.setType(ExternalStorageType.mongodb.name());
+        dto.setName("external-storage");
+        dto.setUri("mongodb://admin:password@127.0.0.1:27017/test");
+
+        try (MockedStatic<AES256Util> aes = Mockito.mockStatic(AES256Util.class)) {
+            aes.when(() -> AES256Util.Aes256Encode(Mockito.anyString())).thenThrow(new RuntimeException("encrypt failed"));
+            assertThrows(BizException.class, () -> externalStorageService.save(dto, userDetail));
+        }
+
+        Mockito.verify(repository, Mockito.never()).save(any(ExternalStorageEntity.class), eq(userDetail));
     }
 
 
