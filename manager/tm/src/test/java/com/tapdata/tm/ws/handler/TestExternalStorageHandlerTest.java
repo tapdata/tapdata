@@ -96,6 +96,52 @@ public class TestExternalStorageHandlerTest {
     }
 
     @Test
+    void wrapMessageInfoShouldReplaceMaskedSslAndAccessTokenTest() {
+        TestExternalStorageHandler testExternalStorageHandler = new TestExternalStorageHandler(messageQueueService,
+                dataSourceService, userService, workerService, dataSourceDefinitionService);
+
+        ExternalStorageService externalStorageService = Mockito.mock(ExternalStorageService.class);
+        Map<String, Object> externalStorageConfig = new HashMap<>();
+        externalStorageConfig.put("id", "test1234");
+        externalStorageConfig.put("type", "mongodb");
+        externalStorageConfig.put("uri", "mongodb://admin:******@localhost:27017/test");
+        externalStorageConfig.put("sslCA", "******");
+        externalStorageConfig.put("sslKey", "******");
+        externalStorageConfig.put("sslPass", "******");
+        externalStorageConfig.put("accessToken", "******");
+        try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class)) {
+            springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(eq(ExternalStorageService.class))).thenReturn(externalStorageService);
+            ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+            externalStorageDto.setType(ExternalStorageType.mongodb.name());
+            externalStorageDto.setUri("mongodb://admin:password@localhost:27017/test");
+            externalStorageDto.setSslCA("real-ca");
+            externalStorageDto.setSslKey("real-key");
+            externalStorageDto.setSslPass("real-pass");
+            externalStorageDto.setAccessToken("real-token");
+            when(externalStorageService.findNotCheckById("test1234")).thenReturn(externalStorageDto);
+            List<DataSourceTypeDto> list = new ArrayList<>();
+            DataSourceTypeDto dataSourceTypeDto = new DataSourceTypeDto();
+            dataSourceTypeDto.setPdkType("mongodb");
+            dataSourceTypeDto.setPdkHash("1223456");
+            dataSourceTypeDto.setPdkId("Mongodb");
+            list.add(dataSourceTypeDto);
+            Filter filter = new Filter(Where
+                    .where("type", "MongoDB")
+                    .and("tag", "All")
+                    .and("authentication", "All")
+            );
+            when(dataSourceDefinitionService.dataSourceTypesV2(userDetail, filter)).thenReturn(list);
+            MessageInfo messageInfo = testExternalStorageHandler.wrapMessageInfo(userDetail, externalStorageConfig, MessageType.TEST_EXTERNAL_STORAGE);
+            Map<String, Object> connectorConfig = (Map<String, Object>) messageInfo.getData().get("config");
+            assertEquals("mongodb://admin:password@localhost:27017/test", connectorConfig.get("uri"));
+            assertEquals("real-ca", connectorConfig.get("sslCA"));
+            assertEquals("real-key", connectorConfig.get("sslKey"));
+            assertEquals("real-pass", connectorConfig.get("sslPass"));
+            assertEquals("real-token", connectorConfig.get("accessToken"));
+        }
+    }
+
+    @Test
     void wrapMessageInfoRocksDbTest() {
         TestExternalStorageHandler testExternalStorageHandler = new TestExternalStorageHandler(messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);

@@ -251,6 +251,18 @@
 				<enabled>true</enabled>
 			</snapshots>
 		</repository>
+		<!-- OpenSAML 5.x is published on the Shibboleth repository, not Maven Central. -->
+		<repository>
+			<id>shibboleth-releases</id>
+			<name>Shibboleth Releases</name>
+			<url>https://build.shibboleth.net/maven/releases/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
 	</repositories>
 
 	<build>
