@@ -14,11 +14,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -143,5 +147,33 @@ class GroupInfoServiceExportTimeoutTest {
 
 		assertDoesNotThrow(this::checkExportingGroups);
 		verify(groupInfoRecordService, never()).updateById(any(ObjectId.class), any(), any());
+	}
+
+	/**
+	 * 回归：{@code GroupInfoService} 类上带 {@code @Setter(onMethod_ = { @Autowired })}，
+	 * Lombok 会给<b>每一个</b>实例字段生成一个标了 {@code @Autowired} 的 setter。
+	 * 给这个类加一个 {@code @Value} 的 int 字段，因此会生成
+	 * {@code @Autowired setExportTimeoutMinutes(int)} —— Spring 造不出 int 类型的 Bean，
+	 * 整个 TM 在启动时就炸，不是降级、是起不来。
+	 *
+	 * <p>这条用例查的是编译产物而不是源码：这个坑由 Lombok 在编译期生成，
+	 * 源码里根本看不见那个 setter，读代码是发现不了的。</p>
+	 */
+	@Test
+	@DisplayName("不得存在参数为简单类型的 @Autowired setter —— 那会让 TM 起不来")
+	void noAutowiredSetterTakesASimpleType() {
+		List<String> offenders = new ArrayList<>();
+		for (Method m : GroupInfoService.class.getDeclaredMethods()) {
+			if (!m.isAnnotationPresent(Autowired.class)) {
+				continue;
+			}
+			Class<?>[] params = m.getParameterTypes();
+			if (params.length == 1 && (params[0].isPrimitive() || params[0] == String.class)) {
+				offenders.add(m.getName() + "(" + params[0].getSimpleName() + ")");
+			}
+		}
+		assertTrue(offenders.isEmpty(),
+				"这些 setter 被 Lombok 标成了 @Autowired，但参数是简单类型，Spring 无法注入，"
+						+ "TM 启动必然失败。给对应字段加 @Setter(AccessLevel.NONE)：" + offenders);
 	}
 }

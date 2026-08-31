@@ -65,6 +65,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -109,8 +110,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * Git 导出的超时（分钟），与 GitBaseService 用同一个配置项。
      * 超过这个时长还停在 exporting 的记录一律视为已死，不再阻塞后续导出。
      * 字段带默认值，是为了让 new 出来的实例（单测）也走 60 分钟而不是 0。
+     *
+     * <p><b>{@code @Setter(AccessLevel.NONE)} 不能去掉。</b>本类带类级
+     * {@code @Setter(onMethod_ = { @Autowired })}，Lombok 会给每个实例字段生成一个标了
+     * {@code @Autowired} 的 setter。对这个 int 字段就是 {@code setExportTimeoutMinutes(int)}，
+     * 而 Spring 造不出 int 类型的 Bean —— TM 会在启动时直接失败，不是降级。
+     * 那个 setter 由 Lombok 在编译期生成，源码里看不见，所以只能靠
+     * GroupInfoServiceExportTimeoutTest#noAutowiredSetterTakesASimpleType 守着。
+     * 往本类加任何 {@code @Value} 的简单类型字段，都要照此办理。</p>
      */
     @Value("${tm.group.git.export-timeout-minutes:60}")
+    @Setter(AccessLevel.NONE)
     private int exportTimeoutMinutes = 60;
 
     /**
