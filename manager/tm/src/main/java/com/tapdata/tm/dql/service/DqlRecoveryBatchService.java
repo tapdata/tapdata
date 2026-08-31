@@ -26,8 +26,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +47,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class DqlRecoveryBatchService {
     private static final int DEFAULT_BATCH_MAX_SIZE = DqlRuntimeConfig.DEFAULT_RECOVERY_BATCH_MAX_SIZE;
     private static final long DEFAULT_BATCH_TIMEOUT_MILLIS =
@@ -64,6 +67,21 @@ public class DqlRecoveryBatchService {
     private static final String AUDIT_BATCH_TIMEOUT = "BATCH_TIMEOUT";
     private static final String AUDIT_SOURCE_READ_PAUSE = "SOURCE_READ_PAUSE";
     private static final String AUDIT_SOURCE_READ_RESUME = "SOURCE_READ_RESUME";
+    private static final String PREVIEW_SUMMARY_MESSAGE = "DqlRecovery.Preview.Summary";
+    private static final String PREVIEW_EVENT_NOT_FOUND_MESSAGE = "DqlRecovery.Preview.EventNotFound";
+    private static final String PREVIEW_EVENT_NO_BUSINESS_KEY_MESSAGE = "DqlRecovery.Preview.EventNoBusinessKey";
+    private static final String PREVIEW_BATCH_SIZE_EXCEEDED_MESSAGE = "DqlRecovery.Preview.BatchSizeExceeded";
+    private static final String PREVIEW_ACTIVE_BATCH_EXISTS_MESSAGE = "DqlRecovery.Preview.ActiveBatchExists";
+    private static final String PREVIEW_STATUS_NOT_REPROCESSABLE_MESSAGE = "DqlRecovery.Preview.StatusNotReprocessable";
+    private static final String PREVIEW_EVENT_NOT_REPROCESSABLE_MESSAGE = "DqlRecovery.Preview.EventNotReprocessable";
+    private static final String PREVIEW_PAYLOAD_INCOMPLETE_MESSAGE = "DqlRecovery.Preview.PayloadIncomplete";
+    private static final String PREVIEW_CURRENT_TASK_VERSION_UNAVAILABLE_MESSAGE =
+            "DqlRecovery.Preview.CurrentTaskVersionUnavailable";
+    private static final String PREVIEW_EVENT_TASK_VERSION_UNAVAILABLE_MESSAGE =
+            "DqlRecovery.Preview.EventTaskVersionUnavailable";
+    private static final String PREVIEW_TASK_VERSION_CHANGED_MESSAGE = "DqlRecovery.Preview.TaskVersionChanged";
+    private static final String PREVIEW_AGENT_UNAVAILABLE_MESSAGE = "DqlRecovery.Preview.AgentUnavailable";
+    private static final String STATUS_SYNC_TASK_NOT_FOUND_REASON = "Task.NotFound";
     private static final String[] TASK_FIELDS = {"name", "status", "version", "agentId"};
 
     private final DqlEventRepository eventRepository;
@@ -155,20 +173,27 @@ public class DqlRecoveryBatchService {
                 && batchRepository.findActiveByTaskId(events.get(0).getTaskId()) != null;
 
         Map<String, DqlEventDto> eventMap = events.stream().collect(Collectors.toMap(DqlEventDto::getEventId, event -> event, (a, b) -> a, LinkedHashMap::new));
-        Map<String, String> blockedReasons = new LinkedHashMap<>();
+        Map<String, PreviewMessage> blockedReasons = new LinkedHashMap<>();
+        Map<String, PreviewMessage> riskyReasons = new LinkedHashMap<>();
         for (String eventId : eventIds) {
             DqlEventDto event = eventMap.get(eventId);
             if (event == null) {
-                blockedReasons.put(eventId, "event not found");
+                blockedReasons.put(eventId, localizedPreviewMessage(PREVIEW_EVENT_NOT_FOUND_MESSAGE));
             } else {
-                String reason = previewBlockedReason(event, taskContext, batchSizeExceeded, activeBatchExists, config);
+                PreviewMessage reason = previewBlockedReason(
+                        event, taskContext, batchSizeExceeded, activeBatchExists, config);
                 if (reason != null) {
                     blockedReasons.put(eventId, reason);
+                } else if (isBusinessKeyRisk(event)) {
+                    riskyReasons.put(eventId, localizedPreviewMessage(PREVIEW_EVENT_NO_BUSINESS_KEY_MESSAGE));
                 }
             }
         }
 
         for (String eventId : eventIds) {
+            if (riskyReasons.containsKey(eventId)) {
+                preview.getRiskyEvents().add(blocked(eventId, riskyReasons.get(eventId), eventMap.get(eventId)));
+            }
             if (blockedReasons.containsKey(eventId)) {
                 preview.getBlockedEvents().add(blocked(eventId, blockedReasons.get(eventId), eventMap.get(eventId)));
             }
@@ -182,9 +207,135 @@ public class DqlRecoveryBatchService {
                 .forEach(preview.getOrderedEvents()::add);
         preview.setCanSubmit(preview.getBlockedEvents().isEmpty() && preview.getOrderedEvents().size() == eventIds.size());
         if (!preview.isCanSubmit()) {
-            preview.setMessage("Some selected events cannot be reprocessed");
+            preview.setMessage(localizedPreviewMessage(PREVIEW_SUMMARY_MESSAGE).message());
         }
         return preview;
+    }
+
+    /**
+     * Synchronizes only durable recovery blockers into the event lifecycle status.
+     * Runtime conditions such as Agent liveness, an active batch and request batch size
+     * are deliberately excluded because they do not make the event permanently invalid.
+     */
+    public int synchronizeNotReprocessableEvents() {
+        Map<String, StatusSyncTaskLookup> taskCache = new LinkedHashMap<>();
+        int changed = synchronizePendingEvents(taskCache);
+        changed += restoreEventsWhoseTaskVersionRecovered(taskCache);
+        return changed;
+    }
+
+    private int synchronizePendingEvents(Map<String, StatusSyncTaskLookup> taskCache) {
+        List<DqlEventDto> events = eventRepository.findReprocessableEventsForStatusSync();
+        if (events == null || events.isEmpty()) {
+            return 0;
+        }
+        int changed = 0;
+        for (DqlEventDto event : events) {
+            if (event == null || StringUtils.isBlank(event.getEventId())) {
+                continue;
+            }
+            DqlEventStatusEnum status = DqlEventStatusEnum.parse(event.getStatus());
+            String reasonCode = statusSyncBlockReason(event, taskCache);
+            if (status == null || !status.reprocessable() || reasonCode == null) {
+                continue;
+            }
+            if (eventRepository.markNotReprocessable(event.getEventId(), status, reasonCode, new Date())) {
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    private int restoreEventsWhoseTaskVersionRecovered(Map<String, StatusSyncTaskLookup> taskCache) {
+        List<DqlEventDto> events = eventRepository.findSyncedNotReprocessableEvents();
+        if (events == null || events.isEmpty() || !strictRecoveryValidation()) {
+            return 0;
+        }
+        int changed = 0;
+        for (DqlEventDto event : events) {
+            if (event == null || StringUtils.isBlank(event.getEventId())
+                    || !isTaskVersionReason(event.getNotReprocessableReason())) {
+                continue;
+            }
+            DqlEventStatusEnum originalStatus = DqlEventStatusEnum.parse(event.getRecoveryStatusBeforeSync());
+            if (originalStatus == null || !originalStatus.reprocessable()) {
+                continue;
+            }
+            StatusSyncTaskLookup taskLookup = statusSyncTask(event.getTaskId(), taskCache);
+            if (taskLookup.state() != StatusSyncTaskLookupState.FOUND
+                    || taskVersionBlockReason(event, taskLookup.task()) != null) {
+                continue;
+            }
+            if (eventRepository.restoreReprocessableStatus(event.getEventId(), originalStatus,
+                    event.getNotReprocessableReason(), new Date())) {
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    private String statusSyncBlockReason(DqlEventDto event,
+                                         Map<String, StatusSyncTaskLookup> taskCache) {
+        if (Boolean.FALSE.equals(event.getPayloadComplete())) {
+            return PREVIEW_PAYLOAD_INCOMPLETE_MESSAGE;
+        }
+        if (!strictRecoveryValidation()) {
+            return null;
+        }
+        StatusSyncTaskLookup taskLookup = statusSyncTask(event.getTaskId(), taskCache);
+        if (taskLookup.state() == StatusSyncTaskLookupState.UNAVAILABLE) {
+            return null;
+        }
+        if (taskLookup.state() == StatusSyncTaskLookupState.NOT_FOUND) {
+            return STATUS_SYNC_TASK_NOT_FOUND_REASON;
+        }
+        return taskVersionBlockReason(event, taskLookup.task());
+    }
+
+    private String taskVersionBlockReason(DqlEventDto event, TaskDto task) {
+        if (task == null || task.getVersion() == null || task.getVersion() < 1L) {
+            return PREVIEW_CURRENT_TASK_VERSION_UNAVAILABLE_MESSAGE;
+        }
+        if (event.getTaskVersion() == null || event.getTaskVersion() < 1L) {
+            return PREVIEW_EVENT_TASK_VERSION_UNAVAILABLE_MESSAGE;
+        }
+        if (!task.getVersion().equals(event.getTaskVersion())) {
+            return PREVIEW_TASK_VERSION_CHANGED_MESSAGE;
+        }
+        return null;
+    }
+
+    private boolean isTaskVersionReason(String reasonCode) {
+        return StringUtils.equals(reasonCode, STATUS_SYNC_TASK_NOT_FOUND_REASON)
+                || StringUtils.equals(reasonCode, PREVIEW_CURRENT_TASK_VERSION_UNAVAILABLE_MESSAGE)
+                || StringUtils.equals(reasonCode, PREVIEW_EVENT_TASK_VERSION_UNAVAILABLE_MESSAGE)
+                || StringUtils.equals(reasonCode, PREVIEW_TASK_VERSION_CHANGED_MESSAGE);
+    }
+
+    private StatusSyncTaskLookup statusSyncTask(String taskId,
+                                                Map<String, StatusSyncTaskLookup> taskCache) {
+        if (taskCache.containsKey(taskId)) {
+            return taskCache.get(taskId);
+        }
+        StatusSyncTaskLookup lookup;
+        if (StringUtils.isBlank(taskId) || !ObjectId.isValid(taskId)) {
+            lookup = new StatusSyncTaskLookup(StatusSyncTaskLookupState.NOT_FOUND, null);
+        } else if (!strictRecoveryValidation()) {
+            lookup = new StatusSyncTaskLookup(StatusSyncTaskLookupState.UNAVAILABLE, null);
+        } else {
+            try {
+                TaskDto task = taskService.findByTaskId(new ObjectId(taskId), TASK_FIELDS);
+                lookup = task == null
+                        ? new StatusSyncTaskLookup(StatusSyncTaskLookupState.NOT_FOUND, null)
+                        : new StatusSyncTaskLookup(StatusSyncTaskLookupState.FOUND, task);
+            } catch (RuntimeException exception) {
+                log.warn("DQL recovery status synchronization could not read task {}: {}",
+                        taskId, exception.getMessage());
+                lookup = new StatusSyncTaskLookup(StatusSyncTaskLookupState.UNAVAILABLE, null);
+            }
+        }
+        taskCache.put(taskId, lookup);
+        return lookup;
     }
 
     public DqlRecoveryBatchDto start(DqlRecoveryRequestVo request, UserDetail user) {
@@ -719,41 +870,44 @@ public class DqlRecoveryBatchService {
         return value != null && !value.after(deadline);
     }
 
-    private String previewBlockedReason(DqlEventDto event,
-                                        RecoveryTaskContext taskContext,
-                                        boolean batchSizeExceeded,
-                                        boolean activeBatchExists,
-                                        DqlRuntimeConfig config) {
+    private PreviewMessage previewBlockedReason(DqlEventDto event,
+                                                RecoveryTaskContext taskContext,
+                                                boolean batchSizeExceeded,
+                                                boolean activeBatchExists,
+                                                DqlRuntimeConfig config) {
         if (!isReprocessable(event)) {
             return blockedReason(event);
         }
         if (strictRecoveryValidation()) {
-            if (Boolean.TRUE.equals(event.getEventKeyMissing()) || StringUtils.isBlank(event.getRecordIdentity())) {
-                return "event has no business key";
-            }
-            String taskReason = taskContext.taskRecoveryReason(event);
+            PreviewMessage taskReason = taskContext.taskRecoveryReason(event);
             if (taskReason != null) {
                 return taskReason;
             }
         }
         if (batchSizeExceeded) {
-            return "recovery batch size exceeds " + config.getRecoveryBatchMaxSize();
+            return localizedPreviewMessage(PREVIEW_BATCH_SIZE_EXCEEDED_MESSAGE, config.getRecoveryBatchMaxSize());
         }
         if (activeBatchExists) {
-            return "an active recovery batch already exists";
+            return localizedPreviewMessage(PREVIEW_ACTIVE_BATCH_EXISTS_MESSAGE);
         }
         return null;
     }
 
-    private String blockedReason(DqlEventDto event) {
+    private boolean isBusinessKeyRisk(DqlEventDto event) {
+        return strictRecoveryValidation()
+                && (Boolean.TRUE.equals(event.getEventKeyMissing())
+                || StringUtils.isBlank(event.getRecordIdentity()));
+    }
+
+    private PreviewMessage blockedReason(DqlEventDto event) {
         DqlEventStatusEnum status = DqlEventStatusEnum.parse(event.getStatus());
         if (status == null || !status.reprocessable()) {
-            return "status " + event.getStatus() + " is not reprocessable";
+            return localizedPreviewMessage(PREVIEW_STATUS_NOT_REPROCESSABLE_MESSAGE, event.getStatus());
         }
         if (Boolean.FALSE.equals(event.getPayloadComplete())) {
-            return "payload is incomplete";
+            return localizedPreviewMessage(PREVIEW_PAYLOAD_INCOMPLETE_MESSAGE);
         }
-        return "event is not reprocessable";
+        return localizedPreviewMessage(PREVIEW_EVENT_NOT_REPROCESSABLE_MESSAGE);
     }
 
     private boolean strictRecoveryValidation() {
@@ -844,10 +998,11 @@ public class DqlRecoveryBatchService {
                 && !workerService.isAgentTimeout(worker.getPingTime());
     }
 
-    private DqlRecoveryPreviewVo.BlockedEvent blocked(String eventId, String message, DqlEventDto event) {
+    private DqlRecoveryPreviewVo.BlockedEvent blocked(String eventId, PreviewMessage previewMessage, DqlEventDto event) {
         DqlRecoveryPreviewVo.BlockedEvent blocked = new DqlRecoveryPreviewVo.BlockedEvent();
         blocked.setEventId(eventId);
-        blocked.setMessage(message);
+        blocked.setMessageCode(previewMessage.code());
+        blocked.setMessage(previewMessage.message());
         if (event != null) {
             blocked.setSourceTable(event.getSourceTable());
             blocked.setTargetTable(event.getTargetTable());
@@ -856,6 +1011,10 @@ public class DqlRecoveryBatchService {
             blocked.setCaptureSeq(event.getCaptureSeq());
         }
         return blocked;
+    }
+
+    private static PreviewMessage localizedPreviewMessage(String code, Object... args) {
+        return new PreviewMessage(code, MessageUtil.getMessage(code, args));
     }
 
     private DqlRecoveryPreviewVo.OrderedEvent orderedEvent(DqlEventDto event) {
@@ -961,20 +1120,40 @@ public class DqlRecoveryBatchService {
     }
 
     private record RecoveryTaskContext(TaskDto task, boolean agentAvailable) {
-        private String taskRecoveryReason(DqlEventDto event) {
-            if (task.getVersion() == null || task.getVersion() < 1L) {
-                return "current task version is unavailable";
-            }
-            if (event.getTaskVersion() == null || event.getTaskVersion() < 1L) {
-                return "event task version is unavailable";
-            }
-            if (!task.getVersion().equals(event.getTaskVersion())) {
-                return "task version has changed";
+        private PreviewMessage taskRecoveryReason(DqlEventDto event) {
+            String versionReason = taskVersionReason(event);
+            if (versionReason != null) {
+                return localizedPreviewMessage(versionReason);
             }
             if (!agentAvailable) {
-                return "agent is not available";
+                return localizedPreviewMessage(PREVIEW_AGENT_UNAVAILABLE_MESSAGE);
             }
             return null;
         }
+
+        private String taskVersionReason(DqlEventDto event) {
+            if (task.getVersion() == null || task.getVersion() < 1L) {
+                return PREVIEW_CURRENT_TASK_VERSION_UNAVAILABLE_MESSAGE;
+            }
+            if (event.getTaskVersion() == null || event.getTaskVersion() < 1L) {
+                return PREVIEW_EVENT_TASK_VERSION_UNAVAILABLE_MESSAGE;
+            }
+            if (!task.getVersion().equals(event.getTaskVersion())) {
+                return PREVIEW_TASK_VERSION_CHANGED_MESSAGE;
+            }
+            return null;
+        }
+    }
+
+    private enum StatusSyncTaskLookupState {
+        FOUND,
+        NOT_FOUND,
+        UNAVAILABLE
+    }
+
+    private record StatusSyncTaskLookup(StatusSyncTaskLookupState state, TaskDto task) {
+    }
+
+    private record PreviewMessage(String code, String message) {
     }
 }

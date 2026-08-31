@@ -53,6 +53,8 @@ public class DqlEventDto implements Serializable {
     public static final String FIELD_ERROR_DETAILS_TRUNCATED = "error_details_truncated";
     public static final String FIELD_RAW_ERROR_REF = "raw_error_ref";
     public static final String FIELD_STATUS = "status";
+    public static final String FIELD_RECOVERY_STATUS_BEFORE_SYNC = "recovery_status_before_sync";
+    public static final String FIELD_NOT_REPROCESSABLE_REASON = "not_reprocessable_reason";
     public static final String FIELD_RECOVERY_COUNT = "recovery_count";
     public static final String FIELD_LAST_RECOVERY_TIME = "last_recovery_time";
     public static final String FIELD_LAST_RECOVERY_USER_ID = "last_recovery_user_id";
@@ -114,6 +116,8 @@ public class DqlEventDto implements Serializable {
     private Boolean errorDetailsTruncated;
     private String rawErrorRef;
     private String status;
+    private String recoveryStatusBeforeSync;
+    private String notReprocessableReason;
     private Integer recoveryCount;
     private Date lastRecoveryTime;
     private String lastRecoveryUserId;

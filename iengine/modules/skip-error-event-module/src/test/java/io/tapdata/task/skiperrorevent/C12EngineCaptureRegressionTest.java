@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.TapdataEvent;
@@ -195,6 +196,56 @@ class C12EngineCaptureRegressionTest {
     }
 
     @Test
+    void processorCaptureShouldRecordTargetTableForTableTarget() {
+        TaskDto task = skipErrorEventAspectTask.getTask();
+        TableNode targetNode = new TableNode();
+        targetNode.setId("target-node-1");
+        targetNode.setTableName("orders_sink");
+        when(task.getDag().getTargetNodes()).thenReturn(List.of(targetNode));
+
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("id", 1001));
+        when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
+                .thenReturn(acknowledgement("dql-event-1"));
+
+        skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                processorAspect(event, "processor-node-1"));
+
+        org.mockito.ArgumentCaptor<DqlEventReport> reportCaptor =
+                org.mockito.ArgumentCaptor.forClass(DqlEventReport.class);
+        verify(reporter).report(eq("task-1"), reportCaptor.capture());
+        assertEquals("orders_sink", reportCaptor.getValue().getTargetTable());
+    }
+
+    @Test
+    void processorCaptureShouldResolveTargetTableFromDatabaseMapping() {
+        TaskDto task = skipErrorEventAspectTask.getTask();
+        DatabaseNode targetNode = new DatabaseNode();
+        targetNode.setId("target-node-1");
+        SyncObjects syncObjects = new SyncObjects();
+        syncObjects.setType("table");
+        syncObjects.setTableNameRelation(new java.util.LinkedHashMap<>(Map.of(
+                "orders", "orders_sink")));
+        targetNode.setSyncObjects(List.of(syncObjects));
+        when(task.getDag().getTargetNodes()).thenReturn(List.of(targetNode));
+
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("id", 1001));
+        when(reporter.report(eq("task-1"), any(DqlEventReport.class)))
+                .thenReturn(acknowledgement("dql-event-1"));
+
+        skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                processorAspect(event, "processor-node-1"));
+
+        org.mockito.ArgumentCaptor<DqlEventReport> reportCaptor =
+                org.mockito.ArgumentCaptor.forClass(DqlEventReport.class);
+        verify(reporter).report(eq("task-1"), reportCaptor.capture());
+        assertEquals("orders_sink", reportCaptor.getValue().getTargetTable());
+    }
+
+    @Test
     void targetCaptureShouldUseConfiguredUpdateConditionAsBusinessKey() {
         TapInsertRecordEvent event = TapInsertRecordEvent.create()
                 .table("orders")
@@ -323,6 +374,17 @@ class C12EngineCaptureRegressionTest {
         when(context.getNode()).thenReturn((Node) targetNode);
         when(aspect.getDataProcessorContext()).thenReturn(context);
         return aspect;
+    }
+
+    private SkipErrorProcessAspect processorAspect(TapRecordEvent event, String nodeId) {
+        TapdataEvent input = new TapdataEvent();
+        input.setTapEvent(event);
+        return new SkipErrorProcessAspect()
+                .inputEvent(input)
+                .error(new TapCodeException(PDKExCode_10.WRITE_TYPE))
+                .processStage(io.tapdata.dql.classifier.DqlFailedStage.PROCESSOR)
+                .nodeId(nodeId)
+                .nodeName("processor");
     }
 
     private TapRecordEvent insertEvent(int id) {

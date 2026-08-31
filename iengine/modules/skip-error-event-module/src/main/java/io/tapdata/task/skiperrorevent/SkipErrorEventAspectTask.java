@@ -9,6 +9,7 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
@@ -969,7 +970,11 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         ? null : dagTask.getDag().getTargetNodes());
         setNodeMetadata(report, sourceNode, targetNode, failedNodeId, failedNodeName);
         report.setSourceTable(event.getTableId());
-        report.setTargetTable(targetTable);
+        String resolvedTargetTable = targetTable;
+        if (StringUtils.isBlank(resolvedTargetTable) && failedStage == DqlFailedStage.PROCESSOR) {
+            resolvedTargetTable = resolveProcessorTargetTable(dagTask, event.getTableId());
+        }
+        report.setTargetTable(resolvedTargetTable);
         report.setTableId(tableId);
         report.setDmlType(dmlType(event));
         report.setEventTime(event.getReferenceTime() == null ? event.getTime() : event.getReferenceTime());
@@ -987,6 +992,37 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         identity.applyTo(report);
         classification.applyTo(report);
         return report;
+    }
+
+    private String resolveProcessorTargetTable(TaskDto task, String sourceTable) {
+        if (task == null || task.getDag() == null || StringUtils.isBlank(sourceTable)) {
+            return null;
+        }
+        List<Node> targetNodes = task.getDag().getTargetNodes();
+        if (targetNodes == null || targetNodes.isEmpty()) {
+            return null;
+        }
+
+        Node<?> targetNode = targetNodes.get(0);
+        if (targetNode instanceof TableNode tableNode) {
+            return StringUtils.defaultIfBlank(tableNode.getTableName(), null);
+        }
+        if (!(targetNode instanceof DatabaseNode databaseNode)
+                || databaseNode.getSyncObjects() == null) {
+            return null;
+        }
+
+        for (SyncObjects syncObjects : databaseNode.getSyncObjects()) {
+            if (syncObjects == null || !"table".equals(syncObjects.getType())
+                    || syncObjects.getTableNameRelation() == null) {
+                continue;
+            }
+            String targetTable = syncObjects.getTableNameRelation().get(sourceTable);
+            if (StringUtils.isNotBlank(targetTable)) {
+                return targetTable;
+            }
+        }
+        return null;
     }
 
     private Node<?> boundaryNode(List<Node> nodes) {

@@ -24,11 +24,17 @@ import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
+import jakarta.servlet.http.Cookie;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -60,6 +66,18 @@ import static org.mockito.Mockito.when;
 
 class DqlRecoveryBatchServiceTest {
     private static final String TASK_ID = "64f000000000000000000001";
+
+    @BeforeEach
+    void useEnglishLocaleForPreviewTests() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("lang", "en_US"));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    @AfterEach
+    void clearPreviewLocale() {
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test
     @DisplayName("skipped event result increments skipped count without failure alarm")
@@ -586,7 +604,8 @@ class DqlRecoveryBatchServiceTest {
         DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
         String json = new ObjectMapper().writeValueAsString(preview);
 
-        assertTrue(json.contains("\"blockedEvents\":[{\"eventId\":\"DQL-1\",\"message\""));
+        assertTrue(json.contains("\"blockedEvents\":[{\"eventId\":\"DQL-1\",\"messageCode\""));
+        assertTrue(json.contains("\"message\":\"status RECOVERED is not reprocessable\""));
         assertFalse(json.contains("\"reason\""));
         assertTrue(json.contains("\"sourceTable\":\"orders\""));
         assertTrue(json.contains("\"targetTable\":\"orders_sink\""));
@@ -634,8 +653,8 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
-    @DisplayName("preview blocks an event when its business key is missing")
-    void previewBlocksMissingBusinessKey() {
+    @DisplayName("preview allows an event with a missing business key but reports the submission risk")
+    void previewAllowsMissingBusinessKeyAsRisk() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
         DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
         TaskService taskService = mock(TaskService.class);
@@ -650,9 +669,91 @@ class DqlRecoveryBatchServiceTest {
 
         DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
 
-        assertFalse(preview.isCanSubmit());
-        assertTrue(preview.getOrderedEvents().isEmpty());
-        assertEquals("event has no business key", preview.getBlockedEvents().get(0).getMessage());
+        assertTrue(preview.isCanSubmit());
+        assertEquals(List.of("DQL-1"), preview.getOrderedEvents().stream()
+                .map(DqlRecoveryPreviewVo.OrderedEvent::getEventId).toList());
+        assertTrue(preview.getBlockedEvents().isEmpty());
+        assertEquals("event has no business key", preview.getRiskyEvents().get(0).getMessage());
+        assertEquals("DqlRecovery.Preview.EventNoBusinessKey",
+                preview.getRiskyEvents().get(0).getMessageCode());
+    }
+
+    @Test
+    @DisplayName("start dispatches an event with a missing business key after the user confirms")
+    void startAllowsMissingBusinessKeyAfterConfirmation() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setEventKeyMissing(true);
+        event.setRecordIdentity(null);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        prepareReadyTask(taskService, workerService);
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString())).thenReturn(1L);
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+
+        DqlRecoveryBatchDto result = service.start(request, user());
+
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(), result.getStatus());
+        assertEquals(List.of("DQL-1"), result.getOrderedEventIds());
+    }
+
+    @Test
+    @DisplayName("preview localizes fixed messages according to the request locale")
+    void previewLocalizesFixedMessagesAccordingToRequestLocale() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, mock(DqlRecoveryBatchRepository.class),
+                mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-1", TASK_ID, DqlEventStatusEnum.RECOVERED, "agent-1");
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("lang", "zh_CN"));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+            assertEquals("所选异常事件中存在不可重处理的事件", preview.getMessage());
+            assertEquals("事件状态 RECOVERED 不支持重处理", preview.getBlockedEvents().get(0).getMessage());
+            assertEquals("DqlRecovery.Preview.StatusNotReprocessable",
+                    preview.getBlockedEvents().get(0).getMessageCode());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    @DisplayName("preview localizes and identifies a missing business key")
+    void previewLocalizesMissingBusinessKey() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setEventKeyMissing(true);
+        event.setRecordIdentity(null);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        prepareReadyTask(taskService, workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("lang", "zh_CN"));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+            assertEquals("事件缺少业务键", preview.getRiskyEvents().get(0).getMessage());
+            assertEquals("DqlRecovery.Preview.EventNoBusinessKey",
+                    preview.getRiskyEvents().get(0).getMessageCode());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 
     @Test
@@ -779,6 +880,88 @@ class DqlRecoveryBatchServiceTest {
 
         assertFalse(preview.isCanSubmit());
         assertEquals("agent is not available", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("status refresh marks an event with an incomplete payload as not reprocessable")
+    void statusRefreshMarksIncompletePayload() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchService service = strictService(eventRepository,
+                mock(DqlRecoveryBatchRepository.class), mock(TaskService.class), mock(WorkerService.class));
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setPayloadComplete(false);
+        when(eventRepository.findReprocessableEventsForStatusSync()).thenReturn(List.of(event));
+        when(eventRepository.markNotReprocessable(eq("DQL-1"), eq(DqlEventStatusEnum.PENDING),
+                eq("DqlRecovery.Preview.PayloadIncomplete"), any(java.util.Date.class))).thenReturn(true);
+
+        assertEquals(1, service.synchronizeNotReprocessableEvents());
+
+        verify(eventRepository).markNotReprocessable(eq("DQL-1"), eq(DqlEventStatusEnum.PENDING),
+                eq("DqlRecovery.Preview.PayloadIncomplete"), any(java.util.Date.class));
+    }
+
+    @Test
+    @DisplayName("status refresh marks an event when the task version has changed")
+    void statusRefreshMarksTaskVersionMismatch() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository,
+                mock(DqlRecoveryBatchRepository.class), taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        when(eventRepository.findReprocessableEventsForStatusSync()).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask("running", 8L, "agent-1"));
+        when(eventRepository.markNotReprocessable(eq("DQL-1"), eq(DqlEventStatusEnum.PENDING),
+                eq("DqlRecovery.Preview.TaskVersionChanged"), any(java.util.Date.class))).thenReturn(true);
+
+        assertEquals(1, service.synchronizeNotReprocessableEvents());
+
+        verify(eventRepository).markNotReprocessable(eq("DQL-1"), eq(DqlEventStatusEnum.PENDING),
+                eq("DqlRecovery.Preview.TaskVersionChanged"), any(java.util.Date.class));
+        verify(workerService, never()).queryWorkerByProcessId(anyString());
+    }
+
+    @Test
+    @DisplayName("status refresh marks an event whose task no longer exists")
+    void statusRefreshMarksMissingTask() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository,
+                mock(DqlRecoveryBatchRepository.class), taskService, mock(WorkerService.class));
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        when(eventRepository.findReprocessableEventsForStatusSync()).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(null);
+        when(eventRepository.markNotReprocessable(eq("DQL-1"), eq(DqlEventStatusEnum.PENDING),
+                eq("Task.NotFound"), any(java.util.Date.class))).thenReturn(true);
+
+        assertEquals(1, service.synchronizeNotReprocessableEvents());
+
+        verify(eventRepository).markNotReprocessable(eq("DQL-1"), eq(DqlEventStatusEnum.PENDING),
+                eq("Task.NotFound"), any(java.util.Date.class));
+    }
+
+    @Test
+    @DisplayName("status refresh leaves runtime and risk-only conditions unchanged")
+    void statusRefreshLeavesRuntimeAndRiskConditionsUnchanged() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository,
+                mock(DqlRecoveryBatchRepository.class), taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setEventKeyMissing(true);
+        event.setRecordIdentity(null);
+        when(eventRepository.findReprocessableEventsForStatusSync()).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask("running", 7L, "agent-1"));
+        when(workerService.queryWorkerByProcessId("agent-1")).thenReturn(null);
+
+        assertEquals(0, service.synchronizeNotReprocessableEvents());
+
+        verify(eventRepository, never()).markNotReprocessable(anyString(), any(), anyString(), any(java.util.Date.class));
+        verify(workerService, never()).queryWorkerByProcessId(anyString());
     }
 
     @Test

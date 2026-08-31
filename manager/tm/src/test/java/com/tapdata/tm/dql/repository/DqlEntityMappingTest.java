@@ -39,6 +39,8 @@ class DqlEntityMappingTest {
         entity.setEventTime(new Date(1000L));
         entity.setFailedAt(new Date(2000L));
         entity.setStatus(DqlEventStatusEnum.REPROCESSING.name());
+        entity.setRecoveryStatusBeforeSync(DqlEventStatusEnum.PENDING.name());
+        entity.setNotReprocessableReason("DqlRecovery.Preview.TaskVersionChanged");
         entity.setPayloadData(Map.of("after", Map.of("id", 1001)));
         entity.setPayloadComplete(true);
         entity.setCurrentBatchId("DQLB-1");
@@ -54,6 +56,8 @@ class DqlEntityMappingTest {
         assertEquals(entity.getEventTime(), dto.getEventTime());
         assertEquals(entity.getFailedAt(), dto.getFailedAt());
         assertEquals(entity.getStatus(), dto.getStatus());
+        assertEquals(entity.getRecoveryStatusBeforeSync(), dto.getRecoveryStatusBeforeSync());
+        assertEquals(entity.getNotReprocessableReason(), dto.getNotReprocessableReason());
         assertEquals(entity.getPayloadData(), dto.getPayloadData());
         assertEquals(entity.getCurrentBatchId(), dto.getCurrentBatchId());
         assertEquals("A-1", dto.getRecoveryAttempts().get(0).getAttemptId());

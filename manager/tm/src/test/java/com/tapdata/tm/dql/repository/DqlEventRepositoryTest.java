@@ -142,6 +142,81 @@ class DqlEventRepositoryTest {
     }
 
     @Test
+    @DisplayName("status synchronization scans only reprocessable event statuses")
+    void findReprocessableEventsForStatusSyncUsesReprocessableStatuses() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.find(any(Query.class), eq(DqlEventEntity.class))).thenReturn(List.of());
+
+        assertTrue(repository.findReprocessableEventsForStatusSync().isEmpty());
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(queryCaptor.capture(), eq(DqlEventEntity.class));
+        assertEquals(List.of(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name()),
+                queryCaptor.getValue().getQueryObject().get(DqlEventDto.FIELD_STATUS, Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("status synchronization marks an event atomically from its expected lifecycle state")
+    void markNotReprocessableUsesExpectedStatusAndClearsBatchScope() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        Date now = new Date(1787580200000L);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.markNotReprocessable("DQL-1", DqlEventStatusEnum.PENDING,
+                "DqlRecovery.Preview.TaskVersionChanged", now));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQL-1", query.get(DqlEventDto.FIELD_EVENT_ID));
+        assertEquals(DqlEventStatusEnum.PENDING.name(), query.get(DqlEventDto.FIELD_STATUS));
+        assertNull(query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlEventStatusEnum.NOT_REPROCESSABLE.name(), set.get(DqlEventDto.FIELD_STATUS));
+        assertEquals(DqlEventStatusEnum.PENDING.name(),
+                set.get(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC));
+        assertEquals("DqlRecovery.Preview.TaskVersionChanged",
+                set.get(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON));
+        assertEquals(now, set.get(DqlEventDto.FIELD_UPDATED));
+        assertEquals(now, set.get(DqlEventDto.FIELD_TTL_AT));
+    }
+
+    @Test
+    @DisplayName("status synchronization restores only the matching original lifecycle state and reason")
+    void restoreReprocessableStatusUsesExpectedSyncMarker() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        Date now = new Date(1787580200000L);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.restoreReprocessableStatus("DQL-1", DqlEventStatusEnum.RECOVERY_FAILED,
+                "DqlRecovery.Preview.TaskVersionChanged", now));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQL-1", query.get(DqlEventDto.FIELD_EVENT_ID));
+        assertEquals(DqlEventStatusEnum.NOT_REPROCESSABLE.name(), query.get(DqlEventDto.FIELD_STATUS));
+        assertEquals(DqlEventStatusEnum.RECOVERY_FAILED.name(),
+                query.get(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC));
+        assertEquals("DqlRecovery.Preview.TaskVersionChanged",
+                query.get(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertEquals(DqlEventStatusEnum.RECOVERY_FAILED.name(),
+                update.get("$set", Document.class).get(DqlEventDto.FIELD_STATUS));
+        assertTrue(update.get("$unset", Document.class)
+                .containsKey(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC));
+        assertTrue(update.get("$unset", Document.class)
+                .containsKey(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON));
+    }
+
+    @Test
     @DisplayName("task impact count matches current task versions and all reprocessable statuses")
     void countByTaskIdAndVersionGroupsCurrentVersionEvents() {
         MongoTemplate mongoTemplate = mongoTemplate();
