@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -339,6 +340,30 @@ public class TaskSaveServiceImplTest {
 
             assertTrue(taskDto.getAlarmSettings().stream()
                     .anyMatch(setting -> AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK == setting.getKey()));
+        }
+
+        @Test
+        void shouldCollapseDuplicateDataIntegrityRiskSettingsToLast() {
+            TaskDto taskDto = new TaskDto();
+            AlarmSettingVO leftoverEmail = new AlarmSettingVO();
+            leftoverEmail.setKey(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK);
+            leftoverEmail.setNotify(Arrays.asList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL));
+            AlarmSettingVO closedEmail = new AlarmSettingVO();
+            closedEmail.setKey(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK);
+            closedEmail.setNotify(Collections.singletonList(NotifyEnum.SYSTEM));
+            taskDto.setAlarmSettings(new ArrayList<>(Arrays.asList(leftoverEmail, closedEmail)));
+
+            when(alarmSettingService.findAllAlarmSetting(any(UserDetail.class)))
+                    .thenReturn(Collections.emptyList());
+            when(alarmRuleService.findAllAlarm(any(UserDetail.class))).thenReturn(Collections.emptyList());
+            doCallRealMethod().when(taskSaveService).supplementAlarm(any(TaskDto.class), any(UserDetail.class));
+
+            taskSaveService.supplementAlarm(taskDto, mock(UserDetail.class));
+
+            assertEquals(1, taskDto.getAlarmSettings().size());
+            assertEquals(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK, taskDto.getAlarmSettings().get(0).getKey());
+            assertEquals(Collections.singletonList(NotifyEnum.SYSTEM),
+                    taskDto.getAlarmSettings().get(0).getNotify());
         }
     }
 }
