@@ -162,6 +162,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			}
 
 			@Override
+			public void alert(String log) {
+				obsLogger.alert(log);
+			}
+
+			@Override
 			public void memory(String memoryLog) {
 				info(memoryLog);
 			}

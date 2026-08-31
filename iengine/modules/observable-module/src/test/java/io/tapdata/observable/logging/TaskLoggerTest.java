@@ -163,6 +163,11 @@ public class TaskLoggerTest {
                 }
 
                 @Override
+                public void alert(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
+
+                }
+
+                @Override
                 public boolean isEnabled(LogLevel logLevel) {
                     return false;
                 }

@@ -296,6 +296,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			public void fatal(String log) {
 				obsLogger.fatal(log);
 			}
+
+			@Override
+			public void alert(String log) {
+				obsLogger.alert(log);
+			}
 			@Override
 			public void memory(String memoryLog) {
 			}

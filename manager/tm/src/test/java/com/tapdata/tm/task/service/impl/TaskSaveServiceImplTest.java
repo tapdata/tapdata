@@ -299,5 +299,46 @@ public class TaskSaveServiceImplTest {
 
             assertEquals(1, taskDto.getAlarmSettings().size());
         }
+
+        @Test
+        void shouldAppendDataIntegrityRiskWhenTaskSettingsAlreadyExist() {
+            TaskDto taskDto = new TaskDto();
+            AlarmSettingVO statusError = new AlarmSettingVO();
+            statusError.setKey(AlarmKeyEnum.TASK_STATUS_ERROR);
+            taskDto.setAlarmSettings(new ArrayList<>(Collections.singletonList(statusError)));
+
+            AlarmSettingDto dataIntegrityRisk = new AlarmSettingDto();
+            dataIntegrityRisk.setKey(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK);
+
+            when(alarmSettingService.findAllAlarmSetting(any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(dataIntegrityRisk));
+            when(alarmRuleService.findAllAlarm(any(UserDetail.class))).thenReturn(Collections.emptyList());
+            doCallRealMethod().when(taskSaveService).supplementAlarm(any(TaskDto.class), any(UserDetail.class));
+
+            taskSaveService.supplementAlarm(taskDto, mock(UserDetail.class));
+
+            assertTrue(taskDto.getAlarmSettings().stream()
+                    .anyMatch(setting -> AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK == setting.getKey()));
+        }
+
+        @Test
+        void shouldIncludeDataIntegrityRiskWhenCreatingNewTask() {
+            TaskDto taskDto = new TaskDto();
+
+            AlarmSettingDto statusError = new AlarmSettingDto();
+            statusError.setKey(AlarmKeyEnum.TASK_STATUS_ERROR);
+            AlarmSettingDto dataIntegrityRisk = new AlarmSettingDto();
+            dataIntegrityRisk.setKey(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK);
+
+            when(alarmSettingService.findAllAlarmSetting(any(UserDetail.class)))
+                    .thenReturn(Arrays.asList(statusError, dataIntegrityRisk));
+            when(alarmRuleService.findAllAlarm(any(UserDetail.class))).thenReturn(Collections.emptyList());
+            doCallRealMethod().when(taskSaveService).supplementAlarm(any(TaskDto.class), any(UserDetail.class));
+
+            taskSaveService.supplementAlarm(taskDto, mock(UserDetail.class));
+
+            assertTrue(taskDto.getAlarmSettings().stream()
+                    .anyMatch(setting -> AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK == setting.getKey()));
+        }
     }
 }

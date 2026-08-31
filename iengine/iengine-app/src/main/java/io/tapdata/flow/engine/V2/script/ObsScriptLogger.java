@@ -65,4 +65,14 @@ public class ObsScriptLogger implements Log {
 	public void fatal(String message, Object... params) {
 		obsLogger.error(message, params);
 	}
+
+	@Override
+	public void alert(String message, Object... params) {
+		obsLogger.alert(message, params);
+	}
+
+	@Override
+	public void alert(String message, Throwable throwable) {
+		obsLogger.alert(message, throwable);
+	}
 }

@@ -6,6 +6,12 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.entity.logger.alert.TapAlertType;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.observable.alert.TaskAlertAudit;
+import io.tapdata.observable.alert.TaskAlertDispatcher;
+import io.tapdata.observable.alert.TaskAlertEvent;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.observable.logging.appender.*;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.util.LogUtil;
@@ -43,6 +49,7 @@ public class TaskLogger extends ObsLogger {
 	private static final Long RECORD_CEILING_DEFAULT = 500L;
 	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
 	private static final long serialVersionUID = -5640539419072201312L;
+	private static final String DEFAULT_ALERT_CODE = "DATA_INTEGRITY";
 	private final List<io.tapdata.observable.logging.appender.Appender<?>> tapObsAppenders = new ArrayList<>();
 	private final AppenderFactory logAppendFactory;
 	private final BiConsumer<String, LogLevel> closeDebugConsumer;
@@ -63,6 +70,8 @@ public class TaskLogger extends ObsLogger {
 	public boolean isTestTask() {
 		return testTask;
 	}
+	private boolean suppressExternalAlert;
+	private transient TaskAlertDispatcher taskAlertDispatcher;
 
 	protected TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
 		String taskId = taskDto.getId().toHexString();
@@ -71,6 +80,8 @@ public class TaskLogger extends ObsLogger {
 		this.taskRecordId = taskDto.getTaskRecordId();
 		this.logAppendFactory = AppenderFactory.getInstance();
 		this.testTask = taskDto.isTestTask();
+		this.suppressExternalAlert = taskDto.isTestTask() || taskDto.isPreviewTask();
+		this.taskAlertDispatcher = TaskAlertDispatcher.getInstance();
 
 		AtomicReference<Object> taskInfo = (AtomicReference<Object>) taskDto.taskInfo(ScriptNodeProcessNodeAppender.LOG_LIST_KEY + taskId);
 		if (taskDto.isTestTask() && null != taskInfo){
@@ -297,6 +308,66 @@ public class TaskLogger extends ObsLogger {
 		appendLog(builder.build());
 	}
 
+	@Override
+	public void alert(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
+		throwable = getThrowable(throwable, params);
+		if (null == message && throwable != null) {
+			message = throwable.getMessage();
+		}
+		ParameterizedMessage parameterizedMessage = new ParameterizedMessage(message, params, throwable);
+		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
+		builder.level(Level.ERROR.toString());
+		builder.logTag("alert=true");
+		buildErrorMessage(throwable, parameterizedMessage, builder);
+		MonitoringLogsDto logsDto = builder.build();
+
+		RuntimeException logFailure = null;
+		try {
+			appendLog(logsDto);
+		} catch (RuntimeException runtimeException) {
+			logFailure = runtimeException;
+			LOGGER.error("Failed to append alert log, taskId={}", taskId, runtimeException);
+		}
+
+		try {
+			if (!suppressExternalAlert) {
+				submitAlertEvent(logsDto, throwable, parameterizedMessage.getFormattedMessage());
+			}
+		} catch (RuntimeException runtimeException) {
+			TaskAlertAudit.publishFailed(TapAlertType.DATA_INTEGRITY.name(), DEFAULT_ALERT_CODE, "submit", runtimeException);
+		}
+
+		if (logFailure != null) {
+			throw logFailure;
+		}
+	}
+
+	private void submitAlertEvent(MonitoringLogsDto logsDto, Throwable throwable, String formattedMessage) {
+		String errorCode = logsDto.getErrorCode();
+		if (errorCode == null && throwable instanceof TapCodeException) {
+			errorCode = ((TapCodeException) throwable).getCode();
+		}
+		String nodeId = logsDto.getNodeId();
+		String dedupKey = (nodeId == null || nodeId.isEmpty()) ? logsDto.getTaskId() : nodeId;
+		TaskAlertEvent event = TaskAlertEvent.builder()
+				.eventId(UUID.randomUUID().toString())
+				.type(TapAlertType.DATA_INTEGRITY)
+				.code(DEFAULT_ALERT_CODE)
+				.dedupKey(dedupKey)
+				.taskId(logsDto.getTaskId())
+				.taskRecordId(logsDto.getTaskRecordId())
+				.taskName(logsDto.getTaskName())
+				.nodeId(nodeId)
+				.nodeName(logsDto.getNodeName())
+				.agentId(CommonUtils.getenv("process_id"))
+				.message(formattedMessage)
+				.errorCode(errorCode)
+				.occurredAt(logsDto.getTimestamp() == null ? System.currentTimeMillis() : logsDto.getTimestamp())
+				.build();
+		TaskAlertDispatcher dispatcher = taskAlertDispatcher == null ? TaskAlertDispatcher.getInstance() : taskAlertDispatcher;
+		dispatcher.submit(event);
+	}
+
 	private void appendLog(MonitoringLogsDto logsDto) {
 		if (testTask) {
 			logAppendFactory.appendLogWithoutCache(logsDto);
@@ -337,6 +408,9 @@ public class TaskLogger extends ObsLogger {
 
 	@Nullable
 	private static Throwable findThrowable(Object[] params) {
+		if (params == null) {
+			return null;
+		}
 		Throwable throwable = null;
 		for (Object param : params) {
 			if (param instanceof Throwable) {
