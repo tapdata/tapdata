@@ -519,6 +519,21 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
+		<!-- SAML 2.0 Service Provider (SSO). Version managed by Spring Boot BOM; brings OpenSAML 5. -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-saml2-service-provider</artifactId>
+			<exclusions>
+				<exclusion>
+					<artifactId>bcprov-jdk15on</artifactId>
+					<groupId>org.bouncycastle</groupId>
+				</exclusion>
+				<exclusion>
+					<artifactId>bcpkix-jdk15on</artifactId>
+					<groupId>org.bouncycastle</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 		<!-- Spring security end -->
 		<dependency>
 			<groupId>com.nimbusds</groupId>

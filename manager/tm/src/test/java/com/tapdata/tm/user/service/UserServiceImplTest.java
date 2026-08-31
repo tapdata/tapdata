@@ -17,6 +17,7 @@ import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
+import com.tapdata.tm.sso.entity.SsoExternalIdentity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
@@ -874,11 +875,12 @@ public class UserServiceImplTest {
     class deleteTest {
         String id = "675fa0e310853b4b042db50c";
         UserDetail userDetail = mock(UserDetail.class);
+        MongoTemplate mongoTemplate;
         UpdateResult updateResult;
         @BeforeEach
         void beforeEach() {
             when(userDetail.getUserId()).thenReturn("66ea9f7af4ec565576fc87ab");
-            MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+            mongoTemplate = mock(MongoTemplate.class);
             when(repository.getMongoOperations()).thenReturn(mongoTemplate);
             updateResult = mock(UpdateResult.class);
             when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), any(Class.class))).thenReturn(updateResult);
@@ -891,6 +893,7 @@ public class UserServiceImplTest {
             when(userDto.getLdapAccount()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
+            verify(mongoTemplate).remove(any(Query.class), eq(SsoExternalIdentity.class));
             verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
         }
         @Test
