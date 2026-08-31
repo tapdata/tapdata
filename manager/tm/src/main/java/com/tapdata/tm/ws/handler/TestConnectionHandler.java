@@ -23,6 +23,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.service.ConnectionAuditService;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
@@ -33,6 +34,7 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
+import com.tapdata.tm.ws.dto.WebSocketInfo;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
@@ -67,6 +69,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 	private final WorkerService workerService;
 
 	private final AgentGroupService agentGroupService;
+
+	@Autowired
+	private ConnectionAuditService connectionAuditService;
 
 	public TestConnectionHandler(AgentGroupService agentGroupService, MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
 			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
@@ -110,6 +115,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 			WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
 			return;
 		}
+		prepareAuditContext(context, data, userDetail);
 		if (config != null) {
 			String database_type = (String)data.get("database_type");
 			if (StringUtils.isBlank(database_type)) {
@@ -204,6 +210,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 
 		if (Objects.nonNull(data.get("msg"))){
+			if (connectionAuditService != null) {
+				connectionAuditService.completeDispatchFailure(MapUtils.getAsString(data, "id"), context.getSender());
+			}
 			Map<String, Object> msg = testConnectErrorData(String.valueOf(data.get("id")), data.get("msg").toString());
 			context.getMessageInfo().setData(msg);
 
@@ -212,6 +221,17 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 
 		handleData(agentId, context);
+	}
+
+	private void prepareAuditContext(WebSocketContext context, Map<String, Object> data, UserDetail userDetail) {
+		if (connectionAuditService == null || Boolean.TRUE.equals(data.get("isExternalStorage"))) {
+			return;
+		}
+		WebSocketInfo session = WebSocketManager.getSessionById(context.getSessionId());
+		connectionAuditService.prepare(Boolean.TRUE.equals(data.get("updateSchema"))
+					? ConnectionAuditService.ACTION_LOAD_SCHEMA : ConnectionAuditService.ACTION_TEST_CONNECTION,
+				MapUtils.getAsString(data, "id"), context.getSender(), userDetail,
+				session == null ? null : session.getIp(), MapUtils.getAsString(data, "name"));
 	}
 		protected void handleData(String receiver, WebSocketContext context) {
 			Map<String, Object> data = context.getMessageInfo().getData();

@@ -14,6 +14,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
+import com.tapdata.tm.userLog.service.ConnectionAuditService;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
@@ -38,6 +39,7 @@ public class PipeHandler implements WebSocketHandler {
 	private final MessageQueueService queueService;
 	private final DataSourceService dataSourceService;
 	private TaskDagCheckLogService taskDagCheckLogService;
+	private ConnectionAuditService connectionAuditService;
 
 	public PipeHandler(MessageQueueService queueService, DataSourceService dataSourceService) {
 		this.queueService = queueService;
@@ -51,6 +53,7 @@ public class PipeHandler implements WebSocketHandler {
 		if (StringUtils.isEmpty(messageInfo.getSender())) {
 			messageInfo.setSender(context.getSender());
 		}
+		recordConnectionAudit(messageInfo);
 
 		if (StringUtils.isNotBlank(messageInfo.getReceiver())){
 			if (messageInfo.getReceiver().equals(messageInfo.getSender())){
@@ -74,6 +77,23 @@ public class PipeHandler implements WebSocketHandler {
 		}else {
 			log.warn("WebSocket send message failed, receiver is blank, msg:{}", JSON.toJSONString(messageInfo));
 		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private void recordConnectionAudit(MessageInfo messageInfo) {
+		Map<String, Object> data = messageInfo.getData();
+		if (connectionAuditService == null || data == null || !"testConnectionResult".equals(data.get("type"))) {
+			return;
+		}
+		Map<String, Object> result = data.get("result") instanceof Map ? (Map<String, Object>) data.get("result") : null;
+		String connectionId = result == null ? null : stringValue(result.get("id"));
+		boolean success = "SUCCESS".equals(data.get("status")) && result != null
+				&& DataSourceConnectionDto.STATUS_READY.equals(result.get("status"));
+		connectionAuditService.completeConnectionTest(connectionId, messageInfo.getReceiver(), success);
+	}
+
+	private String stringValue(Object value) {
+		return value == null ? null : value.toString();
 	}
 
 	/**

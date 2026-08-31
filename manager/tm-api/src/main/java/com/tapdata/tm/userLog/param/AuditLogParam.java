@@ -14,6 +14,7 @@ public class AuditLogParam {
     private String userId;
     private String customerId;
     private String username;
+    private String sourceIp;
     private String action;
     private String objectName;
     private String failureReason;
