@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.vo.DqlEventDetailVo;
 import com.tapdata.tm.dql.vo.DqlEventListVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryAttemptVo;
+import com.tapdata.tm.utils.MessageUtil;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -23,6 +25,8 @@ import java.util.Set;
 
 /** Maps persistence DTOs to the deliberately smaller, safe Web query representations. */
 final class DqlEventWebMapper {
+    private static final String NOT_REPROCESSABLE_PAYLOAD_REASON = "DqlRecovery.Preview.PayloadIncomplete";
+    private static final String NOT_REPROCESSABLE_GENERIC_REASON = "DqlRecovery.Preview.EventNotReprocessable";
     private static final int PREVIEW_FIELD_MAX_LENGTH = 512;
     private static final int PREVIEW_MAX_DEPTH = 4;
     private static final int PREVIEW_MAX_ITEMS = 50;
@@ -37,6 +41,10 @@ final class DqlEventWebMapper {
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
     DqlEventListVo toList(DqlEventDto event) {
+        return toList(event, event == null ? null : event.getTaskName());
+    }
+
+    DqlEventListVo toList(DqlEventDto event, String taskName) {
         if (event == null) {
             return null;
         }
@@ -44,7 +52,7 @@ final class DqlEventWebMapper {
         result.setId(event.getId());
         result.setEventId(event.getEventId());
         result.setTaskId(event.getTaskId());
-        result.setTaskName(event.getTaskName());
+        result.setTaskName(taskName);
         result.setSourceTable(event.getSourceTable());
         result.setTargetTable(event.getTargetTable());
         result.setDmlType(event.getDmlType());
@@ -59,7 +67,24 @@ final class DqlEventWebMapper {
         return result;
     }
 
+    private String localizedNotReprocessableReason(DqlEventDto event) {
+        if (DqlEventStatusEnum.parse(event.getStatus()) != DqlEventStatusEnum.NOT_REPROCESSABLE) {
+            return null;
+        }
+        String reasonCode = event.getNotReprocessableReason();
+        if (reasonCode == null || reasonCode.isBlank()) {
+            reasonCode = Boolean.FALSE.equals(event.getPayloadComplete())
+                    ? NOT_REPROCESSABLE_PAYLOAD_REASON
+                    : NOT_REPROCESSABLE_GENERIC_REASON;
+        }
+        return MessageUtil.getMessage(reasonCode);
+    }
+
     DqlEventDetailVo toDetail(DqlEventDto event) {
+        return toDetail(event, event == null ? null : event.getTaskName());
+    }
+
+    DqlEventDetailVo toDetail(DqlEventDto event, String taskName) {
         if (event == null) {
             return null;
         }
@@ -67,7 +92,7 @@ final class DqlEventWebMapper {
         result.setId(event.getId());
         result.setEventId(event.getEventId());
         result.setTaskId(event.getTaskId());
-        result.setTaskName(event.getTaskName());
+        result.setTaskName(taskName);
         result.setSourceTable(event.getSourceTable());
         result.setTargetTable(event.getTargetTable());
         result.setDmlType(event.getDmlType());
@@ -77,6 +102,7 @@ final class DqlEventWebMapper {
         result.setFailedAt(event.getFailedAt());
         result.setCaptureSeq(event.getCaptureSeq());
         result.setStatus(event.getStatus());
+        result.setNotReprocessableReason(localizedNotReprocessableReason(event));
         result.setRecoveryCount(event.getRecoveryCount());
         result.setLastRecoveryTime(event.getLastRecoveryTime());
         result.setSourceNodeId(event.getSourceNodeId());

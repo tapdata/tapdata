@@ -2,6 +2,7 @@ package com.tapdata.tm.dql.service;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlErrorTypeEnum;
@@ -18,16 +19,27 @@ import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPayloadVo;
 import com.tapdata.tm.dql.vo.DqlStormGuardReportVo;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.TaskService;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class DqlEventService {
@@ -44,23 +56,24 @@ public class DqlEventService {
     private final DqlRecoveryBatchRepository batchRepository;
     private final DqlReportValidationService reportValidationService;
     private final DqlEventIdentityService identityService;
+    private final TaskService taskService;
     private final DqlEventWebMapper webMapper;
 
     public DqlEventService(DqlEventRepository eventRepository, DqlEventAlarmService alarmService) {
-        this(eventRepository, alarmService, null, null, new DqlReportValidationService(), new DqlEventIdentityService());
+        this(eventRepository, alarmService, null, null, new DqlReportValidationService(), new DqlEventIdentityService(), null);
     }
 
     public DqlEventService(DqlEventRepository eventRepository,
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService) {
-        this(eventRepository, alarmService, permissionService, null, new DqlReportValidationService(), new DqlEventIdentityService());
+        this(eventRepository, alarmService, permissionService, null, new DqlReportValidationService(), new DqlEventIdentityService(), null);
     }
 
     public DqlEventService(DqlEventRepository eventRepository,
                            DqlEventAlarmService alarmService,
                            DqlEventPermissionService permissionService,
                            DqlRecoveryBatchRepository batchRepository) {
-        this(eventRepository, alarmService, permissionService, batchRepository, new DqlReportValidationService(), new DqlEventIdentityService());
+        this(eventRepository, alarmService, permissionService, batchRepository, new DqlReportValidationService(), new DqlEventIdentityService(), null);
     }
 
     public DqlEventService(DqlEventRepository eventRepository,
@@ -68,7 +81,16 @@ public class DqlEventService {
                            DqlEventPermissionService permissionService,
                            DqlRecoveryBatchRepository batchRepository,
                            DqlReportValidationService reportValidationService) {
-        this(eventRepository, alarmService, permissionService, batchRepository, reportValidationService, new DqlEventIdentityService());
+        this(eventRepository, alarmService, permissionService, batchRepository, reportValidationService, new DqlEventIdentityService(), null);
+    }
+
+    public DqlEventService(DqlEventRepository eventRepository,
+                           DqlEventAlarmService alarmService,
+                           DqlEventPermissionService permissionService,
+                           DqlRecoveryBatchRepository batchRepository,
+                           DqlReportValidationService reportValidationService,
+                           DqlEventIdentityService identityService) {
+        this(eventRepository, alarmService, permissionService, batchRepository, reportValidationService, identityService, null);
     }
 
     @Autowired
@@ -77,13 +99,15 @@ public class DqlEventService {
                            DqlEventPermissionService permissionService,
                            DqlRecoveryBatchRepository batchRepository,
                            DqlReportValidationService reportValidationService,
-                           DqlEventIdentityService identityService) {
+                           DqlEventIdentityService identityService,
+                           TaskService taskService) {
         this.eventRepository = eventRepository;
         this.alarmService = alarmService;
         this.permissionService = permissionService;
         this.batchRepository = batchRepository;
         this.reportValidationService = reportValidationService;
         this.identityService = identityService;
+        this.taskService = taskService;
         this.webMapper = new DqlEventWebMapper();
     }
 
@@ -152,16 +176,19 @@ public class DqlEventService {
     }
 
     public Page<DqlEventListVo> page(DqlEventQueryVo query, UserDetail user) {
-        Collection<String> visibleTaskIds = resolveQueryTaskIds(query, user);
-        Page<DqlEventDto> page = permissionService == null
-                ? eventRepository.page(query)
-                : eventRepository.page(query, visibleTaskIds);
+        DqlEventQueryResolution resolved = resolveQuery(query, user);
+        Page<DqlEventDto> page = resolved.visibleTaskIds() == null
+                ? eventRepository.page(resolved.query())
+                : eventRepository.page(resolved.query(), resolved.visibleTaskIds());
         if (page == null) {
             return Page.empty();
         }
+        Map<String, String> currentTaskNames = resolveCurrentTaskNames(page.getItems(), user);
         List<DqlEventListVo> items = page.getItems() == null
                 ? List.of()
-                : page.getItems().stream().map(webMapper::toList).toList();
+                : page.getItems().stream()
+                        .map(event -> webMapper.toList(event, currentTaskName(event, currentTaskNames)))
+                        .toList();
         return Page.page(items, page.getTotal());
     }
 
@@ -172,7 +199,7 @@ public class DqlEventService {
             throw new BizException("DqlEvent.NotFound", eventId);
         }
         checkEventTaskPermission(event, user);
-        DqlEventDetailVo detail = webMapper.toDetail(event);
+        DqlEventDetailVo detail = webMapper.toDetail(event, resolveCurrentTaskName(event));
         if (StringUtils.isNotBlank(event.getCurrentBatchId()) && batchRepository != null) {
             detail.setCurrentBatch(batchRepository.findByBatchId(event.getCurrentBatchId()));
         }
@@ -209,22 +236,22 @@ public class DqlEventService {
 
     public DqlEventSummaryVo summary(DqlEventQueryVo query, UserDetail user) {
         DqlEventQueryVo summaryQuery = summaryQuery(query);
-        Collection<String> visibleTaskIds = resolveQueryTaskIds(summaryQuery, user);
+        DqlEventQueryResolution resolved = resolveQuery(summaryQuery, user);
         DqlEventSummaryVo summary = new DqlEventSummaryVo();
-        if (permissionService == null) {
-            summary.setTotal(eventRepository.count(summaryQuery));
-            summary.setPending(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.PENDING));
-            summary.setReprocessing(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.REPROCESSING));
-            summary.setRecovered(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERED));
-            summary.setRecoveryFailed(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERY_FAILED));
-            summary.setNotReprocessable(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.NOT_REPROCESSABLE));
+        if (resolved.visibleTaskIds() == null) {
+            summary.setTotal(eventRepository.count(resolved.query()));
+            summary.setPending(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.PENDING));
+            summary.setReprocessing(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.REPROCESSING));
+            summary.setRecovered(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.RECOVERED));
+            summary.setRecoveryFailed(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.RECOVERY_FAILED));
+            summary.setNotReprocessable(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.NOT_REPROCESSABLE));
         } else {
-            summary.setTotal(eventRepository.count(summaryQuery, visibleTaskIds));
-            summary.setPending(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.PENDING, visibleTaskIds));
-            summary.setReprocessing(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.REPROCESSING, visibleTaskIds));
-            summary.setRecovered(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERED, visibleTaskIds));
-            summary.setRecoveryFailed(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.RECOVERY_FAILED, visibleTaskIds));
-            summary.setNotReprocessable(eventRepository.countByStatus(summaryQuery, DqlEventStatusEnum.NOT_REPROCESSABLE, visibleTaskIds));
+            summary.setTotal(eventRepository.count(resolved.query(), resolved.visibleTaskIds()));
+            summary.setPending(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.PENDING, resolved.visibleTaskIds()));
+            summary.setReprocessing(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.REPROCESSING, resolved.visibleTaskIds()));
+            summary.setRecovered(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.RECOVERED, resolved.visibleTaskIds()));
+            summary.setRecoveryFailed(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.RECOVERY_FAILED, resolved.visibleTaskIds()));
+            summary.setNotReprocessable(eventRepository.countByStatus(resolved.query(), DqlEventStatusEnum.NOT_REPROCESSABLE, resolved.visibleTaskIds()));
         }
         return summary;
     }
@@ -284,6 +311,105 @@ public class DqlEventService {
         }
         Collection<String> taskIds = permissionService.resolveVisibleTaskIds(query, user);
         return taskIds == null ? List.of() : taskIds;
+    }
+
+    private DqlEventQueryResolution resolveQuery(DqlEventQueryVo query, UserDetail user) {
+        Collection<String> visibleTaskIds = resolveQueryTaskIds(query, user);
+        if (taskService == null || query == null || StringUtils.isBlank(query.getTaskName())) {
+            return new DqlEventQueryResolution(query, visibleTaskIds);
+        }
+
+        Collection<String> matchedTaskIds = resolveTaskIdsByCurrentName(query.getTaskName(), visibleTaskIds, user);
+        DqlEventQueryVo effectiveQuery = new DqlEventQueryVo();
+        BeanUtils.copyProperties(query, effectiveQuery);
+        effectiveQuery.setTaskName(null);
+        return new DqlEventQueryResolution(effectiveQuery, matchedTaskIds);
+    }
+
+    private Collection<String> resolveTaskIdsByCurrentName(String taskName,
+                                                            Collection<String> visibleTaskIds,
+                                                            UserDetail user) {
+        List<ObjectId> taskObjectIds = visibleTaskIds == null
+                ? List.of()
+                : visibleTaskIds.stream()
+                        .filter(ObjectId::isValid)
+                        .map(ObjectId::new)
+                        .toList();
+        Criteria criteria = Criteria.where("name").regex(Pattern.quote(taskName), "i")
+                .and("is_deleted").ne(true);
+        if (visibleTaskIds != null) {
+            if (taskObjectIds.isEmpty()) {
+                return List.of();
+            }
+            criteria.and("_id").in(taskObjectIds);
+        }
+        Query taskQuery = Query.query(criteria);
+        taskQuery.fields().include("_id").include("name");
+        List<TaskEntity> tasks = taskService.findAll(taskQuery, user);
+        if (tasks == null || tasks.isEmpty()) {
+            return List.of();
+        }
+        return tasks.stream()
+                .filter(task -> task.getId() != null)
+                .map(task -> task.getId().toHexString())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Map<String, String> resolveCurrentTaskNames(List<DqlEventDto> events, UserDetail user) {
+        if (taskService == null || events == null || events.isEmpty()) {
+            return Map.of();
+        }
+        List<ObjectId> taskObjectIds = events.stream()
+                .map(DqlEventDto::getTaskId)
+                .filter(StringUtils::isNotBlank)
+                .filter(ObjectId::isValid)
+                .map(ObjectId::new)
+                .distinct()
+                .toList();
+        if (taskObjectIds.isEmpty()) {
+            return Map.of();
+        }
+        Query taskQuery = Query.query(Criteria.where("_id").in(taskObjectIds)
+                .and("is_deleted").ne(true));
+        taskQuery.fields().include("_id").include("name");
+        List<TaskEntity> tasks = taskService.findAll(taskQuery, user);
+        if (tasks == null || tasks.isEmpty()) {
+            return Map.of();
+        }
+        return tasks.stream()
+                .filter(task -> task.getId() != null)
+                .collect(Collectors.toMap(
+                        task -> task.getId().toHexString(),
+                        TaskEntity::getName,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+    }
+
+    private String currentTaskName(DqlEventDto event, Map<String, String> currentTaskNames) {
+        if (event == null) {
+            return null;
+        }
+        return taskService == null
+                ? event.getTaskName()
+                : currentTaskNames.get(event.getTaskId());
+    }
+
+    private String resolveCurrentTaskName(DqlEventDto event) {
+        if (event == null) {
+            return null;
+        }
+        if (taskService == null) {
+            return event.getTaskName();
+        }
+        if (StringUtils.isBlank(event.getTaskId()) || !ObjectId.isValid(event.getTaskId())) {
+            return null;
+        }
+        TaskDto task = taskService.findByTaskId(new ObjectId(event.getTaskId()), "name");
+        return task == null ? null : task.getName();
+    }
+
+    private record DqlEventQueryResolution(DqlEventQueryVo query, Collection<String> visibleTaskIds) {
     }
 
     private void checkMenuPermission(UserDetail user) {
@@ -352,6 +478,9 @@ public class DqlEventService {
         dto.setStatus(Boolean.FALSE.equals(dto.getPayloadComplete())
                 ? DqlEventStatusEnum.NOT_REPROCESSABLE.name()
                 : DqlEventStatusEnum.PENDING.name());
+        if (Boolean.FALSE.equals(dto.getPayloadComplete())) {
+            dto.setNotReprocessableReason("DqlRecovery.Preview.PayloadIncomplete");
+        }
         dto.setRecoveryCount(0);
         dto.setOverwriteRisk(false);
         dto.setCreated(now);
