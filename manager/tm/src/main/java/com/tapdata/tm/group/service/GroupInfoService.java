@@ -73,6 +73,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -103,6 +104,14 @@ import com.tapdata.tm.role.dto.RoleDto;
 @Slf4j
 @Setter(onMethod_ = { @Autowired })
 public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity, ObjectId, GroupInfoRepository> {
+
+    /**
+     * Git 导出的超时（分钟），与 GitBaseService 用同一个配置项。
+     * 超过这个时长还停在 exporting 的记录一律视为已死，不再阻塞后续导出。
+     * 字段带默认值，是为了让 new 出来的实例（单测）也走 60 分钟而不是 0。
+     */
+    @Value("${tm.group.git.export-timeout-minutes:60}")
+    private int exportTimeoutMinutes = 60;
 
     /**
      * 用于导出文件的 Jackson ObjectMapper：
@@ -3232,18 +3241,52 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 				.and("details.groupId").in(groupIds));
 
 		List<GroupInfoRecordDto> exportingRecords = groupInfoRecordService.findAllDto(query, user);
+		if (CollectionUtils.isEmpty(exportingRecords)) {
+			return;
+		}
 
-		if (CollectionUtils.isNotEmpty(exportingRecords)) {
-			// Extract group IDs that are currently being exported
-			Set<String> exportingGroupNames = exportingRecords.stream()
-					.flatMap(record -> record.getDetails().stream())
-					.map(GroupInfoRecordDetail::getGroupName)
-					.collect(Collectors.toSet());
-
-			if (!exportingGroupNames.isEmpty()) {
-				throw new BizException("GroupInfo.Export.InProgress", String.join(", ", exportingGroupNames));
+		// 只有还在超时窗口内的记录才算「正在导出」。
+		// 超窗的记录一律判死：进程被 kill、TM 节点重启、网络永久挂起，都会让记录停在 exporting
+		// 而 performExport 的 catch 永远执行不到 —— 不设窗口，这个分组就被永久锁死。
+		// 用记录自身的 operationTime 判断，无需跨 TM 节点协调（记录在共享 Mongo 里）。
+		long staleBefore = System.currentTimeMillis() - exportTimeoutMillis();
+		Set<String> exportingGroupNames = new HashSet<>();
+		for (GroupInfoRecordDto record : exportingRecords) {
+			Date operationTime = record.getOperationTime();
+			if (operationTime != null && operationTime.getTime() > staleBefore) {
+				collectGroupNames(record, exportingGroupNames);
+			} else {
+				// 把僵尸记录翻成 failed，否则它在导出历史里永远显示「导出中」。
+				// 多节点并发翻同一条是幂等的，不需要加锁。
+				log.warn("Export record {} stuck in exporting since {}, marking as failed after {} minutes",
+						record.getId(), operationTime, exportTimeoutMinutes());
+				updateRecordStatus(record.getId(), GroupInfoRecordDto.STATUS_FAILED,
+						"Export timed out after " + exportTimeoutMinutes() + " minutes",
+						record.getDetails(), user);
 			}
 		}
+
+		if (!exportingGroupNames.isEmpty()) {
+			throw new BizException("GroupInfo.Export.InProgress", String.join(", ", exportingGroupNames));
+		}
+	}
+
+	private static void collectGroupNames(GroupInfoRecordDto record, Set<String> into) {
+		if (CollectionUtils.isEmpty(record.getDetails())) {
+			return;
+		}
+		record.getDetails().stream()
+				.map(GroupInfoRecordDetail::getGroupName)
+				.filter(Objects::nonNull)
+				.forEach(into::add);
+	}
+
+	protected int exportTimeoutMinutes() {
+		return Math.max(1, exportTimeoutMinutes);
+	}
+
+	private long exportTimeoutMillis() {
+		return exportTimeoutMinutes() * 60L * 1000L;
 	}
 
     protected void applyResetTaskList(List<GroupInfoDto> groupInfos, Map<String, List<String>> groupResetTask) {

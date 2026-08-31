@@ -14,6 +14,7 @@ import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -31,6 +32,23 @@ import java.util.List;
 @Service
 @Slf4j
 public abstract class GitBaseService implements GitService {
+
+	/**
+	 * 网络操作超时（分钟）。JGit 的默认 timeout 是 0 —— 无限等待，所以一次 TLS 握手或读卡住
+	 * 就会把 @Async 线程永久挂住，导出记录停在 exporting，分组被永久锁死。
+	 * 字段带默认值，是为了让 new 出来的实例（单测）也有合理超时，而不是 0。
+	 */
+	@Value("${tm.group.git.export-timeout-minutes:60}")
+	private int exportTimeoutMinutes = 60;
+
+	/** JGit 的 setTimeout 单位是秒 */
+	protected int gitTimeoutSeconds() {
+		return Math.max(1, exportTimeoutMinutes) * 60;
+	}
+
+	protected int exportTimeoutMinutes() {
+		return Math.max(1, exportTimeoutMinutes);
+	}
 
 	/**
 	 * Clone repository using JGit
@@ -56,6 +74,7 @@ public abstract class GitBaseService implements GitService {
 					.setDirectory(localDir)
 					.setCredentialsProvider(createCredentialsProvider(gitInfoDto.getToken()))
 					.setBranch(gitInfoDto.getBranch())
+					.setTimeout(gitTimeoutSeconds())
 					.call()) {
 				log.info("Successfully cloned repository {} to {}", repoUrl, localPath);
 			}
@@ -168,6 +187,7 @@ public abstract class GitBaseService implements GitService {
 			Iterable<PushResult> pushResults = git.push()
 					.setRefSpecs(new RefSpec(refSpec))
 					.setCredentialsProvider(createCredentialsProvider(gitInfoDto != null ? gitInfoDto.getToken() : null))
+					.setTimeout(gitTimeoutSeconds())
 					.call();
 			checkPushResults(pushResults, localPath);
 			log.info("Successfully pushed branch {} from {}", branchName, localPath);
@@ -212,6 +232,7 @@ public abstract class GitBaseService implements GitService {
 			Iterable<PushResult> pushResults = git.push()
 					.add(tagRef)
 					.setCredentialsProvider(createCredentialsProvider(gitInfoDto != null ? gitInfoDto.getToken() : null))
+					.setTimeout(gitTimeoutSeconds())
 					.call();
 			checkPushResults(pushResults, localPath);
 			log.info("Successfully pushed tag {} from {}", tag, localPath);
