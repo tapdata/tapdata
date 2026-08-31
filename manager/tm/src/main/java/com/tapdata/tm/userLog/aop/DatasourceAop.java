@@ -271,8 +271,9 @@ public class DatasourceAop {
             //获取更新后的名称
             String afterName = dtoAfter.getName();
 
-            if ("testing".equals(statusBefore)) {
-                log.debug(" 测试连接，不记录日志");
+            if (("testing".equals(statusBefore) && !Boolean.TRUE.equals(dtoBefore.getSubmit()))
+                    || DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING.equals(dtoBefore.getLoadFieldsStatus())) {
+                log.debug("测试连接或触发模型加载，不记录编辑日志");
             } else if (beforeName.equals(afterName)) {
                 log.debug("不是修改名称");
                 userLogService.addUserLog(Modular.CONNECTION, Operation.UPDATE, userDetail, dtoAfter.getId().toString(), afterName);

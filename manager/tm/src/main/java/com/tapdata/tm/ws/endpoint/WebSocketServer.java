@@ -52,6 +52,9 @@ import java.util.stream.Stream;
 @Component
 public class WebSocketServer extends TextWebSocketHandler {
 	private final static long MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG = 15 * 3 * 1000;
+	private static final List<String> FORWARDED_IP_HEADERS = Arrays.asList(
+			"Forwarded", "X-Forwarded-For", "X-Real-IP", "Proxy-Client-IP",
+			"WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR");
 
 	@Autowired
 	private UserService userService;
@@ -110,11 +113,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 		String userId = getUserId(session);
 		String agentId = getAgentId(session);
 		String singletonLock = getSingletonTag(session);
-		String remoteIp = null;
-		InetSocketAddress remote = session.getRemoteAddress();
-		if (remote != null) {
-			remoteIp = remote.getAddress().getHostAddress();
-		}
+		String remoteIp = resolveRemoteIp(session);
 		log.info("WebSocket connect,id: {},userId: {}, agentId: {}, singletonLock: {}, remote address {}", id, userId, agentId, singletonLock, remoteIp);
 		WebSocketInfo webSocketInfo = new WebSocketInfo(session.getId(), agentId, singletonLock, userId, session, remoteIp);
 		WebSocketManager.addSession(webSocketInfo);
@@ -133,6 +132,17 @@ public class WebSocketServer extends TextWebSocketHandler {
 		} catch (IOException e) {
 			// ignore
 		}
+	}
+
+	private String resolveRemoteIp(WebSocketSession session) {
+		if (FORWARDED_IP_HEADERS.stream()
+				.map(session.getHandshakeHeaders()::getFirst)
+				.anyMatch(StringUtils::isNotBlank)) {
+			return null;
+		}
+		InetSocketAddress remote = session.getRemoteAddress();
+		return remote == null || remote.getAddress() == null
+				? null : remote.getAddress().getHostAddress();
 	}
 
 	/**
