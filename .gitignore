@@ -143,3 +143,5 @@ sybase-poc-temp/
 run-resources
 
 **/.proxy-instance-id
+
+/apiserver-jars/
