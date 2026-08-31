@@ -15,6 +15,7 @@ public class DqlRecoveryPreviewVo implements Serializable {
     private String taskName;
     private boolean canSubmit;
     private List<OrderedEvent> orderedEvents = new ArrayList<>();
+    private List<BlockedEvent> riskyEvents = new ArrayList<>();
     private List<BlockedEvent> blockedEvents = new ArrayList<>();
     private String message = "";
 
@@ -34,6 +35,7 @@ public class DqlRecoveryPreviewVo implements Serializable {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class BlockedEvent implements Serializable {
         private String eventId;
+        private String messageCode;
         private String message;
         private String sourceTable;
         private String targetTable;

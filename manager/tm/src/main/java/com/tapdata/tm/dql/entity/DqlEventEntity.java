@@ -101,6 +101,10 @@ public class DqlEventEntity extends Entity {
     @Field(DqlEventDto.FIELD_RAW_ERROR_REF)
     private String rawErrorRef;
     private String status;
+    @Field(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC)
+    private String recoveryStatusBeforeSync;
+    @Field(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON)
+    private String notReprocessableReason;
     @Field(DqlEventDto.FIELD_RECOVERY_COUNT)
     private Integer recoveryCount;
     @Field(DqlEventDto.FIELD_LAST_RECOVERY_TIME)

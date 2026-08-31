@@ -30,6 +30,7 @@ public class DqlEventDetailVo implements Serializable {
     private Date failedAt;
     private Long captureSeq;
     private String status;
+    private String notReprocessableReason;
     private Integer recoveryCount;
     private Date lastRecoveryTime;
     private String sourceNodeId;

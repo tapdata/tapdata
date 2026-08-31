@@ -202,6 +202,8 @@ public class DqlEventRepository {
         setOnInsert(update, DqlEventDto.FIELD_ERROR_DETAILS_TRUNCATED, dto.getErrorDetailsTruncated());
         setOnInsert(update, DqlEventDto.FIELD_RAW_ERROR_REF, dto.getRawErrorRef());
         setOnInsert(update, DqlEventDto.FIELD_STATUS, dto.getStatus());
+        setOnInsert(update, DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC, dto.getRecoveryStatusBeforeSync());
+        setOnInsert(update, DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON, dto.getNotReprocessableReason());
         setOnInsert(update, DqlEventDto.FIELD_RECOVERY_COUNT, Optional.ofNullable(dto.getRecoveryCount()).orElse(0));
         setOnInsert(update, DqlEventDto.FIELD_OVERWRITE_RISK, dto.getOverwriteRisk());
         setOnInsert(update, DqlEventDto.FIELD_OVERWRITE_RISK_MESSAGE, dto.getOverwriteRiskMessage());
@@ -317,6 +319,81 @@ public class DqlEventRepository {
                 .and(DqlEventDto.FIELD_STATUS).in(DqlEventStatusEnum.PENDING.name(),
                         DqlEventStatusEnum.RECOVERY_FAILED.name()));
         return mongoTemplate.count(query, entityClass);
+    }
+
+    public List<DqlEventDto> findReprocessableEventsForStatusSync() {
+        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_STATUS)
+                        .in(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name()))
+                .with(Sort.by(
+                        Sort.Order.asc(DqlEventDto.FIELD_FAILED_AT),
+                        Sort.Order.asc(DqlEventDto.FIELD_EVENT_ID)));
+        query.fields()
+                .include(DqlEventDto.FIELD_EVENT_ID)
+                .include(DqlEventDto.FIELD_TASK_ID)
+                .include(DqlEventDto.FIELD_TASK_VERSION)
+                .include(DqlEventDto.FIELD_PAYLOAD_COMPLETE)
+                .include(DqlEventDto.FIELD_STATUS);
+        return mongoTemplate.find(query, entityClass).stream()
+                .map(this::convert)
+                .collect(Collectors.toList());
+    }
+
+    public List<DqlEventDto> findSyncedNotReprocessableEvents() {
+        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_STATUS)
+                .is(DqlEventStatusEnum.NOT_REPROCESSABLE.name())
+                .and(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC).in(
+                        DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name()));
+        query.fields()
+                .include(DqlEventDto.FIELD_EVENT_ID)
+                .include(DqlEventDto.FIELD_TASK_ID)
+                .include(DqlEventDto.FIELD_TASK_VERSION)
+                .include(DqlEventDto.FIELD_STATUS)
+                .include(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC)
+                .include(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON);
+        return mongoTemplate.find(query, entityClass).stream()
+                .map(this::convert)
+                .collect(Collectors.toList());
+    }
+
+    public boolean markNotReprocessable(String eventId,
+                                        DqlEventStatusEnum expectedStatus,
+                                        String reasonCode,
+                                        Date now) {
+        if (StringUtils.isBlank(eventId) || expectedStatus == null || !expectedStatus.reprocessable()
+                || StringUtils.isBlank(reasonCode) || now == null) {
+            return false;
+        }
+        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_EVENT_ID).is(eventId)
+                .and(DqlEventDto.FIELD_STATUS).is(expectedStatus.name())
+                .and(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(null));
+        Update update = new Update()
+                .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.NOT_REPROCESSABLE.name())
+                .set(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC, expectedStatus.name())
+                .set(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON, reasonCode)
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+        return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
+    }
+
+    public boolean restoreReprocessableStatus(String eventId,
+                                               DqlEventStatusEnum expectedOriginalStatus,
+                                               String expectedReasonCode,
+                                               Date now) {
+        if (StringUtils.isBlank(eventId) || expectedOriginalStatus == null
+                || !expectedOriginalStatus.reprocessable() || StringUtils.isBlank(expectedReasonCode) || now == null) {
+            return false;
+        }
+        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_EVENT_ID).is(eventId)
+                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.NOT_REPROCESSABLE.name())
+                .and(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC).is(expectedOriginalStatus.name())
+                .and(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON).is(expectedReasonCode));
+        Update update = new Update()
+                .set(DqlEventDto.FIELD_STATUS, expectedOriginalStatus.name())
+                .unset(DqlEventDto.FIELD_RECOVERY_STATUS_BEFORE_SYNC)
+                .unset(DqlEventDto.FIELD_NOT_REPROCESSABLE_REASON)
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
+        return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
     }
 
     public Map<String, Long> countByTaskIdAndVersion(Map<String, Long> taskVersions) {

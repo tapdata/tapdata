@@ -4,6 +4,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
 import com.tapdata.tm.dql.DqlErrorTypeEnum;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
@@ -31,10 +32,16 @@ import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.bson.types.ObjectId;
 
 import java.util.Collections;
@@ -65,6 +72,18 @@ import static org.mockito.Mockito.when;
 
 class DqlEventServiceTest {
     private static final String TASK_ID = "64f000000000000000000001";
+
+    @BeforeEach
+    void useEnglishLocaleForPreviewTests() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("lang", "en_US"));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    @AfterEach
+    void clearPreviewLocale() {
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test
     @DisplayName("report assigns pending status and generated event id before persisting a new event")
@@ -341,6 +360,7 @@ class DqlEventServiceTest {
         assertEquals(DqlEventStatusEnum.NOT_REPROCESSABLE.name(), saved.getStatus());
         assertNull(saved.getPayloadData());
         assertFalse(saved.getPayloadComplete());
+        assertEquals("DqlRecovery.Preview.PayloadIncomplete", saved.getNotReprocessableReason());
         assertEquals("******", saved.getPayloadPreview().get("password"));
         assertEquals(4000, saved.getErrorDetails().length());
         assertFalse(saved.getErrorDetails().contains("must-not-leak"));
@@ -666,6 +686,79 @@ class DqlEventServiceTest {
     }
 
     @Test
+    @DisplayName("page returns the current task name instead of the event task name snapshot")
+    void pageUsesCurrentTaskName() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        TaskService taskService = mock(TaskService.class);
+        UserDetail user = user();
+        DqlEventQueryVo query = new DqlEventQueryVo();
+        when(permissionService.resolveVisibleTaskIds(query, user)).thenReturn(Set.of(TASK_ID));
+
+        TaskEntity currentTask = new TaskEntity();
+        currentTask.setId(new ObjectId(TASK_ID));
+        currentTask.setName("task-B");
+        when(taskService.findAll(any(Query.class), eq(user))).thenReturn(List.of(currentTask));
+
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setTaskName("task-A");
+        when(eventRepository.page(eq(query), eq(Set.of(TASK_ID)))).thenReturn(Page.page(List.of(event), 1));
+
+        DqlEventService service = new DqlEventService(
+                eventRepository,
+                mock(DqlEventAlarmService.class),
+                permissionService,
+                null,
+                new DqlReportValidationService(),
+                new DqlEventIdentityService(),
+                taskService
+        );
+
+        Page<DqlEventListVo> result = service.page(query, user);
+
+        assertEquals("task-B", result.getItems().get(0).getTaskName());
+    }
+
+    @Test
+    @DisplayName("task name query uses the current task name")
+    void taskNameQueryUsesCurrentTaskName() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        TaskService taskService = mock(TaskService.class);
+        UserDetail user = user();
+        DqlEventQueryVo query = new DqlEventQueryVo();
+        query.setTaskName("task-B");
+        when(permissionService.resolveVisibleTaskIds(query, user)).thenReturn(Set.of(TASK_ID));
+
+        TaskEntity currentTask = new TaskEntity();
+        currentTask.setId(new ObjectId(TASK_ID));
+        currentTask.setName("task-B");
+        when(taskService.findAll(any(Query.class), eq(user))).thenReturn(List.of(currentTask));
+
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setTaskName("task-A");
+        when(eventRepository.page(any(DqlEventQueryVo.class), eq(Set.of(TASK_ID))))
+                .thenReturn(Page.page(List.of(event), 1));
+
+        DqlEventService service = new DqlEventService(
+                eventRepository,
+                mock(DqlEventAlarmService.class),
+                permissionService,
+                null,
+                new DqlReportValidationService(),
+                new DqlEventIdentityService(),
+                taskService
+        );
+
+        Page<DqlEventListVo> result = service.page(query, user);
+
+        ArgumentCaptor<DqlEventQueryVo> queryCaptor = forClass(DqlEventQueryVo.class);
+        verify(eventRepository).page(queryCaptor.capture(), eq(Set.of(TASK_ID)));
+        assertNull(queryCaptor.getValue().getTaskName());
+        assertEquals("task-B", result.getItems().get(0).getTaskName());
+    }
+
+    @Test
     @DisplayName("page passes only the user's visible task range to the repository")
     void pageUsesVisibleTaskRange() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
@@ -736,6 +829,73 @@ class DqlEventServiceTest {
         assertNotNull(detail.getCurrentBatch());
         assertEquals("DQLB-20260826-000001", detail.getCurrentBatch().getBatchId());
         assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), detail.getCurrentBatch().getStatus());
+    }
+
+    @Test
+    @DisplayName("detail returns the current task name instead of the event task name snapshot")
+    void detailUsesCurrentTaskName() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventPermissionService permissionService = mock(DqlEventPermissionService.class);
+        TaskService taskService = mock(TaskService.class);
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setTaskName("task-A");
+        when(eventRepository.findByEventId(event.getEventId())).thenReturn(event);
+
+        TaskDto currentTask = new TaskDto();
+        currentTask.setId(new ObjectId(TASK_ID));
+        currentTask.setName("task-B");
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"))).thenReturn(currentTask);
+
+        DqlEventService service = new DqlEventService(
+                eventRepository,
+                mock(DqlEventAlarmService.class),
+                permissionService,
+                null,
+                new DqlReportValidationService(),
+                new DqlEventIdentityService(),
+                taskService
+        );
+
+        DqlEventDetailVo detail = service.detail(event.getEventId(), user());
+
+        assertEquals("task-B", detail.getTaskName());
+    }
+
+    @Test
+    @DisplayName("detail returns a localized not reprocessable reason for not reprocessable events")
+    void detailReturnsLocalizedNotReprocessableReason() throws Exception {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.NOT_REPROCESSABLE);
+        event.setPayloadComplete(false);
+        event.setNotReprocessableReason("DqlRecovery.Preview.PayloadIncomplete");
+        when(eventRepository.findByEventId(event.getEventId())).thenReturn(event);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("lang", "zh_CN"));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            DqlEventDetailVo detail = service.detail(event.getEventId(), user());
+
+            assertEquals("Payload 不完整", detail.getNotReprocessableReason());
+            assertTrue(new ObjectMapper().writeValueAsString(detail)
+                    .contains("\"notReprocessableReason\":\"Payload 不完整\""));
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    @DisplayName("detail omits not reprocessable reason for reprocessable events")
+    void detailOmitsNotReprocessableReasonForReprocessableEvent() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventDto event = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        event.setNotReprocessableReason("DqlRecovery.Preview.PayloadIncomplete");
+        when(eventRepository.findByEventId(event.getEventId())).thenReturn(event);
+
+        DqlEventDetailVo detail = service.detail(event.getEventId(), user());
+
+        assertNull(detail.getNotReprocessableReason());
     }
 
     @Test
