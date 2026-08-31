@@ -26,6 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -36,6 +38,9 @@ import java.util.*;
 @Slf4j
 @Service
 public class UserLogServiceImpl extends BaseService implements UserLogService{
+
+    private static final int BRUTE_FORCE_FAILURE_THRESHOLD = 5;
+    private static final long BRUTE_FORCE_WINDOW_MILLIS = 10 * 60 * 1000L;
     private static final String UNAUTHENTICATED_USER = "UNAUTHENTICATED";
     private static final List<String> FORWARDED_IP_HEADERS = List.of(
             "Forwarded",
@@ -211,7 +216,9 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             userLogs.setUserId(userId);
             userLogs.setCustomId(auditLogParam.getCustomerId());
             userLogs.setUsername(username);
-            userLogs.setIp(resolveSourceIp());
+            String sourceIp = StringUtils.isNotBlank(auditLogParam.getSourceIp())
+                    ? normalizeIp(auditLogParam.getSourceIp()) : resolveSourceIp();
+            userLogs.setIp(sourceIp);
             userLogs.setEventType(auditLogParam.getEventType() == null
                     ? AuditEventType.ADMIN_OPERATION.getValue() : auditLogParam.getEventType().getValue());
             userLogs.setOutcome(auditLogParam.getOutcome() == null
@@ -219,7 +226,7 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             userLogs.setOperation(safeValue(auditLogParam.getAction()));
             userLogs.setParameter1(safeValue(auditLogParam.getParameter1()));
             userLogs.setObjectName(safeValue(auditLogParam.getObjectName()));
-            userLogs.setFailureReason(safeValue(auditLogParam.getFailureReason()));
+            userLogs.setFailureReason(resolveFailureReason(auditLogParam, sourceIp));
             userLogs.setChangeSummary(safeValue(auditLogParam.getChangeSummary()));
             userLogs.setServiceNode(safeValue(auditLogParam.getServiceNode()));
             userLogs.setComponentType(safeValue(auditLogParam.getComponentType()));
@@ -237,14 +244,25 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         }
     }
 
-    @Override
-    public UserLogDto findById(String id, UserDetail userDetail) {
-        if (!ObjectId.isValid(id)) {
-            return null;
+    private String resolveFailureReason(AuditLogParam auditLogParam, String sourceIp) {
+        String failureReason = safeValue(auditLogParam.getFailureReason());
+        if (auditLogParam.getEventType() != AuditEventType.LOGIN
+                || auditLogParam.getOutcome() != AuditOutcome.FAILURE
+                || StringUtils.isBlank(sourceIp)) {
+            return failureReason;
         }
-        return userLogRepository.findById(new ObjectId(id), userDetail)
-                .map(entity -> (UserLogDto) convertToDto(entity, UserLogDto.class, "password"))
-                .orElse(null);
+        try {
+            Query query = Query.query(Criteria.where("eventType").is(AuditEventType.LOGIN.getValue())
+                    .and("outcome").is(AuditOutcome.FAILURE.getValue())
+                    .and("ip").is(sourceIp)
+                    .and("createAt").gte(new Date(System.currentTimeMillis() - BRUTE_FORCE_WINDOW_MILLIS)));
+            long recentFailures = userLogRepository.getMongoOperations().count(query, UserLogs.class);
+            return recentFailures >= BRUTE_FORCE_FAILURE_THRESHOLD - 1
+                    ? "too_many_login_failures" : failureReason;
+        } catch (Exception e) {
+            log.warn("Failed to detect repeated login failures from source IP", e);
+            return failureReason;
+        }
     }
 
     private String resolveSourceIp() {
@@ -363,9 +381,14 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             filter.setSort(Collections.singletonList("createAt DESC"));
         }
 
-        List<UserLogs> entityList = userLogRepository.findAll(filter, userDetail);
+        boolean globalAuditView = userDetail != null && userDetail.isRoot();
+        List<UserLogs> entityList = globalAuditView
+                ? userLogRepository.findAll(filter)
+                : userLogRepository.findAll(filter, userDetail);
 
-        long total = userLogRepository.count(filter.getWhere(), userDetail);
+        long total = globalAuditView
+                ? userLogRepository.count(filter.getWhere())
+                : userLogRepository.count(filter.getWhere(), userDetail);
 
         List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
         Locale locale = MessageUtil.getLocale();

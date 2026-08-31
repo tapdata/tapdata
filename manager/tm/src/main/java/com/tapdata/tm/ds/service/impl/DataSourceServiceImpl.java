@@ -74,6 +74,7 @@ import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.service.ConnectionAuditService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository;
 import com.tapdata.tm.worker.entity.Worker;
@@ -172,6 +173,8 @@ public class DataSourceServiceImpl extends DataSourceService{
     private DefaultDataDirectoryService defaultDataDirectoryService;
     @Autowired
     private UserService userService;
+    @Autowired
+    private ConnectionAuditService connectionAuditService;
 
     @Autowired
     @Lazy
@@ -1598,7 +1601,9 @@ public class DataSourceServiceImpl extends DataSourceService{
 //						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
                     }
                 }
-                return repository.update(query, datasourceUpdate, user).getModifiedCount();
+                long count = repository.update(query, datasourceUpdate, user).getModifiedCount();
+                completeSchemaLoadAudit(id, set, count);
+                return count;
             }
         }
 
@@ -1751,6 +1756,14 @@ public class DataSourceServiceImpl extends DataSourceService{
         // 返回数量大于 0，才需要进行模型加载
         return result;
     }
+
+	private void completeSchemaLoadAudit(String connectionId, Document set, long modifiedCount) {
+		if (connectionAuditService == null || modifiedCount <= 0 || set == null) {
+			return;
+		}
+		connectionAuditService.completeSchemaLoad(connectionId,
+				set.getString(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS));
+	}
 
     public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField, Boolean partLoad) {
         for (TapTable table : tables) {

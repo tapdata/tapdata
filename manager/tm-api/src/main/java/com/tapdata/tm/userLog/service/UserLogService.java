@@ -23,7 +23,5 @@ public interface UserLogService {
 
     Page<UserLogDto> find(Filter filter, UserDetail userDetail);
 
-    UserLogDto findById(String id, UserDetail userDetail);
-
     void addAuditLog(AuditLogParam auditLogParam);
 }

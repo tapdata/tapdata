@@ -1,18 +1,30 @@
 package com.tapdata.tm.userLog.service;
 
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.constant.AuditEventType;
+import com.tapdata.tm.userLog.constant.AuditOutcome;
 import com.tapdata.tm.userLog.constant.UserLogTemplateKey;
 import com.tapdata.tm.userLog.constant.UserLogType;
 import com.tapdata.tm.userLog.dto.UserLogDto;
+import com.tapdata.tm.userLog.entity.UserLogs;
+import com.tapdata.tm.userLog.param.AuditLogParam;
 import com.tapdata.tm.userLog.repository.UserLogRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -215,6 +227,91 @@ public class UserLogServiceImplTest {
             request.setRemoteAddr("not-an-ip");
 
             assertNull(userLogService.resolveSourceIp(request));
+        }
+    }
+
+    @Nested
+    class LoginFailureDetection {
+        private UserLogRepository repository;
+        private MongoTemplate mongoTemplate;
+
+        @BeforeEach
+        void beforeEach() {
+            repository = mock(UserLogRepository.class);
+            mongoTemplate = mock(MongoTemplate.class);
+            when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+            when(repository.getCollectionName()).thenReturn("UserLogs");
+            userLogService = new UserLogServiceImpl(repository);
+            ReflectionTestUtils.setField(userLogService, "userLogRepository", repository);
+
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setRemoteAddr("203.0.113.8");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        }
+
+        @AfterEach
+        void afterEach() {
+            RequestContextHolder.resetRequestAttributes();
+        }
+
+        @Test
+        void shouldMarkFifthFailureFromSameIpAsBruteForce() {
+            when(mongoTemplate.count(any(Query.class), eq(UserLogs.class))).thenReturn(4L);
+
+            userLogService.addAuditLog(loginFailure("missing@example.com"));
+
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(mongoTemplate).insert(captor.capture(), eq("UserLogs"));
+            assertEquals("too_many_login_failures", captor.getValue().getFailureReason());
+            assertEquals("missing@example.com", captor.getValue().getUsername());
+            assertEquals("UNAUTHENTICATED", captor.getValue().getUserId());
+        }
+
+        @Test
+        void shouldKeepOriginalReasonBeforeThreshold() {
+            when(mongoTemplate.count(any(Query.class), eq(UserLogs.class))).thenReturn(3L);
+
+            userLogService.addAuditLog(loginFailure("missing@example.com"));
+
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(mongoTemplate).insert(captor.capture(), eq("UserLogs"));
+            assertEquals("credential_validation_failed", captor.getValue().getFailureReason());
+        }
+
+        private AuditLogParam loginFailure(String account) {
+            AuditLogParam param = new AuditLogParam();
+            param.setEventType(AuditEventType.LOGIN);
+            param.setOutcome(AuditOutcome.FAILURE);
+            param.setUsername(account);
+            param.setAction("login");
+            param.setFailureReason("credential_validation_failed");
+            return param;
+        }
+    }
+
+    @Nested
+    class AuditLogVisibility {
+        private UserLogRepository repository;
+
+        @BeforeEach
+        void beforeEach() {
+            repository = mock(UserLogRepository.class);
+            userLogService = new UserLogServiceImpl(repository);
+            ReflectionTestUtils.setField(userLogService, "userLogRepository", repository);
+        }
+
+        @Test
+        void rootShouldUseGlobalViewForUnauthenticatedEvents() {
+            Filter filter = new Filter();
+            UserDetail root = mock(UserDetail.class);
+            when(root.isRoot()).thenReturn(true);
+            when(repository.findAll(filter)).thenReturn(List.of());
+
+            userLogService.find(filter, root);
+
+            verify(repository).findAll(filter);
+            verify(repository).count(filter.getWhere());
+            verify(repository, never()).findAll(filter, root);
         }
     }
 
