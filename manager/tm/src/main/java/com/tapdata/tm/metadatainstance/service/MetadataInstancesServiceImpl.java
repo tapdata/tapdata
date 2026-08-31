@@ -96,6 +96,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -499,6 +500,25 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 }
             }
         }
+
+        normalizeMongoUnsupportedFieldValues(data);
+    }
+
+    private void normalizeMongoUnsupportedFieldValues(MetadataInstancesDto data) {
+        if (data == null || CollectionUtils.isEmpty(data.getFields())) {
+            return;
+        }
+        for (Field field : data.getFields()) {
+            field.setDefaultValue(normalizeMongoValue(field.getDefaultValue()));
+            field.setOriginalDefaultValue(normalizeMongoValue(field.getOriginalDefaultValue()));
+        }
+    }
+
+    private Object normalizeMongoValue(Object value) {
+        if (value instanceof BigInteger) {
+            return value.toString();
+        }
+        return value;
     }
 
 

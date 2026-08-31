@@ -96,6 +96,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.math.BigInteger;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.junit.jupiter.api.Assertions.*;
@@ -384,6 +385,25 @@ public class MetadataInstancesServiceImplTest {
 				mb.verify(() -> ObjectId.get(), new Times(1));
 				verify(metadataInstancesService, new Times(1)).beforeCreateOrUpdate(record, userDetail);
 			}
+		}
+
+		@Test
+		@DisplayName("test beforeSave method should normalize BigInteger default values")
+		void test4() {
+			MetadataInstancesDto record = new MetadataInstancesDto();
+			Field field = new Field();
+			BigInteger bigInteger = new BigInteger("123456789012345678901234567890");
+			field.setDefaultValue(bigInteger);
+			field.setOriginalDefaultValue(bigInteger);
+			record.setFields(new ArrayList<>(Collections.singletonList(field)));
+
+			try (MockedStatic<ObjectId> mb = Mockito.mockStatic(ObjectId.class)) {
+				mb.when(ObjectId::get).thenReturn(mock(ObjectId.class));
+				metadataInstancesService.beforeSave(record, userDetail);
+			}
+
+			assertEquals("123456789012345678901234567890", record.getFields().get(0).getDefaultValue());
+			assertEquals("123456789012345678901234567890", record.getFields().get(0).getOriginalDefaultValue());
 		}
 	}
 
