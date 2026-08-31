@@ -50,6 +50,23 @@ public class ExternalStorageDto extends BaseDto {
 	 */
 	private ResponseBody response_body;
 
+	public ExternalStorageDto maskSensitiveData() {
+		this.uri = maskUriPassword();
+		if (StringUtils.isNotBlank(this.accessToken)) {
+			this.accessToken = MASK_PWD;
+		}
+		if (StringUtils.isNotBlank(this.sslCA)) {
+			this.sslCA = MASK_PWD;
+		}
+		if (StringUtils.isNotBlank(this.sslKey)) {
+			this.sslKey = MASK_PWD;
+		}
+		if (StringUtils.isNotBlank(this.sslPass)) {
+			this.sslPass = MASK_PWD;
+		}
+		return this;
+	}
+
 	public String maskUriPassword() {
 		if (isMongoDBUri() && StringUtils.isNotBlank(uri)) {
 			try {
