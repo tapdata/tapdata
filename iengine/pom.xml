@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.7</version>
+        <version>4.0.8</version>
         <relativePath/>
     </parent>
 
@@ -28,7 +28,7 @@
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.jackson>2.21.4</version.jackson>
+        <version.jackson>2.21.5</version.jackson>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -38,15 +38,18 @@
         <version.hana.driver>2.3.58</version.hana.driver>
         <version.mysql.binlog>0.28.0</version.mysql.binlog>
         <version.mongo.server>3.2.12</version.mongo.server>
-        <!-- align with Spring Boot 4 BOM-managed mongodb-driver-core (5.6.5); a mismatched sync/core
-             caused NoClassDefFoundError com/mongodb/internal/operation/SyncOperations at runtime -->
-        <version.mongo.driver>5.6.5</version.mongo.driver>
+        <!-- Overrides the mongodb-driver-bom that the Spring Boot BOM imports, so every mongodb
+             artifact (bson, bson-record-codec, driver-core, driver-sync) moves together; a
+             mismatched sync/core caused NoClassDefFoundError
+             com/mongodb/internal/operation/SyncOperations at runtime.
+             Keep in sync with manager/pom.xml. -->
+        <mongodb.version>5.11.0</mongodb.version>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
         <!-- Spring Boot 4.0.x manages Spring Framework 7.0.x; keep this aligned with the BOM -->
-        <version.spring>7.0.8</version.spring>
+        <version.spring>7.0.9</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -136,7 +139,7 @@
         <graalvm.py.version>2.7.4</graalvm.py.version>
 
         <jna.version>5.10.0</jna.version>
-        <log4j.version>2.25.4</log4j.version>
+        <log4j.version>2.25.5</log4j.version>
 
         <hutool.version>5.8.40</hutool.version>
 
@@ -181,13 +184,13 @@
         <async-tools-module.version>2.7-SNAPSHOT</async-tools-module.version>
         <script-engine-module.version>2.7-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
-        <httpclient5.version>5.4.4</httpclient5.version>
-        <httpcore5.version>5.4.3</httpcore5.version>
-        <!-- netty.version / tomcat.version pinned FORWARD of the Spring Boot 4.x BOM
-             (BOM ships netty 4.2.15.Final / tomcat 11.0.22, both with open CVEs).
+        <!-- httpclient5 / tomcat pinned FORWARD of the Spring Boot 4.0.x BOM: the BOM values
+             (httpclient5 5.5.2, tomcat 11.0.24) both carry open CVEs. netty is no longer
+             overridden - the 4.0.8 BOM already ships a clean 4.2.17.Final.
              Jakarta EE 11 / Servlet 6.1 baseline unchanged. Keep in sync with manager/pom.xml. -->
-        <netty.version>4.2.16.Final</netty.version>
-        <tomcat.version>11.0.24</tomcat.version>
+        <httpclient5.version>5.6.4</httpclient5.version>
+        <httpcore5.version>5.4.3</httpcore5.version>
+        <tomcat.version>11.0.25</tomcat.version>
     </properties>
 
     <modules>
@@ -317,13 +320,6 @@
                 <groupId>mil.nga</groupId>
                 <artifactId>wkb</artifactId>
                 <version>1.0.2</version>
-            </dependency>
-
-            <!-- MongoDB Java driver -->
-            <dependency>
-                <groupId>org.mongodb</groupId>
-                <artifactId>mongodb-driver-sync</artifactId>
-                <version>${version.mongo.driver}</version>
             </dependency>
 
             <!-- Logging -->

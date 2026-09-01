@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.7</version>
+		<version>4.0.8</version>
 		<relativePath/>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -27,7 +27,11 @@
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
-		<mongo.version>5.6.5</mongo.version>
+		<!-- Overrides the mongodb-driver-bom that the Spring Boot BOM imports, so bson /
+		     bson-record-codec / driver-core / driver-sync all move together. Pinning the artifacts
+		     one at a time leaves bson-record-codec behind on the BOM version, and a mismatched
+		     set throws NoClassDefFoundError at runtime. Keep in sync with iengine/pom.xml. -->
+		<mongodb.version>5.11.0</mongodb.version>
 		<tapdata-api.version>2.0.7-SNAPSHOT</tapdata-api.version>
 		<tapdata-pdk-api.version>2.0.7-SNAPSHOT</tapdata-pdk-api.version>
 		<tapdata-common.version>2.7-SNAPSHOT</tapdata-common.version>
@@ -43,16 +47,16 @@
 		<gson.version>2.12.1</gson.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
 		<org.bouncycastle.version>1.85</org.bouncycastle.version>
-		<!-- Overrides Spring Boot 4.0.x BOM (netty 4.2.15 / tomcat 11.0.22): both BOM values
-		     carry open CVEs, so we pin forward. Jakarta EE 11 baseline unchanged. -->
-		<netty.version>4.2.16.Final</netty.version>
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
-		<tomcat.version>11.0.24</tomcat.version>
-		<jackson.version>2.21.4</jackson.version>
-		<logback.version>1.5.37</logback.version>
+		<!-- Pinned FORWARD of the Spring Boot 4.0.x BOM: the BOM values still carry open CVEs.
+		     tomcat 11.0.24 and httpclient5 5.5.2 are both flagged; netty / jackson / log4j /
+		     spring / spring-security are clean in the 4.0.8 BOM and are no longer overridden here.
+		     Jakarta EE 11 baseline unchanged. Keep in sync with iengine/pom.xml. -->
+		<tomcat.version>11.0.25</tomcat.version>
 		<httpcore5.version>5.4.3</httpcore5.version>
+		<httpclient5.version>5.6.4</httpclient5.version>
     </properties>
 
 	<modules>
@@ -113,21 +117,6 @@
 				<groupId>io.tapdata</groupId>
 				<artifactId>tapdata-common</artifactId>
 				<version>${tapdata-common.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.mongodb</groupId>
-				<artifactId>mongodb-driver-sync</artifactId>
-				<version>${mongo.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.mongodb</groupId>
-				<artifactId>bson</artifactId>
-				<version>${mongo.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.mongodb</groupId>
-				<artifactId>mongodb-driver-core</artifactId>
-				<version>${mongo.version}</version>
 			</dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
