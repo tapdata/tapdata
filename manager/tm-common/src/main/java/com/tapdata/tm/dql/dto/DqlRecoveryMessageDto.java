@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * TM -> Engine command for one DQL recovery batch.
+ * TM -> Engine command for one DLQ recovery batch.
  *
  * <p>This message deliberately has its own contract instead of reusing
  * {@code DataSyncMq.opType}; task lifecycle messages and recovery commands

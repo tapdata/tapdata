@@ -1231,7 +1231,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	class InitExternalStorageTest {
 		@Test
-		@DisplayName("DQL recovery disabled placeholder does not initialize external storage")
+		@DisplayName("DLQ recovery disabled placeholder does not initialize external storage")
 		void testDqlRecoveryDisabledPlaceholderSkipsExternalStorageInitialization() {
 			Map<String, Object> taskAttrs = new HashMap<>();
 			taskAttrs.put(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, Boolean.TRUE);

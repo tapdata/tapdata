@@ -1,7 +1,7 @@
 package io.tapdata.dql.recovery;
 
 /**
- * Signals that DQL recovery could not finish stopping the formal task after
+ * Signals that DLQ recovery could not finish stopping the formal task after
  * its pre-recovery state had already been captured.
  *
  * <p>The snapshot is deliberately carried by the exception.  Stopping a Jet

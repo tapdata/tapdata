@@ -358,7 +358,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 getNode().getId(),
                 dqlRecoverySourceBoundary
         );
-        logger.info("DQL recovery source boundary registered for task {} and source node {}",
+        logger.info("DLQ recovery source boundary registered for task {} and source node {}",
                 taskDto.getId(), getNode().getId());
     }
 

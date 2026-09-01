@@ -24,7 +24,7 @@ class DqlInitializationCompatibilityTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("DQL initialization keeps TTL indexes repeatable and does not backfill historical records")
+    @DisplayName("DLQ initialization keeps TTL indexes repeatable and does not backfill historical records")
     void dqlIndexesAreRepeatableWithoutHistoricalBackfill() throws Exception {
         JsonNode patches = readPatches();
         Map<String, JsonNode> createIndexes = new LinkedHashMap<>();
@@ -47,7 +47,7 @@ class DqlInitializationCompatibilityTest {
     }
 
     @Test
-    @DisplayName("DQL settings use upsert and set-on-insert semantics for safe script re-execution")
+    @DisplayName("DLQ settings use upsert and set-on-insert semantics for safe script re-execution")
     void dqlSettingsDoNotOverwriteExistingRuntimeValues() throws Exception {
         JsonNode settingsPatch = null;
         for (JsonNode patch : readPatches()) {

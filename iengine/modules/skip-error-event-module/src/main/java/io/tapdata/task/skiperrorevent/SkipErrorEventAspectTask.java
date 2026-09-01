@@ -147,7 +147,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             String operation = dmlOperation(tapRecordEvent);
             String resolvedFailedNodeId = StringUtils.defaultIfBlank(failedNodeId, "N/A");
             String resolvedFailedNodeName = StringUtils.defaultIfBlank(failedNodeName, "N/A");
-            log.warn("DQL record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}",
+            log.warn("DLQ record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}",
                     taskId, taskName, tableName, operation, resolvedFailedNodeId, resolvedFailedNodeName,
                     StringUtils.defaultIfBlank(errorCode(ex), "N/A"), exceptionSummary(ex), skipInfo);
             if (ex instanceof TapPdkViolateUniqueEx && ((TapPdkViolateUniqueEx) ex).getData() != null) {
@@ -203,7 +203,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private boolean checkSkipByLimitMode(String tableName, long syncCounts, long skipCounts) {
-        // DQL is the explicit record-isolation mode.  Its routing decision is
+        // DLQ is the explicit record-isolation mode.  Its routing decision is
         // made by the classifier and Storm Guard; legacy SkipData limits must
         // not turn a deterministic record failure back into TASK_ERROR.
         if (isDqlMode()) {
@@ -266,7 +266,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             boolean skipErrorEventEnabled = false;
             // Keep the routing configuration available even when an optional
             // logging/store resource cannot be initialized. Processor errors
-            // must still be able to reach the DQL interceptor in that case.
+            // must still be able to reach the DLQ interceptor in that case.
             this.skipErrorEvent = getTask().getSkipErrorEvent();
             if (this.skipErrorEvent != null) {
                 if (this.skipErrorEvent.getErrorMode() == null) {
@@ -301,7 +301,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             this.dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder(dqlRuntimeConfig);
             // Register the processor handler before initializing optional
             // logging/store resources. Those resources must not decide
-            // whether a processor exception can be routed to DQL.
+            // whether a processor exception can be routed to DLQ.
             if (skipErrorEventEnabled && dqlRuntimeConfig.isEventEnabled()) {
                 this.skipErrorDataNoeAspect = this::skipErrorDataNoeAspectImpl;
             }
@@ -314,7 +314,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             try {
                 this.logger = new SplitFileLogger(Level.INFO, taskId);
             } catch (RuntimeException loggerException) {
-                // File logging is supplemental to DQL capture. For example,
+                // File logging is supplemental to DLQ capture. For example,
                 // a test or a minimally configured worker may not initialize
                 // SplitFileLogger first.
                 this.logger = null;
@@ -387,7 +387,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             operator = BeanUtil.getBean(ClientMongoOperator.class);
         } catch (RuntimeException exception) {
             if (log != null) {
-                log.warn("DQL TM operator bean is unavailable for task {}: {}",
+                log.warn("DLQ TM operator bean is unavailable for task {}: {}",
                         taskId, exception.getMessage());
             }
         }
@@ -513,7 +513,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                 // The target write has already succeeded. A failure to update
                 // audit metadata must not turn it into a failed data write.
                 if (log != null) {
-                    log.warn("DQL later-success report failed for task {}: {}", taskId, exception.getMessage());
+                    log.warn("DLQ later-success report failed for task {}: {}", taskId, exception.getMessage());
                 }
             }
         }
@@ -641,7 +641,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             return new AspectInterceptResult().intercepted(true);
         } catch (DqlEventReportException exception) {
             logTaskLevelHandling(tableId, DqlExceptionScope.RECORD.name(),
-                    DqlRouteDecision.TASK_ERROR.name(), "DQL report failed");
+                    DqlRouteDecision.TASK_ERROR.name(), "DLQ report failed");
             throw exception;
         } finally {
             if (!committed) {
@@ -750,7 +750,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     private void logTaskLevelHandling(String tableName, String scope, String route, String reason) {
         if (log != null) {
-            log.warn("DQL task-level handling: task={}, table={}, scope={}, route={}, reason={}",
+            log.warn("DLQ task-level handling: task={}, table={}, scope={}, route={}, reason={}",
                     taskId, tableName, scope, route, reason);
         }
     }
@@ -787,7 +787,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             // Storm Guard is a routing safety valve; an observability callback
             // failure must not change the already selected task-level route.
             if (log != null) {
-                log.warn("DQL Storm Guard report failed for task {}: {}", taskId,
+                log.warn("DLQ Storm Guard report failed for task {}: {}", taskId,
                         exception.getMessage());
             }
         }
@@ -835,11 +835,11 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             return true;
         } catch (DqlEventReportException exception) {
             logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
-                    DqlRouteDecision.TASK_ERROR.name(), "DQL report failed");
+                    DqlRouteDecision.TASK_ERROR.name(), "DLQ report failed");
             throw exception;
         } catch (RuntimeException exception) {
             logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
-                    DqlRouteDecision.TASK_ERROR.name(), "DQL capture failed");
+                    DqlRouteDecision.TASK_ERROR.name(), "DLQ capture failed");
             throw new DqlEventReportException(taskId, exception);
         } finally {
             if (!committed) {
@@ -880,7 +880,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     private void logDqlCaptureUnavailable(boolean skipDataEnabled, boolean dqlEventEnabled) {
         if (log != null && dqlCaptureUnavailableLogged.compareAndSet(false, true)) {
-            log.warn("DQL processor capture is unavailable for task {}: skipDataEnabled={}, "
+            log.warn("DLQ processor capture is unavailable for task {}: skipDataEnabled={}, "
                             + "dqlEventEnabled={}, reporterAvailable={}",
                     taskId, skipDataEnabled, dqlEventEnabled, dqlEventReporter != null);
         }
@@ -917,7 +917,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                 DataProcessorContext dataProcessorContext) {
         try {
             if (dqlEventReporter == null) {
-                throw new DqlEventReportException(taskId, "DQL TM reporter is unavailable");
+                throw new DqlEventReportException(taskId, "DLQ TM reporter is unavailable");
             }
             DqlEventReport report = buildDqlEventReport(table, event, tableId, error, classification,
                     failedStage, failedNodeId, failedNodeName, targetTable, dataProcessorContext);
@@ -1032,7 +1032,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private Node<?> targetNode(DataProcessorContext dataProcessorContext, List<Node> targetNodes) {
         // The node in the processor context is the node currently executing,
         // not necessarily the task's final target. A processor failure must
-        // retain the downstream processing path during DQL replay, so resolve
+        // retain the downstream processing path during DLQ replay, so resolve
         // target metadata from the DAG boundary first.
         Node<?> boundaryTarget = boundaryNode(targetNodes);
         if (boundaryTarget != null) {
@@ -1141,7 +1141,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                 }
             }
         } catch (RuntimeException ignored) {
-            // Table metadata is best effort. DQL can still persist the event
+            // Table metadata is best effort. DLQ can still persist the event
             // and use its full-field identity when the processor model is
             // genuinely unavailable.
         }
@@ -1164,7 +1164,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         if (event instanceof TapDeleteRecordEvent) {
             return "D";
         }
-        throw new IllegalArgumentException("Unsupported DQL event type: " + event.getClass().getName());
+        throw new IllegalArgumentException("Unsupported DLQ event type: " + event.getClass().getName());
     }
 
     private String dmlOperation(TapRecordEvent event) {

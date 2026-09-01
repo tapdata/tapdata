@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Reproduces the G13 scenario through the real GraalJS invocation path.
- * The tests cover both direct DQL dispatch and the registered task-session
+ * The tests cover both direct DLQ dispatch and the registered task-session
  * interceptor used by a running task.
  */
 class HazelcastJavaScriptProcessorDqlCaptureTest {
@@ -69,7 +69,7 @@ class HazelcastJavaScriptProcessorDqlCaptureTest {
         jsNode.setName("JavaScript");
         jsNode.setScript("function process(record) {\n"
                 + "  if (record.scenario === 'SCRIPT_FAIL') {\n"
-                + "    throw new Error('DQL_POC_SCRIPT_FAIL');\n"
+                + "    throw new Error('DLQ_POC_SCRIPT_FAIL');\n"
                 + "  }\n"
                 + "  return record;\n"
                 + "}");

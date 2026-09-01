@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class DqlTtlIndexPatchTest {
 
     @Test
-    @DisplayName("DAAS 4.22-7 upgrade installs both DQL TTL indexes and advances the script version")
+    @DisplayName("DAAS 4.22-7 upgrade installs both DLQ TTL indexes and advances the script version")
     void upgradeFromPreviousVersionInstallsDqlTtlIndexes() throws Exception {
         PatchesRunner runner = new PatchesRunner();
         VersionService versionService = mock(VersionService.class);
@@ -67,7 +67,7 @@ class DqlTtlIndexPatchTest {
     }
 
     @Test
-    @DisplayName("re-executing 4.22-7 does not recreate matching DQL TTL indexes")
+    @DisplayName("re-executing 4.22-7 does not recreate matching DLQ TTL indexes")
     void rerunningPatchWithMatchingIndexesIsIdempotent() throws Exception {
         PatchesRunner runner = new PatchesRunner();
         VersionService versionService = mock(VersionService.class);

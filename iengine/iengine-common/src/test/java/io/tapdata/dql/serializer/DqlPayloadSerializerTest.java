@@ -8,6 +8,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -98,6 +99,26 @@ class DqlPayloadSerializerTest {
 
         assertEquals(event.getBefore(), restored.getBefore());
         assertBaseFields(event, restored);
+    }
+
+    @Test
+    @DisplayName("payload round trip preserves local date time runtime type")
+    void payloadRoundTripPreservesLocalDateTimeRuntimeType() {
+        LocalDateTime eventTime = LocalDateTime.of(2026, 9, 1, 15, 38, 47, 588_000_000);
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(Map.of("event_time", eventTime));
+
+        DqlPayloadSnapshot snapshot = new DqlPayloadSerializer().serialize(event);
+        Map<?, ?> serializedAfter = assertInstanceOf(Map.class,
+                assertInstanceOf(Map.class, snapshot.getPayloadData()).get("after"));
+        assertEquals("local_date_time", assertInstanceOf(Map.class, serializedAfter.get("event_time"))
+                .get("__tapdata_dql_value_type"));
+        TapInsertRecordEvent restored = assertInstanceOf(TapInsertRecordEvent.class,
+                new DqlPayloadSerializer().deserialize(snapshot));
+
+        assertEquals(eventTime, restored.getAfter().get("event_time"));
+        assertInstanceOf(LocalDateTime.class, restored.getAfter().get("event_time"));
     }
 
     @Test

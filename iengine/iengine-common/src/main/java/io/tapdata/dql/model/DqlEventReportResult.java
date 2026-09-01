@@ -3,7 +3,7 @@ package io.tapdata.dql.model;
 import lombok.Data;
 
 /**
- * TM acknowledgement for an Engine DQL event report.
+ * TM acknowledgement for an Engine DLQ event report.
  */
 @Data
 public class DqlEventReportResult {

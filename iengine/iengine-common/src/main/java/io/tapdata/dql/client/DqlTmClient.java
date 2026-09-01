@@ -18,10 +18,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Small Engine-side adapter for the TM DQL internal callbacks.
+ * Small Engine-side adapter for the TM DLQ internal callbacks.
  *
  * <p>The adapter deliberately delegates authentication, retry and TM error mapping to
- * {@link HttpClientMongoOperator}; it only owns the DQL resource paths and request models.</p>
+ * {@link HttpClientMongoOperator}; it only owns the DLQ resource paths and request models.</p>
  */
 public class DqlTmClient {
     public static final String EVENT_REPORT_RESOURCE = "task/%s/dql-events/report";
@@ -59,7 +59,7 @@ public class DqlTmClient {
         DqlRecoveryPayloadVo payload = operator.findOne(
                 new Query(), String.format(RECOVERY_PAYLOAD_RESOURCE, eventId), DqlRecoveryPayloadVo.class);
         if (payload == null) {
-            throw new ManagementException("DQL recovery payload was not found: " + eventId);
+            throw new ManagementException("DLQ recovery payload was not found: " + eventId);
         }
         return payload;
     }
@@ -76,7 +76,7 @@ public class DqlTmClient {
                 });
         T response = operator.postOne(payload, String.format(resourcePattern, taskId), responseType);
         if (response == null) {
-            throw new ManagementException("DQL TM request returned an empty response");
+            throw new ManagementException("DLQ TM request returned an empty response");
         }
         return response;
     }

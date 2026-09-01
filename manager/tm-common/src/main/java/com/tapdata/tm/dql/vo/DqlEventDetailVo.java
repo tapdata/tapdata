@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Public detail representation of a DQL event. It is deliberately independent from the
+ * Public detail representation of a DLQ event. It is deliberately independent from the
  * persistence DTO so internal payload and identity fields cannot leak through serialization.
  */
 @Data

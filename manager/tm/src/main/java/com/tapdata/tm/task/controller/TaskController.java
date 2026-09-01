@@ -495,7 +495,7 @@ public class TaskController extends BaseController {
         return success();
     }
 
-    @Operation(summary = "查询任务删除或重置对 DQL 记录的影响")
+    @Operation(summary = "查询任务删除或重置对 DLQ 记录的影响")
     @PostMapping("dql-event-impact")
     public ResponseMessage<List<DqlTaskImpactVo>> dqlEventImpact(
             @RequestBody(required = false) DqlTaskImpactRequestVo request) {
@@ -772,7 +772,7 @@ public class TaskController extends BaseController {
     }
 
     /**
-     * Engine-internal task restart entry point.  DQL recovery must restore a
+     * Engine-internal task restart entry point.  DLQ recovery must restore a
      * task through TM's state machine instead of changing the task state or
      * enqueueing an Engine-local start directly.  The system flag also lets
      * the recovery operation pass its own active-recovery guard.

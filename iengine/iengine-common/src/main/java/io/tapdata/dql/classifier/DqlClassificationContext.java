@@ -5,7 +5,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import java.util.Objects;
 
 /**
- * Context supplied by an Engine capture point to the DQL classifier.
+ * Context supplied by an Engine capture point to the DLQ classifier.
  */
 public final class DqlClassificationContext {
     private final DqlFailedStage failedStage;

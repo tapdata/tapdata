@@ -26,7 +26,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Conservatively classifies Engine failures before any DQL capture or skip decision.
+ * Conservatively classifies Engine failures before any DLQ capture or skip decision.
  */
 public class DqlExceptionClassifier {
     // TaskTargetProcessorExCode_15 is defined in iengine-app; keep the common recoverable code local.

@@ -11,7 +11,7 @@ import java.util.concurrent.CountDownLatch;
  * @create 2024-08-12 11:46
  **/
 public class TapdataCountDownLatchEvent extends TapdataEvent implements Serializable {
-	// Keep the implicit serialVersionUID of the pre-DQL class so an Engine
+	// Keep the implicit serialVersionUID of the pre-DLQ class so an Engine
 	// rolling upgrade can still deserialize an already queued barrier event.
 	private static final long serialVersionUID = 4600489008835618970L;
 

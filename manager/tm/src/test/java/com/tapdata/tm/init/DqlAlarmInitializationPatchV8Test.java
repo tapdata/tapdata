@@ -20,7 +20,7 @@ class DqlAlarmInitializationPatchV8Test {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("4.22-8 initializes DQL alarm settings for system and email channels")
+    @DisplayName("4.22-8 initializes DLQ alarm settings for system and email channels")
     void initializesDqlAlarmSettingsForBothChannels() throws Exception {
         JsonNode settings = findSettingsAlarmPatch(readPatches());
         assertNotNull(settings);

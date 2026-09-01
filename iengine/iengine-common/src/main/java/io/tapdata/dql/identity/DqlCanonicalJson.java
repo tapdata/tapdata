@@ -11,7 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
 /**
- * Produces the canonical JSON hashes used by DQL identities.
+ * Produces the canonical JSON hashes used by DLQ identities.
  */
 final class DqlCanonicalJson {
     private final ObjectMapper objectMapper;
@@ -37,7 +37,7 @@ final class DqlCanonicalJson {
             }
             return result.toString();
         } catch (JsonProcessingException exception) {
-            throw new IllegalArgumentException("DQL identity value cannot be serialized", exception);
+            throw new IllegalArgumentException("DLQ identity value cannot be serialized", exception);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
