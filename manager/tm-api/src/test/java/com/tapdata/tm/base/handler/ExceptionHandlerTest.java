@@ -90,7 +90,7 @@ public class ExceptionHandlerTest {
         }
     }
 
-    @DisplayName("DQL invalid arguments use HTTP 400")
+    @DisplayName("DLQ invalid arguments use HTTP 400")
     @Test
     void dqlInvalidArgumentsUseBadRequest() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -106,7 +106,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_BAD_REQUEST);
     }
 
-    @DisplayName("DQL cross-task validation uses HTTP 400")
+    @DisplayName("DLQ cross-task validation uses HTTP 400")
     @Test
     void dqlCrossTaskValidationUsesBadRequest() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -122,7 +122,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_BAD_REQUEST);
     }
 
-    @DisplayName("DQL resources use HTTP 404 when not found")
+    @DisplayName("DLQ resources use HTTP 404 when not found")
     @Test
     void dqlResourcesUseNotFound() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -138,7 +138,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_NOT_FOUND);
     }
 
-    @DisplayName("DQL state and lock conflicts use HTTP 409")
+    @DisplayName("DLQ state and lock conflicts use HTTP 409")
     @Test
     void dqlConflictsUseConflict() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -154,7 +154,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_CONFLICT);
     }
 
-    @DisplayName("DQL lock failures use HTTP 409")
+    @DisplayName("DLQ lock failures use HTTP 409")
     @Test
     void dqlLockFailuresUseConflict() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -170,7 +170,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_CONFLICT);
     }
 
-    @DisplayName("DQL missing recovery batches use HTTP 404")
+    @DisplayName("DLQ missing recovery batches use HTTP 404")
     @Test
     void dqlBatchNotFoundUsesNotFound() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -186,7 +186,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_NOT_FOUND);
     }
 
-    @DisplayName("DQL unexpected failures use HTTP 500")
+    @DisplayName("DLQ unexpected failures use HTTP 500")
     @Test
     void dqlUnexpectedFailuresUseServerError() {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -202,7 +202,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR);
     }
 
-    @DisplayName("DQL permission failures use HTTP 403 and a stable error code")
+    @DisplayName("DLQ permission failures use HTTP 403 and a stable error code")
     @Test
     void dqlPermissionFailureUsesForbidden() throws Throwable {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -216,7 +216,7 @@ public class ExceptionHandlerTest {
         verify(response).setStatus(HttpStatus.SC_FORBIDDEN);
     }
 
-    @DisplayName("DQL status mapping does not change unrelated permission failures")
+    @DisplayName("DLQ status mapping does not change unrelated permission failures")
     @Test
     void nonDqlPermissionFailureKeepsExistingSemantics() throws Throwable {
         HttpServletRequest request = mock(HttpServletRequest.class);

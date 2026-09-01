@@ -195,7 +195,7 @@ public class SkipErrorEventAspectTaskTest {
             ArgumentCaptor<Object[]> argumentsCaptor = ArgumentCaptor.forClass(Object[].class);
             verify(log, atLeastOnce()).warn(messageCaptor.capture(), argumentsCaptor.capture());
             int messageIndex = messageCaptor.getAllValues().indexOf(
-                    "DQL record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}");
+                    "DLQ record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}");
             assertTrue(messageIndex >= 0);
             Object[] arguments = argumentsCaptor.getAllValues().get(messageIndex);
             assertEquals("test", arguments[0]);
@@ -316,7 +316,7 @@ public class SkipErrorEventAspectTaskTest {
             assertSame(sharedFailure, thrown);
             verifyNoInteractions(reporter);
             assertEquals(0L, skipCount("orders"));
-            assertLogContains(taskLog, "DQL task-level");
+            assertLogContains(taskLog, "DLQ task-level");
         }
 
         @Test
@@ -341,7 +341,7 @@ public class SkipErrorEventAspectTaskTest {
             assertSame(reportFailure, thrown);
             verify(reporter).report(eq("task-1"), any(DqlEventReport.class));
             assertEquals(0L, skipCount("orders"));
-            assertLogContains(taskLog, "DQL task-level");
+            assertLogContains(taskLog, "DLQ task-level");
         }
 
         @Test
@@ -361,7 +361,7 @@ public class SkipErrorEventAspectTaskTest {
             assertSame(writeFailure, thrown);
             verifyNoInteractions(reporter);
             assertEquals(0L, skipCount("orders"));
-            assertLogContains(taskLog, "DQL task-level");
+            assertLogContains(taskLog, "DLQ task-level");
         }
 
         @Test
@@ -423,7 +423,7 @@ public class SkipErrorEventAspectTaskTest {
             assertEquals(21L, guardReport.getWindowCount());
             assertEquals(20L, guardReport.getGuardThreshold());
             assertEquals(20L, skipCount("orders"));
-            assertLogContains(taskLog, "DQL task-level");
+            assertLogContains(taskLog, "DLQ task-level");
         }
 
         private SkipErrorDataAspect aspect(List<TapRecordEvent> events,
@@ -502,7 +502,7 @@ public class SkipErrorEventAspectTaskTest {
             assertEquals("processor-1", report.getFailedNodeId());
             assertEquals("processor node", report.getFailedNodeName());
             assertEquals(1L, skipCount("orders"));
-            assertLogContains(taskLog, "DQL record isolated");
+            assertLogContains(taskLog, "DLQ record isolated");
         }
 
         @Test
@@ -582,7 +582,7 @@ public class SkipErrorEventAspectTaskTest {
 
             assertSame(reportFailure, thrown);
             assertEquals(0L, skipCount("orders"));
-            assertLogContains(taskLog, "DQL task-level");
+            assertLogContains(taskLog, "DLQ task-level");
         }
 
         @Test

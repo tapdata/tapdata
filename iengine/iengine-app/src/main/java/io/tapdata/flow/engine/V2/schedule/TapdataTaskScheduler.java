@@ -603,7 +603,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			}
 			// The DTO was commonly selected while it was still wait_run.  Keep the
 			// in-memory task consistent with the TM claim before creating the Jet job;
-			// DQL recovery uses the live client status when it has to take a snapshot.
+			// DLQ recovery uses the live client status when it has to take a snapshot.
 			taskDto.setStatus(TaskDto.STATUS_RUNNING);
 
 			// Apply rate limiting after claiming: TM already knows the task is running so the
@@ -1008,8 +1008,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	/**
-	 * Stops a formal task synchronously for DQL recovery and returns the exact
-	 * pre-recovery state.  DQL must never use only the source read gate because
+	 * Stops a formal task synchronously for DLQ recovery and returns the exact
+	 * pre-recovery state.  DLQ must never use only the source read gate because
 	 * the rest of the task would still be alive and could race with replay.
 	 */
 	public DqlRecoveryTaskSnapshot stopTaskForDqlRecovery(String taskId, Long expectedVersion) {
@@ -1021,7 +1021,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				TaskClient<TaskDto> client = taskClientMap.get(taskId);
 				TaskDto task = client == null ? loadTaskForDqlRecovery(taskId) : client.getTask();
 				if (task == null || task.getId() == null) {
-					throw new IllegalStateException("DQL recovery task is unavailable: " + taskId);
+					throw new IllegalStateException("DLQ recovery task is unavailable: " + taskId);
 				}
 				verifyDqlRecoveryTaskVersion(taskId, expectedVersion, task);
 				String taskStatus = task.getStatus();
@@ -1056,14 +1056,14 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 				if (TaskDto.STATUS_RUNNING.equalsIgnoreCase(taskStatus)) {
 					if (client == null) {
-						throw new IllegalStateException("DQL recovery formal task client is unavailable: " + taskId);
+						throw new IllegalStateException("DLQ recovery formal task client is unavailable: " + taskId);
 					}
 					DqlRecoveryTaskSnapshot runningSnapshot = new DqlRecoveryTaskSnapshot(task, TaskDto.STATUS_RUNNING);
 					requestTaskStopThroughTm(taskId, task, runningSnapshot, false);
 					return runningSnapshot;
 				}
 				if (StringUtils.isBlank(taskStatus)) {
-					throw new IllegalStateException("DQL recovery task status is unavailable: " + taskId);
+					throw new IllegalStateException("DLQ recovery task status is unavailable: " + taskId);
 				}
 				// Any other TM state is not running.  It is safe to create the
 				// recovery-only job without changing the formal task state, and the
@@ -1080,11 +1080,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				} catch (InterruptedException exception) {
 					Thread.currentThread().interrupt();
 					throw new DqlRecoveryTaskStopException(
-							"DQL recovery was interrupted while waiting for formal task stop: task=" + taskId,
+							"DLQ recovery was interrupted while waiting for formal task stop: task=" + taskId,
 							snapshot, exception);
 				} catch (RuntimeException exception) {
 					throw new DqlRecoveryTaskStopException(
-							"DQL recovery could not complete formal task stop: task=" + taskId
+							"DLQ recovery could not complete formal task stop: task=" + taskId
 									+ ", reason=" + exception.getMessage(), snapshot, exception);
 				}
 			}
@@ -1093,14 +1093,14 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			if (exception instanceof RuntimeException runtimeException) {
 				throw runtimeException;
 			}
-			throw new IllegalStateException("DQL recovery task stop failed: " + taskId, exception);
+			throw new IllegalStateException("DLQ recovery task stop failed: " + taskId, exception);
 		}
 	}
 
 	private void verifyDqlRecoveryTaskVersion(String taskId, Long expectedVersion, TaskDto task) {
 		if (expectedVersion != null && !Objects.equals(expectedVersion, task.getVersion())) {
 			throw new IllegalStateException(String.format(
-					"DQL recovery task version is unavailable: task=%s, expected=%s, actual=%s",
+					"DLQ recovery task version is unavailable: task=%s, expected=%s, actual=%s",
 					taskId, expectedVersion, task.getVersion()));
 		}
 	}
@@ -1121,7 +1121,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					taskId, TaskOpRespDto.class);
 		} catch (RuntimeException exception) {
 			throw new DqlRecoveryTaskStopException(
-					"DQL recovery failed to request formal task stop through TM: task=" + taskId
+					"DLQ recovery failed to request formal task stop through TM: task=" + taskId
 							+ ", reason=" + exception.getMessage(),
 						snapshot, exception);
 		}
@@ -1135,7 +1135,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		long deadline = System.currentTimeMillis() + timeoutMillis;
 		while (true) {
 			if (task == null || task.getId() == null) {
-				throw new IllegalStateException("DQL recovery task is unavailable: " + taskId);
+				throw new IllegalStateException("DLQ recovery task is unavailable: " + taskId);
 			}
 			verifyDqlRecoveryTaskVersion(taskId, expectedVersion, task);
 			TaskClient<TaskDto> client = taskClientMap.get(taskId);
@@ -1152,12 +1152,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					&& !TaskDto.STATUS_STOPPING.equalsIgnoreCase(task.getStatus())
 					&& !TaskDto.STATUS_STOPPING.equalsIgnoreCase(liveStatus)) {
 				throw new IllegalStateException(
-						"DQL recovery formal task entered unexpected stop state: task=" + taskId
+						"DLQ recovery formal task entered unexpected stop state: task=" + taskId
 								+ ", status=" + task.getStatus());
 			}
 			if (System.currentTimeMillis() >= deadline) {
 				throw new IllegalStateException(
-						"DQL recovery formal task stop timed out: task=" + taskId
+						"DLQ recovery formal task stop timed out: task=" + taskId
 								+ ", status=" + task.getStatus());
 			}
 
@@ -1203,7 +1203,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			if (exception instanceof RuntimeException runtimeException) {
 				throw runtimeException;
 			}
-			throw new IllegalStateException("DQL recovery failed to restore task: " + taskId, exception);
+			throw new IllegalStateException("DLQ recovery failed to restore task: " + taskId, exception);
 		}
 	}
 
@@ -1211,11 +1211,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		String taskId = task.getId().toHexString();
 		String resource = taskStatusResourceWithId(task, "systemStart", taskId);
 		try {
-			logger.info("Call {} api to restore DQL recovery task [{}] status through TM", resource, task.getName());
+			logger.info("Call {} api to restore DLQ recovery task [{}] status through TM", resource, task.getName());
 			clientMongoOperator.postOne(null, resource, Void.class);
 		} catch (RuntimeException exception) {
 			throw new IllegalStateException(
-					"DQL recovery failed to restore task through TM: task=" + taskId
+					"DLQ recovery failed to restore task through TM: task=" + taskId
 							+ ", reason=" + exception.getMessage(), exception);
 		}
 	}
@@ -1248,7 +1248,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (!TaskDto.STATUS_RUNNING.equalsIgnoreCase(currentStatus)
 				&& !TaskDto.STATUS_WAIT_RUN.equalsIgnoreCase(currentStatus)) {
 			throw new IllegalStateException(
-					"DQL recovery cannot prepare formal task for restore: task=" + taskId
+					"DLQ recovery cannot prepare formal task for restore: task=" + taskId
 							+ ", status=" + currentStatus);
 		}
 		try {
@@ -1264,7 +1264,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					&& !TaskDto.STATUS_STOP.equalsIgnoreCase(after.getStatus()))) {
 				throw exception;
 			}
-			logger.info("DQL recovery restore observed formal task already stopping: task={}, status={}",
+			logger.info("DLQ recovery restore observed formal task already stopping: task={}, status={}",
 					taskId, after.getStatus());
 		}
 	}
@@ -1289,14 +1289,14 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			} catch (InterruptedException exception) {
 				Thread.currentThread().interrupt();
 				throw new IllegalStateException(
-						"DQL recovery interrupted while waiting for formal task to stop: task=" + taskId,
+						"DLQ recovery interrupted while waiting for formal task to stop: task=" + taskId,
 						exception);
 			}
 		}
 		TaskDto latest = loadTaskForDqlRecovery(taskId);
 		String actualStatus = latest == null ? "missing" : latest.getStatus();
 		throw new IllegalStateException(
-				"DQL recovery formal task did not reach stable stop state: task=" + taskId
+				"DLQ recovery formal task did not reach stable stop state: task=" + taskId
 						+ ", status=" + actualStatus);
 	}
 
@@ -1315,12 +1315,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			TaskDto latest = clientMongoOperator.findOne(
 					Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 			if (latest != null && TaskDto.STATUS_ERROR.equalsIgnoreCase(latest.getStatus())) {
-				throw new IllegalStateException("DQL recovery failed to restore task, current status=error: " + taskId);
+				throw new IllegalStateException("DLQ recovery failed to restore task, current status=error: " + taskId);
 			}
 			Thread.sleep(100L);
 		}
 		if (!taskClientMap.containsKey(taskId)) {
-			throw new IllegalStateException("DQL recovery task takeover timed out: " + taskId);
+			throw new IllegalStateException("DLQ recovery task takeover timed out: " + taskId);
 		}
 	}
 
@@ -1341,7 +1341,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (latest == null || !TaskDto.STATUS_STOP.equalsIgnoreCase(latest.getStatus())) {
 			String actualStatus = latest == null ? "missing" : latest.getStatus();
 			throw new IllegalStateException(
-					"DQL recovery formal task was not persisted as stopped: task=" + taskId
+					"DLQ recovery formal task was not persisted as stopped: task=" + taskId
 							+ ", status=" + actualStatus);
 		}
 	}

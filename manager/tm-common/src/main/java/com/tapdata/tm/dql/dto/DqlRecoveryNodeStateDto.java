@@ -4,7 +4,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-/** TM representation of a node temporarily hidden during DQL replay. */
+/** TM representation of a node temporarily hidden during DLQ replay. */
 @Data
 public class DqlRecoveryNodeStateDto implements Serializable {
     private String nodeId;

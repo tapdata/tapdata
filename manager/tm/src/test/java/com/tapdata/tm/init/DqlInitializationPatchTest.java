@@ -20,7 +20,7 @@ class DqlInitializationPatchTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("DAAS 4.22-7 upgrade exposes the DQL exception event page to administrators")
+    @DisplayName("DAAS 4.22-7 upgrade exposes the DLQ exception event page to administrators")
     void upgradeInstallsDqlExceptionEventPermissionAndRoleMapping() throws Exception {
         JsonNode patches = readPatches();
 

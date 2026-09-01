@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.Serializable;
 
-/** Engine/TM contract describing a node temporarily hidden for DQL replay. */
+/** Engine/TM contract describing a node temporarily hidden for DLQ replay. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record DqlRecoveryNodeState(String nodeId,
                                    String nodeName,

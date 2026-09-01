@@ -1,7 +1,7 @@
 package io.tapdata.dql.classifier;
 
 /**
- * Engine stage where a DQL candidate failure was observed.
+ * Engine stage where a DLQ candidate failure was observed.
  */
 public enum DqlFailedStage {
     SOURCE_READ,

@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- * Internal Engine-facing view of the immutable payload stored with one DQL event.
+ * Internal Engine-facing view of the immutable payload stored with one DLQ event.
  * It contains the immutable payload and the DAG node metadata required by
  * Engine to replay the event from the failed node.
  */

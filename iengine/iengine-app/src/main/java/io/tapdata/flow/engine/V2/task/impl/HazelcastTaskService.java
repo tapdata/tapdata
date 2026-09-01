@@ -276,7 +276,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	/**
-	 * Starts a temporary Jet job for DQL replay.  It is intentionally not
+	 * Starts a temporary Jet job for DLQ replay.  It is intentionally not
 	 * registered in TapdataTaskScheduler's formal task-client map and its DAG
 	 * contains only the cloned task nodes plus a queue-backed replay source.
 	 */
@@ -284,7 +284,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			DqlRecoveryDagPlanner.Plan recoveryPlan,
 			String recoveryQueueName) {
 		if (taskDto == null || recoveryPlan == null || StringUtils.isBlank(recoveryQueueName)) {
-			throw new IllegalArgumentException("DQL recovery task, plan and queue are required");
+			throw new IllegalArgumentException("DLQ recovery task, plan and queue are required");
 		}
 		TaskDto recoveryTaskDto = new TaskDto();
 		BeanUtils.copyProperties(taskDto, recoveryTaskDto);
@@ -323,7 +323,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 					recoveryPlan.failedNodeId(), recoveryQueueName, formalTaskId);
 			JetDag jetDag = task2HazelcastDAG(recoveryTaskDto, false, false, build, tapTableMapHashMap);
 			JobConfig jobConfig = new JobConfig();
-			jobConfig.setName("DQL-Recovery-" + recoveryQueueName);
+			jobConfig.setName("DLQ-Recovery-" + recoveryQueueName);
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 			taskClient.setJob(job);
@@ -333,7 +333,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			if (throwable instanceof RuntimeException runtimeException) {
 				throw runtimeException;
 			}
-			throw new IllegalStateException("Failed to start DQL recovery task", throwable);
+			throw new IllegalStateException("Failed to start DLQ recovery task", throwable);
 		}
 	}
 
@@ -512,14 +512,23 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			initSnapshotOrder(taskDtoAtomicReference);
 		}
 
-		final List<Node> nodes = taskDtoAtomicReference.get().getDag().getNodes();
-		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
+		final List<Node> allNodes = taskDtoAtomicReference.get().getDag().getNodes();
 		final Set<String> disabledNodeIds = recoveryBuild == null
 				? Collections.emptySet()
-				: nodes.stream()
-					.filter(Node::disabledNode)
-					.map(Node::getId)
-					.collect(Collectors.toSet());
+				: allNodes.stream()
+						.filter(Objects::nonNull)
+						.filter(Node::disabledNode)
+						.map(Node::getId)
+						.collect(Collectors.toSet());
+		final List<Node> nodes = recoveryBuild == null
+				? allNodes
+				: allNodes.stream()
+						// The recovery DAG may retain disabled nodes for topology
+						// restoration, but they must not become live source/target
+						// processors (or even resolve their connector capabilities).
+						.filter(node -> node != null && !node.disabledNode())
+						.toList();
+		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
 		final List<Edge> runtimeEdges = recoveryBuild == null
 				? edges
 				: edges.stream()
@@ -1604,12 +1613,12 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		private DqlRecoveryDagBuild {
 			if (StringUtils.isBlank(failedNodeId) || StringUtils.isBlank(queueName)
 					|| StringUtils.isBlank(formalTaskId)) {
-				throw new IllegalArgumentException("DQL recovery failed node, queue and formal task are required");
+				throw new IllegalArgumentException("DLQ recovery failed node, queue and formal task are required");
 			}
 		}
 
 		private String vertexName() {
-			return "DQL_RECOVERY_SOURCE-" + queueName;
+			return "DLQ_RECOVERY_SOURCE-" + queueName;
 		}
 	}
 }

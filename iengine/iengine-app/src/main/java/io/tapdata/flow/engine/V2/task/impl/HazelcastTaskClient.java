@@ -85,7 +85,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	/**
-	 * Creates a client for a temporary DQL replay job.  It deliberately does
+	 * Creates a client for a temporary DLQ replay job.  It deliberately does
 	 * not register the formal task's ping monitor, retry state, or task-inspect
 	 * state.  The temporary job has its own task id and owns only its own
 	 * aspect session; it must not own the formal task lifecycle.
@@ -398,7 +398,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			} catch (CompletionException | java.util.concurrent.CancellationException exception) {
 				error = unwrapJobFailure(exception);
 			} catch (RuntimeException exception) {
-				logger.debug("Failed to read DQL recovery job failure, jobId={}: {}",
+				logger.debug("Failed to read DLQ recovery job failure, jobId={}: {}",
 						job.getId(), exception.getMessage());
 			}
 		}
@@ -477,7 +477,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 					}
 				});
 			} catch (RuntimeException exception) {
-				logger.warn("Failed to observe DQL recovery job failure, jobId={}: {}",
+				logger.warn("Failed to observe DLQ recovery job failure, jobId={}: {}",
 						job.getId(), exception.getMessage());
 			}
 		}

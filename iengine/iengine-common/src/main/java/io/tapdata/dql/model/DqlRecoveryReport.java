@@ -6,7 +6,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * Engine request body for the TM DQL recovery callback.
+ * Engine request body for the TM DLQ recovery callback.
  *
  * <p>The callback is intentionally a small, stable contract. Event payloads
  * are never copied into a recovery report.</p>

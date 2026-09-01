@@ -4,7 +4,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Validated DQL runtime settings shared by TM and Engine.
+ * Validated DLQ runtime settings shared by TM and Engine.
  *
  * <p>Settings are read as strings at the boundary. A JVM property wins over
  * an environment variable, which wins over the persisted Settings value;

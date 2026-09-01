@@ -329,13 +329,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (processorBaseContext.getTaskDto().isPreviewTask()) {
 			return new ExternalStorageDto();
 		}
-		// DQL recovery keeps disabled nodes in the DAG as structural placeholders so
-		// that the original topology can be restored after replay.  Those nodes must
-		// not initialize connector-specific external storage: the placeholder context
-		// intentionally has no Connections object and never processes data.
-		Node node = processorBaseContext.getNode();
-		if (node != null && node.disabledNode()
-				&& DqlRecoveryCaptureGuard.isRecoveryTask(processorBaseContext.getTaskDto())) {
+		// DLQ recovery is a write-only runtime. External storage belongs to the
+		// normal task lifecycle and is not part of replaying one failed record.
+		if (DqlRecoveryCaptureGuard.isRecoveryTask(processorBaseContext.getTaskDto())) {
 			return new ExternalStorageDto();
 		}
 		return ExternalStorageUtil.getExternalStorage(
