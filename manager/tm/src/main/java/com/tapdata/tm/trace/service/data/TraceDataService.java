@@ -1033,7 +1033,9 @@ public class TraceDataService {
             condition.setConnectionId(resolveConnectionId(sibling));
             condition.setTable(resolveTableName(sibling));
             condition.setFilters(filters);
-            queue.add(new TraceNodeStep(sibling, downstreamNode, condition, traceValue, traceValue, currentNode, condition));
+            // DAG downstream snapshot (wide table), not the sibling-source rows used to infer this node.
+            queue.add(new TraceNodeStep(sibling, downstreamNode, condition,
+                    step.getDownstreamTraceValue(), traceValue, currentNode, condition));
         }
     }
 
