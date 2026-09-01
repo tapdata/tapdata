@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -124,6 +125,44 @@ class TraceDataServiceMergeSiblingTraceTest {
         assertTrue(matchedCount(events, "FDM_pg_hbl_customer") > 0);
     }
 
+    @Test
+    @DisplayName("wide table miss: inferred sibling downStreamRecords must stay empty")
+    void wideTableMiss_inferredSiblingDownStreamRecordsShouldBeEmpty() throws Exception {
+        when(queryAdapter.query(any())).thenAnswer(invocation -> recordsFor(invocation.getArgument(0)));
+
+        List<TraceStreamEvent> events = trace("ACCOUNT.TRANSACTION.transaction_id", "txn-000211");
+
+        assertTrue(matchedCount(events, "FDM_pg_hbl_customer") > 0);
+        assertTrue(matchedCount(events, "FDM_pg_hbl_account") > 0);
+        assertEquals(List.of(), downStreamRecords(events, "MDM_HBL_TT"));
+        assertEquals(List.of(), downStreamRecords(events, "FDM_pg_hbl_transaction"));
+        assertEquals(List.of(), downStreamRecords(events, "FDM_pg_hbl_account"));
+        assertEquals(List.of(), downStreamRecords(events, "FDM_pg_hbl_customer"));
+    }
+
+    @Test
+    @DisplayName("wide table hit: inferred sibling downStreamRecords must be wide-table rows")
+    void wideTableHit_inferredSiblingDownStreamRecordsShouldBeWideTableRows() throws Exception {
+        Map<String, Object> wideRow = new LinkedHashMap<>();
+        wideRow.put("ACCOUNT.TRANSACTION.transaction_id", "txn-000211");
+        wideRow.put("note", "wide-row");
+
+        when(queryAdapter.query(any())).thenAnswer(invocation -> {
+            TraceQueryCondition condition = invocation.getArgument(0);
+            if ("MDM_HBL_TT".equals(condition.getTable())) {
+                return List.of(wideRow);
+            }
+            return recordsFor(condition);
+        });
+
+        List<TraceStreamEvent> events = trace("ACCOUNT.TRANSACTION.transaction_id", "txn-000211");
+
+        assertTrue(matchedCount(events, "FDM_pg_hbl_customer") > 0);
+        assertEquals(List.of(wideRow), downStreamRecords(events, "FDM_pg_hbl_transaction"));
+        assertEquals(List.of(wideRow), downStreamRecords(events, "FDM_pg_hbl_account"));
+        assertEquals(List.of(wideRow), downStreamRecords(events, "FDM_pg_hbl_customer"));
+    }
+
     private List<Map<String, Object>> recordsFor(TraceQueryCondition condition) {
         String table = condition.getTable();
         if ("MDM_HBL_TT".equals(table)) {
@@ -208,6 +247,17 @@ class TraceDataServiceMergeSiblingTraceTest {
                 .filter(Objects::nonNull)
                 .mapToLong(value -> value.getMatchedCount())
                 .sum();
+    }
+
+    private static List<Map<String, Object>> downStreamRecords(List<TraceStreamEvent> events, String table) {
+        return events.stream()
+                .filter(event -> event.getType() == TraceEventType.TRACE_VALUE)
+                .filter(event -> table.equals(event.getTable()))
+                .map(TraceStreamEvent::getTraceValue)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .map(value -> value.getDownStreamRecords() == null ? List.<Map<String, Object>>of() : value.getDownStreamRecords())
+                .orElse(List.of());
     }
 
     private static LineageTableNode table(String connectionId, String tableName) {
