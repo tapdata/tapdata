@@ -7,7 +7,6 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
-import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -1318,11 +1317,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
 				.ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext();
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		excludeRemoveTable(tables);
-		ensureShareCdcTablesReady(NodeUtil.getTableNames(dataProcessorContext.getNode()));
+		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext(tables);
+		try {
+			ensureShareCdcTablesReady(tables);
+		} catch (TapCodeException e) {
+			if (ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED.equals(e.getCode()) && e.getCause() != null) {
+				throw new ShareCdcUnsupportedException(e.getMessage(), e, true);
+			}
+			throw e;
+		}
 		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
@@ -1350,9 +1356,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 	}
 
-	protected ShareCdcTaskContext createShareCDCTaskContext() {
+	protected ShareCdcTaskContext createShareCDCTaskContext(List<String> tableNames) {
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
-				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
+				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode(), tableNames);
 		shareCdcTaskContext.setObsLogger(obsLogger);
 		return shareCdcTaskContext;
 	}

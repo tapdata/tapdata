@@ -1905,9 +1905,52 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void test1() throws Exception {
             doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
             ShareCdcTaskContext shareCdcTaskContext = mock(ShareCdcTaskContext.class);
-            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext()).thenReturn(shareCdcTaskContext);
+            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext(anyList())).thenReturn(shareCdcTaskContext);
             hazelcastSourcePdkDataNode.doShareCdc();
             verify(cdcDelay, times(1)).addHeartbeatTable(any());
+        }
+
+        @Test
+        @DisplayName("test do ShareCdc ensures the filtered runtime table list")
+        void testEnsureUsesFilteredRuntimeTables() throws Exception {
+            doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
+            doCallRealMethod().when(hazelcastSourcePdkDataNode).excludeRemoveTable(anyList());
+            ArgumentCaptor<List<String>> contextTablesCaptor = ArgumentCaptor.forClass(List.class);
+            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext(contextTablesCaptor.capture()))
+                    .thenReturn(mock(ShareCdcTaskContext.class));
+            TapTableMap<String, TapTable> tapTableMap = new TestTapTableMap(",", System.currentTimeMillis(), new HashMap<>());
+            tapTableMap.putNew("active_table", new TapTable("active_table"), "active_table");
+            tapTableMap.putNew("removed_table", new TapTable("removed_table"), "removed_table");
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setTableNames(Collections.singletonList("stale_table"));
+            doReturn(databaseNode).when(dataProcessorContext).getNode();
+            ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "removeTables", new CopyOnWriteArrayList<>(Collections.singletonList("removed_table")));
+
+            RuntimeException stop = new RuntimeException("stop after ensure");
+            ArgumentCaptor<List<String>> tablesCaptor = ArgumentCaptor.forClass(List.class);
+            Mockito.doThrow(stop).when(hazelcastSourcePdkDataNode).ensureShareCdcTablesReady(tablesCaptor.capture());
+
+            assertSame(stop, assertThrows(RuntimeException.class, hazelcastSourcePdkDataNode::doShareCdc));
+            assertEquals(Collections.singletonList("active_table"), tablesCaptor.getValue());
+            assertEquals(Collections.singletonList("active_table"), contextTablesCaptor.getValue());
+        }
+
+        @Test
+        @DisplayName("test ensure transport failures allow normal CDC fallback")
+        void testEnsureTransportFailureIsShareCdcUnsupported() throws Exception {
+            doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
+            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext(anyList())).thenReturn(mock(ShareCdcTaskContext.class));
+            RuntimeException transportFailure = new RuntimeException("TM unavailable");
+            TapCodeException ensureFailure = new TapCodeException(
+                    ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, transportFailure.getMessage(), transportFailure);
+            Mockito.doThrow(ensureFailure).when(hazelcastSourcePdkDataNode).ensureShareCdcTablesReady(anyList());
+
+            ShareCdcUnsupportedException thrown = assertThrows(
+                    ShareCdcUnsupportedException.class, hazelcastSourcePdkDataNode::doShareCdc);
+
+            assertTrue(thrown.isContinueWithNormalCdc());
+            assertSame(ensureFailure, thrown.getCause());
         }
     }
 

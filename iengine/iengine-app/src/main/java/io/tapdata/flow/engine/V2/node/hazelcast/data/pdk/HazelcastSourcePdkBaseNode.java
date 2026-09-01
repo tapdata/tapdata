@@ -1015,6 +1015,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         List<String> addList = tableResult.getAddList();
                         List<String> removeList = tableResult.getRemoveList();
                         if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
+                            int newTableCountBefore = newTables == null ? 0 : newTables.size();
                             LockUtil.runWithLock(
                                     this.sourceRunnerLock,
                                     () -> !isRunning(),
@@ -1055,6 +1056,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                         }
                                     }
                             );
+                            ensureNewTablesAndRestartIfNeeded(newTableCountBefore);
                         }
                     } catch (Throwable throwable) {
                         String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
@@ -1232,23 +1234,37 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     .tables(loadedTableNames)
                     .tapdataEvents(normalDDLEvents));
             if (tapdataEvents.isEmpty()) return false;
-
-            if (this.endSnapshotLoop.get()) {
-                obsLogger.trace("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
-                // Restart source runner
-                if (null != sourceRunner) {
-                    this.sourceRunnerFirstTime.set(false);
-                    newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
-                    ensureShareCdcForNewTables(loadedTableNames);
-                    restartPdkConnector();
-                } else {
-                    String error = "Source runner is null";
-                    errorHandle(new RuntimeException(error), error);
-                    return true;
-                }
+            if (endSnapshotLoop.get() && !sourceRunnerLock.isHeldByCurrentThread()) {
+                ensureAccumulatedNewTablesAndRestartIfNeeded();
             }
         }
         return false;
+    }
+
+    private void ensureNewTablesAndRestartIfNeeded(int newTableCountBefore) {
+        if (newTables == null || newTables.size() <= newTableCountBefore) {
+            return;
+        }
+        ensureAccumulatedNewTablesAndRestartIfNeeded();
+    }
+
+    private void ensureAccumulatedNewTablesAndRestartIfNeeded() {
+        List<String> tablesToEnsure = new ArrayList<>(new LinkedHashSet<>(newTables));
+        ensureShareCdcForNewTables(tablesToEnsure);
+        if (!endSnapshotLoop.get()) {
+            return;
+        }
+        LockUtil.runWithLock(sourceRunnerLock, () -> !isRunning(), () -> {
+            obsLogger.trace("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+            if (sourceRunner == null) {
+                String error = "Source runner is null";
+                errorHandle(new RuntimeException(error), error);
+                return;
+            }
+            sourceRunnerFirstTime.set(false);
+            newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
+            restartPdkConnector();
+        });
     }
 
     protected void ensureShareCdcForNewTables(List<String> tables) {
