@@ -75,6 +75,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -93,6 +94,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -1604,6 +1606,31 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapUpdateRecordEvent.setTableId("testTableId");
 			tapEvents.add(tapUpdateRecordEvent);
 			assertThrows(NodeException.class, () -> hazelcastSourcePdkDataNode.wrapTapdataEvent(tapEvents, null, null));
+		}
+
+		@DisplayName("test partition batch offset is an immutable event snapshot")
+		@Test
+		void testPartitionBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			PartitionTableOffset currentOffset = new PartitionTableOffset();
+			currentOffset.setTableCompleted(false);
+			currentOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			currentOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
+
+			SyncProgress progress = new SyncProgress();
+			Map<String, Object> offsets = new ConcurrentHashMap<>();
+			offsets.put(tableId, currentOffset);
+			progress.setBatchOffsetObj(offsets);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			PartitionTableOffset snapshot = (PartitionTableOffset) hazelcastSourcePdkDataNode.snapshotBatchOffset(tableId);
+			currentOffset.setTableCompleted(true);
+			currentOffset.getCompletedPartitions().put("partition-1", 100L);
+
+			assertNotSame(currentOffset, snapshot);
+			assertSame(currentOffset.getPartitions(), snapshot.getPartitions());
+			assertFalse(snapshot.getTableCompleted());
+			assertTrue(snapshot.getCompletedPartitions().isEmpty());
 		}
 	}
 

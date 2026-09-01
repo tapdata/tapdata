@@ -25,6 +25,7 @@ import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.lineage.analyzer.AnalyzerService;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
@@ -6784,6 +6785,11 @@ class TaskServiceImplTest {
                 DataSourceDefinitionService dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
                 ReflectionTestUtils.setField(taskService, "metadataInstancesService", metadataInstancesService);
                 ReflectionTestUtils.setField(taskService, "dataSourceDefinitionService", dataSourceDefinitionService);
+                MetadataInstancesDto metadata = new MetadataInstancesDto();
+                SourceDto metadataSource = new SourceDto();
+                metadataSource.setDatabase_host("mongo-ssl.internal.tapdata.io");
+                metadata.setSource(metadataSource);
+                when(metadataInstancesService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(metadata);
                 TaskDto taskDto = new TaskDto();
                 taskDto.setId(new ObjectId("688b0acab0859c6b18d29e74"));
                 DAG dag = mock(DAG.class);
@@ -6791,8 +6797,8 @@ class TaskServiceImplTest {
                 Node node = new TableNode();
                 node.setId("2db68e41-5bd6-4786-b567-5b9a705a65ec");
                 ((DataParentNode<?>) node).setConnectionId("676e507d61c3b81dea2400f8");
-                DataSourceConnectionDto dataSourceConnectionDto = mock(DataSourceConnectionDto.class);
-                when(dataSourceConnectionDto.getId()).thenReturn(new ObjectId("678f0f788fe8a57f8a0c635d"));
+                DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+                dataSourceConnectionDto.setId(new ObjectId("678f0f788fe8a57f8a0c635d"));
                 doReturn(dataSourceConnectionDto).when(dataSourceService).findById(any(ObjectId.class), any(UserDetail.class));
                 DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
                 dataSourceConnectionDto.setDefinitionPdkAPIVersion("a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712");
@@ -6800,17 +6806,22 @@ class TaskServiceImplTest {
                 Map<String, Object> config = new HashMap<>();
                 String uri = "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true";
                 config.put("uri", uri);
+                config.put("database_host", "mongo-ssl.internal.tapdata.io");
                 config.put("ssl", true);
                 config.put("sslKey", "----test key----");
                 config.put("__connectionType", "source_and_target");
-                when(dataSourceConnectionDto.getConfig()).thenReturn(config);
-                when(dataSourceConnectionDto.getPdkHash()).thenReturn("a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712");
+                dataSourceConnectionDto.setConfig(config);
+                dataSourceConnectionDto.setDatabase_host("mongo-ssl.internal.tapdata.io");
+                dataSourceConnectionDto.setPdkHash("a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712");
                 nodes.add(node);
                 when(dag.getNodes()).thenReturn(nodes);
                 taskDto.setDag(dag);
                 when(taskService.findAllTasksByIds(taskIds)).thenReturn(Arrays.asList(taskDto));
                 doCallRealMethod().when(taskService).exportTask(taskIds, user);
                 taskService.exportTask(taskIds, user);
+                assertEquals("", config.get("database_host"));
+                assertEquals("", dataSourceConnectionDto.getDatabase_host());
+                assertEquals("", metadata.getSource().getDatabase_host());
                 mb.verify(() -> JsonUtil.toJsonUseJackson(any()),new Times(4));
             }
         }

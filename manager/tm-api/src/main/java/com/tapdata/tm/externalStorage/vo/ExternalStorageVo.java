@@ -1,5 +1,6 @@
 package com.tapdata.tm.externalStorage.vo;
 
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import lombok.Data;
 
 /**
@@ -13,4 +14,15 @@ public class ExternalStorageVo {
 	private String type;
 	private String uri;
 	private String table;
+
+	public void setUri(String uri) {
+		if (uri == null) {
+			this.uri = null;
+			return;
+		}
+		ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+		externalStorageDto.setType(type);
+		externalStorageDto.setUri(uri);
+		this.uri = externalStorageDto.maskUriPassword();
+	}
 }
