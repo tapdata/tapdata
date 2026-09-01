@@ -13,7 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.Objects;
 
 /**
- * Orchestrates the Engine-side DQL event report and its TM acknowledgement.
+ * Orchestrates the Engine-side DLQ event report and its TM acknowledgement.
  *
  * <p>HTTP timeout and transport retry remain owned by {@link DqlTmClient}'s
  * underlying TM client. This class has one orchestration call: a response is
@@ -42,7 +42,7 @@ public class DqlEventReporter {
 
     /**
      * Reports a successfully written record so TM can mark a matching
-     * unresolved DQL event as exposed to a later write.
+     * unresolved DLQ event as exposed to a later write.
      */
     public DqlRecordSuccessReportResult reportRecordSuccess(String taskId, DqlRecordSuccessReport report) {
         validateRecordSuccessInput(taskId, report);

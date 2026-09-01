@@ -11,12 +11,21 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * Converts replayable DML events to and from the versioned DQL payload contract.
+ * Converts replayable DML events to and from the versioned DLQ payload contract.
  */
 public class DqlPayloadSerializer {
     public static final String FORMAT = "tap-record-event-json-v1";
@@ -24,6 +33,8 @@ public class DqlPayloadSerializer {
 
     private static final String TAP_EVENT_CLASS = "tapEventClass";
     private static final String TYPE = "type";
+    private static final String VALUE_TYPE = "__tapdata_dql_value_type";
+    private static final String VALUE = "value";
 
     private final long maxBytes;
     private final ObjectMapper objectMapper;
@@ -61,6 +72,7 @@ public class DqlPayloadSerializer {
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("TapRecordEvent payload cannot be serialized", exception);
         }
+        preserveTypedRecordValues(eventFields, event);
         Map<String, Object> payloadData = new LinkedHashMap<>();
         payloadData.put(TAP_EVENT_CLASS, event.getClass().getName());
         payloadData.putAll(eventFields);
@@ -81,26 +93,169 @@ public class DqlPayloadSerializer {
             throw new IllegalArgumentException("snapshot must not be null");
         }
         if (!FORMAT.equals(snapshot.getPayloadFormat())) {
-            throw new IllegalArgumentException("Unsupported DQL payload format: " + snapshot.getPayloadFormat());
+            throw new IllegalArgumentException("Unsupported DLQ payload format: " + snapshot.getPayloadFormat());
         }
         if (!Boolean.TRUE.equals(snapshot.getPayloadComplete())) {
-            throw new IllegalArgumentException("Incomplete DQL payload cannot be deserialized");
+            throw new IllegalArgumentException("Incomplete DLQ payload cannot be deserialized");
         }
         if (!(snapshot.getPayloadData() instanceof Map<?, ?> payloadData)) {
-            throw new IllegalArgumentException("DQL payload data must be an object");
+            throw new IllegalArgumentException("DLQ payload data must be an object");
         }
         long declaredSize = snapshot.getPayloadSize() == null ? 0L : snapshot.getPayloadSize();
         if (declaredSize < 0L || declaredSize > maxBytes || serializedSize(payloadData) > maxBytes) {
-            throw new IllegalArgumentException("DQL payload exceeds the configured size limit");
+            throw new IllegalArgumentException("DLQ payload exceeds the configured size limit");
         }
 
-        String eventClassName = stringValue(payloadData.get(TAP_EVENT_CLASS));
-        int eventType = intValue(payloadData.get(TYPE));
+        Map<String, Object> decodedPayloadData = decodeMap(payloadData);
+        String eventClassName = stringValue(decodedPayloadData.get(TAP_EVENT_CLASS));
+        int eventType = intValue(decodedPayloadData.get(TYPE));
         Class<? extends TapRecordEvent> eventClass = validateSupportedEvent(eventClassName, eventType);
         try {
-            return objectMapper.convertValue(payloadData, eventClass);
+            TapRecordEvent event = objectMapper.convertValue(decodedPayloadData, eventClass);
+            restoreTypedRecordValues(event, decodedPayloadData);
+            return event;
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException("DQL payload data cannot be deserialized", exception);
+            throw new IllegalArgumentException("DLQ payload data cannot be deserialized", exception);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void restoreTypedRecordValues(TapRecordEvent event, Map<String, Object> payloadData) {
+        if (event instanceof TapInsertRecordEvent insertEvent) {
+            insertEvent.setAfter((Map<String, Object>) mergeTypedValues(insertEvent.getAfter(), payloadData.get("after")));
+        } else if (event instanceof TapUpdateRecordEvent updateEvent) {
+            updateEvent.setBefore((Map<String, Object>) mergeTypedValues(updateEvent.getBefore(), payloadData.get("before")));
+            updateEvent.setAfter((Map<String, Object>) mergeTypedValues(updateEvent.getAfter(), payloadData.get("after")));
+        } else if (event instanceof TapDeleteRecordEvent deleteEvent) {
+            deleteEvent.setBefore((Map<String, Object>) mergeTypedValues(deleteEvent.getBefore(), payloadData.get("before")));
+        }
+    }
+
+    private Object mergeTypedValues(Object convertedValue, Object decodedValue) {
+        if (decodedValue instanceof LocalDateTime || decodedValue instanceof LocalDate || decodedValue instanceof LocalTime
+                || decodedValue instanceof Instant || decodedValue instanceof OffsetDateTime
+                || decodedValue instanceof OffsetTime || decodedValue instanceof ZonedDateTime) {
+            return decodedValue;
+        }
+        if (decodedValue instanceof Map<?, ?> decodedMap && convertedValue instanceof Map<?, ?> convertedMap) {
+            Map<Object, Object> merged = new LinkedHashMap<>();
+            convertedMap.forEach((key, value) -> merged.put(key, value));
+            decodedMap.forEach((key, value) -> merged.put(key,
+                    mergeTypedValues(merged.get(key), value)));
+            return merged;
+        }
+        if (decodedValue instanceof List<?> decodedList && convertedValue instanceof List<?> convertedList) {
+            List<Object> merged = new ArrayList<>(convertedList);
+            for (int i = 0; i < decodedList.size() && i < merged.size(); i++) {
+                merged.set(i, mergeTypedValues(merged.get(i), decodedList.get(i)));
+            }
+            return merged;
+        }
+        return convertedValue;
+    }
+
+    private void preserveTypedRecordValues(Map<String, Object> eventFields, TapRecordEvent event) {
+        if (event instanceof TapInsertRecordEvent insertEvent) {
+            eventFields.put("after", encodeValue(eventFields.get("after"), insertEvent.getAfter()));
+        } else if (event instanceof TapUpdateRecordEvent updateEvent) {
+            eventFields.put("before", encodeValue(eventFields.get("before"), updateEvent.getBefore()));
+            eventFields.put("after", encodeValue(eventFields.get("after"), updateEvent.getAfter()));
+        } else if (event instanceof TapDeleteRecordEvent deleteEvent) {
+            eventFields.put("before", encodeValue(eventFields.get("before"), deleteEvent.getBefore()));
+        }
+    }
+
+    private Object encodeValue(Object serializedValue, Object originalValue) {
+        String temporalType = temporalType(originalValue);
+        if (temporalType != null) {
+            Map<String, Object> encoded = new LinkedHashMap<>();
+            encoded.put(VALUE_TYPE, temporalType);
+            encoded.put(VALUE, originalValue.toString());
+            return encoded;
+        }
+        if (originalValue instanceof Map<?, ?> originalMap && serializedValue instanceof Map<?, ?> serializedMap) {
+            Map<String, Object> encoded = new LinkedHashMap<>();
+            serializedMap.forEach((key, value) -> encoded.put(String.valueOf(key),
+                    encodeValue(value, originalMap.get(key))));
+            return encoded;
+        }
+        if (originalValue instanceof List<?> originalList && serializedValue instanceof List<?> serializedList) {
+            List<Object> encoded = new ArrayList<>(serializedList.size());
+            for (int i = 0; i < serializedList.size(); i++) {
+                Object originalItem = i < originalList.size() ? originalList.get(i) : null;
+                encoded.add(encodeValue(serializedList.get(i), originalItem));
+            }
+            return encoded;
+        }
+        return serializedValue;
+    }
+
+    private String temporalType(Object value) {
+        if (value instanceof LocalDateTime) {
+            return "local_date_time";
+        }
+        if (value instanceof LocalDate) {
+            return "local_date";
+        }
+        if (value instanceof LocalTime) {
+            return "local_time";
+        }
+        if (value instanceof Instant) {
+            return "instant";
+        }
+        if (value instanceof OffsetDateTime) {
+            return "offset_date_time";
+        }
+        if (value instanceof OffsetTime) {
+            return "offset_time";
+        }
+        if (value instanceof ZonedDateTime) {
+            return "zoned_date_time";
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> decodeMap(Map<?, ?> source) {
+        Map<String, Object> decoded = new LinkedHashMap<>();
+        source.forEach((key, value) -> decoded.put(String.valueOf(key), decodeValue(value)));
+        return decoded;
+    }
+
+    private Object decodeValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Object type = map.get(VALUE_TYPE);
+            Object encodedValue = map.get(VALUE);
+            if (type instanceof String typeName && encodedValue instanceof String stringValue) {
+                Object temporalValue = decodeTemporalValue(typeName, stringValue);
+                if (temporalValue != null) {
+                    return temporalValue;
+                }
+            }
+            return decodeMap(map);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> decoded = new ArrayList<>(list.size());
+            list.forEach(item -> decoded.add(decodeValue(item)));
+            return decoded;
+        }
+        return value;
+    }
+
+    private Object decodeTemporalValue(String type, String value) {
+        try {
+            return switch (type) {
+                case "local_date_time" -> LocalDateTime.parse(value);
+                case "local_date" -> LocalDate.parse(value);
+                case "local_time" -> LocalTime.parse(value);
+                case "instant" -> Instant.parse(value);
+                case "offset_date_time" -> OffsetDateTime.parse(value);
+                case "offset_time" -> OffsetTime.parse(value);
+                case "zoned_date_time" -> ZonedDateTime.parse(value);
+                default -> null;
+            };
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 
@@ -135,14 +290,14 @@ public class DqlPayloadSerializer {
 
     private String stringValue(Object value) {
         if (!(value instanceof String stringValue) || stringValue.isBlank()) {
-            throw new IllegalArgumentException("DQL payload tapEventClass must not be blank");
+            throw new IllegalArgumentException("DLQ payload tapEventClass must not be blank");
         }
         return stringValue;
     }
 
     private int intValue(Object value) {
         if (!(value instanceof Number number)) {
-            throw new IllegalArgumentException("DQL payload type must be a number");
+            throw new IllegalArgumentException("DLQ payload type must be a number");
         }
         return number.intValue();
     }

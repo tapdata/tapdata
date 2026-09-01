@@ -8,7 +8,7 @@ import io.tapdata.dql.classifier.DqlFailedStage;
  *
  * <p>The aspect is intentionally separate from {@link ProcessorFunctionAspect}:
  * processor execution must be able to inspect the final failure handling result
- * and only suppress the original error after a DQL event has been accepted.</p>
+ * and only suppress the original error after a DLQ event has been accepted.</p>
  */
 public class SkipErrorProcessAspect extends ProcessorNodeAspect<SkipErrorProcessAspect> {
     private TapdataEvent inputEvent;

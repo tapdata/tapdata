@@ -6,7 +6,7 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * A compact, user-visible audit record for a DQL recovery batch.
+ * A compact, user-visible audit record for a DLQ recovery batch.
  */
 @Data
 public class DqlRecoveryAuditEntryDto implements Serializable {

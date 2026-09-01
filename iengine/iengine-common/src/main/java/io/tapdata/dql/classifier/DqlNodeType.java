@@ -1,7 +1,7 @@
 package io.tapdata.dql.classifier;
 
 /**
- * Node category associated with a DQL candidate failure.
+ * Node category associated with a DLQ candidate failure.
  */
 public enum DqlNodeType {
     SOURCE,

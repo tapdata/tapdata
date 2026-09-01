@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Generates deterministic Engine-owned identities before a DQL payload is size-limited.
+ * Generates deterministic Engine-owned identities before a DLQ payload is size-limited.
  */
 public class DqlEventIdentityGenerator {
     private static final List<String> SOURCE_OFFSET_KEYS = List.of(
@@ -103,7 +103,7 @@ public class DqlEventIdentityGenerator {
     private Map<String, Object> payloadData(TapRecordEvent event) {
         Object payloadData = fullPayloadSerializer.serialize(event).getPayloadData();
         if (!(payloadData instanceof Map<?, ?> payloadMap)) {
-            throw new IllegalArgumentException("DQL payload data must be an object");
+            throw new IllegalArgumentException("DLQ payload data must be an object");
         }
         Map<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<?, ?> entry : payloadMap.entrySet()) {
@@ -352,7 +352,7 @@ public class DqlEventIdentityGenerator {
         if (event instanceof TapDeleteRecordEvent) {
             return "D";
         }
-        throw new IllegalArgumentException("Unsupported DQL event type: " + event.getClass().getName());
+        throw new IllegalArgumentException("Unsupported DLQ event type: " + event.getClass().getName());
     }
 
     private boolean hasValue(Object value) {

@@ -125,7 +125,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (getNode() instanceof DataParentNode) {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
-			initTargetDB();
+			if (shouldInitializeTargetDatabase()) {
+				initTargetDB();
+			}
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 			this.writePolicyService.setStartTransactionMap(startTransactionMap);
 			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
@@ -189,6 +191,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
     }
 
 	protected void initTargetDB() {
+		if (!shouldInitializeTargetDatabase()) {
+			return;
+		}
 		obsLogger.info("Apply table structure to target database");
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		Set<String> tableIds = filterSubPartitionTableTableMap();
@@ -253,6 +258,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				}
 			}
 		}));
+	}
+
+	protected boolean shouldInitializeTargetDatabase() {
+		return !isDqlRecoveryRuntime();
 	}
 
 	protected boolean createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId,boolean init) {

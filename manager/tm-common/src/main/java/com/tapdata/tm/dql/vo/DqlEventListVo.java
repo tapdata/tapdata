@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * Public list representation of a DQL event. Persistence-only payload and audit fields are
+ * Public list representation of a DLQ event. Persistence-only payload and audit fields are
  * intentionally absent from this type.
  */
 @Data

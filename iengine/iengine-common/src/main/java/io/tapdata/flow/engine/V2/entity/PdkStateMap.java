@@ -46,7 +46,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 	private String nodeId;
 	/**
 	 * The key used to build the persisted state-map name. For normal tasks this
-	 * is the node id. DQL replay supplies a task-scoped namespace so a replay
+	 * is the node id. DLQ replay supplies a task-scoped namespace so a replay
 	 * connector cannot read or overwrite the formal task's PDK state.
 	 */
 	private String stateMapNodeId;

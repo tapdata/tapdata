@@ -3586,7 +3586,7 @@ class TaskServiceImplTest {
         }
 
         @Test
-        @DisplayName("does not start a task while its DQL recovery lock is active")
+        @DisplayName("does not start a task while its DLQ recovery lock is active")
         void testStartBlockedByDqlRecovery() {
             ObjectId taskId = new ObjectId();
             when(taskDto.getId()).thenReturn(taskId);
@@ -3602,7 +3602,7 @@ class TaskServiceImplTest {
         }
 
         @Test
-        @DisplayName("allows the TM system start path during its own DQL recovery")
+        @DisplayName("allows the TM system start path during its own DLQ recovery")
         void testSystemStartBypassesOwnDqlRecoveryLock() {
             ObjectId taskId = new ObjectId();
             when(taskDto.getId()).thenReturn(taskId);
