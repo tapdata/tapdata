@@ -634,6 +634,36 @@ public final class CustomPatternLayout extends AbstractStringLayout {
             return this;
         }
 
+        // log4j 2.26+ 的 PluginProcessor 要求每个 @PluginBuilderAttribute 字段都有 public setter，
+        // 否则编译期报错。以下 setter 委托给同名 withXxx（后者在 2.26 起已废弃，保留以兼容现有调用）。
+        public Builder setPattern(final String pattern) {
+            return withPattern(pattern);
+        }
+
+        public Builder setCharset(final Charset charset) {
+            return withCharset(charset);
+        }
+
+        public Builder setAlwaysWriteExceptions(final boolean alwaysWriteExceptions) {
+            return withAlwaysWriteExceptions(alwaysWriteExceptions);
+        }
+
+        public Builder setDisableAnsi(final boolean disableAnsi) {
+            return withDisableAnsi(disableAnsi);
+        }
+
+        public Builder setNoConsoleNoAnsi(final boolean noConsoleNoAnsi) {
+            return withNoConsoleNoAnsi(noConsoleNoAnsi);
+        }
+
+        public Builder setHeader(final String header) {
+            return withHeader(header);
+        }
+
+        public Builder setFooter(final String footer) {
+            return withFooter(footer);
+        }
+
         @Override
         public CustomPatternLayout build() {
             // fall back to DefaultConfiguration

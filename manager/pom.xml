@@ -61,6 +61,8 @@
 		     CVE-2026-68497 and CVE-2026-83557. Fixed in the 2.21.6 / 3.1.6 patches. -->
 		<jackson-2-bom.version>2.21.6</jackson-2-bom.version>
 		<jackson-bom.version>3.1.6</jackson-bom.version>
+		<!-- 客户侧 Sonatype 对 2.25.5 报 sonatype-2026-006746，升到 2.x 最高版 -->
+		<log4j2.version>2.26.1</log4j2.version>
     </properties>
 
 	<modules>
