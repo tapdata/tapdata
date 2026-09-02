@@ -28,7 +28,7 @@
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.jackson>2.21.5</version.jackson>
+        <version.jackson>2.21.6</version.jackson>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -191,6 +191,9 @@
         <httpclient5.version>5.6.4</httpclient5.version>
         <httpcore5.version>5.4.3</httpcore5.version>
         <tomcat.version>11.0.25</tomcat.version>
+        <!-- Jackson 3 pinned FORWARD of the Boot 4.0.8 BOM (3.1.5): CVE-2026-68497 /
+             CVE-2026-83557. Jackson 2 is governed by <version.jackson> above. -->
+        <jackson-bom.version>3.1.6</jackson-bom.version>
     </properties>
 
     <modules>

@@ -57,6 +57,10 @@
 		<tomcat.version>11.0.25</tomcat.version>
 		<httpcore5.version>5.4.3</httpcore5.version>
 		<httpclient5.version>5.6.4</httpclient5.version>
+		<!-- Jackson pinned FORWARD of the Boot 4.0.8 BOM (2.21.5 / 3.1.5): both carry
+		     CVE-2026-68497 and CVE-2026-83557. Fixed in the 2.21.6 / 3.1.6 patches. -->
+		<jackson-2-bom.version>2.21.6</jackson-2-bom.version>
+		<jackson-bom.version>3.1.6</jackson-bom.version>
     </properties>
 
 	<modules>
