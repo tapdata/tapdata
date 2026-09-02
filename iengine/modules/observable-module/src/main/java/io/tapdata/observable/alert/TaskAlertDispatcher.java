@@ -32,8 +32,6 @@ public final class TaskAlertDispatcher {
     private static final int COALESCE_MAX_KEYS = 4096;
     private static final long REJECT_LOG_INTERVAL = 1000L;
 
-    private static volatile TaskAlertDispatcher INSTANCE;
-
     private final LinkedBlockingQueue<TaskAlertEvent> queue;
     private final ThreadPoolExecutor workers;
     private final TaskAlertPublisher publisher;
@@ -82,14 +80,11 @@ public final class TaskAlertDispatcher {
     }
 
     public static TaskAlertDispatcher getInstance() {
-        if (INSTANCE == null) {
-            synchronized (TaskAlertDispatcher.class) {
-                if (INSTANCE == null) {
-                    INSTANCE = new TaskAlertDispatcher();
-                }
-            }
-        }
-        return INSTANCE;
+        return InstanceHolder.INSTANCE;
+    }
+
+    private static final class InstanceHolder {
+        private static final TaskAlertDispatcher INSTANCE = new TaskAlertDispatcher();
     }
 
     public boolean submit(TaskAlertEvent event) {
