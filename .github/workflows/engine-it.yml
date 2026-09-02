@@ -1,6 +1,6 @@
 # 引擎（iengine）集成测试 CI
 #
-# 触发时机：push / pull_request 到 main/develop/master；仅当变更涉及 iengine 模块时执行。
+# 触发时机：任意分支 push / pull_request；仅当变更涉及 iengine 模块时执行。
 # 运行环境：tapdata-it 标签的自托管 runner（与 connector-it-reusable.yml 一致），
 #          需预装 git/jq/Maven/JDK 17（JAVA_HOME=/usr/java/jdk-17.0.12），可访问公司内网测试资源。
 # 网络：git 访问 GitHub 经 ssh SOCKS 代理（ssh -D 1234 proxy_server），代理配置由
@@ -14,9 +14,7 @@ name: Engine Integration Tests
 
 on:
   push:
-    branches: [main, master, develop]
   pull_request:
-    branches: [main, master, develop]
   workflow_dispatch:
     inputs:
       iengine_override:
