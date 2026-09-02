@@ -124,6 +124,7 @@ public class WorkerServiceImpl extends WorkerService{
     private final MultiTaggedCounter workerPing;
     private Random random = new Random();
     private static final String STATUS = "status";
+    private static final String USER_ID = "user_id";
 
     public WorkerServiceImpl(@NonNull WorkerRepository repository) {
         super(repository);
@@ -153,7 +154,7 @@ public class WorkerServiceImpl extends WorkerService{
             // query user have share worker
             WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
             if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
-                criteria.orOperator(Criteria.where("user_id").is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
+                criteria.orOperator(Criteria.where(USER_ID).is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
                 return repository.findAll(Query.query(criteria));
             } else {
                 return repository.findAll(Query.query(criteria), userDetail);
@@ -328,7 +329,7 @@ public class WorkerServiceImpl extends WorkerService{
                     .and(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN);
             Query query = Query.query(criteria);
             if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
-                query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+                query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
             }
             query.fields().include("id", "name", "syncType");
             List<TaskDto> tasks = taskService.findAll(query);
@@ -457,9 +458,9 @@ public class WorkerServiceImpl extends WorkerService{
             // query user have share worker
             WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
             if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
-                where.and("user_id").in(userDetail.getUserId(), workerExpire.getShareTmUserId());
+                where.and(USER_ID).in(userDetail.getUserId(), workerExpire.getShareTmUserId());
             } else {
-                where.and("user_id").is(userDetail.getUserId());
+                where.and(USER_ID).is(userDetail.getUserId());
             }
         }
 
@@ -629,7 +630,7 @@ public class WorkerServiceImpl extends WorkerService{
     public Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail) {
         Query query = Query.query(Criteria.where("worker_type").is("api-server"));
         query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
-        query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+        query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
         WorkerDto worker = findOne(query);
         log.debug("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
         List<ApiWorkerStatusVo> list = Lists.newArrayList();
@@ -945,7 +946,7 @@ public class WorkerServiceImpl extends WorkerService{
         if (CollectionUtils.isNotEmpty(workerExpires)) {
             workerExpires.forEach(workerExpire -> {
                 // query worker by shareUser
-                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("user_id").is(workerExpire.getShareTmUserId())));
+                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where(USER_ID).is(workerExpire.getShareTmUserId())));
                 shareWorkers.forEach(workerDto -> {
                     String processId = workerDto.getProcessId();
                     CommonUtils.ignoreAnyError(() -> taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId()), "TM");
