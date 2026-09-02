@@ -1317,10 +1317,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
 				.ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext();
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		excludeRemoveTable(tables);
+		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext(tables);
+		try {
+			ensureShareCdcTablesReady(tables);
+		} catch (TapCodeException e) {
+			if (ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED.equals(e.getCode()) && e.getCause() != null) {
+				throw new ShareCdcUnsupportedException(e.getMessage(), e, true);
+			}
+			throw e;
+		}
 		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
@@ -1348,11 +1356,51 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 	}
 
-	protected ShareCdcTaskContext createShareCDCTaskContext() {
+	protected ShareCdcTaskContext createShareCDCTaskContext(List<String> tableNames) {
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
-				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
+				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode(), tableNames);
 		shareCdcTaskContext.setObsLogger(obsLogger);
 		return shareCdcTaskContext;
+	}
+
+	@Override
+	protected void ensureShareCdcForNewTables(List<String> tables) {
+		ensureShareCdcTablesReady(tables);
+	}
+
+	protected void ensureShareCdcTablesReady(List<String> tableNames) {
+		if (CollectionUtils.isEmpty(tableNames)) {
+			return;
+		}
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		if (taskDto == null || !Boolean.TRUE.equals(taskDto.getShareCdcEnable()) || taskDto.getId() == null) {
+			return;
+		}
+		Connections sourceConn = dataProcessorContext.getSourceConn();
+		if (sourceConn == null || StringUtils.isBlank(sourceConn.getId())) {
+			return;
+		}
+		Node<?> node = dataProcessorContext.getNode();
+		if (node == null || StringUtils.isBlank(node.getId())) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, "Source node id is empty")
+					.dynamicDescriptionParameters(String.valueOf(tableNames));
+		}
+		Map<String, Object> body = new HashMap<>();
+		body.put("syncTaskId", taskDto.getId().toHexString());
+		body.put("connectionId", sourceConn.getId());
+		body.put("nodeId", node.getId());
+		body.put("tableNames", tableNames);
+		body.put("waitReady", true);
+		obsLogger.info("Ensure share cdc tables before listen, connectionId: {}, nodeId: {}, tables: {}", sourceConn.getId(), node.getId(), tableNames);
+		try {
+			clientMongoOperator.postOne(body, ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES, Object.class);
+		} catch (Exception e) {
+			if (e instanceof TapCodeException tapCodeException) {
+				throw tapCodeException;
+			}
+			throw new TapCodeException(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, e.getMessage(), e)
+					.dynamicDescriptionParameters(String.valueOf(tableNames));
+		}
 	}
 
 	private void checkPollingCDCIfNeed() {
