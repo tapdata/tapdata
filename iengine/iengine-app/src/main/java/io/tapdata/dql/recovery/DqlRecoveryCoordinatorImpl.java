@@ -323,7 +323,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         for (String eventId : orderedEventIds) {
             DqlRecoveryEvent event = eventSource.loadEvent(eventId);
             if (event == null || event.payload() == null) {
-                throw new IllegalStateException("DQL event payload was not found: " + eventId);
+                throw new IllegalStateException("DLQ event payload was not found: " + eventId);
             }
             events.add(event);
         }
@@ -337,12 +337,12 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         try {
             DqlRecoveryBatchRuntime runtime = batchRuntimeFactory.open(command, List.copyOf(events));
             if (runtime == null) {
-                throw new IllegalStateException("DQL recovery batch runtime is unavailable");
+                throw new IllegalStateException("DLQ recovery batch runtime is unavailable");
             }
             runtimeRef.set(runtime);
             compensator.addCleanup(runtime::close);
             DqlRecoveryBarrier batchBarrier = Objects.requireNonNull(
-                    runtime.barrier(), "DQL recovery batch barrier must not be null");
+                    runtime.barrier(), "DLQ recovery batch barrier must not be null");
             for (int index = 0; index < events.size(); index++) {
                 if (terminal.get()) {
                     return;
@@ -378,7 +378,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                         }
                     }, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
         } catch (RuntimeException exception) {
-            LOGGER.warn("DQL recovery heartbeat scheduling failed, batchId={}", command.getBatchId(), exception);
+            LOGGER.warn("DLQ recovery heartbeat scheduling failed, batchId={}", command.getBatchId(), exception);
             return null;
         }
     }
@@ -387,7 +387,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         try {
             reportSender.reportBatchHeartbeat(command);
         } catch (RuntimeException exception) {
-            LOGGER.warn("DQL recovery heartbeat report failed, batchId={}", command.getBatchId(), exception);
+            LOGGER.warn("DLQ recovery heartbeat report failed, batchId={}", command.getBatchId(), exception);
         }
     }
 
@@ -417,7 +417,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
             reportSender.reportEventStarted(command, eventId, attemptId, startedAt);
             DqlPayloadSnapshot snapshot = event == null ? null : event.payload();
             if (snapshot == null) {
-                throw new IllegalStateException("DQL event payload was not found: " + eventId);
+                throw new IllegalStateException("DLQ event payload was not found: " + eventId);
             }
             TapdataDqlRecoveryEvent recoveryEvent = TapdataDqlRecoveryEvent.createData(
                     command.getBatchId(),
@@ -560,7 +560,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private static final class DaemonThreadFactory implements ThreadFactory {
         @Override
         public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "Dql-Recovery-Heartbeat");
+            Thread thread = new Thread(runnable, "DLQ-Recovery-Heartbeat");
             thread.setDaemon(true);
             return thread;
         }

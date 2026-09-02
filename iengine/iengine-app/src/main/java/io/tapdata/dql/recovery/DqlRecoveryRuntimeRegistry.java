@@ -71,11 +71,11 @@ public final class DqlRecoveryRuntimeRegistry {
         Objects.requireNonNull(command, "recovery command must not be null");
         RuntimeTask runtime = tasks.get(command.getTaskId());
         if (runtime == null) {
-            throw new IllegalStateException("DQL recovery source boundary is unavailable for task "
+            throw new IllegalStateException("DLQ recovery source boundary is unavailable for task "
                     + command.getTaskId());
         }
         if (!Objects.equals(runtime.taskVersion(), command.getTaskVersion())) {
-            throw new IllegalStateException("DQL recovery source boundary task version is unavailable for task "
+            throw new IllegalStateException("DLQ recovery source boundary task version is unavailable for task "
                     + command.getTaskId());
         }
         return new DqlSourceBoundaryInjector(runtime.dag(), runtime.sourceBoundaries());

@@ -54,12 +54,12 @@ public class DqlRecoveryEventHandler extends BaseEventHandler {
             // DqlRecoveryMessageHandler will report BATCH_FAILED to TM for
             // the already DISPATCHED batch. Throwing from initialize() here
             // bypasses the callback and leaves the UI in "processing".
-            LOGGER.error("DQL recovery coordinator bean is not available", exception);
+            LOGGER.error("DLQ recovery coordinator bean is not available", exception);
         } catch (RuntimeException exception) {
             // A partially initialized Engine context must converge the same
             // way as a missing bean instead of leaving TM waiting for a
             // callback that can never arrive.
-            LOGGER.error("DQL recovery coordinator initialization failed", exception);
+            LOGGER.error("DLQ recovery coordinator initialization failed", exception);
         }
         DqlRecoveryReportSender reportSender = recoveryReportSender(clientMongoOperator);
         DqlRuntimeConfig runtimeConfig = DqlRuntimeConfig.from(key ->

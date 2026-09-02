@@ -33,7 +33,7 @@
         "upsert": true
       },
       {
-        "q": {"key": "TASK_DQL_EVENT", "notify": ["SYSTEM"], "emailAlarmTitle": "[TapData DLQ] Event created - {taskName}", "emailAlarmContent": "DQL event created for {taskName}: {eventId}"},
+        "q": {"key": "TASK_DQL_EVENT", "notify": ["SYSTEM"], "emailAlarmTitle": "[TapData DLQ] Event created - {taskName}", "emailAlarmContent": "DLQ event created for {taskName}: {eventId}"},
         "u": {"$set": {
           "notify": ["SYSTEM", "EMAIL"],
           "emailAlarmTitle": "【TapData DLQ】异常事件进入 DLQ - {taskName}",

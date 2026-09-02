@@ -51,7 +51,7 @@ class DqlSourceBoundaryInjectorTest {
                 () -> injector.enqueue(event("event-1", "orders"))
         );
 
-        assertEquals("DQL recovery source boundary is unavailable for DAG source node source", exception.getMessage());
+        assertEquals("DLQ recovery source boundary is unavailable for DAG source node source", exception.getMessage());
     }
 
     @Test
@@ -73,7 +73,7 @@ class DqlSourceBoundaryInjectorTest {
                 () -> injector.enqueue(event("event-1", "orders"))
         );
 
-        assertEquals("DQL recovery source boundary cannot be resolved from the task DAG", exception.getMessage());
+        assertEquals("DLQ recovery source boundary cannot be resolved from the task DAG", exception.getMessage());
     }
 
     @Test
@@ -95,7 +95,7 @@ class DqlSourceBoundaryInjectorTest {
                 () -> injector.enqueue(event("event-1", "orders"))
         );
 
-        assertEquals("DQL recovery source boundary is ambiguous for DAG source nodes [source-a, source-b]", exception.getMessage());
+        assertEquals("DLQ recovery source boundary is ambiguous for DAG source nodes [source-a, source-b]", exception.getMessage());
     }
 
     private DatabaseNode node(String id) {

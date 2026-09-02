@@ -94,6 +94,14 @@ public class DqlRecoveryTaskLockRepository {
         return mongoTemplate.exists(query, DqlRecoveryTaskLockEntity.class);
     }
 
+    public DqlRecoveryTaskLockEntity findByTaskId(String taskId) {
+        if (StringUtils.isBlank(taskId)) {
+            return null;
+        }
+        Query query = Query.query(Criteria.where(DqlRecoveryTaskLockEntity.FIELD_TASK_ID).is(taskId));
+        return mongoTemplate.findOne(query, DqlRecoveryTaskLockEntity.class);
+    }
+
     public boolean release(String taskId, String batchId) {
         if (StringUtils.isAnyBlank(taskId, batchId)) {
             return false;
