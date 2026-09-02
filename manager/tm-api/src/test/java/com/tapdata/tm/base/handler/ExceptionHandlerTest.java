@@ -89,4 +89,144 @@ public class ExceptionHandlerTest {
             throw new RuntimeException(e);
         }
     }
+
+    @DisplayName("DLQ invalid arguments use HTTP 400")
+    @Test
+    void dqlInvalidArgumentsUseBadRequest() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events/recovery/preview");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("IllegalArgument");
+        when(exception.getArgs()).thenReturn(new Object[]{"eventIds"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("IllegalArgument", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_BAD_REQUEST);
+    }
+
+    @DisplayName("DLQ cross-task validation uses HTTP 400")
+    @Test
+    void dqlCrossTaskValidationUsesBadRequest() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events/recovery/preview");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("DqlRecovery.CrossTaskNotAllowed");
+        when(exception.getArgs()).thenReturn(new Object[]{"eventIds"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("DqlRecovery.CrossTaskNotAllowed", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_BAD_REQUEST);
+    }
+
+    @DisplayName("DLQ resources use HTTP 404 when not found")
+    @Test
+    void dqlResourcesUseNotFound() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events/DQL-1");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("DqlEvent.NotFound");
+        when(exception.getArgs()).thenReturn(new Object[]{"DQL-1"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("DqlEvent.NotFound", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_NOT_FOUND);
+    }
+
+    @DisplayName("DLQ state and lock conflicts use HTTP 409")
+    @Test
+    void dqlConflictsUseConflict() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events/recovery");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("DqlRecovery.EventNotReprocessable");
+        when(exception.getArgs()).thenReturn(new Object[]{"Some selected events cannot be reprocessed"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("DqlRecovery.EventNotReprocessable", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_CONFLICT);
+    }
+
+    @DisplayName("DLQ lock failures use HTTP 409")
+    @Test
+    void dqlLockFailuresUseConflict() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events/recovery");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("DqlRecovery.EventLockFailed");
+        when(exception.getArgs()).thenReturn(new Object[]{"batch-1"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("DqlRecovery.EventLockFailed", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_CONFLICT);
+    }
+
+    @DisplayName("DLQ missing recovery batches use HTTP 404")
+    @Test
+    void dqlBatchNotFoundUsesNotFound() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events/recovery/batch-1");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("DqlRecovery.BatchNotFound");
+        when(exception.getArgs()).thenReturn(new Object[]{"batch-1"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("DqlRecovery.BatchNotFound", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_NOT_FOUND);
+    }
+
+    @DisplayName("DLQ unexpected failures use HTTP 500")
+    @Test
+    void dqlUnexpectedFailuresUseServerError() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        BizException exception = mock(BizException.class);
+        when(exception.getErrorCode()).thenReturn("SystemError");
+        when(exception.getArgs()).thenReturn(new Object[]{"database"});
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(exception, request, response);
+
+        assertEquals("SystemError", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @DisplayName("DLQ permission failures use HTTP 403 and a stable error code")
+    @Test
+    void dqlPermissionFailureUsesForbidden() throws Throwable {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/dql-events");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(
+                new RuntimeException("NoPermission"), request, response);
+
+        assertEquals("NoPermission", result.getCode());
+        verify(response).setStatus(HttpStatus.SC_FORBIDDEN);
+    }
+
+    @DisplayName("DLQ status mapping does not change unrelated permission failures")
+    @Test
+    void nonDqlPermissionFailureKeepsExistingSemantics() throws Throwable {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn("/api/tasks");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        ResponseMessage<?> result = new ExceptionHandler().handlerException(
+                new RuntimeException("NoPermission"), request, response);
+
+        assertEquals("SystemError", result.getCode());
+        verifyNoInteractions(response);
+    }
 }

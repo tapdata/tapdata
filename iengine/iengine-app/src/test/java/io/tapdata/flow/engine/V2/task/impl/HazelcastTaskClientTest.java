@@ -19,6 +19,7 @@ import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -193,6 +194,108 @@ public class HazelcastTaskClientTest {
 
         JobStatus status = taskClient.getJetStatus();
         assertEquals(JobStatus.FAILED, status);
+    }
+
+    @Test
+    public void stopWaitsForJetCancellationToBecomeTerminal() {
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(new ObjectId());
+        DAG dag = mock(DAG.class);
+        taskDto.setDag(dag);
+        when(dag.getNodes()).thenReturn(new ArrayList<>());
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+
+        Job mockJob = mock(Job.class);
+        when(mockJob.getStatus()).thenReturn(
+                JobStatus.RUNNING,
+                JobStatus.RUNNING,
+                JobStatus.SUSPENDED,
+                JobStatus.COMPLETING,
+                JobStatus.COMPLETING,
+                JobStatus.COMPLETED);
+        HazelcastTaskClient taskClient = spy(new HazelcastTaskClient(
+                mockJob,
+                taskDto,
+                mock(ClientMongoOperator.class),
+                mock(ConfigurationCenter.class),
+                mock(HazelcastInstance.class)));
+        doNothing().when(taskClient).close();
+
+        assertTrue(taskClient.stop());
+        verify(mockJob).suspend();
+        verify(mockJob, atLeastOnce()).cancel();
+    }
+
+    @Test
+    public void stopDoesNotCancelWhileSuspendIsStillTerminating() {
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(new ObjectId());
+        DAG dag = mock(DAG.class);
+        taskDto.setDag(dag);
+        when(dag.getNodes()).thenReturn(new ArrayList<>());
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+
+        AtomicInteger statusReads = new AtomicInteger();
+        Job mockJob = mock(Job.class);
+        when(mockJob.getStatus()).thenAnswer(invocation -> {
+            int read = statusReads.getAndIncrement();
+            return switch (read) {
+                case 0, 1, 2, 3 -> JobStatus.RUNNING;
+                case 4, 5 -> JobStatus.SUSPENDED;
+                default -> JobStatus.COMPLETED;
+            };
+        });
+        doAnswer(invocation -> {
+            if (statusReads.get() <= 4) {
+                throw new IllegalStateException(
+                        "Cannot CANCEL_FORCEFUL: Job is already terminating in mode: SUSPEND_FORCEFUL");
+            }
+            return null;
+        }).when(mockJob).cancel();
+
+        HazelcastTaskClient taskClient = spy(new HazelcastTaskClient(
+                mockJob,
+                taskDto,
+                mock(ClientMongoOperator.class),
+                mock(ConfigurationCenter.class),
+                mock(HazelcastInstance.class)));
+        doNothing().when(taskClient).close();
+
+        assertTrue(taskClient.stop());
+        verify(mockJob).suspend();
+        verify(mockJob).cancel();
+    }
+
+    @Test
+    public void stopContinuesWhenSuspendWasAlreadySubmitted() {
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(new ObjectId());
+        DAG dag = mock(DAG.class);
+        taskDto.setDag(dag);
+        when(dag.getNodes()).thenReturn(new ArrayList<>());
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+
+        Job mockJob = mock(Job.class);
+        when(mockJob.getStatus()).thenReturn(
+                JobStatus.RUNNING,
+                JobStatus.SUSPENDED,
+                JobStatus.COMPLETING,
+                JobStatus.COMPLETED);
+        doThrow(new IllegalStateException(
+                "Cannot SUSPEND_FORCEFUL: Job is already terminating in mode: SUSPEND_FORCEFUL"))
+                .when(mockJob).suspend();
+
+        HazelcastTaskClient taskClient = spy(new HazelcastTaskClient(
+                mockJob,
+                taskDto,
+                mock(ClientMongoOperator.class),
+                mock(ConfigurationCenter.class),
+                mock(HazelcastInstance.class)));
+        doNothing().when(taskClient).close();
+
+        assertTrue(taskClient.stop());
+        verify(mockJob).suspend();
+        verify(mockJob).cancel();
     }
 
 }

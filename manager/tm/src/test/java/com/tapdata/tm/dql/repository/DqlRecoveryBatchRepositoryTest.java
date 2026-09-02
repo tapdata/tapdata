@@ -1,0 +1,499 @@
+package com.tapdata.tm.dql.repository;
+
+import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
+import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
+import com.tapdata.tm.dql.entity.DqlRecoveryBatchEntity;
+import org.bson.Document;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.index.IndexDefinition;
+import org.springframework.data.mongodb.core.index.IndexOperations;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+
+import java.util.Date;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class DqlRecoveryBatchRepositoryTest {
+
+    @Test
+    @DisplayName("init ensures batch query indexes when collection already exists")
+    void initEnsuresQueryIndexesWhenCollectionExists() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+
+        new DqlRecoveryBatchRepository(mongoTemplate);
+
+        verify(mongoTemplate, never()).createCollection("dql_recovery_batches");
+        IndexOperations indexOperations = mongoTemplate.indexOps("dql_recovery_batches");
+        ArgumentCaptor<IndexDefinition> indexCaptor = ArgumentCaptor.forClass(IndexDefinition.class);
+        verify(indexOperations, times(3)).createIndex(indexCaptor.capture());
+        assertEquals(true, indexCaptor.getAllValues().stream()
+                .anyMatch(index -> "idx_task_created".equals(index.getIndexOptions().getString("name"))));
+        assertFalse(indexCaptor.getAllValues().stream()
+                .anyMatch(index -> index.getIndexOptions().containsKey("expireAfterSeconds")));
+    }
+
+    @Test
+    @DisplayName("create initializes batch ttl from created time")
+    void createInitializesTtlFromCreated() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.save(any(DqlRecoveryBatchEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+        batch.setBatchId("DQLB-1");
+        Date created = new Date(1787580000000L);
+        batch.setCreated(created);
+        batch.setTtlAt(new Date(created.getTime() + 60_000L));
+
+        DqlRecoveryBatchDto saved = repository.create(batch);
+
+        assertEquals(created, saved.getCreated());
+        assertEquals(created, saved.getTtlAt());
+        assertInstanceOf(Date.class, saved.getTtlAt());
+    }
+
+    @Test
+    @DisplayName("create defaults status and counters")
+    void createDefaultsStatusAndCounters() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.save(any(DqlRecoveryBatchEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DqlRecoveryBatchDto saved = repository.create(new DqlRecoveryBatchDto());
+
+        assertEquals(DqlRecoveryBatchStatusEnum.CREATED.name(), saved.getStatus());
+        assertEquals(0, saved.getSelectedCount());
+        assertEquals(0, saved.getSuccessCount());
+        assertEquals(0, saved.getFailedCount());
+        assertEquals(0, saved.getSkippedCount());
+        assertFalse(saved.getFinishRequested());
+        assertEquals("AUTO", saved.getMode());
+        assertTrue(saved.getAuditEntries().isEmpty());
+    }
+
+    @Test
+    @DisplayName("audit append persists a timeline entry and refreshes ttl")
+    void appendAuditPersistsTimelineEntry() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        DqlRecoveryAuditEntryDto entry = new DqlRecoveryAuditEntryDto();
+        entry.setType("EVENT_RESULT");
+        entry.setStatus("SUCCESS");
+        entry.setEventId("DQL-1");
+        entry.setAttemptId("A-1");
+        entry.setMessage("replayed");
+
+        repository.appendAudit("DQLB-1", entry);
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertEquals(entry, update.get("$push", Document.class).get(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES));
+        assertTtlRefreshed(update.get("$set", Document.class));
+    }
+
+    @Test
+    @DisplayName("source read result updates detail fields and appends the same audit entry atomically")
+    void recordSourceReadResultUpdatesFieldsAndAudit() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        Date occurredAt = new Date(1787580100000L);
+        DqlRecoveryAuditEntryDto entry = new DqlRecoveryAuditEntryDto();
+        entry.setType("SOURCE_READ_PAUSE");
+        entry.setStatus("SUCCESS");
+
+        repository.recordSourceReadResult("DQLB-1", true, "SUCCESS", "gate closed", occurredAt, entry);
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        Document set = update.get("$set", Document.class);
+        assertEquals("SUCCESS", set.get(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_RESULT));
+        assertEquals("gate closed", set.get(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_MESSAGE));
+        assertEquals(occurredAt, set.get(DqlRecoveryBatchDto.FIELD_SOURCE_READ_PAUSE_AT));
+        assertEquals(entry, update.get("$push", Document.class).get(DqlRecoveryBatchDto.FIELD_AUDIT_ENTRIES));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("finishing batch refreshes ttl in the same update")
+    void finishRefreshesTtl() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        repository.finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, "done");
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get("status"));
+        assertEquals(set.get("finished_at"), set.get("updated"));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("finish reconciled atomically guards counters and active status")
+    void finishReconciledGuardsCountersAndActiveStatus() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.finishReconciled("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS,
+                1, 1, 0, 0, "done"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get(DqlRecoveryBatchDto.FIELD_BATCH_ID));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                query.get(DqlRecoveryBatchDto.FIELD_STATUS, Document.class).get("$in"));
+        assertEquals(1, query.get(DqlRecoveryBatchDto.FIELD_SELECTED_COUNT));
+        assertEquals(1, query.get(DqlRecoveryBatchDto.FIELD_SUCCESS_COUNT));
+        assertEquals(0, query.get(DqlRecoveryBatchDto.FIELD_FAILED_COUNT));
+        assertEquals(0, query.get(DqlRecoveryBatchDto.FIELD_SKIPPED_COUNT));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertEquals(false, set.get(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED));
+        assertEquals("done", set.get(DqlRecoveryBatchDto.FIELD_MESSAGE));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("finish requested atomically consumes the pending marker")
+    void finishRequestedConsumesPendingMarker() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.finishRequested("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, "done"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(true, query.get(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(false, set.get(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED));
+        assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("status update only targets an active created batch")
+    void statusUpdateOnlyTargetsCreatedBatch() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        repository.updateStatus("DQLB-1", DqlRecoveryBatchStatusEnum.DISPATCHED, null);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(
+                queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get("batch_id"));
+        assertEquals(List.of(DqlRecoveryBatchStatusEnum.CREATED.name()),
+                query.get("status", Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(), set.get("status"));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("marking a created or dispatched batch running refreshes ttl with its start time")
+    void markRunningRefreshesTtl() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        repository.markRunning("DQLB-1");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(
+                queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name()),
+                queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), set.get("status"));
+        assertEquals(set.get("started_at"), set.get("updated"));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("heartbeat update only targets a running batch and refreshes ttl")
+    void touchHeartbeatOnlyTargetsRunningBatch() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+        Date pingTime = new Date(1787580100000L);
+
+        assertTrue(repository.touchHeartbeat("DQLB-1", pingTime));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                queryCaptor.getValue().getQueryObject().get(DqlRecoveryBatchDto.FIELD_STATUS, Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(pingTime, set.get(DqlRecoveryBatchDto.FIELD_PING_TIME));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("status update rejects targets other than dispatched")
+    void statusUpdateRejectsNonDispatchedTarget() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.updateStatus("DQLB-1", DqlRecoveryBatchStatusEnum.RUNNING, null));
+
+        verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+    }
+
+    @Test
+    @DisplayName("finish rejects non-terminal target status")
+    void finishRejectsNonTerminalTargetStatus() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.finish("DQLB-1", DqlRecoveryBatchStatusEnum.RUNNING, null));
+
+        verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+    }
+
+    @Test
+    @DisplayName("finish uses state-specific source guards for every terminal status")
+    void finishUsesStateSpecificSourceGuards() {
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.SUCCESS,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.PARTIAL_FAILED,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.FAILED,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        assertFinishSourceStatuses(
+                DqlRecoveryBatchStatusEnum.CANCELED,
+                DqlRecoveryBatchStatusEnum.CREATED);
+    }
+
+    private void assertFinishSourceStatuses(DqlRecoveryBatchStatusEnum targetStatus,
+                                            DqlRecoveryBatchStatusEnum... expectedSourceStatuses) {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+
+        repository.finish("DQLB-1", targetStatus, null);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(expectedSourceStatuses).stream().map(Enum::name).toList(),
+                queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("active batch query filters task and non-terminal states")
+    void activeBatchQueryFiltersTaskAndNonTerminalStates() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.findOne(any(Query.class), eq(DqlRecoveryBatchEntity.class))).thenReturn(null);
+
+        repository.findActiveByTaskId("TASK-1");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).findOne(queryCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("TASK-1", query.get("task_id"));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()), query.get("status", Document.class).get("$in"));
+        assertEquals(-1, queryCaptor.getValue().getSortObject().get("created"));
+    }
+
+    @Test
+    @DisplayName("counter update only targets active batch")
+    void counterUpdateOnlyTargetsActiveBatch() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        repository.increaseSuccess("DQLB-1");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
+        Document update = updateCaptor.getValue().getUpdateObject();
+        assertEquals(1, update.get("$inc", Document.class).get("success_count"));
+        assertTtlRefreshed(update.get("$set", Document.class));
+    }
+
+    @Test
+    @DisplayName("timed out batch query only returns dispatched or running batches before the deadline")
+    void findTimedOutUsesActiveStatusAndUpdatedDeadline() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.find(any(Query.class), eq(DqlRecoveryBatchEntity.class))).thenReturn(List.of());
+        Date deadline = new Date(1787580200000L);
+
+        repository.findTimedOut(deadline);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(queryCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                query.get(DqlRecoveryBatchDto.FIELD_STATUS, Document.class).get("$in"));
+        assertEquals(deadline, query.get(DqlRecoveryBatchDto.FIELD_UPDATED, Document.class).get("$lte"));
+    }
+
+    @Test
+    @DisplayName("timed out query separates dispatch, heartbeat and legacy deadlines")
+    void findTimedOutSeparatesDispatchHeartbeatAndLegacyDeadlines() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.find(any(Query.class), eq(DqlRecoveryBatchEntity.class))).thenReturn(List.of());
+        Date dispatchDeadline = new Date(1787580200000L);
+        Date heartbeatDeadline = new Date(1787580210000L);
+        Date legacyDeadline = new Date(1787580220000L);
+
+        repository.findTimedOut(dispatchDeadline, heartbeatDeadline, legacyDeadline);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(queryCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(2, query.get("$or", List.class).size());
+        Document dispatched = (Document) query.get("$or", List.class).get(0);
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                dispatched.getString(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertEquals(dispatchDeadline,
+                dispatched.get(DqlRecoveryBatchDto.FIELD_UPDATED, Document.class).get("$lte"));
+    }
+
+    @Test
+    @DisplayName("timeout finalization only changes an active batch")
+    void finishTimedOutUsesActiveSourceStatuses() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.finishTimedOut("DQLB-1", DqlRecoveryBatchStatusEnum.PARTIAL_FAILED, "timeout"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get(DqlRecoveryBatchDto.FIELD_BATCH_ID));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                query.get(DqlRecoveryBatchDto.FIELD_STATUS, Document.class).get("$in"));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.PARTIAL_FAILED.name(), set.get(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertEquals("timeout", set.get(DqlRecoveryBatchDto.FIELD_MESSAGE));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("timeout finalization rechecks the batch timeout predicate")
+    void finishTimedOutRechecksTimeoutPredicate() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(0L, 0L, null));
+        Date dispatchDeadline = new Date(1787580200000L);
+        Date heartbeatDeadline = new Date(1787580210000L);
+        Date legacyDeadline = new Date(1787580220000L);
+
+        assertFalse(repository.finishTimedOut(
+                "DQLB-1",
+                DqlRecoveryBatchStatusEnum.FAILED,
+                "timeout",
+                dispatchDeadline,
+                heartbeatDeadline,
+                legacyDeadline));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), any(Update.class), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        List<Document> and = query.get("$and", List.class);
+        assertEquals("DQLB-1", and.get(0).get(DqlRecoveryBatchDto.FIELD_BATCH_ID));
+        assertEquals(2, and.get(1).get("$or", List.class).size());
+    }
+
+    @Test
+    @DisplayName("timeout counter update increments failed count by the number of unresolved events")
+    void timeoutCounterUpdateSupportsMultipleEvents() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        repository.increaseFailed("DQLB-1", 3);
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        assertEquals(3, updateCaptor.getValue().getUpdateObject().get("$inc", Document.class)
+                .get(DqlRecoveryBatchDto.FIELD_FAILED_COUNT));
+    }
+
+    private MongoTemplate mongoTemplate() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        IndexOperations indexOperations = mock(IndexOperations.class);
+        when(mongoTemplate.collectionExists("dql_recovery_batches")).thenReturn(true);
+        when(mongoTemplate.indexOps("dql_recovery_batches")).thenReturn(indexOperations);
+        return mongoTemplate;
+    }
+
+    private void assertTtlRefreshed(Document set) {
+        assertInstanceOf(Date.class, set.get(DqlRecoveryBatchDto.FIELD_TTL_AT));
+        assertEquals(set.get(DqlRecoveryBatchDto.FIELD_UPDATED), set.get(DqlRecoveryBatchDto.FIELD_TTL_AT));
+    }
+}

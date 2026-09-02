@@ -1,0 +1,82 @@
+package com.tapdata.tm.dql.dto;
+
+import lombok.Data;
+
+import java.io.Serializable;
+import java.util.Date;
+import java.util.List;
+
+@Data
+public class DqlRecoveryBatchDto implements Serializable {
+    public static final String FIELD_ID = "_id";
+    public static final String FIELD_BATCH_ID = "batch_id";
+    public static final String FIELD_TASK_ID = "task_id";
+    public static final String FIELD_TASK_NAME = "task_name";
+    public static final String FIELD_TASK_STATUS_BEFORE = "task_status_before";
+    public static final String FIELD_TASK_STATUS_AFTER = "task_status_after";
+    public static final String FIELD_TASK_VERSION = "task_version";
+    public static final String FIELD_AGENT_ID = "agent_id";
+    public static final String FIELD_EVENT_IDS = "event_ids";
+    public static final String FIELD_ORDERED_EVENT_IDS = "ordered_event_ids";
+    public static final String FIELD_OPERATOR_ID = "operator_id";
+    public static final String FIELD_OPERATOR_NAME = "operator_name";
+    public static final String FIELD_MODE = "mode";
+    public static final String FIELD_SOURCE_READ_PAUSE_RESULT = "source_read_pause_result";
+    public static final String FIELD_SOURCE_READ_PAUSE_MESSAGE = "source_read_pause_message";
+    public static final String FIELD_SOURCE_READ_PAUSE_AT = "source_read_pause_at";
+    public static final String FIELD_SOURCE_READ_RESUME_RESULT = "source_read_resume_result";
+    public static final String FIELD_SOURCE_READ_RESUME_MESSAGE = "source_read_resume_message";
+    public static final String FIELD_SOURCE_READ_RESUME_AT = "source_read_resume_at";
+    public static final String FIELD_AUDIT_ENTRIES = "audit_entries";
+    public static final String FIELD_STATUS = "status";
+    public static final String FIELD_SELECTED_COUNT = "selected_count";
+    public static final String FIELD_SUCCESS_COUNT = "success_count";
+    public static final String FIELD_FAILED_COUNT = "failed_count";
+    public static final String FIELD_SKIPPED_COUNT = "skipped_count";
+    public static final String FIELD_STARTED_AT = "started_at";
+    public static final String FIELD_PING_TIME = "ping_time";
+    public static final String FIELD_FINISHED_AT = "finished_at";
+    public static final String FIELD_FINISH_REQUESTED = "finish_requested";
+    public static final String FIELD_FINISH_MESSAGE = "finish_message";
+    public static final String FIELD_MESSAGE = "message";
+    public static final String FIELD_CREATED = "created";
+    public static final String FIELD_UPDATED = "updated";
+    public static final String FIELD_TTL_AT = "ttl_at";
+    public static final String FIELD_NODE_STATES = "node_states";
+
+    private String id;
+    private String batchId;
+    private String taskId;
+    private String taskName;
+    private String taskStatusBefore;
+    private String taskStatusAfter;
+    private Long taskVersion;
+    private String agentId;
+    private List<String> eventIds;
+    private List<String> orderedEventIds;
+    private String operatorId;
+    private String operatorName;
+    private String mode;
+    private String sourceReadPauseResult;
+    private String sourceReadPauseMessage;
+    private Date sourceReadPauseAt;
+    private String sourceReadResumeResult;
+    private String sourceReadResumeMessage;
+    private Date sourceReadResumeAt;
+    private List<DqlRecoveryAuditEntryDto> auditEntries;
+    private String status;
+    private Integer selectedCount;
+    private Integer successCount;
+    private Integer failedCount;
+    private Integer skippedCount;
+    private Date startedAt;
+    private Date pingTime;
+    private Date finishedAt;
+    private Boolean finishRequested;
+    private String finishMessage;
+    private String message;
+    private Date created;
+    private Date updated;
+    private Date ttlAt;
+    private List<DqlRecoveryNodeStateDto> nodeStates;
+}

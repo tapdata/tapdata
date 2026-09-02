@@ -95,6 +95,11 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
+import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
+import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.entity.DqlRecoveryTaskLockEntity;
+import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
+import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -253,6 +258,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Setter(onMethod_ = {@Autowired})
 public class TaskServiceImpl extends TaskService{
     private static final long DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS = 5 * 60 * 1000L;
+    private static final long INITIAL_TASK_VERSION = 1L;
 
     public static final String USER_ID = "user_id";
     public static final String COLLECTION_ID = "collectionId";
@@ -404,6 +410,9 @@ public class TaskServiceImpl extends TaskService{
     private AnalyzerService analyzerService;
     private TaskRebalanceJobService taskRebalanceJobService;
 
+    private DqlRecoveryTaskLockRepository dqlRecoveryTaskLockRepository;
+    private DqlRecoveryBatchRepository dqlRecoveryBatchRepository;
+
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
     }
@@ -449,6 +458,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto create(TaskDto taskDto, UserDetail user) {
         //新增任务校验
         taskDto.setStatus(TaskDto.STATUS_EDIT);
+        initializeTaskVersion(taskDto);
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
@@ -1364,6 +1374,62 @@ public class TaskServiceImpl extends TaskService{
         return String.valueOf(System.currentTimeMillis());
     }
 
+    private static void initializeTaskVersion(TaskDto taskDto) {
+        if (taskDto.getVersion() == null || taskDto.getVersion() < INITIAL_TASK_VERSION) {
+            taskDto.setVersion(INITIAL_TASK_VERSION);
+        }
+    }
+
+    /**
+     * Older tasks may not have a version because the field was introduced after they were created.
+     * Initialize such a task immediately before its first Engine scheduling operation.
+     */
+    private void ensureTaskVersion(TaskDto taskDto) {
+        Long currentVersion = taskDto.getVersion();
+        if (currentVersion != null && currentVersion >= INITIAL_TASK_VERSION) {
+            return;
+        }
+
+        ObjectId taskId = taskDto.getId();
+        if (taskId == null) {
+            taskDto.setVersion(INITIAL_TASK_VERSION);
+            return;
+        }
+
+        Query query = Query.query(Criteria.where("_id").is(taskId).and("version").is(currentVersion));
+        UpdateResult updateResult = update(query, Update.update("version", INITIAL_TASK_VERSION));
+        if (updateResult != null && updateResult.getMatchedCount() == 0) {
+            TaskDto currentTask = findByTaskId(taskId, "version");
+            if (currentTask == null || currentTask.getVersion() == null
+                    || currentTask.getVersion() < INITIAL_TASK_VERSION) {
+                throw new BizException("SystemError", "Task version is unavailable");
+            }
+            taskDto.setVersion(currentTask.getVersion());
+            return;
+        }
+        taskDto.setVersion(INITIAL_TASK_VERSION);
+    }
+
+    /**
+     * Advance the task generation before reset messages and the new TaskRecord are emitted.
+     * The old version is part of the update predicate so a repeated/concurrent reset cannot
+     * accidentally reuse a generation or advance it twice.
+     */
+    private long advanceTaskVersion(ObjectId taskId, TaskDto taskDto, UserDetail user) {
+        Long currentVersion = taskDto.getVersion();
+        long nextVersion = currentVersion == null || currentVersion < INITIAL_TASK_VERSION
+                ? INITIAL_TASK_VERSION : currentVersion + 1L;
+        Criteria criteria = Criteria.where("_id").is(taskId)
+                .and(STATUS).is(TaskDto.STATUS_RENEWING)
+                .and("version").is(currentVersion);
+        UpdateResult updateResult = update(new Query(criteria), Update.update("version", nextVersion), user);
+        if (updateResult != null && updateResult.getMatchedCount() == 0) {
+            throw new BizException("Task.ResetStatusInvalid");
+        }
+        taskDto.setVersion(nextVersion);
+        return nextVersion;
+    }
+
 
 
     /**
@@ -1412,6 +1478,10 @@ public class TaskServiceImpl extends TaskService{
             log.debug("check task status complete, task name = {}", taskDto.getName());
             taskResetLogService.clearLogByTaskId(id.toHexString());
 
+            long nextTaskVersion = advanceTaskVersion(id, taskDto, user);
+            if (taskSnapshot != null) {
+                taskSnapshot.setVersion(nextTaskVersion);
+            }
 
             sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
 
@@ -4518,8 +4588,14 @@ public class TaskServiceImpl extends TaskService{
         start(id, user);
     }
 
+    @Override
+    public void startDqlRecovery(ObjectId id, UserDetail user) {
+        TaskDto taskDto = checkExistById(id, user);
+        startInternal(taskDto, user, "11", true);
+    }
+
     public void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
-        start(taskDto, user, startFlag);
+        startInternal(taskDto, user, startFlag, false);
     }
     /**
      * 状态机启动子任务之前执行
@@ -4530,10 +4606,18 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        startInternal(taskDto, user, startFlag, false);
+    }
+
+    private void startInternal(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
         assertTaskNotRebalancing(taskDto.getId(), user);
+        if (!system) {
+            assertDqlRecoveryNotRunning(taskDto);
+        }
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
+        ensureTaskVersion(taskDto);
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
             scheduleService.createTaskRecordForInitial(taskDto);
             update(new Query(Criteria.where("_id").is(taskDto.getId())), taskDto);
@@ -4633,6 +4717,82 @@ public class TaskServiceImpl extends TaskService{
         } else {
             run(taskDto, user);
         }
+    }
+
+    private void assertDqlRecoveryNotRunning(TaskDto taskDto) {
+        if (dqlRecoveryTaskLockRepository == null || taskDto == null || taskDto.getId() == null) {
+            return;
+        }
+        String taskId = taskDto.getId().toHexString();
+        if (!dqlRecoveryTaskLockRepository.existsActive(taskId, new Date())) {
+            return;
+        }
+        if (!reclaimFinishedDqlRecoveryLock(taskId)) {
+            throw new BizException("DqlRecovery.BatchAlreadyRunning");
+        }
+    }
+
+    /**
+     * Repairs a lease left behind after a finished recovery callback or
+     * callback race. The owner batch is checked before deletion so an
+     * actually running recovery can never be bypassed by task start.
+     */
+    private boolean reclaimFinishedDqlRecoveryLock(String taskId) {
+        if (dqlRecoveryBatchRepository == null) {
+            return false;
+        }
+        try {
+            DqlRecoveryTaskLockEntity lock = dqlRecoveryTaskLockRepository.findByTaskId(taskId);
+            if (lock == null || StringUtils.isBlank(lock.getBatchId())) {
+                return false;
+            }
+            DqlRecoveryBatchDto batch = dqlRecoveryBatchRepository.findByBatchId(lock.getBatchId());
+            DqlRecoveryBatchStatusEnum status = batch == null
+                    ? null : DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+            if (batch == null || !StringUtils.equals(taskId, batch.getTaskId())) {
+                return false;
+            }
+            if (!isTerminalDqlRecoveryStatus(status)) {
+                DqlRecoveryBatchStatusEnum reconciledStatus = reconciledDqlRecoveryStatus(batch);
+                if (reconciledStatus == null
+                        || !dqlRecoveryBatchRepository.finishReconciled(
+                        batch.getBatchId(), reconciledStatus,
+                        batch.getSelectedCount(), batch.getSuccessCount(),
+                        batch.getFailedCount(), batch.getSkippedCount(), batch.getMessage())) {
+                    return false;
+                }
+            }
+            return dqlRecoveryTaskLockRepository.release(taskId, lock.getBatchId());
+        } catch (RuntimeException exception) {
+            log.warn("DLQ recovery finished lock reconciliation failed, taskId={}", taskId, exception);
+            return false;
+        }
+    }
+
+    private boolean isTerminalDqlRecoveryStatus(DqlRecoveryBatchStatusEnum status) {
+        return status == DqlRecoveryBatchStatusEnum.SUCCESS
+                || status == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED
+                || status == DqlRecoveryBatchStatusEnum.FAILED
+                || status == DqlRecoveryBatchStatusEnum.CANCELED;
+    }
+
+    private DqlRecoveryBatchStatusEnum reconciledDqlRecoveryStatus(DqlRecoveryBatchDto batch) {
+        if (batch == null
+                || batch.getSelectedCount() == null
+                || batch.getSuccessCount() == null
+                || batch.getFailedCount() == null
+                || batch.getSkippedCount() == null
+                || batch.getSelectedCount() <= 0
+                || batch.getSuccessCount() < 0
+                || batch.getFailedCount() < 0
+                || batch.getSkippedCount() < 0
+                || batch.getSelectedCount()
+                != batch.getSuccessCount() + batch.getFailedCount() + batch.getSkippedCount()) {
+            return null;
+        }
+        return batch.getFailedCount() == 0 && batch.getSkippedCount() == 0
+                ? DqlRecoveryBatchStatusEnum.SUCCESS
+                : DqlRecoveryBatchStatusEnum.PARTIAL_FAILED;
     }
 
     private static final int DEFAULT_START_TRANSFORM_WAIT_SECONDS = 62;

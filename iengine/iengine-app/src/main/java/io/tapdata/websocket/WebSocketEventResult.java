@@ -115,6 +115,7 @@ public class WebSocketEventResult implements Serializable {
 		LOAD_JAR_LIB_RESULT("loadJarLibResult"),
 		LOAD_VIKA_RESULT("loadVikaResult"),
 		DATA_SYNC_RESULT("dataSyncResult"),
+		DQL_RECOVERY_RESULT("dqlRecoveryResult"),
 
 		DEDUCE_SCHEMA("deduceSchemaResult"),
 		TEST_RUN("testRunResult"),

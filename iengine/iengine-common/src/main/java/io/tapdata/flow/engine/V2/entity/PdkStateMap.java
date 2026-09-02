@@ -44,6 +44,12 @@ public class PdkStateMap extends CleanRuleKVMap {
 	private DocumentIMap<Document> constructIMap;
 	private Node node;
 	private String nodeId;
+	/**
+	 * The key used to build the persisted state-map name. For normal tasks this
+	 * is the node id. DLQ replay supplies a task-scoped namespace so a replay
+	 * connector cannot read or overwrite the formal task's PDK state.
+	 */
+	private String stateMapNodeId;
 	private StateMapVersion stateMapVersion;
 
 	protected PdkStateMap() {
@@ -52,6 +58,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance) {
 		String name = getStateMapName(nodeId);
 		this.nodeId = nodeId;
+		this.stateMapNodeId = nodeId;
 		initConstructMap(hazelcastInstance, name);
 	}
 
@@ -60,9 +67,22 @@ public class PdkStateMap extends CleanRuleKVMap {
 	}
 
 	public PdkStateMap(HazelcastInstance hazelcastInstance, Node<?> node) {
+		this(hazelcastInstance, node, null);
+	}
+
+	/**
+	 * Creates a node state map optionally isolated by a task namespace. The
+	 * node id stored in the sign document remains the real node id while the
+	 * physical map name is namespace-qualified.
+	 */
+	public PdkStateMap(HazelcastInstance hazelcastInstance, Node<?> node, String stateMapNamespace) {
 		if (null == node) throw new IllegalArgumentException("Node cannot be null");
 		this.node = node;
-		String name = getStateMapName(node.getId());
+		this.nodeId = node.getId();
+		this.stateMapNodeId = StringUtils.isBlank(stateMapNamespace)
+				? node.getId()
+				: String.join("_", stateMapNamespace, node.getId());
+		String name = getStateMapName(this.stateMapNodeId);
 		initConstructMap(hazelcastInstance, name);
 	}
 
@@ -146,10 +166,11 @@ public class PdkStateMap extends CleanRuleKVMap {
 			CommonUtils.ignoreAnyError(() -> {
 				Document signDoc = null;
 				if (null != node) {
+					String signStateMapNodeId = StringUtils.defaultIfBlank(stateMapNodeId, node.getId());
 					signDoc = new Document("nodeId", node.getId())
 							.append("nodeName", node.getName())
 							.append("nodeClass", node.getClass().getName())
-							.append("stateMapName", getStateMapName(node.getId()));
+							.append("stateMapName", getStateMapName(signStateMapNodeId));
 				} else if (StringUtils.isNotBlank(nodeId)) {
 					signDoc = new Document("nodeId", nodeId)
 							.append("stateMapName", getStateMapName(nodeId));

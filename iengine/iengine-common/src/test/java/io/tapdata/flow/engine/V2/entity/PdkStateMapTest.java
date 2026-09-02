@@ -801,6 +801,24 @@ class PdkStateMapTest {
 				assertEquals(0, externalStorageDto.getTtlDay());
 			}
 		}
+
+		@Test
+		@DisplayName("Main process test with task-scoped state map namespace")
+		void constructWithTaskNamespace() {
+			try (
+					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
+					MockedStatic<PersistenceStorage> persistenceStorageMockedStatic = mockStatic(PersistenceStorage.class)
+			) {
+				persistenceStorageMockedStatic.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
+				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getTapdataOrDefaultExternalStorage).thenReturn(externalStorageDto);
+				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.initHZMapStorage(eq(externalStorageDto), anyString(), anyString(), any(Config.class))).thenAnswer(invocationOnMock -> null);
+
+				PdkStateMap pdkStateMap = new PdkStateMap(mockHazelcastInstance, node, "DQL_RECOVERY_temp-task");
+
+				assertEquals("DQL_RECOVERY_temp-task_1", ReflectionTestUtils.getField(pdkStateMap, "stateMapNodeId"));
+				assertEquals("1", ReflectionTestUtils.getField(pdkStateMap, "nodeId"));
+			}
+		}
 	}
 
 	@Nested
