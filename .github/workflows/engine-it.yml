@@ -1,0 +1,251 @@
+# 引擎（iengine）集成测试 CI
+#
+# 触发时机：push / pull_request 到 main/develop/master；仅当变更涉及 iengine 模块时执行。
+# 运行环境：tapdata-it 标签的自托管 runner（与 connector-it-reusable.yml 一致），
+#          需预装 git/jq/Maven/JDK 17（JAVA_HOME=/usr/java/jdk-17.0.12），可访问公司内网测试资源。
+# 网络：git 访问 GitHub 经 ssh SOCKS 代理（ssh -D 1234 proxy_server），代理配置由
+#       runner 容器挂载（/root/.ssh/config + id_ed25519），job 启动代理并在收尾清理。
+#
+# 说明：
+#   1. 连接配置可通过环境变量 / 系统属性 / 外部接口（CONNECTOR_IT_CONFIG_URL）注入，
+#      与 tapdata-it 中 ConnectionConfigLoader 的加载优先级对齐。
+#   2. 仅当本次提交/PR 修改了 iengine/ 目录或相关聚合 POM 时才执行，避免全量跑。
+name: Engine Integration Tests
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+    inputs:
+      iengine_override:
+        description: '强制执行引擎 IT（跳过 diff 判断）'
+        required: false
+        type: boolean
+        default: false
+      connectors_branch:
+        description: 'tapdata-connectors（开源）检出分支'
+        required: false
+        type: string
+        default: 'main'
+      connectors_enterprise_branch:
+        description: 'tapdata-connectors-enterprise（企业版）检出分支'
+        required: false
+        type: string
+        default: 'main'
+
+env:
+  # 默认连接配置；真实测试环境可通过 GitHub Actions variables / secrets 覆盖，
+  # 或设置 CONNECTOR_IT_CONFIG_URL 指向外部接口获取动态连接信息。
+  IT_MYSQL_HOST: ${{ vars.IT_MYSQL_HOST || '192.168.1.184' }}
+  IT_MYSQL_PORT: ${{ vars.IT_MYSQL_PORT || '23306' }}
+  IT_MYSQL_USER: ${{ vars.IT_MYSQL_USER || 'root' }}
+  IT_MYSQL_PASSWORD: ${{ secrets.IT_MYSQL_PASSWORD || 'Gotapd8!' }}
+  IT_MONGO_HOST: ${{ vars.IT_MONGO_HOST || '192.168.1.184' }}
+  IT_MONGO_PORT: ${{ vars.IT_MONGO_PORT || '14017' }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-it-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 分析提交内容：仅当 iengine 相关文件变更时，才执行引擎集成测试。
+  # 运行在 GitHub 托管 runner，不占用自建 runner。
+  analyze:
+    runs-on: ubuntu-latest
+    outputs:
+      iengine_changed: ${{ steps.analyze.outputs.iengine_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze iengine changes
+        id: analyze
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OVERRIDE="${{ inputs.iengine_override }}"
+          if [[ "${OVERRIDE}" == "true" ]]; then
+            echo "iengine_changed=true" >> "$GITHUB_OUTPUT"
+            echo "Override: force run iengine IT"
+            exit 0
+          fi
+
+          CHANGED_FILES=""
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
+            if [[ ! "${BASE_REF}" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+              echo "Invalid base ref: ${BASE_REF}"
+              exit 1
+            fi
+            git fetch origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            CHANGED_FILES=$(git diff --name-only "origin/${BASE_REF}...HEAD" || true)
+          else
+            BEFORE="${{ github.event.before }}"
+            if [[ -n "${BEFORE}" && ! "${BEFORE}" =~ ^[0-9a-f]{40}$ && ! "${BEFORE}" =~ ^0+$ ]]; then
+              echo "Invalid before sha: ${BEFORE}"
+              exit 1
+            fi
+            if [[ -z "${BEFORE}" || "${BEFORE}" =~ ^0+$ ]]; then
+              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD || true)
+            else
+              CHANGED_FILES=$(git diff --name-only "${BEFORE}...HEAD" || true)
+            fi
+          fi
+
+          echo "=== Changed files ==="
+          echo "${CHANGED_FILES}"
+
+          IENGINE_CHANGED=false
+          while IFS= read -r f; do
+            [[ -n "$f" ]] || continue
+            # [[ == ]] 的 * 可匹配斜杠：iengine/ 任意深度文件 + 根聚合 pom.xml 均视为 iengine 变更
+            if [[ "$f" == iengine/* ]] || [[ "$f" == pom.xml ]]; then
+              IENGINE_CHANGED=true
+            fi
+          done <<< "${CHANGED_FILES}"
+
+          if [[ "${IENGINE_CHANGED}" == "true" ]]; then
+            echo "iengine_changed=true" >> "$GITHUB_OUTPUT"
+            echo "iengine changed, will run engine IT"
+          else
+            echo "iengine_changed=false" >> "$GITHUB_OUTPUT"
+            echo "iengine not changed, skip engine IT"
+          fi
+
+  test:
+    name: Engine IT
+    needs: analyze
+    if: needs.analyze.outputs.iengine_changed == 'true'
+    runs-on: tapdata-it
+    timeout-minutes: 120
+    steps:
+      # 第零步：启动 ssh SOCKS 代理并配置 git（checkout 与后续 mvn 拉依赖均需外网）
+      - name: Start SOCKS proxy and configure git
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -f -N -D 1234 -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=60 proxy_server
+          for i in $(seq 1 30); do
+            if (echo > /dev/tcp/localhost/1234) 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          git config --global http.proxy socks5h://localhost:1234
+          git config --global https.proxy socks5h://localhost:1234
+          echo "SOCKS proxy ready on localhost:1234"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check JDK 17 and set JAVA_HOME
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -d /usr/java/jdk-17.0.12 ]] || { echo "::error::/usr/java/jdk-17.0.12 目录不存在"; exit 1; }
+          [[ -x /usr/java/jdk-17.0.12/bin/java ]] || { echo "::error::/usr/java/jdk-17.0.12/bin/java 不可执行"; exit 1; }
+          echo "JAVA_HOME=/usr/java/jdk-17.0.12" >> "$GITHUB_ENV"
+          echo "/usr/java/jdk-17.0.12/bin" >> "$GITHUB_PATH"
+          /usr/java/jdk-17.0.12/bin/java -version 2>&1 | head -3
+
+      - name: Configure Maven settings and SSL
+        shell: bash
+        run: |
+          if [[ -n "${{ secrets.MAVEN_SETTINGS }}" ]]; then
+            mkdir -p "$HOME/.m2"
+            echo "${{ secrets.MAVEN_SETTINGS }}" > "$HOME/.m2/settings.xml"
+          fi
+          echo "MAVEN_OPTS=-Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true" >> "$GITHUB_ENV"
+
+      # 检出连接器仓库（引擎 IT 运行时 MockTM 从本地 maven 仓库下载 connector jar）：
+      # 开源 tapdata-connectors + 企业版 tapdata-connectors-enterprise（私有，需 PAT 读权限，
+      # 复用 build.yml 的 TAPDATA_ENT_CICD_TOKEN secret）；分支默认 main，workflow_dispatch 可指定
+      - name: Checkout connectors (open source)
+        uses: actions/checkout@v4
+        with:
+          repository: tapdata/tapdata-connectors
+          ref: ${{ inputs.connectors_branch || 'main' }}
+          path: tapdata-connectors
+
+      - name: Checkout connectors (enterprise)
+        uses: actions/checkout@v4
+        with:
+          repository: tapdata/tapdata-connectors-enterprise
+          ref: ${{ inputs.connectors_enterprise_branch || 'main' }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-connectors-enterprise
+
+      # 打包安装 connector 到本地 maven 仓库（install 包含 package 阶段；-DskipTests 跳过 surefire，
+      # -DskipITs 防止各 connector 自身的 src/it 集成测试被误触发；-T 3C 并行加速全量构建）
+      - name: Build and install connectors (open source)
+        shell: bash
+        run: |
+          cd tapdata-connectors
+          mvn -B install -DskipTests=true -DskipITs=true -T 3C -q \
+            -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true
+
+      - name: Build and install connectors (enterprise)
+        shell: bash
+        run: |
+          cd tapdata-connectors-enterprise
+          mvn -B install -DskipTests=true -DskipITs=true -T 3C -q \
+            -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true
+
+      # 安装 iengine-app 依赖链（跳过所有测试），确保 IT 运行时本地仓库有完整依赖
+      - name: Install dependency chain (skip all tests)
+        shell: bash
+        run: |
+          mvn -B install -pl iengine/iengine-app -am \
+            -DskipITs=true -DskipTests -Dmaven.javadoc.skip=true -q \
+            -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true
+
+      # 仅 iengine-app 执行 failsafe 集成测试（workflow 级 env 的 IT_* 变量已自动注入）
+      - name: Run engine integration tests
+        shell: bash
+        run: |
+          cd iengine/iengine-app
+          mvn -B test-compile failsafe:integration-test failsafe:verify -DskipITs=false \
+            -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true
+
+      # 报告打包上传（失败也上传），artifact 名称关联仓库 owner 与 commit SHA
+      - name: Upload failsafe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failsafe-reports-${{ github.repository_owner }}-iengine-${{ github.sha }}
+          path: |
+            iengine/iengine-app/target/failsafe-reports/**
+            iengine/iengine-app/target/surefire-reports/**
+          if-no-files-found: ignore
+
+      - name: Summarize results
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Engine IT results"
+            echo ""
+            echo "- 事件: ${{ github.event_name }}"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "- PR: #${{ github.event.pull_request.number }}"
+            fi
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Artifact: \`failsafe-reports-${{ github.repository_owner }}-iengine-${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 收尾：无论成败清理 SOCKS 代理进程
+      - name: Stop SOCKS proxy
+        if: always()
+        shell: bash
+        run: |
+          pkill -f 'ssh .*-D 1234' || true

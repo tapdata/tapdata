@@ -22,6 +22,11 @@
         <docker.image.prefix>tapdata</docker.image.prefix>
         <timestamp>${maven.build.timestamp}</timestamp>
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+        <!-- 集成测试默认不执行（依赖真实数据库），-DskipITs=false 时执行（与连接器模块行为一致） -->
+        <skipITs>true</skipITs>
+        <!-- 引擎 IT 默认不启用 JVM 断言（与生产引擎 JVM 一致）；
+             -Dengine.it.enableAssertions=true 可复现 -ea 下 mysql connector CDC 启动报错的场景 -->
+        <engine.it.enableAssertions>false</engine.it.enableAssertions>
     </properties>
     <dependencies>
         <dependency>
@@ -357,6 +362,19 @@
             <version>2.0.0</version>
             <scope>test</scope>
         </dependency>
+        <!-- ==================== 引擎集成测试（src/it/java，Engine IT） ==================== -->
+        <!-- 共享测试资产：数据生成器/旁路验证器/表规格（io.tapdata.it.*）；
+             直连 MySQL 的 JDBC 驱动随本依赖传递进入测试 classpath -->
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-it-common</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- 被测连接器不进入 classpath（避免 connector 内嵌 netty/blockhound SPI 污染 ClassScanner 的 io.tapdata 扫描）；
+             引擎运行任务时按任务配置经 MockTM pdk/jar/v2 下载 connector jar，TapConnectorManager 独立 classloader 加载 -->
+        <!-- MongoDB 直连（MongoFixture 预置/清理）：依赖经 iengine 传递链提供（compile→test classpath），
+             此处不显式声明，避免覆盖传递 scope 导致 main 编译缺 mongodb-driver-sync -->
         <!-- Test Dependencies -->
     </dependencies>
 
@@ -404,6 +422,100 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+            <!-- 引擎集成测试：src/it/java 编译为测试源码，failsafe 执行 *IT.java（依赖真实数据库） -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>add-engine-it-source</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>src/it/java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>add-engine-it-resource</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>add-test-resource</goal>
+                        </goals>
+                        <configuration>
+                            <resources>
+                                <resource>
+                                    <directory>src/it/resources</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.0.0</version>
+                <configuration>
+                    <skipITs>${skipITs}</skipITs>
+                    <!-- 引擎 IT 依赖真实数据库：MongoDB 27017 + MySQL（-Dengine.it.* 可覆盖连接配置） -->
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <!-- 与生产引擎 JVM 保持一致：不启用 -ea。mysql connector（debezium fork）
+                         ChangeEventQueue.disableBuffering 用 assert 校验“缓冲区已 flush”，
+                         而 MySqlChangeEventSourceFactory.getStreamingChangeEventSource 只 disable 不 flush，
+                         -ea 下增量阶段会抛 AssertionError: Buffer must be flushed（IDEA 默认加 -ea，
+                         会导致 should_incremental_update / should_offset_advance_after_write 假失败） -->
+                    <enableAssertions>${engine.it.enableAssertions}</enableAssertions>
+                    <argLine>
+                        --add-opens=java.base/java.lang=ALL-UNNAMED
+                        --add-opens=java.base/java.util=ALL-UNNAMED
+                        --add-opens=java.base/java.security=ALL-UNNAMED
+                        --add-opens=java.base/sun.security.rsa=ALL-UNNAMED
+                        --add-opens=java.base/sun.security.x509=ALL-UNNAMED
+                        --add-opens=java.base/sun.security.util=ALL-UNNAMED
+                        --add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp.datatype=ALL-UNNAMED
+                        -XX:+UnlockExperimentalVMOptions --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED
+                        --add-exports=java.base/sun.nio.ch=ALL-UNNAMED
+                        --add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED
+                        --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+                        --add-opens=java.base/java.io=ALL-UNNAMED
+                        --add-opens=java.base/java.time=ALL-UNNAMED
+                        --add-opens=java.management/sun.management=ALL-UNNAMED
+                        --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+                        --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED
+                    </argLine>
+                    <!-- 引擎 IT：mock TM 交互，引擎以 DAAS 形态运行（isCloud=false）；集合读写仍全走 MockTM REST 代理，
+                         任务状态存储（PdkStateMap）按 DAAS 形态落 TAPDATA_MONGO_URI 指向的 MongoDB；
+                         环境变量为引擎启动必需（System.getenv 在 JVM 内只读，须由 failsafe 注入） -->
+                    <environmentVariables>
+                        <app_type>DAAS</app_type>
+                        <isCloud>false</isCloud>
+                        <TAPDATA_MONGO_URI>mongodb://127.0.0.1:27017/tapdata</TAPDATA_MONGO_URI>
+                        <process_id>engine-it-agent</process_id>
+                        <TAPDATA_WORK_DIR>${project.build.directory}/engine-it-work</TAPDATA_WORK_DIR>
+                        <mode>singleton</mode>
+                        <cloud_accessCode>it-access-code</cloud_accessCode>
+                        <backend_url>http://127.0.0.1:${engine.it.tm.port}/api/</backend_url>
+                    </environmentVariables>
+                    <systemPropertyVariables>
+                        <engine.it.tm.port>${engine.it.tm.port}</engine.it.tm.port>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -41,6 +41,8 @@
         <!-- align with Spring Boot 4 BOM-managed mongodb-driver-core (5.6.5); a mismatched sync/core
              caused NoClassDefFoundError com/mongodb/internal/operation/SyncOperations at runtime -->
         <version.mongo.driver>5.6.5</version.mongo.driver>
+        <!-- 引擎集成测试（iengine-app src/it）使用的 MockTM 端口，可用 -Dengine.it.tm.port 覆盖 -->
+        <engine.it.tm.port>18080</engine.it.tm.port>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>

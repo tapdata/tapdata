@@ -1,0 +1,16 @@
+{
+  "mysql": {
+    "host": "127.0.0.1",
+    "port": "13306",
+    "user": "root",
+    "password": "root",
+    "database": "it_smoke_db"
+  },
+  "mongodb": {
+    "host": "127.0.0.1",
+    "port": "27017",
+    "user": "",
+    "password": "",
+    "database": "it_smoke_db"
+  }
+}
