@@ -16,7 +16,7 @@ public final class MongoDqlRecoveryEventSource implements DqlRecoveryEventSource
         ClientMongoOperator operator = Objects.requireNonNull(
                 clientMongoOperator, "clientMongoOperator must not be null");
         if (!(operator instanceof HttpClientMongoOperator httpClientMongoOperator)) {
-            throw new IllegalArgumentException("DQL recovery payload requires the Engine HTTP Mongo operator");
+            throw new IllegalArgumentException("DLQ recovery payload requires the Engine HTTP Mongo operator");
         }
         this.tmClient = new DqlTmClient(httpClientMongoOperator);
     }
@@ -29,7 +29,7 @@ public final class MongoDqlRecoveryEventSource implements DqlRecoveryEventSource
     @Override
     public DqlRecoveryEvent loadEvent(String eventId) {
         if (eventId == null || eventId.isBlank()) {
-            throw new IllegalArgumentException("DQL eventId must not be blank");
+            throw new IllegalArgumentException("DLQ eventId must not be blank");
         }
         DqlRecoveryPayloadVo event = tmClient.getRecoveryPayload(eventId);
         DqlPayloadSnapshot snapshot = new DqlPayloadSnapshot();

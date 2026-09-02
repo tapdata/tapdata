@@ -20,7 +20,7 @@ public class DqlEventStatusScheduler {
     public void scan() {
         int changed = recoveryBatchService.synchronizeNotReprocessableEvents();
         if (changed > 0) {
-            log.info("DQL recovery status synchronization changed {} events", changed);
+            log.info("DLQ recovery status synchronization changed {} events", changed);
         }
     }
 }

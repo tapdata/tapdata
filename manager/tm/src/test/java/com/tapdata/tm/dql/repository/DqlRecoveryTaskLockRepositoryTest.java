@@ -139,6 +139,20 @@ class DqlRecoveryTaskLockRepositoryTest {
         verify(mongoTemplate).exists(any(Query.class), eq(DqlRecoveryTaskLockEntity.class));
     }
 
+    @Test
+    @DisplayName("loads the batch that owns a task lock for stale-lock reconciliation")
+    void findsTaskLockOwner() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryTaskLockRepository repository = new DqlRecoveryTaskLockRepository(mongoTemplate);
+        DqlRecoveryTaskLockEntity lock = new DqlRecoveryTaskLockEntity();
+        lock.setTaskId("TASK-1");
+        lock.setBatchId("BATCH-1");
+        when(mongoTemplate.findOne(any(Query.class), eq(DqlRecoveryTaskLockEntity.class))).thenReturn(lock);
+
+        assertEquals(lock, repository.findByTaskId("TASK-1"));
+        verify(mongoTemplate).findOne(any(Query.class), eq(DqlRecoveryTaskLockEntity.class));
+    }
+
     private MongoTemplate mongoTemplate() {
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         IndexOperations indexOperations = mock(IndexOperations.class);

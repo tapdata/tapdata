@@ -17,7 +17,7 @@ public final class HazelcastDqlReplaySourceNode implements DqlReplaySourceNode {
     @Override
     public void enqueue(TapdataDqlRecoveryEvent event) {
         if (event == null) {
-            throw new IllegalArgumentException("DQL recovery event must not be null");
+            throw new IllegalArgumentException("DLQ recovery event must not be null");
         }
         sourceNode.enqueue(event);
     }
@@ -25,7 +25,7 @@ public final class HazelcastDqlReplaySourceNode implements DqlReplaySourceNode {
     @Override
     public void enqueueBarrier(TapdataCountDownLatchEvent event) {
         if (event == null) {
-            throw new IllegalArgumentException("DQL recovery barrier event must not be null");
+            throw new IllegalArgumentException("DLQ recovery barrier event must not be null");
         }
         sourceNode.enqueue(event);
     }

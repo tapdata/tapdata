@@ -34,7 +34,7 @@ import java.util.Date;
 /**
  * Exposes DLQ exception event APIs for the frontend list/detail/recovery workflow and Engine callbacks.
  */
-@Tag(name = "DQL Event", description = "DLQ exception event APIs")
+@Tag(name = "DLQ Event", description = "DLQ exception event APIs")
 @RestController
 public class DqlEventController extends BaseController {
     private final DqlEventService eventService;

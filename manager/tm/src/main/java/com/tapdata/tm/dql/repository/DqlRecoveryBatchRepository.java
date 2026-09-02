@@ -77,6 +77,7 @@ public class DqlRecoveryBatchRepository {
         dto.setSuccessCount(Optional.ofNullable(dto.getSuccessCount()).orElse(0));
         dto.setFailedCount(Optional.ofNullable(dto.getFailedCount()).orElse(0));
         dto.setSkippedCount(Optional.ofNullable(dto.getSkippedCount()).orElse(0));
+        dto.setFinishRequested(Optional.ofNullable(dto.getFinishRequested()).orElse(false));
         DqlRecoveryBatchEntity saved = mongoTemplate.save(convert(dto));
         return convert(saved);
     }
@@ -138,7 +139,7 @@ public class DqlRecoveryBatchRepository {
                 DqlRecoveryBatchStatusEnum.CREATED), update, entityClass);
     }
 
-    public void markRunning(String batchId) {
+    public boolean markRunning(String batchId) {
         Date now = new Date();
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, DqlRecoveryBatchStatusEnum.RUNNING.name())
@@ -146,8 +147,9 @@ public class DqlRecoveryBatchRepository {
                 .set(DqlRecoveryBatchDto.FIELD_PING_TIME, now)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
-        mongoTemplate.updateFirst(batchQuery(batchId,
-                DqlRecoveryBatchStatusEnum.DISPATCHED), update, entityClass);
+        UpdateResult result = mongoTemplate.updateFirst(batchQuery(batchId,
+                DqlRecoveryBatchStatusEnum.CREATED, DqlRecoveryBatchStatusEnum.DISPATCHED), update, entityClass);
+        return result.getModifiedCount() > 0;
     }
 
     public boolean touchHeartbeat(String batchId, Date pingTime) {
@@ -186,6 +188,7 @@ public class DqlRecoveryBatchRepository {
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
                 .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED, false)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         if (message != null) {
@@ -222,6 +225,7 @@ public class DqlRecoveryBatchRepository {
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
                 .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED, false)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         if (message != null) {
@@ -237,6 +241,101 @@ public class DqlRecoveryBatchRepository {
 
     public void increaseSkipped(String batchId) {
         increase(batchId, DqlRecoveryBatchDto.FIELD_SKIPPED_COUNT);
+    }
+
+    /**
+     * Records a finish callback that arrived before all event counter updates
+     * became visible. The callback is completed by the next event result.
+     */
+    public void recordFinishRequested(String batchId, String message) {
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED, true)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
+        if (message != null) {
+            update.set(DqlRecoveryBatchDto.FIELD_FINISH_MESSAGE, message);
+        }
+        mongoTemplate.updateFirst(batchQuery(batchId, ACTIVE_STATUSES), update, entityClass);
+    }
+
+    /**
+     * Atomically consumes a pending finish request after event counters have
+     * reconciled. This prevents two concurrent event callbacks from both
+     * finalizing the same batch or raising duplicate alarms.
+     */
+    public boolean finishRequested(String batchId,
+                                   DqlRecoveryBatchStatusEnum status,
+                                   String message) {
+        if (StringUtils.isBlank(batchId) || status == null) {
+            return false;
+        }
+        List<DqlRecoveryBatchStatusEnum> sourceStatuses = finishSourceStatuses(status);
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
+                .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED, false)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
+        if (message != null) {
+            update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
+        }
+        Query query = batchQuery(batchId, sourceStatuses);
+        query.addCriteria(Criteria.where(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED).is(true));
+        UpdateResult result = mongoTemplate.updateFirst(query, update, entityClass);
+        return result.getModifiedCount() > 0;
+    }
+
+    /**
+     * Repairs a legacy active batch for which every selected event already
+     * has a terminal counter, but the batch-finished callback was lost. The
+     * counter predicates make the repair safe against a still-running batch
+     * and keep it atomic with the terminal transition.
+     */
+    public boolean finishReconciled(String batchId,
+                                    DqlRecoveryBatchStatusEnum status,
+                                    int selected,
+                                    int success,
+                                    int failed,
+                                    int skipped,
+                                    String message) {
+        if (StringUtils.isBlank(batchId)
+                || status == null
+                || selected <= 0
+                || success < 0
+                || failed < 0
+                || skipped < 0
+                || selected != success + failed + skipped) {
+            return false;
+        }
+        if (status != DqlRecoveryBatchStatusEnum.SUCCESS
+                && status != DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
+            return false;
+        }
+        if (status == DqlRecoveryBatchStatusEnum.SUCCESS && (failed > 0 || skipped > 0)) {
+            return false;
+        }
+        if (status == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED && failed == 0 && skipped == 0) {
+            return false;
+        }
+        Date now = new Date();
+        Update update = new Update()
+                .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
+                .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED, false)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
+        if (message != null) {
+            update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
+        }
+        Query query = batchQuery(batchId, finishSourceStatuses(status));
+        query.addCriteria(Criteria.where(DqlRecoveryBatchDto.FIELD_SELECTED_COUNT).is(selected));
+        query.addCriteria(Criteria.where(DqlRecoveryBatchDto.FIELD_SUCCESS_COUNT).is(success));
+        query.addCriteria(Criteria.where(DqlRecoveryBatchDto.FIELD_FAILED_COUNT).is(failed));
+        query.addCriteria(Criteria.where(DqlRecoveryBatchDto.FIELD_SKIPPED_COUNT).is(skipped));
+        UpdateResult result = mongoTemplate.updateFirst(query, update, entityClass);
+        return result.getModifiedCount() > 0;
     }
 
     public void appendAudit(String batchId, DqlRecoveryAuditEntryDto entry) {
@@ -294,6 +393,7 @@ public class DqlRecoveryBatchRepository {
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
                 .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED, false)
                 .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
                 .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         if (message != null) {
@@ -307,8 +407,12 @@ public class DqlRecoveryBatchRepository {
             throw new IllegalArgumentException("Finish status must not be null");
         }
         return switch (status) {
-            case SUCCESS -> List.of(DqlRecoveryBatchStatusEnum.RUNNING);
+            case SUCCESS -> List.of(
+                    DqlRecoveryBatchStatusEnum.CREATED,
+                    DqlRecoveryBatchStatusEnum.DISPATCHED,
+                    DqlRecoveryBatchStatusEnum.RUNNING);
             case PARTIAL_FAILED -> List.of(
+                    DqlRecoveryBatchStatusEnum.CREATED,
                     DqlRecoveryBatchStatusEnum.DISPATCHED,
                     DqlRecoveryBatchStatusEnum.RUNNING);
             case FAILED -> ACTIVE_STATUSES;

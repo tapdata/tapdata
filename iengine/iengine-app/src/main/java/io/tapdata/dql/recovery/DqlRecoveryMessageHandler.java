@@ -69,7 +69,7 @@ public class DqlRecoveryMessageHandler {
         try {
             validateTaskContext(command);
             if (coordinator == null) {
-                String message = "DQL recovery cannot start because the Engine recovery coordinator is unavailable";
+                String message = "DLQ recovery cannot start because the Engine recovery coordinator is unavailable";
                 // The batch is already DISPATCHED in TM. A direct terminal
                 // callback is required here because this failure happens
                 // before BATCH_STARTED can be published.
