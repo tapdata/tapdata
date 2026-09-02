@@ -13,6 +13,7 @@ import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
+import com.tapdata.tm.dql.entity.DqlRecoveryTaskLockEntity;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
@@ -197,10 +198,9 @@ class DqlRecoveryBatchServiceTest {
         batch.setSkippedCount(0);
         when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
 
-        BizException exception = assertThrows(BizException.class,
-                () -> service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED")));
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
 
-        assertEquals("DqlRecovery.CountMismatch", exception.getErrorCode());
+        verify(batchRepository).recordFinishRequested("DQLB-1", null);
         verify(batchRepository, never()).finish(anyString(), any(), any());
     }
 
@@ -219,6 +219,76 @@ class DqlRecoveryBatchServiceTest {
 
         verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null);
         verify(alarmService, never()).notifyBatchPartialFailed(any(DqlRecoveryBatchDto.class));
+    }
+
+    @Test
+    @DisplayName("batch finished can finalize a created batch when callbacks arrive out of order")
+    void batchFinishedBeforeStartedFinalizesAndReleasesTaskLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.CREATED.name());
+        batch.setSuccessCount(1);
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
+
+        verify(batchRepository).finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null);
+        verify(taskLockRepository).release(TASK_ID, "DQLB-1");
+    }
+
+    @Test
+    @DisplayName("finish callback waits for a late event result and then releases the task lock")
+    void finishCallbackWaitsForLateEventResult() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+
+        DqlRecoveryBatchDto finishBatch = batch("DQLB-1", List.of("DQL-1"));
+        DqlRecoveryBatchDto eventBatch = batch("DQLB-1", List.of("DQL-1"));
+        eventBatch.setFinishRequested(true);
+        DqlRecoveryBatchDto eventCallbackBatch = batch("DQLB-1", List.of("DQL-1"));
+        eventCallbackBatch.setFinishRequested(true);
+        DqlRecoveryBatchDto reconciledBatch = batch("DQLB-1", List.of("DQL-1"));
+        reconciledBatch.setFinishRequested(true);
+        reconciledBatch.setSuccessCount(1);
+        when(batchRepository.findByBatchId("DQLB-1"))
+                .thenReturn(finishBatch, eventBatch, eventCallbackBatch, reconciledBatch);
+        when(eventRepository.completeEventIdempotent(eq("DQL-1"), eq("DQLB-1"), any()))
+                .thenReturn(DqlRecoveryCallbackResultEnum.APPLIED);
+        when(batchRepository.finishRequested("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null))
+                .thenReturn(true);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
+
+        DqlRecoveryResultReportVo eventResult = report("DQLB-1", "DQL-1", "EVENT_RESULT");
+        eventResult.setResult(DqlRecoveryAttemptResultEnum.SUCCESS.name());
+        service.report(TASK_ID, eventResult);
+
+        verify(batchRepository).recordFinishRequested("DQLB-1", null);
+        verify(batchRepository).finishRequested("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, null);
+        verify(taskLockRepository).release(TASK_ID, "DQLB-1");
+    }
+
+    @Test
+    @DisplayName("late batch started callback is ignored after an earlier finish callback")
+    void lateBatchStartedCallbackIsIgnoredAfterFinish() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryBatchService service = service(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.SUCCESS.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_STARTED"));
+
+        verify(batchRepository, never()).markRunning(anyString());
     }
 
     @Test
@@ -412,12 +482,104 @@ class DqlRecoveryBatchServiceTest {
     }
 
     @Test
+    @DisplayName("repeated finished callback releases a stale lock from a terminal partial batch")
+    void repeatedFinishedCallbackReleasesStaleTaskLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
+        batch.setStatus(DqlRecoveryBatchStatusEnum.PARTIAL_FAILED.name());
+        when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+
+        service.report(TASK_ID, report("DQLB-1", null, "BATCH_FINISHED"));
+
+        verify(taskLockRepository).release(TASK_ID, "DQLB-1");
+        verify(batchRepository, never()).finish(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("recovery start reclaims a task lock whose batch is already terminal")
+    void startReclaimsTerminalBatchTaskLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlEventDto event = event("DQL-1", TASK_ID, DqlEventStatusEnum.RECOVERY_FAILED, "agent-1");
+        DqlRecoveryTaskLockEntity staleLock = new DqlRecoveryTaskLockEntity();
+        staleLock.setTaskId(TASK_ID);
+        staleLock.setBatchId("DQLB-OLD");
+        DqlRecoveryBatchDto oldBatch = batch("DQLB-OLD", List.of("DQL-1"));
+        oldBatch.setStatus(DqlRecoveryBatchStatusEnum.PARTIAL_FAILED.name());
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskLockRepository.tryAcquire(eq(TASK_ID), anyString(), anyLong()))
+                .thenReturn(false, true);
+        when(taskLockRepository.findByTaskId(TASK_ID)).thenReturn(staleLock);
+        when(batchRepository.findByBatchId("DQLB-OLD")).thenReturn(oldBatch);
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString())).thenReturn(1L);
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+
+        DqlRecoveryBatchDto started = service.start(request, user());
+
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(), started.getStatus());
+        verify(taskLockRepository).release(TASK_ID, "DQLB-OLD");
+        verify(taskLockRepository, org.mockito.Mockito.times(2))
+                .tryAcquire(eq(TASK_ID), anyString(), anyLong());
+    }
+
+    @Test
+    @DisplayName("recovery start repairs a completed active batch left by an old callback race")
+    void startRepairsCompletedActiveBatchTaskLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlEventDto event = event("DQL-1", TASK_ID, DqlEventStatusEnum.RECOVERY_FAILED, "agent-1");
+        DqlRecoveryTaskLockEntity staleLock = new DqlRecoveryTaskLockEntity();
+        staleLock.setTaskId(TASK_ID);
+        staleLock.setBatchId("DQLB-OLD");
+        DqlRecoveryBatchDto oldBatch = batch("DQLB-OLD", List.of("DQL-1"));
+        oldBatch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        oldBatch.setSelectedCount(1);
+        oldBatch.setSuccessCount(1);
+        oldBatch.setFailedCount(0);
+        oldBatch.setSkippedCount(0);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskLockRepository.tryAcquire(eq(TASK_ID), anyString(), anyLong()))
+                .thenReturn(false, true);
+        when(taskLockRepository.findByTaskId(TASK_ID)).thenReturn(staleLock);
+        when(batchRepository.findByBatchId("DQLB-OLD")).thenReturn(oldBatch);
+        when(batchRepository.finishReconciled("DQLB-OLD", DqlRecoveryBatchStatusEnum.SUCCESS,
+                1, 1, 0, 0, null)).thenReturn(true);
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString())).thenReturn(1L);
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+
+        DqlRecoveryBatchDto started = service.start(request, user());
+
+        assertEquals(DqlRecoveryBatchStatusEnum.DISPATCHED.name(), started.getStatus());
+        verify(batchRepository).finishReconciled("DQLB-OLD", DqlRecoveryBatchStatusEnum.SUCCESS,
+                1, 1, 0, 0, null);
+        verify(taskLockRepository).release(TASK_ID, "DQLB-OLD");
+    }
+
+    @Test
     @DisplayName("repeated failed callback is a no-op after terminal failure")
     void repeatedFailedCallbackIsIdempotent() {
         DqlEventRepository eventRepository = mock(DqlEventRepository.class);
         DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
         DqlEventAlarmService alarmService = mock(DqlEventAlarmService.class);
-        DqlRecoveryBatchService service = service(eventRepository, batchRepository, alarmService);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository, alarmService,
+                taskLockRepository, mock(MessageQueueServiceImpl.class));
         DqlRecoveryBatchDto batch = batch("DQLB-1", List.of("DQL-1"));
         batch.setStatus(DqlRecoveryBatchStatusEnum.FAILED.name());
         when(batchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
@@ -427,6 +589,7 @@ class DqlRecoveryBatchServiceTest {
         verify(eventRepository, never()).releaseBatchLocks(anyString(), any(DqlEventStatusEnum.class));
         verify(batchRepository, never()).finish(anyString(), any(), any());
         verify(alarmService, never()).notifyRecoveryFailed(any(DqlRecoveryBatchDto.class));
+        verify(taskLockRepository).release(TASK_ID, "DQLB-1");
     }
 
     @Test
@@ -982,6 +1145,32 @@ class DqlRecoveryBatchServiceTest {
 
         assertFalse(preview.isCanSubmit());
         assertEquals("an active recovery batch already exists", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview repairs a completed active batch before checking the recovery lock")
+    void previewRepairsCompletedActiveBatch() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        when(eventRepository.findByEventIds(List.of("DQL-1")))
+                .thenReturn(List.of(recoveryEvent("DQL-1", 7L)));
+        DqlRecoveryBatchDto completedBatch = batch("DQLB-completed", List.of("DQL-old"));
+        completedBatch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        completedBatch.setSelectedCount(1);
+        completedBatch.setSuccessCount(1);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(completedBatch);
+        when(batchRepository.finishReconciled("DQLB-completed", DqlRecoveryBatchStatusEnum.SUCCESS,
+                1, 1, 0, 0, null)).thenReturn(true);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertTrue(preview.isCanSubmit());
+        verify(batchRepository).finishReconciled("DQLB-completed", DqlRecoveryBatchStatusEnum.SUCCESS,
+                1, 1, 0, 0, null);
+        verify(taskLockRepository).release(TASK_ID, "DQLB-completed");
     }
 
     @Test

@@ -68,6 +68,10 @@ public class DqlRecoveryBatchEntity extends Entity {
     private Date pingTime;
     @Field(DqlRecoveryBatchDto.FIELD_FINISHED_AT)
     private Date finishedAt;
+    @Field(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED)
+    private Boolean finishRequested;
+    @Field(DqlRecoveryBatchDto.FIELD_FINISH_MESSAGE)
+    private String finishMessage;
     private String message;
     private Date created;
     private Date updated;

@@ -43,7 +43,7 @@ public class DqlRecoveryConfiguration {
             @Qualifier("clientMongoOperator") ClientMongoOperator clientMongoOperator) {
         if (!(clientMongoOperator instanceof HttpClientMongoOperator httpClientMongoOperator)) {
             throw new IllegalStateException(
-                    "DQL recovery requires the Engine HTTP Mongo operator to report callbacks to TM");
+                    "DLQ recovery requires the Engine HTTP Mongo operator to report callbacks to TM");
         }
         DqlEventReporter reporter = new DqlEventReporter(new DqlTmClient(httpClientMongoOperator));
         return (command, report) -> reporter.reportRecovery(command.getTaskId(), report);
@@ -54,7 +54,7 @@ public class DqlRecoveryConfiguration {
         AtomicInteger sequence = new AtomicInteger();
         ThreadFactory factory = runnable -> {
             Thread thread = new Thread(runnable,
-                    "Dql-Recovery-Worker-" + sequence.incrementAndGet());
+                    "DLQ-Recovery-Worker-" + sequence.incrementAndGet());
             thread.setDaemon(true);
             return thread;
         };
@@ -70,13 +70,13 @@ public class DqlRecoveryConfiguration {
             TapdataTaskScheduler taskScheduler,
             HazelcastTaskService taskService) {
         DqlRecoveryEventSink unavailableSink = event -> {
-            throw new IllegalStateException("DQL recovery source boundary is unavailable");
+            throw new IllegalStateException("DLQ recovery source boundary is unavailable");
         };
         DqlRecoveryBarrier unavailableBarrier = (eventId, timeoutMillis) -> {
-            throw new IllegalStateException("DQL recovery barrier is unavailable");
+            throw new IllegalStateException("DLQ recovery barrier is unavailable");
         };
         if (HazelcastTaskService.getHazelcastInstance() == null) {
-            throw new IllegalStateException("DQL recovery requires an initialized Hazelcast instance");
+            throw new IllegalStateException("DLQ recovery requires an initialized Hazelcast instance");
         }
         DqlRecoveryBatchRuntimeFactory batchRuntimeFactory = new HazelcastDqlRecoveryBatchRuntimeFactory(
                 new TapdataDqlRecoveryTaskLifecycle(taskScheduler),

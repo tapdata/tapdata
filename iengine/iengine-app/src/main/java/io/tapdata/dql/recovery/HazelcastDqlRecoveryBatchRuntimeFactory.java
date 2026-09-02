@@ -30,7 +30,7 @@ public final class HazelcastDqlRecoveryBatchRuntimeFactory implements DqlRecover
     public DqlRecoveryBatchRuntime open(DqlRecoveryMessageDto command, List<DqlRecoveryEvent> events) {
         Objects.requireNonNull(command, "recovery command must not be null");
         if (events == null || events.isEmpty()) {
-            throw new IllegalArgumentException("DQL recovery events must not be empty");
+            throw new IllegalArgumentException("DLQ recovery events must not be empty");
         }
         DqlRecoveryTaskSnapshot taskSnapshot = null;
         DqlRecoveryDagPlanner.Plan plan = null;
@@ -46,7 +46,7 @@ public final class HazelcastDqlRecoveryBatchRuntimeFactory implements DqlRecover
             source = new HazelcastDqlRecoveryReplaySourceNode(hazelcastInstance, queueName);
             taskClient = taskService.startDqlRecoveryTask(taskSnapshot.task(), plan, queueName);
             if (taskClient == null) {
-                throw new IllegalStateException("DQL recovery temporary task client is unavailable");
+                throw new IllegalStateException("DLQ recovery temporary task client is unavailable");
             }
             return new Runtime(taskLifecycle, taskSnapshot, plan, source, taskClient, hazelcastInstance);
         } catch (Throwable exception) {
@@ -105,13 +105,13 @@ public final class HazelcastDqlRecoveryBatchRuntimeFactory implements DqlRecover
             if (exception instanceof Error error) {
                 throw error;
             }
-            throw new IllegalStateException("DQL recovery runtime initialization failed", exception);
+            throw new IllegalStateException("DLQ recovery runtime initialization failed", exception);
         }
     }
 
     private static DqlRecoveryEvent requireEvent(DqlRecoveryEvent event) {
         if (event == null || event.payload() == null || isBlank(event.failedNodeId())) {
-            throw new IllegalArgumentException("DQL event is missing failed node metadata");
+            throw new IllegalArgumentException("DLQ event is missing failed node metadata");
         }
         return event;
     }
@@ -122,7 +122,7 @@ public final class HazelcastDqlRecoveryBatchRuntimeFactory implements DqlRecover
             if (!Objects.equals(first.failedNodeId(), event.failedNodeId())
                     || !Objects.equals(first.targetNodeId(), event.targetNodeId())) {
                 throw new IllegalArgumentException(
-                        "DQL recovery batch contains events with different failed-node paths");
+                        "DLQ recovery batch contains events with different failed-node paths");
             }
         }
     }
@@ -182,7 +182,7 @@ public final class HazelcastDqlRecoveryBatchRuntimeFactory implements DqlRecover
             try {
                 temporaryJobStopped = taskClient.stop();
                 if (!temporaryJobStopped) {
-                    firstFailure = new IllegalStateException("DQL recovery temporary job did not stop");
+                    firstFailure = new IllegalStateException("DLQ recovery temporary job did not stop");
                 }
             } catch (Throwable exception) {
                 firstFailure = exception;
@@ -232,13 +232,13 @@ public final class HazelcastDqlRecoveryBatchRuntimeFactory implements DqlRecover
                 if (firstFailure instanceof Error error) {
                     throw error;
                 }
-                throw new IllegalStateException("DQL recovery runtime cleanup failed", firstFailure);
+                throw new IllegalStateException("DLQ recovery runtime cleanup failed", firstFailure);
             }
         }
 
         private void ensureOpen() {
             if (closed) {
-                throw new IllegalStateException("DQL recovery temporary runtime is closed");
+                throw new IllegalStateException("DLQ recovery temporary runtime is closed");
             }
         }
 

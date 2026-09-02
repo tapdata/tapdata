@@ -144,7 +144,7 @@ public class DqlEventService {
         try {
             DqlEventDto saved = eventRepository.upsert(dto);
             if (saved == null) {
-                throw new IllegalStateException("DQL event persistence returned no event");
+                throw new IllegalStateException("DLQ event persistence returned no event");
             }
             return saved;
         } catch (RuntimeException cause) {
@@ -499,7 +499,7 @@ public class DqlEventService {
 
     private String buildEventId(String taskId, Long captureSeq) {
         String shortId = taskId.length() <= 6 ? taskId : taskId.substring(0, 6);
-        return String.format("DQL-%s-%06d", shortId, captureSeq);
+        return String.format("DLQ-%s-%06d", shortId, captureSeq);
     }
 
 }

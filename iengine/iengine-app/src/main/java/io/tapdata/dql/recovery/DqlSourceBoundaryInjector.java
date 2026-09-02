@@ -48,16 +48,16 @@ public final class DqlSourceBoundaryInjector implements DqlReplaySourceNode {
                 .toList();
         if (registeredSources.isEmpty()) {
             if (sourceNodes.isEmpty()) {
-                throw new IllegalStateException("DQL recovery source boundary cannot be resolved from the task DAG");
+                throw new IllegalStateException("DLQ recovery source boundary cannot be resolved from the task DAG");
             }
             throw new IllegalStateException(
-                    "DQL recovery source boundary is unavailable for DAG source node "
+                    "DLQ recovery source boundary is unavailable for DAG source node "
                             + sourceNodes.stream().map(Node::getId).collect(Collectors.joining(","))
             );
         }
         if (registeredSources.size() > 1) {
             throw new IllegalStateException(
-                    "DQL recovery source boundary is ambiguous for DAG source nodes "
+                    "DLQ recovery source boundary is ambiguous for DAG source nodes "
                             + registeredSources.stream().map(Node::getId).toList()
             );
         }
@@ -71,13 +71,13 @@ public final class DqlSourceBoundaryInjector implements DqlReplaySourceNode {
                 .map(Node::getId)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
-                        "DQL recovery source boundary cannot be resolved from the task DAG"));
+                        "DLQ recovery source boundary cannot be resolved from the task DAG"));
     }
 
     @Override
     public void enqueue(TapdataDqlRecoveryEvent event) {
         if (event == null || !event.isDataEvent()) {
-            throw new IllegalArgumentException("DQL source boundary accepts DATA recovery events only");
+            throw new IllegalArgumentException("DLQ source boundary accepts DATA recovery events only");
         }
         sourceBoundary().enqueue(event);
     }
@@ -85,7 +85,7 @@ public final class DqlSourceBoundaryInjector implements DqlReplaySourceNode {
     @Override
     public void enqueueBarrier(TapdataCountDownLatchEvent event) {
         if (event == null) {
-            throw new IllegalArgumentException("DQL recovery barrier event must not be null");
+            throw new IllegalArgumentException("DLQ recovery barrier event must not be null");
         }
         sourceBoundary().enqueueBarrier(event);
     }

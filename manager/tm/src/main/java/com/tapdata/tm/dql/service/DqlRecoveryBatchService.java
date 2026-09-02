@@ -14,6 +14,7 @@ import com.tapdata.tm.dql.dto.DqlRecoveryAuditEntryDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryMessageDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryNodeStateDto;
+import com.tapdata.tm.dql.entity.DqlRecoveryTaskLockEntity;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
@@ -169,8 +170,12 @@ public class DqlRecoveryBatchService {
         }
         DqlRuntimeConfig config = runtimeConfig();
         boolean batchSizeExceeded = eventIds.size() > config.getRecoveryBatchMaxSize();
-        boolean activeBatchExists = checkActiveBatch && !events.isEmpty()
-                && batchRepository.findActiveByTaskId(events.get(0).getTaskId()) != null;
+        DqlRecoveryBatchDto activeBatch = checkActiveBatch && !events.isEmpty()
+                ? batchRepository.findActiveByTaskId(events.get(0).getTaskId()) : null;
+        if (activeBatch != null && reconcileFinishedBatch(activeBatch)) {
+            activeBatch = null;
+        }
+        boolean activeBatchExists = activeBatch != null;
 
         Map<String, DqlEventDto> eventMap = events.stream().collect(Collectors.toMap(DqlEventDto::getEventId, event -> event, (a, b) -> a, LinkedHashMap::new));
         Map<String, PreviewMessage> blockedReasons = new LinkedHashMap<>();
@@ -610,15 +615,24 @@ public class DqlRecoveryBatchService {
                 throw new BizException("DqlRecovery.EventNotInBatch", report.getEventId());
             }
         }
+        tryFinalizeRequestedBatch(batch.getBatchId());
     }
 
     private void finishBatch(DqlRecoveryBatchDto batch, DqlRecoveryResultReportVo report) {
         DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
-        if (actual == DqlRecoveryBatchStatusEnum.SUCCESS
-                || actual == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
+        if (isTerminal(actual)) {
+            releaseTaskLock(batch);
             return;
         }
-        requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.RUNNING);
+        // BATCH_STARTED and BATCH_FINISHED are reported asynchronously. A
+        // finish report may therefore arrive while the batch is still CREATED
+        // or DISPATCHED. The finish report is authoritative: accepting it here
+        // prevents a late BATCH_STARTED callback from leaving the batch and
+        // task lock stuck in RUNNING forever.
+        requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
+                DqlRecoveryBatchStatusEnum.RUNNING);
+        boolean terminalized = false;
         try {
             if (report.getNodeStates() != null) {
                 batchRepository.updateNodeStates(batch.getBatchId(), report.getNodeStates());
@@ -629,25 +643,78 @@ public class DqlRecoveryBatchService {
             int skipped = Optional.ofNullable(batch.getSkippedCount()).orElse(0);
             if (selected < 0 || success < 0 || failed < 0 || skipped < 0
                     || selected != success + failed + skipped) {
-                throw new BizException("DqlRecovery.CountMismatch", batch.getBatchId());
+                batchRepository.recordFinishRequested(batch.getBatchId(), report.getMessage());
+                tryFinalizeRequestedBatch(batch.getBatchId());
+                return;
             }
             DqlRecoveryBatchStatusEnum status = failed == 0 && skipped == 0
                     ? DqlRecoveryBatchStatusEnum.SUCCESS
                     : DqlRecoveryBatchStatusEnum.PARTIAL_FAILED;
             batchRepository.finish(batch.getBatchId(), status, report.getMessage());
+            batch.setStatus(status.name());
+            batch.setFinishedAt(new Date());
+            batch.setFinishRequested(false);
+            terminalized = true;
             appendAudit(batch, status.name(), AUDIT_BATCH_FINISHED,
                     null, null, report.getMessage());
             if (selected > 0 && status == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
                 alarmService.notifyBatchPartialFailed(batch);
             }
         } finally {
-            releaseTaskLock(batch);
+            if (terminalized) {
+                releaseTaskLock(batch);
+            }
+        }
+    }
+
+    /**
+     * Completes a finish callback that was observed before the final event
+     * counter update. The repository transition is conditional on the
+     * pending marker, so concurrent event callbacks cannot finalize twice.
+     */
+    private void tryFinalizeRequestedBatch(String batchId) {
+        DqlRecoveryBatchDto latest = batchRepository.findByBatchId(batchId);
+        if (latest == null || !Boolean.TRUE.equals(latest.getFinishRequested())) {
+            return;
+        }
+        DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(latest.getStatus());
+        if (actual != DqlRecoveryBatchStatusEnum.CREATED
+                && actual != DqlRecoveryBatchStatusEnum.DISPATCHED
+                && actual != DqlRecoveryBatchStatusEnum.RUNNING) {
+            return;
+        }
+        int selected = Optional.ofNullable(latest.getSelectedCount()).orElse(0);
+        int success = Optional.ofNullable(latest.getSuccessCount()).orElse(0);
+        int failed = Optional.ofNullable(latest.getFailedCount()).orElse(0);
+        int skipped = Optional.ofNullable(latest.getSkippedCount()).orElse(0);
+        if (selected < 0 || success < 0 || failed < 0 || skipped < 0
+                || selected != success + failed + skipped) {
+            return;
+        }
+        DqlRecoveryBatchStatusEnum status = failed == 0 && skipped == 0
+                ? DqlRecoveryBatchStatusEnum.SUCCESS
+                : DqlRecoveryBatchStatusEnum.PARTIAL_FAILED;
+        if (!batchRepository.finishRequested(batchId, status, latest.getFinishMessage())) {
+            return;
+        }
+        latest.setStatus(status.name());
+        latest.setFinishedAt(new Date());
+        latest.setFinishRequested(false);
+        try {
+            appendAudit(latest, status.name(), AUDIT_BATCH_FINISHED,
+                    null, null, latest.getFinishMessage());
+            if (selected > 0 && status == DqlRecoveryBatchStatusEnum.PARTIAL_FAILED) {
+                alarmService.notifyBatchPartialFailed(latest);
+            }
+        } finally {
+            releaseTaskLock(latest);
         }
     }
 
     private void failBatch(DqlRecoveryBatchDto batch, String message,
                            List<DqlRecoveryNodeStateDto> nodeStates) {
-        if (DqlRecoveryBatchStatusEnum.FAILED.name().equalsIgnoreCase(batch.getStatus())) {
+        if (isTerminal(DqlRecoveryBatchStatusEnum.parse(batch.getStatus()))) {
+            releaseTaskLock(batch);
             return;
         }
         requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.CREATED,
@@ -691,13 +758,15 @@ public class DqlRecoveryBatchService {
 
     private void handleBatchStarted(DqlRecoveryBatchDto batch) {
         DqlRecoveryBatchStatusEnum actual = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
-        if (actual == DqlRecoveryBatchStatusEnum.RUNNING) {
+        if (actual == DqlRecoveryBatchStatusEnum.RUNNING || isTerminal(actual)) {
             return;
         }
-        requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.DISPATCHED);
-        batchRepository.markRunning(batch.getBatchId());
-        appendAudit(batch, DqlRecoveryBatchStatusEnum.RUNNING.name(), AUDIT_BATCH_STARTED,
-                null, null, null);
+        requireBatchStatus(batch, DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED);
+        if (batchRepository.markRunning(batch.getBatchId())) {
+            appendAudit(batch, DqlRecoveryBatchStatusEnum.RUNNING.name(), AUDIT_BATCH_STARTED,
+                    null, null, null);
+        }
     }
 
     private void handleBatchHeartbeat(DqlRecoveryBatchDto batch) {
@@ -1071,8 +1140,105 @@ public class DqlRecoveryBatchService {
     }
 
     private boolean acquireTaskLock(String taskId, String batchId) {
-        return taskLockRepository == null || taskLockRepository.tryAcquire(taskId, batchId,
-                runtimeConfig().getRecoveryBatchTimeoutSeconds());
+        if (taskLockRepository == null) {
+            return true;
+        }
+        long leaseSeconds = runtimeConfig().getRecoveryBatchTimeoutSeconds();
+        if (taskLockRepository.tryAcquire(taskId, batchId, leaseSeconds)) {
+            return true;
+        }
+
+        // A terminal callback may persist the batch state before a transient
+        // failure prevents deletion of the task lease. Reclaim a lock whose
+        // batch is terminal, or whose active batch has fully reconciled event
+        // counters; an active batch with outstanding events must still block
+        // concurrent recovery submissions.
+        DqlRecoveryTaskLockEntity currentLock;
+        try {
+            currentLock = taskLockRepository.findByTaskId(taskId);
+        } catch (RuntimeException exception) {
+            log.warn("DLQ recovery task lock owner lookup failed, taskId={}", taskId, exception);
+            return false;
+        }
+        if (currentLock == null || StringUtils.isBlank(currentLock.getBatchId())) {
+            return false;
+        }
+        DqlRecoveryBatchDto ownerBatch;
+        try {
+            ownerBatch = batchRepository.findByBatchId(currentLock.getBatchId());
+        } catch (RuntimeException exception) {
+            log.warn("DLQ recovery stale lock batch lookup failed, taskId={}, batchId={}",
+                    taskId, currentLock.getBatchId(), exception);
+            return false;
+        }
+        if (ownerBatch == null || !StringUtils.equals(taskId, ownerBatch.getTaskId())) {
+            return false;
+        }
+        DqlRecoveryBatchStatusEnum ownerStatus = DqlRecoveryBatchStatusEnum.parse(ownerBatch.getStatus());
+        if (!isTerminal(ownerStatus)) {
+            if (!reconcileFinishedBatch(ownerBatch)) {
+                return false;
+            }
+            return taskLockRepository.tryAcquire(taskId, batchId, leaseSeconds);
+        }
+        try {
+            taskLockRepository.release(taskId, currentLock.getBatchId());
+        } catch (RuntimeException exception) {
+            log.warn("DLQ recovery finished task lock release failed, taskId={}, batchId={}",
+                    taskId, currentLock.getBatchId(), exception);
+            return false;
+        }
+        return taskLockRepository.tryAcquire(taskId, batchId, leaseSeconds);
+    }
+
+    /**
+     * Repairs a batch whose event counters already account for every selected
+     * event. This is used by preview/start as a compatibility repair for
+     * batches created before the finish-callback ordering fix, and also closes
+     * the gap when the finish callback was lost altogether.
+     */
+    private boolean reconcileFinishedBatch(DqlRecoveryBatchDto batch) {
+        if (batch == null) {
+            return false;
+        }
+        DqlRecoveryBatchStatusEnum currentStatus = DqlRecoveryBatchStatusEnum.parse(batch.getStatus());
+        if (isTerminal(currentStatus)) {
+            return true;
+        }
+        DqlRecoveryBatchStatusEnum status = reconciledStatus(batch);
+        if (status == null) {
+            return false;
+        }
+        boolean finished;
+        try {
+            finished = batchRepository.finishReconciled(
+                    batch.getBatchId(), status,
+                    batch.getSelectedCount(), batch.getSuccessCount(),
+                    batch.getFailedCount(), batch.getSkippedCount(), batch.getMessage());
+        } catch (RuntimeException exception) {
+            log.warn("DLQ recovery completed batch reconciliation failed, batchId={}",
+                    batch.getBatchId(), exception);
+            return false;
+        }
+        if (!finished) {
+            DqlRecoveryBatchDto latest;
+            try {
+                latest = batchRepository.findByBatchId(batch.getBatchId());
+            } catch (RuntimeException exception) {
+                log.warn("DLQ recovery completed batch recheck failed, batchId={}",
+                        batch.getBatchId(), exception);
+                return false;
+            }
+            if (latest == null || !isTerminal(DqlRecoveryBatchStatusEnum.parse(latest.getStatus()))) {
+                return false;
+            }
+            batch = latest;
+        }
+        batch.setStatus(status.name());
+        batch.setFinishedAt(new Date());
+        batch.setFinishRequested(false);
+        releaseTaskLock(batch);
+        return true;
     }
 
     private DqlRuntimeConfig runtimeConfig() {
@@ -1102,8 +1268,35 @@ public class DqlRecoveryBatchService {
 
     private void releaseTaskLock(String taskId, String batchId) {
         if (taskLockRepository != null) {
-            taskLockRepository.release(taskId, batchId);
+            try {
+                taskLockRepository.release(taskId, batchId);
+            } catch (RuntimeException exception) {
+                // Keep terminal callbacks idempotent after the batch state has
+                // already been persisted. A repeated callback or a later
+                // recovery start can retry this owner-specific cleanup.
+                log.warn("DLQ recovery task lock release failed, taskId={}, batchId={}",
+                        taskId, batchId, exception);
+            }
         }
+    }
+
+    private DqlRecoveryBatchStatusEnum reconciledStatus(DqlRecoveryBatchDto batch) {
+        if (batch == null
+                || batch.getSelectedCount() == null
+                || batch.getSuccessCount() == null
+                || batch.getFailedCount() == null
+                || batch.getSkippedCount() == null
+                || batch.getSelectedCount() <= 0
+                || batch.getSuccessCount() < 0
+                || batch.getFailedCount() < 0
+                || batch.getSkippedCount() < 0
+                || batch.getSelectedCount()
+                != batch.getSuccessCount() + batch.getFailedCount() + batch.getSkippedCount()) {
+            return null;
+        }
+        return batch.getFailedCount() == 0 && batch.getSkippedCount() == 0
+                ? DqlRecoveryBatchStatusEnum.SUCCESS
+                : DqlRecoveryBatchStatusEnum.PARTIAL_FAILED;
     }
 
     private Map<String, DqlEventStatusEnum> originalEventStatuses(List<DqlEventDto> events) {

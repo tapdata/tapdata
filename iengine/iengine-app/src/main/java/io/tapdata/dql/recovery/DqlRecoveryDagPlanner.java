@@ -51,10 +51,10 @@ public final class DqlRecoveryDagPlanner {
 
         Map<String, Node<?>> nodes = indexNodes(modelDag);
         if (!nodes.containsKey(failedNodeId)) {
-            throw new IllegalArgumentException("DQL recovery failed node does not exist in task DAG: " + failedNodeId);
+            throw new IllegalArgumentException("DLQ recovery failed node does not exist in task DAG: " + failedNodeId);
         }
         if (nodes.get(failedNodeId).disabledNode()) {
-            throw new IllegalArgumentException("DQL recovery failed node is disabled: " + failedNodeId);
+            throw new IllegalArgumentException("DLQ recovery failed node is disabled: " + failedNodeId);
         }
 
         Map<String, Set<String>> successors = successors(modelDag.getEdges(), nodes.keySet());
@@ -62,7 +62,7 @@ public final class DqlRecoveryDagPlanner {
         int failedIncomingCount = incomingCounts.getOrDefault(failedNodeId, 0);
         if (failedIncomingCount != 1) {
             throw new IllegalArgumentException(String.format(
-                    "DQL recovery failed node %s must have exactly one input, actual input count=%s",
+                    "DLQ recovery failed node %s must have exactly one input, actual input count=%s",
                     failedNodeId, failedIncomingCount));
         }
 		Set<String> reachable = reachableFrom(failedNodeId, successors);
@@ -77,11 +77,11 @@ public final class DqlRecoveryDagPlanner {
 				&& !successors.getOrDefault(failedNodeId, Collections.emptySet()).isEmpty();
 		if (hasText(targetNodeId) && !legacyProcessorTarget) {
             if (!nodes.containsKey(targetNodeId)) {
-                throw new IllegalArgumentException("DQL recovery target node does not exist in task DAG: " + targetNodeId);
+                throw new IllegalArgumentException("DLQ recovery target node does not exist in task DAG: " + targetNodeId);
             }
             if (!reachable.contains(targetNodeId)) {
                 throw new IllegalArgumentException(String.format(
-                        "DQL recovery target node %s is not reachable from failed node %s",
+                        "DLQ recovery target node %s is not reachable from failed node %s",
                         targetNodeId, failedNodeId));
             }
             Set<String> canReachTarget = reverseReachable(targetNodeId, modelDag.getEdges());
@@ -96,7 +96,7 @@ public final class DqlRecoveryDagPlanner {
             if (!retainedNodeId.equals(failedNodeId)
                     && incomingCounts.getOrDefault(retainedNodeId, 0) > 1) {
                 throw new IllegalArgumentException(String.format(
-                        "DQL recovery path contains multi-input node %s; replay is unsupported",
+                        "DLQ recovery path contains multi-input node %s; replay is unsupported",
                         retainedNodeId));
             }
         }
@@ -285,7 +285,7 @@ public final class DqlRecoveryDagPlanner {
 
         public DAG dag() {
             if (dag == null) {
-                throw new IllegalStateException("DQL recovery runtime DAG has not been materialized");
+                throw new IllegalStateException("DLQ recovery runtime DAG has not been materialized");
             }
             return dag;
         }

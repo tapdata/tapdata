@@ -44,6 +44,10 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
+import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
+import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.entity.DqlRecoveryTaskLockEntity;
+import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryTaskLockRepository;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
@@ -3555,6 +3559,7 @@ class TaskServiceImplTest {
         private String startFlag;
         private LockControlService lockControlService;
         private DqlRecoveryTaskLockRepository dqlRecoveryTaskLockRepository;
+        private DqlRecoveryBatchRepository dqlRecoveryBatchRepository;
         private DisruptorService disruptorService;
         private LogCollectorService logCollectorService;
         private ScheduleService scheduleService;
@@ -3568,6 +3573,7 @@ class TaskServiceImplTest {
             scheduleService = mock(ScheduleService.class);
             iLicenseService = mock(ILicenseService.class);
             dqlRecoveryTaskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+            dqlRecoveryBatchRepository = mock(DqlRecoveryBatchRepository.class);
             UserDataReportService userDataReportService = mock(UserDataReportService.class);
             ReflectionTestUtils.setField(taskService,"userDataReportService",userDataReportService);
             ReflectionTestUtils.setField(taskService,"lockControlService",lockControlService);
@@ -3576,6 +3582,7 @@ class TaskServiceImplTest {
             ReflectionTestUtils.setField(taskService,"scheduleService",scheduleService);
             ReflectionTestUtils.setField(taskService,"iLicenseService",iLicenseService);
             ReflectionTestUtils.setField(taskService,"dqlRecoveryTaskLockRepository",dqlRecoveryTaskLockRepository);
+            ReflectionTestUtils.setField(taskService,"dqlRecoveryBatchRepository",dqlRecoveryBatchRepository);
             when(taskDto.getShareCdcEnable()).thenReturn(true);
             when(taskDto.getSyncType()).thenReturn("sync");
             when(taskDto.getTaskRecordId()).thenReturn("111");
@@ -3599,6 +3606,60 @@ class TaskServiceImplTest {
 
             assertEquals("DqlRecovery.BatchAlreadyRunning", exception.getErrorCode());
             verify(iLicenseService, never()).checkTaskPipelineLimit(any(TaskDto.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("reclaims a terminal recovery lock before a normal task start")
+        void testTerminalDqlRecoveryLockIsReclaimed() {
+            ObjectId taskId = new ObjectId();
+            DqlRecoveryTaskLockEntity lock = new DqlRecoveryTaskLockEntity();
+            lock.setTaskId(taskId.toHexString());
+            lock.setBatchId("DQLB-1");
+            DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+            batch.setBatchId("DQLB-1");
+            batch.setTaskId(taskId.toHexString());
+            batch.setStatus(DqlRecoveryBatchStatusEnum.PARTIAL_FAILED.name());
+            when(taskDto.getId()).thenReturn(taskId);
+            when(dqlRecoveryTaskLockRepository.existsActive(eq(taskId.toHexString()), any(Date.class))).thenReturn(true);
+            when(dqlRecoveryTaskLockRepository.findByTaskId(taskId.toHexString())).thenReturn(lock);
+            when(dqlRecoveryBatchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+            when(dqlRecoveryTaskLockRepository.release(taskId.toHexString(), "DQLB-1")).thenReturn(true);
+
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
+                    taskService, "assertDqlRecoveryNotRunning", taskDto));
+
+            verify(dqlRecoveryTaskLockRepository).release(taskId.toHexString(), "DQLB-1");
+        }
+
+        @Test
+        @DisplayName("repairs a completed active recovery batch before normal task start")
+        void testCompletedActiveDqlRecoveryLockIsReclaimed() {
+            ObjectId taskId = new ObjectId();
+            DqlRecoveryTaskLockEntity lock = new DqlRecoveryTaskLockEntity();
+            lock.setTaskId(taskId.toHexString());
+            lock.setBatchId("DQLB-1");
+            DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+            batch.setBatchId("DQLB-1");
+            batch.setTaskId(taskId.toHexString());
+            batch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+            batch.setSelectedCount(1);
+            batch.setSuccessCount(1);
+            batch.setFailedCount(0);
+            batch.setSkippedCount(0);
+            when(taskDto.getId()).thenReturn(taskId);
+            when(dqlRecoveryTaskLockRepository.existsActive(eq(taskId.toHexString()), any(Date.class))).thenReturn(true);
+            when(dqlRecoveryTaskLockRepository.findByTaskId(taskId.toHexString())).thenReturn(lock);
+            when(dqlRecoveryBatchRepository.findByBatchId("DQLB-1")).thenReturn(batch);
+            when(dqlRecoveryBatchRepository.finishReconciled("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS,
+                    1, 1, 0, 0, null)).thenReturn(true);
+            when(dqlRecoveryTaskLockRepository.release(taskId.toHexString(), "DQLB-1")).thenReturn(true);
+
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
+                    taskService, "assertDqlRecoveryNotRunning", taskDto));
+
+            verify(dqlRecoveryBatchRepository).finishReconciled("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS,
+                    1, 1, 0, 0, null);
+            verify(dqlRecoveryTaskLockRepository).release(taskId.toHexString(), "DQLB-1");
         }
 
         @Test

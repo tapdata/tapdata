@@ -83,6 +83,7 @@ class DqlRecoveryBatchRepositoryTest {
         assertEquals(0, saved.getSuccessCount());
         assertEquals(0, saved.getFailedCount());
         assertEquals(0, saved.getSkippedCount());
+        assertFalse(saved.getFinishRequested());
         assertEquals("AUTO", saved.getMode());
         assertTrue(saved.getAuditEntries().isEmpty());
     }
@@ -150,6 +151,59 @@ class DqlRecoveryBatchRepositoryTest {
     }
 
     @Test
+    @DisplayName("finish reconciled atomically guards counters and active status")
+    void finishReconciledGuardsCountersAndActiveStatus() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.finishReconciled("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS,
+                1, 1, 0, 0, "done"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("DQLB-1", query.get(DqlRecoveryBatchDto.FIELD_BATCH_ID));
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name(),
+                DqlRecoveryBatchStatusEnum.RUNNING.name()),
+                query.get(DqlRecoveryBatchDto.FIELD_STATUS, Document.class).get("$in"));
+        assertEquals(1, query.get(DqlRecoveryBatchDto.FIELD_SELECTED_COUNT));
+        assertEquals(1, query.get(DqlRecoveryBatchDto.FIELD_SUCCESS_COUNT));
+        assertEquals(0, query.get(DqlRecoveryBatchDto.FIELD_FAILED_COUNT));
+        assertEquals(0, query.get(DqlRecoveryBatchDto.FIELD_SKIPPED_COUNT));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertEquals(false, set.get(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED));
+        assertEquals("done", set.get(DqlRecoveryBatchDto.FIELD_MESSAGE));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
+    @DisplayName("finish requested atomically consumes the pending marker")
+    void finishRequestedConsumesPendingMarker() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(repository.finishRequested("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, "done"));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(true, query.get(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(false, set.get(DqlRecoveryBatchDto.FIELD_FINISH_REQUESTED));
+        assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get(DqlRecoveryBatchDto.FIELD_STATUS));
+        assertTtlRefreshed(set);
+    }
+
+    @Test
     @DisplayName("status update only targets an active created batch")
     void statusUpdateOnlyTargetsCreatedBatch() {
         MongoTemplate mongoTemplate = mongoTemplate();
@@ -171,10 +225,12 @@ class DqlRecoveryBatchRepositoryTest {
     }
 
     @Test
-    @DisplayName("marking a dispatched batch running refreshes ttl with its start time")
+    @DisplayName("marking a created or dispatched batch running refreshes ttl with its start time")
     void markRunningRefreshesTtl() {
         MongoTemplate mongoTemplate = mongoTemplate();
         DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
 
         repository.markRunning("DQLB-1");
 
@@ -182,7 +238,9 @@ class DqlRecoveryBatchRepositoryTest {
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
         verify(mongoTemplate).updateFirst(
                 queryCaptor.capture(), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
-        assertEquals(List.of(DqlRecoveryBatchStatusEnum.DISPATCHED.name()),
+        assertEquals(List.of(
+                DqlRecoveryBatchStatusEnum.CREATED.name(),
+                DqlRecoveryBatchStatusEnum.DISPATCHED.name()),
                 queryCaptor.getValue().getQueryObject().get("status", Document.class).get("$in"));
         Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertEquals(DqlRecoveryBatchStatusEnum.RUNNING.name(), set.get("status"));
@@ -240,9 +298,12 @@ class DqlRecoveryBatchRepositoryTest {
     void finishUsesStateSpecificSourceGuards() {
         assertFinishSourceStatuses(
                 DqlRecoveryBatchStatusEnum.SUCCESS,
+                DqlRecoveryBatchStatusEnum.CREATED,
+                DqlRecoveryBatchStatusEnum.DISPATCHED,
                 DqlRecoveryBatchStatusEnum.RUNNING);
         assertFinishSourceStatuses(
                 DqlRecoveryBatchStatusEnum.PARTIAL_FAILED,
+                DqlRecoveryBatchStatusEnum.CREATED,
                 DqlRecoveryBatchStatusEnum.DISPATCHED,
                 DqlRecoveryBatchStatusEnum.RUNNING);
         assertFinishSourceStatuses(
