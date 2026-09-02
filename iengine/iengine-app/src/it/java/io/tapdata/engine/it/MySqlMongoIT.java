@@ -12,6 +12,8 @@ import io.tapdata.it.verifier.ConnectorVerifier;
 import io.tapdata.it.verifier.JdbcVerifier;
 import io.tapdata.it.verifier.MongoVerifier;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -142,5 +144,11 @@ public class MySqlMongoIT extends EngineIT {
 		}
 		String fromJson = ConnectionConfigLoader.getString(CONNECTION, jsonPath);
 		return fromJson != null && !fromJson.isEmpty() ? fromJson : defaultValue;
+	}
+
+	@Test
+	public void triggerIT() {
+		int result = 10 * 5;
+		Assertions.assertEquals(50, result);
 	}
 }
