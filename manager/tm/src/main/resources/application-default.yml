@@ -203,3 +203,7 @@ management:
 
 api-server:
   supplement-hour: ${supplement.api.call.hour:16}
+
+sso:
+  master:
+    key: 'F2QiotN6p1mNV3IW+M8PXU41TEVtOJiy5kZ9yNLuW00='

@@ -13,6 +13,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
+import com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -91,6 +92,13 @@ public class AlarmController extends BaseController {
         AlarmInfo alarmInfo = new AlarmInfo();
         BeanUtils.copyProperties(alarmDatasourceDto, alarmInfo);
         alarmService.save(alarmInfo);
+        return success();
+    }
+
+    @Operation(summary = "Ingest structured task alert from engine")
+    @PostMapping("task-alerts")
+    public ResponseMessage<Void> ingestTaskAlert(@RequestBody TaskAlertRequest request) {
+        alarmService.ingestTaskAlert(request);
         return success();
     }
 

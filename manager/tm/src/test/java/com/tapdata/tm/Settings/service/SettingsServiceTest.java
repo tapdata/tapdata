@@ -357,5 +357,37 @@ public class SettingsServiceTest {
             verify(bulkOperations, times(1)).execute();
             verify(mongoTemplate, never()).save(any(), anyString());
         }
+
+        @Test
+        void testPersistsOpenWhenPresentAndSkipsWhenNull() {
+            BulkOperations bulkOperations = mock(BulkOperations.class);
+            when(mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class)).thenReturn(bulkOperations);
+
+            SettingsDto toggle = new SettingsDto();
+            toggle.setId("ldapLoginId");
+            toggle.setCategory("LDAP");
+            toggle.setKey("ldap.login.enable");
+            toggle.setValue("");
+            toggle.setOpen(Boolean.TRUE);
+
+            SettingsDto text = new SettingsDto();
+            text.setId("ldapHostId");
+            text.setCategory("LDAP");
+            text.setKey("ldap.server.host");
+            text.setValue("ldap.example.com");
+
+            settingsService.save(Arrays.asList(toggle, text));
+
+            org.mockito.ArgumentCaptor<org.springframework.data.mongodb.core.query.Update> captor =
+                    org.mockito.ArgumentCaptor.forClass(org.springframework.data.mongodb.core.query.Update.class);
+            verify(bulkOperations, times(2)).updateOne(any(Query.class), captor.capture());
+
+            org.bson.Document toggleSet = (org.bson.Document) captor.getAllValues().get(0).getUpdateObject().get("$set");
+            assertTrue(toggleSet.containsKey("open"));
+            assertEquals(Boolean.TRUE, toggleSet.get("open"));
+
+            org.bson.Document textSet = (org.bson.Document) captor.getAllValues().get(1).getUpdateObject().get("$set");
+            assertFalse(textSet.containsKey("open"));
+        }
     }
 }

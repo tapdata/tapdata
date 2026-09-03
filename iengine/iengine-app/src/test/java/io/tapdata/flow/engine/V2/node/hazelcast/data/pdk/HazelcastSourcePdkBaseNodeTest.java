@@ -2593,6 +2593,48 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	class HandleTableMonitorResultTest {
+		@Test
+		void ensuresNewTablesOutsideSourceRunnerLockDuringSnapshot() {
+			HazelcastSourcePdkBaseNodeImp sourceNode = spy(new HazelcastSourcePdkBaseNodeImp(dataProcessorContext));
+			TableMonitor tableMonitor = mock(TableMonitor.class);
+			MonitorManager monitorManager = mock(MonitorManager.class);
+			TableMonitor.TableResult tableResult = TableMonitor.TableResult.create().add("new_table");
+			CopyOnWriteArrayList<String> newTables = new CopyOnWriteArrayList<>();
+
+			ReflectionTestUtils.setField(sourceNode, "monitorManager", monitorManager);
+			ReflectionTestUtils.setField(sourceNode, "newTables", newTables);
+			ReflectionTestUtils.setField(sourceNode, "removeTables", new CopyOnWriteArrayList<>());
+			ReflectionTestUtils.setField(sourceNode, "endSnapshotLoop", new AtomicBoolean(false));
+			doReturn(tableMonitor).when(monitorManager).getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			when(sourceNode.isRunning()).thenReturn(true);
+			doAnswer(invocation -> {
+				Consumer<TableMonitor.TableResult> consumer = invocation.getArgument(0);
+				consumer.accept(tableResult);
+				return null;
+			}).when(tableMonitor).consume(any());
+			doAnswer(invocation -> {
+				newTables.addAll(invocation.getArgument(0));
+				return false;
+			}).when(sourceNode).handleNewTables(anyList());
+
+			AtomicBoolean ensureCalled = new AtomicBoolean(false);
+			AtomicBoolean lockHeldDuringEnsure = new AtomicBoolean(true);
+			doAnswer(invocation -> {
+				ensureCalled.set(true);
+				lockHeldDuringEnsure.set(sourceNode.sourceRunnerLock.isHeldByCurrentThread());
+				return null;
+			}).when(sourceNode).ensureShareCdcForNewTables(anyList());
+
+			sourceNode.handleTableMonitorResult();
+
+			assertTrue(ensureCalled.get());
+			assertFalse(lockHeldDuringEnsure.get());
+			verify(sourceNode).ensureShareCdcForNewTables(Collections.singletonList("new_table"));
+		}
+	}
+
+	@Nested
 	class testHandleNewTables {
 		private DataProcessorContext context;
 		private HazelcastSourcePdkBaseNode sourcePdkBaseNode;

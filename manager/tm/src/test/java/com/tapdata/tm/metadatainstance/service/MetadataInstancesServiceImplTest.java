@@ -2171,6 +2171,69 @@ public class MetadataInstancesServiceImplTest {
 			doReturn(metadatas).when(metadataInstancesService).findByNodeId(anyString(), anyList(), any(UserDetail.class), any(TaskDto.class));
 			assertThrows(RuntimeException.class, () -> metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node));
 		}
+
+		@Test
+		@DisplayName("TAP-12745 TableNode inspect table uses stored originalName/qualifiedName like migrate")
+		void tableNodeMapsOriginalNameToStoredQualifiedName() {
+			kv = new HashMap<>();
+			TableNode tableNode = new TableNode();
+			tableNode.setId("mongo-target");
+			tableNode.setTableName("i83_12741_finspect");
+			tableNode.setConnectionId(new ObjectId().toHexString());
+			node = tableNode;
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setOriginalName("i83_12741_finspect");
+			meta.setQualifiedName("MC_mongodb_official_v1_i83_12741_finspect_conn_task");
+			doReturn(List.of(meta)).when(metadataInstancesService).findByNodeId(eq("mongo-target"), anyList(), any(UserDetail.class), any(TaskDto.class));
+
+			Map<String, String> actual = metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node);
+
+			assertEquals("MC_mongodb_official_v1_i83_12741_finspect_conn_task", actual.get("i83_12741_finspect"));
+			verify(metadataInstancesService, never()).getQualifiedNameByNodeId(any(), any(), any(), any(), any());
+		}
+
+		@Test
+		@DisplayName("TAP-12745 TableNode does not recompute QN when tableName differs from originalName")
+		void tableNodeDoesNotRecomputeQualifiedNameWhenTableNameDiffers() {
+			kv = new HashMap<>();
+			TableNode tableNode = new TableNode();
+			tableNode.setId("mongo-target");
+			tableNode.setTableName("node_table");
+			tableNode.setConnectionId(new ObjectId().toHexString());
+			node = tableNode;
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setOriginalName("i83_12741_finspect");
+			meta.setQualifiedName("T_stored_collection");
+			doReturn(List.of(meta)).when(metadataInstancesService).findByNodeId(eq("mongo-target"), anyList(), any(UserDetail.class), any(TaskDto.class));
+
+			Map<String, String> actual = metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node);
+
+			assertEquals("T_stored_collection", actual.get("i83_12741_finspect"));
+			assertNull(actual.get("node_table"));
+			verify(metadataInstancesService, never()).getQualifiedNameByNodeId(any(), any(), any(), any(), any());
+		}
+
+		@Test
+		@DisplayName("TAP-12745 TableNode empty metadata does not invent recomputed QN")
+		void tableNodeEmptyMetadataDoesNotRecomputeQualifiedName() {
+			kv = new HashMap<>();
+			TableNode tableNode = new TableNode();
+			tableNode.setId("mongo-target");
+			tableNode.setTableName("i83_12741_finspect");
+			node = tableNode;
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			doReturn(List.of()).when(metadataInstancesService).findByNodeId(eq("mongo-target"), anyList(), any(UserDetail.class), any(TaskDto.class));
+
+			Map<String, String> actual = metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node);
+
+			assertTrue(actual.isEmpty());
+			verify(metadataInstancesService, never()).getQualifiedNameByNodeId(any(), any(), any(), any(), any());
+		}
 	}
 
 	@Nested

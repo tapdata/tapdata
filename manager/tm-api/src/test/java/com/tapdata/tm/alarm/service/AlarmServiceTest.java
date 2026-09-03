@@ -115,6 +115,11 @@ class AlarmServiceTest {
         public void batchUpdate(BatchUpdateAlarmParam alarm) {
 
         }
+
+        @Override
+        public void ingestTaskAlert(com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest request) {
+
+        }
     };
 
     @Test

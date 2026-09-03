@@ -14,6 +14,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.ShareCdcEnsureTablesParam;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
@@ -239,6 +240,13 @@ public class LogCollectorController extends BaseController {
 	@Operation(summary = "增加表挖掘")
 	public ResponseMessage<Void> addTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
 		logCollectorService.configTables(taskId, params, "add", getLoginUser());
+		return success();
+	}
+
+	@PostMapping("ensureTables")
+	@Operation(summary = "运行中确保同步任务新增表已纳入共享挖掘并生成 mapping")
+	public ResponseMessage<Void> ensureTables(@RequestBody ShareCdcEnsureTablesParam param) {
+		logCollectorService.ensureShareCdcTables(param, getLoginUser());
 		return success();
 	}
 

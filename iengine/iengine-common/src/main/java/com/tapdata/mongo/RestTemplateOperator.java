@@ -2,6 +2,7 @@ package com.tapdata.mongo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableList;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
@@ -651,7 +652,8 @@ public class RestTemplateOperator {
 		logger.error("Request {} fail, error code {}, error message {}, request id {}",
 				uri, responseBody.getCode(), responseBody.getMessage(), responseBody.getReqId());
 
-		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported", "Task.NotFound")) {
+		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported", "Task.NotFound",
+				ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES_WAIT_TIMEOUT)) {
 			throw new RestDoNotRetryException(uri, method, param, responseBody);
 		} else if ("110403".equals(responseBody.getCode())) {
 			throw new RestAuthException(uri, method, param, responseBody);

@@ -9,6 +9,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.ShareCdcEnsureTablesParam;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.utils.Lists;
 
@@ -125,6 +126,8 @@ public interface LogCollectorService {
     Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, String order, UserDetail user);
 
     void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user);
+
+    void ensureShareCdcTables(ShareCdcEnsureTablesParam param, UserDetail user);
 
     Map<String, String> createShareCdcTask(TableLogCollectorParam param, UserDetail user);
 

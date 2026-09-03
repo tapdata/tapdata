@@ -4,6 +4,7 @@ import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.impl.AlarmServiceImpl;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
+import com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.MessageUtil;
 import org.junit.jupiter.api.Assertions;
@@ -100,6 +101,14 @@ public class AlarmServiceImplTest {
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)){
             messageUtilMockedStatic.when(()->MessageUtil.getMessage(anyString())).thenReturn("error");
             Assertions.assertThrows(BizException.class,()->alarmService.batchUpdate(mock(BatchUpdateAlarmParam.class)));
+        }
+    }
+
+    @Test
+    void testIngestTaskAlert(){
+        try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)){
+            messageUtilMockedStatic.when(()->MessageUtil.getMessage(anyString())).thenReturn("error");
+            Assertions.assertThrows(BizException.class,()->alarmService.ingestTaskAlert(mock(TaskAlertRequest.class)));
         }
     }
 
