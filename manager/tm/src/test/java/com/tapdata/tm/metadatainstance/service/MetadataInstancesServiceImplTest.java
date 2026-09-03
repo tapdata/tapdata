@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.config.DefaultMongoConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -87,13 +88,22 @@ import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.convert.DefaultDbRefResolver;
+import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
+import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
+import org.springframework.data.mongodb.core.convert.UpdateMapper;
+import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
+import org.springframework.data.mongodb.core.mapping.MongoPersistentEntity;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.dao.support.PersistenceExceptionTranslator;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -1477,6 +1487,41 @@ public class MetadataInstancesServiceImplTest {
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
 			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
 			assertEquals("originName", metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
+		}
+
+		@Test
+		@DisplayName("test bulkSave method when existsMetadataInstances contains qualifiedName should convert BigInteger field default values to String on write")
+		void test7() {
+			BigInteger bigDefaultValue = new BigInteger("18446744073709551615");
+			metadataInstancesDtos.get(0).getFields().get(0).setDefaultValue(bigDefaultValue);
+			metadataInstancesDtos.get(0).getFields().get(0).setOriginalDefaultValue(bigDefaultValue);
+
+			BulkOperations bulkOperations = mock(BulkOperations.class);
+			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
+			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
+
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			verify(bulkOperations).updateOne(any(Query.class), updateCaptor.capture());
+
+			MongoCustomConversions conversions = new DefaultMongoConfig().mongoCustomConversions();
+			MongoMappingContext mappingContext = new MongoMappingContext();
+			mappingContext.setSimpleTypeHolder(conversions.getSimpleTypeHolder());
+			mappingContext.afterPropertiesSet();
+			MongoDatabaseFactory databaseFactory = mock(MongoDatabaseFactory.class);
+			when(databaseFactory.getExceptionTranslator()).thenReturn(mock(PersistenceExceptionTranslator.class));
+			MappingMongoConverter mongoConverter = new MappingMongoConverter(
+					new DefaultDbRefResolver(databaseFactory), mappingContext);
+			mongoConverter.setCustomConversions(conversions);
+			mongoConverter.afterPropertiesSet();
+
+			Document mappedUpdate = new UpdateMapper(mongoConverter)
+					.getMappedObject(updateCaptor.getValue().getUpdateObject(), (MongoPersistentEntity<?>) null);
+			Document mappedField = (Document) ((List<?>) ((Document) mappedUpdate.get("$set")).get("fields")).get(0);
+
+			assertEquals("18446744073709551615", mappedField.get("default_value"));
+			assertEquals("18446744073709551615", mappedField.get("originalDefaultValue"));
 		}
 	}
 

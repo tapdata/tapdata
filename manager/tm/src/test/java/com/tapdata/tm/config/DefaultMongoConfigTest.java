@@ -1,5 +1,6 @@
 package com.tapdata.tm.config;
 
+import com.tapdata.tm.config.convert.BigIntegerReadConverter;
 import com.tapdata.tm.config.convert.BigIntegerWriteConverter;
 import com.tapdata.tm.commons.schema.Field;
 import org.bson.Document;
@@ -41,6 +42,24 @@ class DefaultMongoConfigTest {
         String actual = converter.convert(new BigInteger("123456789012345678901234567890"));
 
         assertEquals("123456789012345678901234567890", actual);
+    }
+
+    @Test
+    void testMongoCustomConversionsShouldRegisterBigIntegerReadConverter() {
+        DefaultMongoConfig defaultMongoConfig = new DefaultMongoConfig();
+
+        MongoCustomConversions conversions = defaultMongoConfig.mongoCustomConversions();
+
+        assertTrue(conversions.hasCustomReadTarget(String.class, BigInteger.class));
+    }
+
+    @Test
+    void testBigIntegerReadConverterShouldParseFullValueFromString() {
+        BigIntegerReadConverter converter = new BigIntegerReadConverter();
+
+        BigInteger actual = converter.convert("123456789012345678901234567890");
+
+        assertEquals(new BigInteger("123456789012345678901234567890"), actual);
     }
 
     @Test
