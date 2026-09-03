@@ -28,6 +28,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
@@ -320,15 +321,16 @@ public class WorkerServiceImpl extends WorkerService{
 
         workers.forEach(worker -> {
 
-            // query task : 1.status is running 2.crontabExpressionFlag is true
+            // Align with TaskServiceImpl.findDataCopyList: ADMIN / data-permission users
+            // see all running tasks on this engine; others stay scoped to user_id.
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
-                    .and("user_id").is(userDetail.getUserId())
-                    .and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                    .orOperator(Criteria.where(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
+                    .and(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN);
             Query query = Query.query(criteria);
+            if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
+                query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+            }
             query.fields().include("id", "name", "syncType");
-            //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
             List<TaskDto> tasks = taskService.findAll(query);
 
             query = Query.query(Criteria.where("systemInfo.process_id").is(worker.getProcessId()));

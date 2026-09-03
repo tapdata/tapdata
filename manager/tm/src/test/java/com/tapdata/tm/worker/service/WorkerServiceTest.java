@@ -31,6 +31,7 @@ import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -55,9 +56,11 @@ class WorkerServiceTest {
     private TaskService taskService;
 
     private ClusterStateService clusterStateService;
+    private IDataPermissionHelper dataPermissionHelper;
     @BeforeEach
     void buildWorkService(){
-        new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
+        dataPermissionHelper = mock(IDataPermissionHelper.class);
+        new DataPermissionHelper(dataPermissionHelper); //when repository.find call methods in DataPermissionHelper class this line is need
         workerRepository = mock(WorkerRepository.class);
         workerService = spy(new WorkerServiceImpl(workerRepository));
         settingsService = mock(SettingsService.class);
@@ -273,25 +276,71 @@ class WorkerServiceTest {
             assertEquals(except,result);
         }
     }
+    private void stubProcessInfoWorkersAndTasks(List<TaskDto> mockTaskList) {
+        List<Worker> mockWorkers = new ArrayList<>();
+        Worker mockWorker = new Worker();
+        mockWorker.setProcessId("test");
+        mockWorkers.add(mockWorker);
+        when(workerRepository.findAll(Query.query(Criteria.where("workerType").is("connector").and("process_id").in("test")))).thenReturn(mockWorkers);
+        when(taskService.findAll(any(Query.class))).thenReturn(mockTaskList);
+    }
+
+    private List<TaskDto> mockRunningTasks() {
+        List<TaskDto> mockTaskList = new ArrayList<>();
+        TaskDto taskDto = new TaskDto();
+        taskDto.setSyncType("sync");
+        taskDto.setId(MongoUtils.toObjectId("64ce7d3794076a1af015e50c"));
+        taskDto.setName("test");
+        mockTaskList.add(taskDto);
+        return mockTaskList;
+    }
+
     @Test
     void test_getProcessInfo(){
         try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
             serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
-            List<Worker> mockWorkers = new ArrayList<>();
-            Worker mockWorker = new Worker();
-            mockWorker.setProcessId("test");
-            mockWorkers.add(mockWorker);
-            when(workerRepository.findAll(Query.query(Criteria.where("workerType").is("connector").and("process_id").in("test")))).thenReturn(mockWorkers);
-            List<TaskDto> mockTaskList = new ArrayList<>();
-            TaskDto taskDto = new TaskDto();
-            taskDto.setSyncType("sync");
-            taskDto.setId(MongoUtils.toObjectId("64ce7d3794076a1af015e50c"));
-            taskDto.setName("test");
-            mockTaskList.add(taskDto);
-            when(taskService.findAll(any(Query.class))).thenReturn(mockTaskList);
+            stubProcessInfoWorkersAndTasks(mockRunningTasks());
             Map<String, WorkerProcessInfoDto> result =  workerService.getProcessInfo(Arrays.asList("test"),mock(UserDetail.class));
             assertEquals(1,result.get("test").getRunningNum());
         }
+    }
+
+    @Test
+    void test_getProcessInfo_adminDoesNotFilterUserId() {
+        stubProcessInfoWorkersAndTasks(mockRunningTasks());
+        UserDetail admin = mock(UserDetail.class);
+        when(admin.isRoot()).thenReturn(true);
+        when(admin.getUserId()).thenReturn("admin-1");
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        when(taskService.findAll(captor.capture())).thenReturn(mockRunningTasks());
+        workerService.getProcessInfo(Arrays.asList("test"), admin);
+        Assertions.assertFalse(captor.getValue().getQueryObject().toJson().contains("user_id"));
+    }
+
+    @Test
+    void test_getProcessInfo_normalUserFiltersUserId() {
+        when(dataPermissionHelper.setFilterConditions(anyBoolean(), any(Query.class), any(UserDetail.class))).thenReturn(false);
+        stubProcessInfoWorkersAndTasks(mockRunningTasks());
+        UserDetail user = mock(UserDetail.class);
+        when(user.isRoot()).thenReturn(false);
+        when(user.getUserId()).thenReturn("user-1");
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        when(taskService.findAll(captor.capture())).thenReturn(mockRunningTasks());
+        workerService.getProcessInfo(Arrays.asList("test"), user);
+        Assertions.assertTrue(captor.getValue().getQueryObject().toJson().contains("user-1"));
+    }
+
+    @Test
+    void test_getProcessInfo_dataPermissionSkipsUserId() {
+        when(dataPermissionHelper.setFilterConditions(anyBoolean(), any(Query.class), any(UserDetail.class))).thenReturn(true);
+        stubProcessInfoWorkersAndTasks(mockRunningTasks());
+        UserDetail user = mock(UserDetail.class);
+        when(user.isRoot()).thenReturn(false);
+        when(user.getUserId()).thenReturn("user-1");
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        when(taskService.findAll(captor.capture())).thenReturn(mockRunningTasks());
+        workerService.getProcessInfo(Arrays.asList("test"), user);
+        Assertions.assertFalse(captor.getValue().getQueryObject().toJson().contains("user_id"));
     }
     @Nested
     class GetWorkerCurrentTimeTest{
