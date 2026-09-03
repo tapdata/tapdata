@@ -37,7 +37,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -201,11 +203,14 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_RETRY_WARN));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
         // 补充历史任务缺失的任务告警 key 时也请追加到末尾，避免破坏前端依赖的原有顺序。
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DDL_WARNING));
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK));
+        taskDto.setAlarmSettings(uniqueAlarmSettingsByKey(taskDto.getAlarmSettings()));
 
         if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
@@ -254,6 +259,20 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             alarmSettings.add(CglibUtil.copy(defaultSetting, AlarmSettingVO.class));
             taskDto.setAlarmSettings(alarmSettings);
         }
+    }
+
+    static List<AlarmSettingVO> uniqueAlarmSettingsByKey(List<AlarmSettingVO> alarmSettings) {
+        if (CollectionUtils.isEmpty(alarmSettings)) {
+            return alarmSettings;
+        }
+        Map<AlarmKeyEnum, AlarmSettingVO> unique = new LinkedHashMap<>();
+        for (AlarmSettingVO setting : alarmSettings) {
+            if (setting == null || setting.getKey() == null) {
+                continue;
+            }
+            unique.put(setting.getKey(), setting);
+        }
+        return new ArrayList<>(unique.values());
     }
 
     private void addIfNotNull(List list, Object element){
