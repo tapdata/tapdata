@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class BatchOffsetUtil {
-    @Deprecated
     protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
     public static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
     private BatchOffsetUtil(){
@@ -82,6 +81,7 @@ public class BatchOffsetUtil {
             offsetMap = new HashMap<>();
         }
         offsetMap.put(BATCH_READ_CONNECTOR_STATUS, isOverTag);
+        offsetMap.put(BATCH_READ_CONNECTOR_OFFSET, offset);
         return offsetMap;
     }
 

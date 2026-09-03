@@ -55,6 +55,36 @@ class BatchOffsetUtilTest {
         Assertions.assertEquals("RUNNING", TableBatchReadStatus.RUNNING.name());
     }
 
+    @Test
+    @DisplayName("full sync running batch saves offset and reads it back, over clears it")
+    void testRunningBatchOffsetSavedAndReadBack() {
+        SyncProgress syncProgress = new SyncProgress();
+        Map<String, Object> batchOffsetObj = new HashMap<>();
+        syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+        // simulating a hash-partition breakpoint produced by the connector in the first batch
+        Object firstBatchOffset = new HashMap<String, Object>() {{
+            put("hash", "abc");
+            put("position", 100);
+        }};
+        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, firstBatchOffset, TableBatchReadStatus.RUNNING.name());
+        assertFalse(BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+        assertEquals(firstBatchOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+
+        // next batch overwrites the saved offset of the unfinished table
+        Object secondBatchOffset = new HashMap<String, Object>() {{
+            put("hash", "abc");
+            put("position", 200);
+        }};
+        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, secondBatchOffset, TableBatchReadStatus.RUNNING.name());
+        assertEquals(secondBatchOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+
+        // table finished: status OVER and offset cleared
+        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name());
+        assertTrue(BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+        assertNull(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+    }
+
     @Nested
     @DisplayName("method batchIsOverOfTable test")
     class BatchIsOverOfTableTest {
