@@ -1583,9 +1583,19 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     getNodeMapping(user, taskDto, kv, predecessor);
                 }
             }
-        } else if (node instanceof TableNode) {
-            kv.put(((TableNode) node).getTableName(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
+                } else if (node instanceof TableNode) {
+            // TAP-12745: align with migrate DatabaseNode -- inspect looks up originalName.
+            List<MetadataInstancesDto> tableMetadatas = findByNodeId(node.getId(), Lists.of(ORIGINAL_NAME, QUALIFIED_NAME), user, taskDto);
+            if (CollectionUtils.isNotEmpty(tableMetadatas)) {
+                for (MetadataInstancesDto metadata : tableMetadatas) {
+                    if (metadata != null && StringUtils.isNotBlank(metadata.getOriginalName())
+                            && StringUtils.isNotBlank(metadata.getQualifiedName())) {
+                        kv.put(metadata.getOriginalName(), metadata.getQualifiedName());
+                    }
+                }
+            }
         } else {
+
 			boolean need2Parse = true;
 			if (node instanceof LogCollectorNode) {
 				LogCollectorNode logCollectorNode = (LogCollectorNode) node;
