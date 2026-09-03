@@ -1604,10 +1604,6 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     }
                 }
             }
-            String tableName = ((TableNode) node).getTableName();
-            if (StringUtils.isNotBlank(tableName) && !kv.containsKey(tableName)) {
-                kv.put(tableName, getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
-            }
         } else {
 			boolean need2Parse = true;
 			if (node instanceof LogCollectorNode) {
