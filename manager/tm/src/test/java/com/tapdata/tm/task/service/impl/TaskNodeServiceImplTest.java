@@ -472,7 +472,7 @@ class TaskNodeServiceImplTest {
 
         @Test
         void testGetNodeInfoByMigrate_WithSearchTableName() {
-            List<String> tableNames = Arrays.asList("user_table", "order_table", "product_table");
+            List<String> tableNames = new ArrayList<>(Arrays.asList("user_table", "order_table", "product_table"));
             when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
             when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
 
@@ -486,6 +486,56 @@ class TaskNodeServiceImplTest {
                 new PageParameter(1, 10), userDetail, result, dag);
 
             Assertions.assertNotNull(actualResult);
+            org.mockito.ArgumentCaptor<List> currentTableCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+            verify(taskNodeService).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), currentTableCaptor.capture(), any(), any(), any(), any(), any(), any());
+            List<?> currentTables = currentTableCaptor.getValue();
+            Assertions.assertEquals(1, currentTables.size());
+            Assertions.assertEquals("user_table", currentTables.get(0));
+            Assertions.assertEquals(1, currentTables.stream().distinct().count());
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_SearchExactTableNameNoDuplicate() {
+            // TAP-12572: searching an existing table name must not return the same table twice
+            List<String> tableNames = new ArrayList<>(Arrays.asList("orders", "users", "products"));
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+            when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            when(taskNodeService.getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(result);
+
+            taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", "users",
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            org.mockito.ArgumentCaptor<List> currentTableCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+            verify(taskNodeService).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), currentTableCaptor.capture(), any(), any(), any(), any(), any(), any());
+            List<?> currentTables = currentTableCaptor.getValue();
+            Assertions.assertEquals(List.of("users"), currentTables);
+            Assertions.assertEquals(1, currentTables.size());
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_SearchNoMatchReturnsEmptyPage() {
+            // TAP-12572 R1 Important: empty search must not hit ListUtils.partition IOOBE
+            List<String> tableNames = new ArrayList<>(Arrays.asList("orders", "users", "products"));
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+            when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            Page<MetadataTransformerItemDto> actualResult = Assertions.assertDoesNotThrow(() ->
+                taskNodeService.getNodeInfoByMigrate(
+                    "taskId", "nodeId", "zzz_not_exist",
+                    new PageParameter(1, 10), userDetail, result, dag));
+
+            Assertions.assertSame(result, actualResult);
+            Assertions.assertTrue(actualResult.getItems() == null || actualResult.getItems().isEmpty());
+            verify(taskNodeService, never()).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
