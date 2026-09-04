@@ -520,6 +520,25 @@ class TaskNodeServiceImplTest {
         }
 
         @Test
+        void testGetNodeInfoByMigrate_SearchNoMatchReturnsEmptyPage() {
+            // TAP-12572 R1 Important: empty search must not hit ListUtils.partition IOOBE
+            List<String> tableNames = new ArrayList<>(Arrays.asList("orders", "users", "products"));
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+            when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            Page<MetadataTransformerItemDto> actualResult = Assertions.assertDoesNotThrow(() ->
+                taskNodeService.getNodeInfoByMigrate(
+                    "taskId", "nodeId", "zzz_not_exist",
+                    new PageParameter(1, 10), userDetail, result, dag));
+
+            Assertions.assertSame(result, actualResult);
+            Assertions.assertTrue(actualResult.getItems() == null || actualResult.getItems().isEmpty());
+            verify(taskNodeService, never()).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
         void testGetNodeInfoByMigrate_WithJsNode() {
             List<String> tableNames = Arrays.asList("table1");
             when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
