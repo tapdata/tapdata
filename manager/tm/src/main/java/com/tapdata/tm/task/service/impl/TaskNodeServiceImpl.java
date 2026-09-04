@@ -178,6 +178,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             // duplicates an existing table when the keyword equals a real table name (TAP-12572).
             currentTableList = currentTableList.stream().filter(s -> s.toUpperCase().contains(searchTableName.toUpperCase())).collect(Collectors.toList());
         }
+        // Without TableRename, tableNames is not cleared after an empty search filter; partition would NPE/IOOBE.
+        if (CollectionUtils.isEmpty(currentTableList)) {
+            return result;
+        }
         if (MapUtils.isNotEmpty(reverseConvertTableNameMap)) {
             tableNames.clear();
         }
