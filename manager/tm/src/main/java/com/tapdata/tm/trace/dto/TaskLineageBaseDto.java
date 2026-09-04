@@ -19,7 +19,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class TaskLineageBaseDto extends TableLineageDto {
     /**
-     * <nodeId, <targetTraceFieldName, currentTableFieldName>>
+     * <nodeId, <currentTableFieldName, sourceFieldName>>
      */
     Map<String, Map<String, String>> traceFilterFieldNameMapping;
 
