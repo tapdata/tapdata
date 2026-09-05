@@ -203,3 +203,32 @@ management:
 
 api-server:
   supplement-hour: ${supplement.api.call.hour:16}
+
+workflow:
+  scheduler:
+    scan-ms: 1000
+  observation:
+    scan-ms: 2000
+  run:
+    lease-ms: 30000
+    renew-ms: 10000
+  executor:
+    core: 4
+    max: 8
+    queue: 200
+  wait:
+    poll-ms: 2000
+  webhook:
+    connect-timeout-ms: 3000
+    connection-request-timeout-ms: 3000
+    read-timeout-ms: 10000
+  step:
+    max-output-bytes: 65536
+  context:
+    max-bytes: 524288
+  js:
+    timeout-ms: 10000
+    max-timeout-ms: 25000
+    max-concurrency-per-engine: 2
+  task-operation:
+    ttl-ms: 600000
