@@ -2,6 +2,8 @@ package com.tapdata.tm.config;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.tapdata.tm.config.convert.BigIntegerReadConverter;
+import com.tapdata.tm.config.convert.BigIntegerWriteConverter;
 import com.tapdata.tm.dag.convert.DagDeserializeConvert;
 import com.tapdata.tm.dag.convert.DagSerializeConvert;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
@@ -43,6 +45,8 @@ public class DefaultMongoConfig extends AbstractMongoClientConfiguration {
         List<Object> converters = new ArrayList<>();
         converters.add(new DagSerializeConvert());
         converters.add(new DagDeserializeConvert());
+        converters.add(new BigIntegerWriteConverter());
+        converters.add(new BigIntegerReadConverter());
 
         return new MongoCustomConversions(converters);
     }
