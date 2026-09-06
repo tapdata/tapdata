@@ -2,6 +2,7 @@ package com.tapdata.entity.dataflow.batch;
 
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
@@ -10,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public class BatchOffsetUtil {
     protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
@@ -83,6 +85,51 @@ public class BatchOffsetUtil {
         offsetMap.put(BATCH_READ_CONNECTOR_STATUS, isOverTag);
         offsetMap.put(BATCH_READ_CONNECTOR_OFFSET, offset);
         return offsetMap;
+    }
+
+    public static Object encodeConnectorOffset(Object batchOffsetObj, Function<Object, String> encoder) {
+        if (batchOffsetObj instanceof Map) {
+            Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
+            Map<Object, Object> target = new HashMap<>(source);
+            if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET) || target.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
+                target.put(BATCH_READ_CONNECTOR_OFFSET, encodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), encoder));
+                return target;
+            }
+            source.forEach((key, value) -> target.put(key, encodeConnectorOffset(value, encoder)));
+            return target;
+        }
+        return batchOffsetObj;
+    }
+
+    public static Object decodeConnectorOffset(Object batchOffsetObj, Function<String, Object> decoder) {
+        if (batchOffsetObj instanceof Map) {
+            Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
+            Map<Object, Object> target = new HashMap<>(source);
+            if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET) || target.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
+                target.put(BATCH_READ_CONNECTOR_OFFSET, decodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), decoder));
+                return target;
+            }
+            source.forEach((key, value) -> target.put(key, decodeConnectorOffset(value, decoder)));
+            return target;
+        }
+        return batchOffsetObj;
+    }
+
+    private static Object encodeOffsetIfNeed(Object offset, Function<Object, String> encoder) {
+        if (offset == null) {
+            return null;
+        }
+        if (offset instanceof String && ((String) offset).startsWith(PdkUtil.ENCODE_PREFIX)) {
+            return offset;
+        }
+        return encoder.apply(offset);
+    }
+
+    private static Object decodeOffsetIfNeed(Object offset, Function<String, Object> decoder) {
+        if (offset instanceof String && ((String) offset).startsWith(PdkUtil.ENCODE_PREFIX)) {
+            return decoder.apply((String) offset);
+        }
+        return offset;
     }
 
     protected static void tableUpdateName(SyncProgress syncProgress, String oldName, String newName) {
