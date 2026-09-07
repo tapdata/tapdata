@@ -607,6 +607,8 @@ public class TaskServiceImpl extends TaskService{
             node.setSchema(null);
             node.setOutputSchema(null);
 
+            encryptJsNodeConfigValues(node);
+
             //设置主从合并节点的isarray属性，引擎需要用到
             if (node instanceof MergeTableNode) {
                 List<MergeTableProperties> mergeProperties = ((MergeTableNode) node).getMergeProperties();
@@ -5436,8 +5438,17 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory) {
+        if (taskDto != null && taskDto.getDag() != null && taskDto.getDag().getNodes() != null) {
+            taskDto.getDag().getNodes().forEach(this::encryptJsNodeConfigValues);
+        }
         TaskDto oldTask = checkExistById(taskDto.getId(), user);
         taskUpdateDagService.updateDag(taskDto, oldTask, user, saveHistory);
+    }
+
+    private void encryptJsNodeConfigValues(Node node) {
+        if (node instanceof ScriptProcessNode scriptNode && scriptNode.getScriptParams() != null) {
+            scriptNode.getScriptParams().forEach(JsNodeConfigSecretUtil::encryptIfNeeded);
+        }
     }
 
     public TaskDto findByVersionTime(String id, Long time) {

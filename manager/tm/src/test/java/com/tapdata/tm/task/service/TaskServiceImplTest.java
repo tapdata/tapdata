@@ -780,6 +780,29 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).beforeSave(taskDto, user);
             taskService.beforeSave(taskDto, user);
         }
+
+        @Test
+        @DisplayName("test beforeSave encrypts JS node config values marked as encrypted")
+        void encryptsJsNodeConfigValues() {
+            DAG dag = new DAG();
+            JsProcessorNode node = new JsProcessorNode();
+            node.setScriptParams(Collections.singletonList(
+                    JsNodeConfigParam.builder()
+                            .key("mgm.password")
+                            .type(JsNodeConfigValueType.STRING)
+                            .value("plain-password")
+                            .encrypted(true)
+                            .build()));
+            dag.setNodes(Collections.singletonList(node));
+            when(taskDto.getDag()).thenReturn(dag);
+            doCallRealMethod().when(taskService).beforeSave(taskDto, user);
+
+            taskService.beforeSave(taskDto, user);
+
+            Object storedValue = node.getScriptParams().get(0).getValue();
+            assertNotEquals("plain-password", storedValue);
+            assertEquals("plain-password", com.tapdata.tm.utils.AES256Util.Aes256Decode(String.valueOf(storedValue)));
+        }
     }
     @Nested
     class UpdateByIdTest{
