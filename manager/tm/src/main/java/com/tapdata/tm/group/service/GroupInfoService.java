@@ -1060,11 +1060,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
             // 这条路的 details 本来是空的，保留清单就是它唯一的内容（D7 不许只落日志）。
             List<GroupInfoRecordDetail> details = new ArrayList<>();
-            Map<String, String> keptDatabaseNames = new LinkedHashMap<>();
+            Map<String, String> keptDatabaseAndSchema = new LinkedHashMap<>();
             reportPreservedSecrets(details,
-                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseNames),
+                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseAndSchema),
                     connections);
-            reportKeptDatabaseNames(details, keptDatabaseNames, connections);
+            reportKeptDatabaseAndSchema(details, keptDatabaseAndSchema, connections);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
@@ -1609,7 +1609,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         //   ① restoreMissingSecretsFromExisting —— 受 packageSecretsMasked 管辖（保真包里
         //      空缺就是用户的真实配置），且**不受 vaultSecrets 是否为空影响**，与
         //      importGroupInfo 那条路径的注释同源：最危险的正是「没带 vault」。
-        //   ② restoreDatabaseNameWhenDsnOmitsIt —— 不受包类型管辖（[ADR-0036] D10 第二行）。
+        //   ② restoreDatabaseAndSchemaWhenDsnOmitsThem —— 不受包类型管辖（[ADR-0036] D10 第二行）。
         // 不复用 preserveExistingSecrets 本体：它按连接逐条 findById，而这里 existingById
         // 已经批量load好了，再查一遍就是把刚去掉的 N+1 又加回来。
         boolean restoreMissingOnDiff = packageSecretsMasked(payloads);
@@ -1625,7 +1625,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 if (restoreMissingOnDiff) {
                     ResourceHandler.restoreMissingSecretsFromExisting(fileConn, existingConn, def);
                 }
-                ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(fileConn, existingConn, def, vaultSecrets);
+                ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(fileConn, existingConn, def, vaultSecrets);
             } catch (Exception e) {
                 // 与上面的注入循环同样的姿势：预览不该因为一条连接算不出来就整份失败
                 log.warn("Preserve-on-diff failed for connection '{}', showing the raw package value: {}",
@@ -2726,11 +2726,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）；
             // 保留清单挂到 details 里已有的连接行上，随下一次 updateImportProgress 落库（D7）
-            Map<String, String> keptDatabaseNames = new LinkedHashMap<>();
+            Map<String, String> keptDatabaseAndSchema = new LinkedHashMap<>();
             reportPreservedSecrets(details,
-                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseNames),
+                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseAndSchema),
                     connections);
-            reportKeptDatabaseNames(details, keptDatabaseNames, connections);
+            reportKeptDatabaseAndSchema(details, keptDatabaseAndSchema, connections);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2977,11 +2977,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /**
      * @param vaultSecrets      格式 3 的库名保留要重新判定「DSN 有没有写库名」，得看得见 vault
-     * @param keptDatabaseNames 出参：连接 id → 被保留下来的库名，交给 {@link #reportKeptDatabaseNames}
+     * @param keptDatabaseAndSchema 出参：连接 id → 被保留下来的字段描述（库名 / schema / 两者），
+     *                          交给 {@link #reportKeptDatabaseAndSchema}
      */
     Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
             Map<String, DataSourceConnectionDto> connections, UserDetail user,
-            Map<String, String> vaultSecrets, Map<String, String> keptDatabaseNames) {
+            Map<String, String> vaultSecrets, Map<String, String> keptDatabaseAndSchema) {
         Map<String, List<String>> preserved = new LinkedHashMap<>();
         if (connections == null || connections.isEmpty()) {
             return preserved;
@@ -2999,8 +3000,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 continue;   // 新连接，目标环境没有可保留的既有值
             }
             // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处。
-            // database_name 额外带上：它不是镜像密钥字段，但格式 3 的库名保留要读目标那份。
-            String[] projection = Stream.concat(Stream.of("config", "database_name"),
+            // database_name / database_owner 额外带上：它们不是镜像密钥字段，但格式 3 的库名与
+            // schema 保留要读目标那份。⚠ 漏掉任一个，对应的保留会静默失效——顶层取到 null，
+            // 而 config 那份在 schema BFS 落空时也没有落点，两头都空却不报错。
+            String[] projection = Stream.concat(Stream.of("config", "database_name", "database_owner"),
                     ResourceHandler.MIRRORED_SECRET_FIELDS.stream()).toArray(String[]::new);
             DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), projection);
             if (existing == null) {
@@ -3009,10 +3012,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             DataSourceDefinitionDto definition =
                     dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
 
-            String keptDb = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+            String kept = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                     conn, existing, definition, vaultSecrets);
-            if (keptDb != null && keptDatabaseNames != null) {
-                keptDatabaseNames.put(conn.getId().toHexString(), keptDb);
+            if (kept != null && keptDatabaseAndSchema != null) {
+                keptDatabaseAndSchema.put(conn.getId().toHexString(), kept);
             }
 
             List<String> paths = restoreMissing
@@ -3089,11 +3092,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
-    /** 库名保留的报告文案——**刻意不复用** {@link #preservedSecretsMessage}：那句说的是
-     * 「包里缺了敏感字段」，而库名既不敏感也不缺，包里带着的是源环境那个值。用错句子比不报更坏。 */
-    static String keptDatabaseNameMessage(String databaseName) {
-        return "The DSN carried no database name, so the target environment's existing database name '"
-                + databaseName + "' was kept instead of the one shipped in the package.";
+    /** 库名 / schema 保留的报告文案——**刻意不复用** {@link #preservedSecretsMessage}：那句说的是
+     * 「包里缺了敏感字段」，而库名和 schema 既不敏感也不缺，包里带着的是源环境那个值。用错句子比不报更坏。
+     *
+     * <p>{@code kept} 是调用方拼好的描述（{@code database name 'orders'}、{@code schema 'app'}，
+     * 或两者逗号相连），句子本身对两种字段都要成立——所以主语不写死成「database name」。 */
+    static String keptDatabaseOrSchemaMessage(String kept) {
+        return "Kept the target environment's existing " + kept
+                + ", because the DSN did not carry that value; the one shipped in the package was not used.";
     }
 
     /**
@@ -3103,7 +3109,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * 分成两个方法而不是合并，是因为两者的**原因**不同——一个是脱敏留下的洞，一个是
      * DSN 没写库名——合并就只能给出一句对其中一半不成立的话。
      */
-    void reportKeptDatabaseNames(List<GroupInfoRecordDetail> details,
+    void reportKeptDatabaseAndSchema(List<GroupInfoRecordDetail> details,
             Map<String, String> keptByConnectionId,
             Map<String, DataSourceConnectionDto> connections) {
         if (details == null || MapUtils.isEmpty(keptByConnectionId)) {
@@ -3122,7 +3128,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 if (StringUtils.isBlank(kept)) {
                     continue;
                 }
-                String message = keptDatabaseNameMessage(kept);
+                String message = keptDatabaseOrSchemaMessage(kept);
                 row.setMessage(StringUtils.isBlank(row.getMessage()) ? message : row.getMessage() + " | " + message);
                 attached.add(row.getResourceId());
             }
@@ -3137,12 +3143,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             row.setResourceId(entry.getKey());
             row.setResourceName(resolveConnectionName(connections, entry.getKey()));
             row.setAction(GroupInfoRecordDetail.RecordAction.IMPORTED);
-            row.setMessage(keptDatabaseNameMessage(entry.getValue()));
+            row.setMessage(keptDatabaseOrSchemaMessage(entry.getValue()));
             added.add(row);
         }
         if (!added.isEmpty()) {
             GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
-            detail.setMessage("Some connections kept the target environment's database name");
+            detail.setMessage("Some connections kept the target environment's database name or schema");
             detail.getRecordDetails().addAll(added);
             details.add(detail);
         }

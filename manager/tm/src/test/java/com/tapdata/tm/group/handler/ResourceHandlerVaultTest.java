@@ -296,6 +296,63 @@ public class ResourceHandlerVaultTest {
             return defWith(m);
         }
 
+        /** PG 侧 schema：jdbcDef 再加一条 schema -> database_owner，与 spec_postgres.json 一致。 */
+        private DataSourceDefinitionDto pgDef() {
+            LinkedHashMap<String, String> m = new LinkedHashMap<>();
+            m.put("host", "database_host");
+            m.put("port", "database_port");
+            m.put("user", "database_username");
+            m.put("password", "database_password");
+            m.put("database", "database_name");
+            m.put("schema", "database_owner");
+            return defWith(m);
+        }
+
+        @Test
+        @DisplayName("PG：DSN 的 host:port/db/schema 切成两段，config 与顶层 database_owner 一起写")
+        void pg_dsnPathSplitsIntoDatabaseAndSchema() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("database", "olddb");
+            conn.getConfig().put("schema", "oldschema");
+            conn.setDatabase_name("olddb");
+            conn.setDatabase_owner("oldschema");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "tapuser@pg.prod:5432/orders/app");
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, pgDef());
+
+            assertEquals("orders", conn.getConfig().get("database"),
+                    "首段是库名——旧代码会把整串 'orders/app' 当库名");
+            assertEquals("app", conn.getConfig().get("schema"), "第二段是 schema");
+            assertEquals("orders", conn.getDatabase_name());
+            assertEquals("app", conn.getDatabase_owner(),
+                    "顶层镜像同写——generateQualifiedName 把 database_owner 拼进限定名");
+            assertEquals("pg.prod", conn.getConfig().get("host"), "多切一刀不许影响 host/port");
+            assertEquals(5432, conn.getConfig().get("port"));
+        }
+
+        @Test
+        @DisplayName("MySQL：DSN 多写了一段 ⇒ 库名仍解析正确，schema 无处可去被丢弃")
+        void mysql_extraPathSegmentIgnoredButDatabaseStillCorrect() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MYSQL");
+            conn.getConfig().put("database", "olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MYSQL_DSN", "tapuser@mysql.prod:3306/orders/oops");   // 写错了
+            vault.put("ORDERS_MYSQL_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertEquals("orders", conn.getConfig().get("database"),
+                    "写错也得按有 schema 切——旧代码在这里得到 'orders/oops'，一个不存在的库");
+            assertNull(conn.getConfig().get("schema"),
+                    "MySQL 的 definition 没有 database_owner ⇒ config 里不许冒出 schema 键");
+            assertNull(conn.getDatabase_owner(),
+                    "顶层同理：写上去 generateQualifiedName 会给 MySQL 的元数据平添一段 owner");
+        }
+
         @Test
         @DisplayName("T7-8a JDBC(L1) 裸写形态：解析出 (user, localhost, 3306, test)，库名没被当用户名")
         void t7_8a_bareFormNormalizes() {
@@ -502,6 +559,38 @@ public class ResourceHandlerVaultTest {
             assertEquals("olddb", conn.getConfig().get("database"),
                     "inject 不该往 database 写值；这里的 olddb 是包里那份，不是目标环境的");
             assertWarnContains("database name");
+        }
+
+        @Test
+        @DisplayName("MySQL 的 DSN 多写一段 schema：响亮地丢弃，告警逐字点名被忽略的那一段")
+        void extraSchemaSegmentOnSchemalessConnector_warnsByName() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MYSQL");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MYSQL_DSN", "tapuser@mysql.prod:3306/orders/oops");
+            vault.put("ORDERS_MYSQL_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            // 静默忽略会让人以为 schema 生效了，然后在目标环境查半天为什么没变。
+            assertWarnContains("oops");
+        }
+
+        @Test
+        @DisplayName("PG 的 DSN 漏写 schema：inject 只预告，措辞对「保留目标」与「用包里的」都成立")
+        void pgDsnMissingSchema_warnsWithoutClaimingTheOutcome() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("schema", "oldschema");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "tapuser@pg.prod:5432/orders");
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, pgDef());
+
+            assertEquals("oldschema", conn.getConfig().get("schema"),
+                    "inject 看不见目标环境，不该往 schema 写值；真正的保留在 restore 那一步");
+            assertWarnContains("no schema");
         }
 
         @Test

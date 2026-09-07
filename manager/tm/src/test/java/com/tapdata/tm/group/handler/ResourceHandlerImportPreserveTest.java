@@ -152,14 +152,15 @@ public class ResourceHandlerImportPreserveTest {
         vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432");   // 漏了 /prod_orders
         vault.put("ORDERS_PG_PASSWORD", "pw");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, existing, definitionWithDatabaseName(), vault);
 
         assertEquals("prod_orders", incoming.getConfig().get("database"),
                 "DSN 没写库名时，落地的必须是目标既有库名，而不是包里那个源环境的");
         assertEquals("prod_orders", incoming.getDatabase_name(),
                 "顶层镜像要一起改——MetaDataBuilderUtils 建限定名读的是顶层，只改 config 会得到半改状态");
-        assertEquals("prod_orders", preserved, "保留了什么必须报出来（[ADR-0034] D7 绝不静默）");
+        assertEquals("database name 'prod_orders'", preserved,
+                "保留了什么必须报出来（[ADR-0034] D7 绝不静默）");
     }
 
     @Test
@@ -175,7 +176,7 @@ public class ResourceHandlerImportPreserveTest {
         Map<String, String> vault = new LinkedHashMap<>();
         vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432/newdb");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, existing, definitionWithDatabaseName(), vault);
 
         assertEquals("newdb", incoming.getConfig().get("database"),
@@ -195,7 +196,7 @@ public class ResourceHandlerImportPreserveTest {
         vault.put("ORDERS_PG_URL", "pg.prod.internal:5432");   // 格式 2
         vault.put("ORDERS_PG_PASSWORD", "pw");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, existing, definitionWithDatabaseName(), vault);
 
         assertEquals("sit_orders", incoming.getConfig().get("database"),
@@ -217,14 +218,14 @@ public class ResourceHandlerImportPreserveTest {
         vault.put("ORDERS_MONGO_DSN", "mongodb://tapuser:@h1:27017,h2:27017/?replicaSet=rs0");
         vault.put("ORDERS_MONGO_PASSWORD", "pw");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, existing, definitionWithUri(), vault);
 
         String uri = (String) incoming.getConfig().get("uri");
         assertEquals("mongodb://tapuser:pw@h1:27017,h2:27017/prod_orders?replicaSet=rs0", uri,
                 "库名要拼进 path 段，且种子列表与 ?replicaSet= 必须原样保真");
         assertEquals(uri, incoming.getDatabase_uri(), "顶层镜像与 config 必须一致");
-        assertEquals("prod_orders", preserved);
+        assertEquals("database name 'prod_orders'", preserved);
     }
 
     @Test
@@ -239,7 +240,7 @@ public class ResourceHandlerImportPreserveTest {
         Map<String, String> vault = new LinkedHashMap<>();
         vault.put("ORDERS_MONGO_DSN", "mongodb://tapuser:@h1:27017/newdb");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, existing, definitionWithUri(), vault);
 
         assertEquals("mongodb://tapuser:pw@h1:27017/newdb", incoming.getConfig().get("uri"));
@@ -256,12 +257,122 @@ public class ResourceHandlerImportPreserveTest {
         Map<String, String> vault = new LinkedHashMap<>();
         vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, existing, definitionWithDatabaseName(), vault);
 
         assertEquals("sit_orders", incoming.getConfig().get("database"),
                 "目标没有可保留的值时，绝不能反过来把包里那个抹空");
         assertNull(preserved);
+    }
+
+    /** PG 型 definition：库名 database_name，schema database_owner（与 spec_postgres.json 一致）。 */
+    private DataSourceDefinitionDto definitionWithDatabaseAndSchema() {
+        Map<String, Object> dbMeta = new LinkedHashMap<>();
+        dbMeta.put("apiServerKey", "database_name");
+        Map<String, Object> schemaMeta = new LinkedHashMap<>();
+        schemaMeta.put("apiServerKey", "database_owner");
+        Map<String, Object> connProps = new LinkedHashMap<>();
+        connProps.put("database", dbMeta);
+        connProps.put("schema", schemaMeta);
+        Map<String, Object> connection = new LinkedHashMap<>();
+        connection.put("properties", connProps);
+        LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+        properties.put("connection", connection);
+
+        DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+        definition.setProperties(properties);
+        return definition;
+    }
+
+    @Test
+    @DisplayName("PG：DSN 写了库名但漏了 schema ⇒ 库名归 DSN，schema 保留目标既有")
+    void pg_dsnCarriesDatabaseButOmitsSchema_schemaPreserved() {
+        // 这条是本次改动的主场景，也是「库名有值就 early-return」的旧写法会漏掉的那一格。
+        DataSourceConnectionDto incoming = named("ORDERS_PG", new LinkedHashMap<>(Map.of(
+                "database", "sit_orders", "schema", "sit_app")));
+        incoming.setDatabase_name("sit_orders");
+        incoming.setDatabase_owner("sit_app");
+        DataSourceConnectionDto existing = named("ORDERS_PG", new LinkedHashMap<>(Map.of(
+                "database", "prod_orders", "schema", "prod_app")));
+        existing.setDatabase_name("prod_orders");
+        existing.setDatabase_owner("prod_app");
+
+        Map<String, String> vault = new LinkedHashMap<>();
+        vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432/newdb");   // 有库、无 schema
+
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
+                incoming, existing, definitionWithDatabaseAndSchema(), vault);
+
+        assertEquals("sit_orders", incoming.getConfig().get("database"),
+                "库名写在 DSN 里 ⇒ 保护不许碰它（真正的覆盖发生在 inject，那步已经写成 newdb）");
+        assertEquals("prod_app", incoming.getConfig().get("schema"),
+                "schema 没写在 DSN 里 ⇒ 必须是目标既有的 prod_app，而不是包里那个源环境的 sit_app");
+        assertEquals("prod_app", incoming.getDatabase_owner(),
+                "顶层镜像要一起改——generateQualifiedName 把 database_owner 拼进限定名");
+        assertEquals("schema 'prod_app'", preserved, "只保留了 schema，报告就只该说 schema");
+    }
+
+    @Test
+    @DisplayName("PG：库名与 schema 都漏写 ⇒ 两段都保留，报告两段都点名")
+    void pg_dsnOmitsBoth_bothPreservedAndReported() {
+        DataSourceConnectionDto incoming = named("ORDERS_PG", new LinkedHashMap<>(Map.of(
+                "database", "sit_orders", "schema", "sit_app")));
+        DataSourceConnectionDto existing = named("ORDERS_PG", new LinkedHashMap<>(Map.of(
+                "database", "prod_orders", "schema", "prod_app")));
+
+        Map<String, String> vault = new LinkedHashMap<>();
+        vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432");
+
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
+                incoming, existing, definitionWithDatabaseAndSchema(), vault);
+
+        assertEquals("prod_orders", incoming.getConfig().get("database"));
+        assertEquals("prod_app", incoming.getConfig().get("schema"));
+        assertEquals("database name 'prod_orders', schema 'prod_app'", preserved,
+                "两段都保留了就都要报——报一半等于告诉人另一半是包里的值");
+    }
+
+    @Test
+    @DisplayName("PG：DSN 写全 db/schema ⇒ 两段都归 DSN，什么都不保留")
+    void pg_dsnCarriesBoth_dsnWins() {
+        DataSourceConnectionDto incoming = named("ORDERS_PG", new LinkedHashMap<>(Map.of(
+                "database", "newdb", "schema", "newschema")));
+        DataSourceConnectionDto existing = named("ORDERS_PG", new LinkedHashMap<>(Map.of(
+                "database", "prod_orders", "schema", "prod_app")));
+
+        Map<String, String> vault = new LinkedHashMap<>();
+        vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432/newdb/newschema");
+
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
+                incoming, existing, definitionWithDatabaseAndSchema(), vault);
+
+        assertEquals("newdb", incoming.getConfig().get("database"));
+        assertEquals("newschema", incoming.getConfig().get("schema"),
+                "「schema 可逐环境不同」与库名同权——保护绝不能把它顶回目标既有值");
+        assertNull(preserved);
+    }
+
+    @Test
+    @DisplayName("MySQL：definition 里没有 schema ⇒ 只保留库名，绝不给它平添一个 schema")
+    void mysql_definitionWithoutSchema_onlyDatabasePreserved() {
+        DataSourceConnectionDto incoming = named("ORDERS_MYSQL",
+                new LinkedHashMap<>(Map.of("database", "sit_orders")));
+        DataSourceConnectionDto existing = named("ORDERS_MYSQL",
+                new LinkedHashMap<>(Map.of("database", "prod_orders")));
+        existing.setDatabase_owner("leaked_from_somewhere");   // 目标上就算有值也不该被抄过来
+
+        Map<String, String> vault = new LinkedHashMap<>();
+        vault.put("ORDERS_MYSQL_DSN", "tapuser@mysql.prod.internal:3306");
+
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
+                incoming, existing, definitionWithDatabaseName(), vault);
+
+        assertEquals("prod_orders", incoming.getConfig().get("database"));
+        assertNull(incoming.getConfig().get("schema"),
+                "MySQL 的 definition 没有 database_owner ⇒ config 里不许冒出 schema 键");
+        assertNull(incoming.getDatabase_owner(),
+                "顶层同理——写上去会被 generateQualifiedName 拼进限定名，凭空多一段 owner");
+        assertEquals("database name 'prod_orders'", preserved);
     }
 
     @Test
@@ -273,7 +384,7 @@ public class ResourceHandlerImportPreserveTest {
         Map<String, String> vault = new LinkedHashMap<>();
         vault.put("ORDERS_PG_DSN", "tapuser@pg.prod.internal:5432");
 
-        String preserved = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+        String preserved = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
                 incoming, null, definitionWithDatabaseName(), vault);
 
         assertEquals("sit_orders", incoming.getConfig().get("database"));

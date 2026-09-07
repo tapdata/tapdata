@@ -63,7 +63,12 @@ public interface ResourceHandler {
             // 格式 3 新增：库名不是 vault 里的独立键，而是从 DSN 解析出来的成分，
             // 但它要走同一套 apiServerKey -> configPath 查表，故占一个伪 suffix。
             // ⚠ 它**不进** SENSITIVE_API_KEYS——库名不是凭据，导出不脱敏（[ADR-0036]）。
-            "database", "database_name"
+            "database", "database_name",
+            // 同上，schema 也是 DSN 解析出来的成分而非 vault 独立键。apiServerKey 取
+            // database_owner —— PG/ADB-PG/RDS-PG 的 spec 里 schema 属性写的就是它，
+            // 而 MySQL 的 spec 根本没有这个属性 ⇒ 「MySQL 不写 schema」由 definition
+            // 自己判定，代码里不维护连接器名单。它同样**不进** SENSITIVE_API_KEYS。
+            "schema",   "database_owner"
     );
 
     /**
@@ -539,7 +544,10 @@ public interface ResourceHandler {
      * <ol>
      *   <li><b>dsn</b>（格式 3）：{@code {conn}_DSN}（Variables）+ {@code {conn}_PASSWORD}（Secrets）。
      *       schema 含 {@code database_uri}（MongoDB）→ 密码 splice 回 userinfo 后**整串直写**；
-     *       否则（JDBC）→ 归一化后拆成 host/port/username/<b>database_name</b>。
+     *       否则（JDBC）→ 归一化后拆成 host/port/username/<b>database_name</b>，path 第二段
+     *       是 <b>database_owner</b>（schema），写作 {@code host:port/database/schema}——只对
+     *       definition 里真有 database_owner 的连接器（PG 系）生效，MySQL 那种没有该属性的
+     *       会响亮地忽略多出来的那一段。
      *       <b>只认精确连接名</b>，不回落（回落＝连错库＝数据事故，[ADR-0036] D4）。</li>
      *   <li><b>uri</b>（格式 1）：{@code {conn}_URI}。schema 含 {@code database_uri} → 整串直写；
      *       否则按 {@code host:port/username} 解析。<b>此路径从不注入 password。</b></li>
@@ -654,7 +662,7 @@ public interface ResourceHandler {
                             + " Format 3 does not read {}_USER.", connectionName, connectionName);
                 }
                 if (parts.get("database") == null) {
-                    // ⚠ 这条只是预告，**真正的保留发生在 restoreDatabaseNameWhenDsnOmitsIt**——
+                    // ⚠ 这条只是预告，**真正的保留发生在 restoreDatabaseAndSchemaWhenDsnOmitsThem**——
                     // 此处看不见目标环境那条连接，所以说不出最终用的是哪个库名（目标已有该连接
                     // ⇒ 保留它的；首次部署 ⇒ 只能用包里的）。措辞对两种结局都要成立，具体结果
                     // 由那一步逐字打出来。database_name 不在 SENSITIVE_API_KEYS 里，所以它走的
@@ -665,10 +673,31 @@ public interface ResourceHandler {
                             + " Put the database name in the DSN to make it environment-specific.",
                             connectionName);
                 }
+                // 这个连接器到底有没有 schema，只问 definition，不问连接器名字。
+                boolean hasSchema = apiKeyToConfigPath.containsKey("database_owner");
+                if (parts.get("schema") != null && !hasSchema) {
+                    // 「给 MySQL 的 DSN 写错了」就落在这里：库名已经被正确切成首段，多出来的
+                    // 那段无处可去。响亮地丢掉——静默忽略会让人以为 schema 生效了。
+                    log.warn("Vault inject: connection='{}', the DSN carries a schema segment '{}' but this"
+                            + " connector has no schema property; it is ignored. Only the first path segment"
+                            + " (the database name) is used. Drop the extra segment from the DSN.",
+                            connectionName, parts.get("schema"));
+                }
+                if (hasSchema && parts.get("schema") == null) {
+                    // 与库名那条同源的预告：此处看不见目标环境，说不出最终用哪个 schema。
+                    log.warn("Vault inject: connection='{}', the DSN carries no schema; the target"
+                            + " environment's existing schema will be kept if that connection already"
+                            + " exists there, otherwise the schema shipped in the package is used."
+                            + " Write it as host:port/database/schema to make it environment-specific.",
+                            connectionName);
+                }
                 injectParsedField(finalConfig, connectionName, "host", parts.get("host"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "port", parts.get("port"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "user", parts.get("user"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "database", parts.get("database"), apiKeyToConfigPath);
+                if (hasSchema) {
+                    injectParsedField(finalConfig, connectionName, "schema", parts.get("schema"), apiKeyToConfigPath);
+                }
                 if (pwValue != null) {
                     injectParsedField(finalConfig, connectionName, "password", pwValue, apiKeyToConfigPath);
                 }
@@ -679,6 +708,10 @@ public interface ResourceHandler {
                 if (parts.get("port") != null)     conn.setDatabase_port((Integer) parts.get("port"));
                 if (parts.get("user") != null)     conn.setDatabase_username((String) parts.get("user"));
                 if (parts.get("database") != null) conn.setDatabase_name((String) parts.get("database"));
+                // 顶层 database_owner 同样只在连接器真有 schema 时写：MetaDataBuilderUtils
+                // .generateQualifiedName 会把它拼进限定名，给 MySQL 写上就是凭空给元数据加了
+                // 一段不存在的 owner。所以镜像与 config 注入共用 hasSchema 这一个闸。
+                if (hasSchema && parts.get("schema") != null) conn.setDatabase_owner((String) parts.get("schema"));
             }
             return;
         }
@@ -985,9 +1018,20 @@ public interface ResourceHandler {
 
         int slashIdx = rest.indexOf('/');
         if (slashIdx >= 0) {
-            String database = rest.substring(slashIdx + 1);
-            if (StringUtils.isNotBlank(database)) result.put("database", database);
+            String path = rest.substring(slashIdx + 1);
             rest = rest.substring(0, slashIdx);
+            // path 首段是库名，第二段是 schema（`h:5432/orders/public`）。
+            // ⚠ 这里**刻意不认数据库类型**：MySQL 只有库名，但把 `h:3306/orders/oops` 也按
+            // 有 schema 切，是为了让库名仍然解析成 `orders` —— 旧代码把整串当库名，得到的
+            // `orders/oops` 是个不存在的库，错得更深。schema 能不能落地由 definition 决定
+            // （见 VAULT_SUFFIX_TO_API_KEY 的 database_owner 一条），不在解析这层判型。
+            // 第三段及以后连同分隔符留在 schema 里（`db/a/b` ⇒ schema=`a/b`）：宁可让它在
+            // 连接测试时炸出来，也不静默截断——DSN 写成什么样不该由解析器替人猜。
+            int schemaIdx = path.indexOf('/');
+            String database = schemaIdx < 0 ? path : path.substring(0, schemaIdx);
+            String schema   = schemaIdx < 0 ? null : path.substring(schemaIdx + 1);
+            if (StringUtils.isNotBlank(database)) result.put("database", database);
+            if (StringUtils.isNotBlank(schema))   result.put("schema", schema);
         }
 
         int colonIdx = rest.lastIndexOf(':');
@@ -1148,7 +1192,7 @@ public interface ResourceHandler {
      *
      * @return 被保留下来的库名；没做任何事时返回 null（交给导入报告，D7 不许静默）
      */
-    static String restoreDatabaseNameWhenDsnOmitsIt(DataSourceConnectionDto incoming,
+    static String restoreDatabaseAndSchemaWhenDsnOmitsThem(DataSourceConnectionDto incoming,
             DataSourceConnectionDto existing, DataSourceDefinitionDto definition,
             Map<String, String> vaultSecrets) {
         if (incoming == null || existing == null || MapUtils.isEmpty(vaultSecrets)) {
@@ -1196,32 +1240,55 @@ public interface ResourceHandler {
             log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
                     + " environment's existing database name '{}'. Put the database name in the DSN if"
                     + " this environment should use a different one.", connectionName, existingDb);
-            return existingDb;
+            return "database name '" + existingDb + "'";   // MongoDB 没有 schema，到此为止
         }
 
-        // JDBC：库名是独立字段 database_name。
+        // JDBC：库名是独立字段 database_name，schema 是 database_owner。
+        // ⚠ 库名这一段**不能再 early-return**：DSN 写了库名但漏了 schema 是常态
+        // （`h:5432/orders`），那时库名归 DSN、schema 仍要保留目标环境的。两段各判各的。
         Map<String, Object> parts = parseDsnComponents(dsnValue);
-        if (parts.get("database") != null) {
-            return null;    // DSN 赢——「库名可逐环境不同」是本期的核心能力
+        List<String> kept = new ArrayList<>();
+
+        if (parts.get("database") == null) {    // 有库名 ⇒ DSN 赢，「库名可逐环境不同」是本期核心能力
+            String configPath = apiKeyToConfigPath.get("database_name");
+            Object existingValue = (configPath == null || existingConfig == null)
+                    ? null : getNestedValue(existingConfig, configPath);
+            String existingDb = existingValue instanceof String
+                    ? (String) existingValue : existing.getDatabase_name();
+            if (StringUtils.isNotBlank(existingDb)) {
+                if (configPath != null) {
+                    setNestedValue(incomingConfig, configPath, existingDb);
+                }
+                // 顶层镜像与 config 一起改（[ADR-0036] D9）：MetaDataBuilderUtils.generateQualifiedName
+                // 读的是顶层，只改 config 会得到「连接连对库、元数据挂错库名」的半改状态。
+                incoming.setDatabase_name(existingDb);
+                log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
+                        + " environment's existing database name '{}'. Put the database name in the DSN if"
+                        + " this environment should use a different one.", connectionName, existingDb);
+                kept.add("database name '" + existingDb + "'");
+            }
         }
-        String configPath = apiKeyToConfigPath.get("database_name");
-        Object existingValue = (configPath == null || existingConfig == null)
-                ? null : getNestedValue(existingConfig, configPath);
-        String existingDb = existingValue instanceof String
-                ? (String) existingValue : existing.getDatabase_name();
-        if (StringUtils.isBlank(existingDb)) {
-            return null;
+
+        // schema 与库名同形，同一个理由：GROUP_IMPORT 是整文档覆盖，而 database_owner 不在
+        // SENSITIVE_API_KEYS 里 ⇒ 导出不脱敏 ⇒ 包里带着**源环境**的 schema。不保留的话，
+        // 「部署报绿、连接指着上一个环境」这条老病就会原样在 schema 上重演一遍。
+        // containsKey 是那道类型闸：MySQL 的 definition 没有 database_owner，整段跳过。
+        if (apiKeyToConfigPath.containsKey("database_owner") && parts.get("schema") == null) {
+            String schemaPath = apiKeyToConfigPath.get("database_owner");
+            Object existingValue = existingConfig == null ? null : getNestedValue(existingConfig, schemaPath);
+            String existingSchema = existingValue instanceof String
+                    ? (String) existingValue : existing.getDatabase_owner();
+            if (StringUtils.isNotBlank(existingSchema)) {
+                setNestedValue(incomingConfig, schemaPath, existingSchema);
+                incoming.setDatabase_owner(existingSchema);     // 顶层镜像，同上
+                log.warn("Vault inject: connection='{}', the DSN carries no schema; kept the target"
+                        + " environment's existing schema '{}'. Write the DSN as host:port/database/schema"
+                        + " if this environment should use a different one.", connectionName, existingSchema);
+                kept.add("schema '" + existingSchema + "'");
+            }
         }
-        if (configPath != null) {
-            setNestedValue(incomingConfig, configPath, existingDb);
-        }
-        // 顶层镜像与 config 一起改（[ADR-0036] D9）：MetaDataBuilderUtils.generateQualifiedName
-        // 读的是顶层，只改 config 会得到「连接连对库、元数据挂错库名」的半改状态。
-        incoming.setDatabase_name(existingDb);
-        log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
-                + " environment's existing database name '{}'. Put the database name in the DSN if"
-                + " this environment should use a different one.", connectionName, existingDb);
-        return existingDb;
+
+        return kept.isEmpty() ? null : String.join(", ", kept);
     }
 
     static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
