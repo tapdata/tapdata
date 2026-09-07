@@ -64,6 +64,13 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
     @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */
     protected Integer jsType;
 
+    @EqField
+    protected List<JsNodeConfigParam> scriptParams = new ArrayList<>();
+
+    public void setScriptParams(List<JsNodeConfigParam> scriptParams) {
+        this.scriptParams = scriptParams == null ? new ArrayList<>() : scriptParams;
+    }
+
     /**
      * 创建处理器节点
      *

@@ -48,6 +48,13 @@ public class ScriptProcessNode extends ProcessorNode {
     @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */
     protected Integer jsType;
 
+    @EqField
+    protected List<JsNodeConfigParam> scriptParams = new ArrayList<>();
+
+    public void setScriptParams(List<JsNodeConfigParam> scriptParams) {
+        this.scriptParams = scriptParams == null ? new ArrayList<>() : scriptParams;
+    }
+
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
         return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
     }
