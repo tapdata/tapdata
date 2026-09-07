@@ -89,4 +89,19 @@ class JsNodeConfigParamTest {
         assertTrue(JsNodeConfigValidator.validate(Collections.singletonList(param)).stream()
                 .anyMatch(e -> "VALUE_TOO_LARGE".equals(e.getCode())));
     }
+
+    @Test
+    void scriptNodesRejectInvalidParametersDuringNodeValidation() {
+        JsProcessorNode node = new JsProcessorNode();
+        node.setScriptParams(Collections.singletonList(
+                JsNodeConfigParam.builder().key("mgm.port").type(JsNodeConfigValueType.NUMBER)
+                        .value("21").build()));
+        assertFalse(node.validate());
+
+        MigrateJsProcessorNode migrateNode = new MigrateJsProcessorNode();
+        migrateNode.setScriptParams(Collections.singletonList(
+                JsNodeConfigParam.builder().key("mgm.port").type(JsNodeConfigValueType.NUMBER)
+                        .value(21).build()));
+        assertTrue(migrateNode.validate());
+    }
 }

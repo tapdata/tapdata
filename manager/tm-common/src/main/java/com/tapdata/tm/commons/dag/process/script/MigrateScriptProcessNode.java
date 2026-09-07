@@ -71,6 +71,11 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
         this.scriptParams = scriptParams == null ? new ArrayList<>() : scriptParams;
     }
 
+    @Override
+    public boolean validate() {
+        return JsNodeConfigValidator.validate(scriptParams).isEmpty();
+    }
+
     /**
      * 创建处理器节点
      *

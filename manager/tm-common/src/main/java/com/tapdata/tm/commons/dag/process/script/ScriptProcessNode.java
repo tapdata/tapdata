@@ -55,6 +55,11 @@ public class ScriptProcessNode extends ProcessorNode {
         this.scriptParams = scriptParams == null ? new ArrayList<>() : scriptParams;
     }
 
+    @Override
+    public boolean validate() {
+        return JsNodeConfigValidator.validate(scriptParams).isEmpty();
+    }
+
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
         return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
     }
