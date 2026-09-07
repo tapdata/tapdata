@@ -12,11 +12,9 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.*;
 
 @Component("migrateUnionNodeStrategy")
@@ -47,23 +45,11 @@ public class MigrateUnionNodeStrategyImpl implements DagLogStrategy {
                             .stream().filter(n -> n.getSyncSourcePartitionTableEnable() != null && n.getSyncSourcePartitionTableEnable())
                             .findFirst().isPresent();
                     if (enablePartitionTable) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageUtil.getDagCheckMsg(locale, "MIGRATE_UNION_NOT_SUPPORT_PARTITION_TABLE"))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "MIGRATE_UNION_NOT_SUPPORT_PARTITION_TABLE"));
                     }
 
                     if (CollectionUtils.isEmpty(result)) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageUtil.getDagCheckMsg(locale, "MIGRATE_UNION_PASS", name))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "MIGRATE_UNION_PASS", name));
                     }
                 });
         return result;

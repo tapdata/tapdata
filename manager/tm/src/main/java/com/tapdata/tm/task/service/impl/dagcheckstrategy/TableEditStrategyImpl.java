@@ -11,12 +11,10 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -49,18 +47,9 @@ public class TableEditStrategyImpl implements DagLogStrategy {
         }
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
-        collect.forEach(node -> {
-            TaskDagCheckLog log = new TaskDagCheckLog();
-            log.setTaskId(taskId.toHexString());
-            log.setCheckType(templateEnum.name());
-            log.setCreateAt(now);
-            log.setCreateUser(userDetail.getUserId());
-            log.setLog(MessageUtil.getDagCheckMsg(locale, "TABLE_EDIT_NODE_INFO", current, node.getName()));
-            log.setGrade(Level.INFO);
-            log.setNodeId(node.getId());
-
-            result.add(log);
-        });
+        collect.forEach(node -> result.add(DagCheckLogs.of(
+                taskId.toHexString(), node.getId(), userDetail.getUserId(), now,
+                Level.INFO, templateEnum, locale, "TABLE_EDIT_NODE_INFO", current, node.getName())));
 
         return result;
     }
