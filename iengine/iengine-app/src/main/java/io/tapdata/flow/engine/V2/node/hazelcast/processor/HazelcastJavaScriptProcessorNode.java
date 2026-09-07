@@ -73,6 +73,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode {
 
 	private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
+	public static final String FILE_OPERATION_ENABLED_PROPERTY = "tapdata.js.file-operation.enabled";
 	public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 	public static final String BEFORE = "before";
 
@@ -176,6 +177,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		this.jsNodeConfigAccessor = new DefaultJsNodeConfigAccessor(scriptParams,
 				currentTask != null && currentTask.isNormalTask() ? new Aes256JsNodeConfigSecretResolver() : null);
 		if (hasFileOperationConfig(scriptParams)) {
+			if (!fileOperationEnabled()) {
+				throw new FileOperationException(io.tapdata.file.operation.FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE,
+						"JS node file operation is disabled");
+			}
 			TapFileOperationService service = FileOperationServiceLoader.load();
 			this.fileScriptExecutor = new FileScriptExecutor(service, jsNodeConfigAccessor,
 					currentTask != null && !currentTask.isNormalTask());
@@ -280,6 +285,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		if (params == null) return false;
 		return params.stream().filter(Objects::nonNull).map(JsNodeConfigParam::getKey)
 				.anyMatch(key -> key != null && (key.endsWith(".protocol") || "protocol".equals(key)));
+	}
+
+	static boolean fileOperationEnabled() {
+		return !"false".equalsIgnoreCase(System.getProperty(FILE_OPERATION_ENABLED_PROPERTY, "true"));
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {

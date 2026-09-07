@@ -58,6 +58,25 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 	private HazelcastJavaScriptProcessorNode hazelcastJavaScriptProcessorNode;
 	private static final org.apache.logging.log4j.Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNodeTest.class);
 
+	@Test
+	void fileOperationFeatureSwitchDefaultsToEnabledAndCanBeDisabled() {
+		String previous = System.getProperty(HazelcastJavaScriptProcessorNode.FILE_OPERATION_ENABLED_PROPERTY);
+		try {
+			System.clearProperty(HazelcastJavaScriptProcessorNode.FILE_OPERATION_ENABLED_PROPERTY);
+			assertTrue(HazelcastJavaScriptProcessorNode.fileOperationEnabled());
+			System.setProperty(HazelcastJavaScriptProcessorNode.FILE_OPERATION_ENABLED_PROPERTY, "false");
+			assertFalse(HazelcastJavaScriptProcessorNode.fileOperationEnabled());
+			System.setProperty(HazelcastJavaScriptProcessorNode.FILE_OPERATION_ENABLED_PROPERTY, "TRUE");
+			assertTrue(HazelcastJavaScriptProcessorNode.fileOperationEnabled());
+		} finally {
+			if (previous == null) {
+				System.clearProperty(HazelcastJavaScriptProcessorNode.FILE_OPERATION_ENABLED_PROPERTY);
+			} else {
+				System.setProperty(HazelcastJavaScriptProcessorNode.FILE_OPERATION_ENABLED_PROPERTY, previous);
+			}
+		}
+	}
+
 	@BeforeEach
 	protected void beforeEach() {
 		super.allSetup();
