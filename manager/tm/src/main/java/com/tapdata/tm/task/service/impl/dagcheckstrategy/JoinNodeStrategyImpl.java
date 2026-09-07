@@ -57,7 +57,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(node.getJoinExpressions())) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_NOT_SET"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_NOT_SET", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -67,7 +67,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(node.getLeftNodeId()) && StringUtils.isEmpty(node.getRightNodeId())) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_SET_ERROR"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_SET_ERROR", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -77,7 +77,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_PASS"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_PASS", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

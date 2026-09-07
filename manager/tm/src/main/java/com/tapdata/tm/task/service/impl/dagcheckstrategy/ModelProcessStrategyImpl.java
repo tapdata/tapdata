@@ -59,7 +59,7 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
         BigDecimal time = new BigDecimal(total).divide(new BigDecimal(50), 1, RoundingMode.HALF_UP);
 
         TaskDagCheckLog preLog = new TaskDagCheckLog();
-        String preContent = MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_INFO_PRELOG"), total, time);
+        String preContent = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_INFO_PRELOG", total, time);
         preLog.setTaskId(taskId);
         preLog.setCheckType(templateEnum.name());
         preLog.setCreateAt(DateUtil.date());

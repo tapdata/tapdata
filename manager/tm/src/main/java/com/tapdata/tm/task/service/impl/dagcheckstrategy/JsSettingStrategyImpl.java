@@ -52,7 +52,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JS_EDIT_NAME_EMPTY"), nodeName))
+                                .log(MessageUtil.getDagCheckMsg(locale, "JS_EDIT_NAME_EMPTY", nodeName))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -62,7 +62,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JS_EDIT_PASS"), nodeName, name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "JS_EDIT_PASS", nodeName, name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

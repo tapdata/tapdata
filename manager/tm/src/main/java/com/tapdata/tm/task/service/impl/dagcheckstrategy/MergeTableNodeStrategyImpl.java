@@ -68,7 +68,7 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
                     if (noRelate) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_RELATE_EMPTY"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_RELATE_EMPTY", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -78,7 +78,7 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_PASS"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_PASS", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

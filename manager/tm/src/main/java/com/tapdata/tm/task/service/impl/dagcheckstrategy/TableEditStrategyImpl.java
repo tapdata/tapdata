@@ -55,7 +55,7 @@ public class TableEditStrategyImpl implements DagLogStrategy {
             log.setCheckType(templateEnum.name());
             log.setCreateAt(now);
             log.setCreateUser(userDetail.getUserId());
-            log.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TABLE_EDIT_NODE_INFO"), current, node.getName()));
+            log.setLog(MessageUtil.getDagCheckMsg(locale, "TABLE_EDIT_NODE_INFO", current, node.getName()));
             log.setGrade(Level.INFO);
             log.setNodeId(node.getId());
 

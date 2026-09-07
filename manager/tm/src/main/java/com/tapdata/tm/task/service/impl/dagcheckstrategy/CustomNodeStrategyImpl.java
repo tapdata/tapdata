@@ -93,7 +93,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                             if (requiredFlag) {
                                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                         .grade(Level.ERROR).nodeId(nodeId)
-                                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY"), name, formName))
+                                        .log(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY", name, formName))
                                         .build();
                                 log.setCreateAt(now);
                                 log.setCreateUser(userId);
@@ -105,7 +105,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY"), name))
+                                        .log(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

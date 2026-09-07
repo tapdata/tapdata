@@ -83,7 +83,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     if (fieldEmpty) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_ALL_DELETE"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_ALL_DELETE", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -94,7 +94,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_ALL_PASS"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_ALL_PASS", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

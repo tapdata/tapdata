@@ -94,7 +94,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                     if (renameEmpty.get()) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_FIELD_EMPTY"), name, fieldName.get()))
+                                .log(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_FIELD_EMPTY", name, fieldName.get()))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -105,7 +105,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_PASS"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_PASS", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

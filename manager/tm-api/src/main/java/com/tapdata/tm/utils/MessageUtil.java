@@ -124,7 +124,7 @@ public class MessageUtil {
 		return nodeName;
 	}
 
-	private static Object[] localizeDagCheckParams(Locale locale, Object[] params) {
+	public static Object[] localizeDagCheckParams(Locale locale, Object[] params) {
 		if (params == null) {
 			return null;
 		}

@@ -54,6 +54,8 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
+    private final ThreadLocal<Locale> dagCheckLocale = new ThreadLocal<>();
+
     private TaskDagCheckLogRepository repository;
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
@@ -82,13 +84,23 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             return result;
         }
         LinkedList<DagOutputTemplateEnum> checkList = startTask ? DagOutputTemplateEnum.getStartCheck() : DagOutputTemplateEnum.getSaveCheck();
-        checkList.forEach(c -> {
-            DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
-            List<TaskDagCheckLog> logs = dagLogStrategy.getLogs(taskDto, userDetail, locale);
-            if (CollectionUtils.isNotEmpty(logs)) {
-                result.addAll(logs);
+        Locale previousLocale = dagCheckLocale.get();
+        dagCheckLocale.set(locale);
+        try {
+            checkList.forEach(c -> {
+                DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
+                List<TaskDagCheckLog> logs = dagLogStrategy.getLogs(taskDto, userDetail, locale);
+                if (CollectionUtils.isNotEmpty(logs)) {
+                    result.addAll(logs);
+                }
+            });
+        } finally {
+            if (previousLocale == null) {
+                dagCheckLocale.remove();
+            } else {
+                dagCheckLocale.set(previousLocale);
             }
-        });
+        }
         return result;
     }
 
@@ -268,7 +280,8 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     @Override
     public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param) {
         Date now = new Date();
-        String content = MessageFormat.format(template, param);
+        Locale locale = Optional.ofNullable(dagCheckLocale.get()).orElseGet(MessageUtil::getLocale);
+        String content = MessageFormat.format(template, MessageUtil.localizeDagCheckParams(locale, param));
 
         TaskDagCheckLog log = TaskDagCheckLog.builder()
                 .taskId(taskId).nodeId(nodeId)

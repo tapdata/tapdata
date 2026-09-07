@@ -61,7 +61,7 @@ public class RowFilterStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(((RowFilterProcessorNode) node).getExpression())) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_EXP_EMPTY"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_EXP_EMPTY", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -71,7 +71,7 @@ public class RowFilterStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_PASS"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_PASS", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

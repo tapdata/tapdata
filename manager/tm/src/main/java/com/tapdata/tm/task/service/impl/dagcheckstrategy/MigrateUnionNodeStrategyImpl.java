@@ -59,7 +59,7 @@ public class MigrateUnionNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "MIGRATE_UNION_PASS"), name))
+                                .log(MessageUtil.getDagCheckMsg(locale, "MIGRATE_UNION_PASS", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

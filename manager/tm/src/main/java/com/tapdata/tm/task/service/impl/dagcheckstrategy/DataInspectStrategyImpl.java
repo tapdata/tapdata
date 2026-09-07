@@ -130,7 +130,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.INFO);
-        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_INFO"), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
+        checkLog.setLog(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_INFO", checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
         return checkLog;
     }
 
@@ -141,7 +141,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.WARN);
-        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR"), checkLog.getCreateAt(), taskDto.getName(), msg));
+        checkLog.setLog(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR", checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
 
@@ -152,7 +152,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.ERROR);
-        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR"), checkLog.getCreateAt(), taskDto.getName(), msg));
+        checkLog.setLog(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR", checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
 
