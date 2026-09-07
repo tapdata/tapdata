@@ -967,6 +967,8 @@ class DataSourceServiceImplTest {
 
             ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
             ReflectionTestUtils.setField(dataSourceService, "externalStorageService", externalStorageService);
+            // overwrite import may load the existing connection to restore masked secrets
+            doReturn(null).when(dataSourceService).findById(any(ObjectId.class), eq(user));
         }
 
         @Test
@@ -1103,6 +1105,131 @@ class DataSourceServiceImplTest {
             assertEquals(1, result.size());
             verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
         }
+
+        @Test
+        @DisplayName("REPLACE existing Mongo connection restores masked uri from target before importSave")
+        void replaceExistingMongo_restoresMaskedUriFromExisting() {
+            ObjectId existingId = existingConnection.getId();
+            connectionDto.setDatabase_type("mongodb");
+            connectionDto.setPdkHash("mongo-pdk-hash");
+            connectionDto.setDatabase_uri("");
+            connectionDto.setDatabase_host("");
+            connectionDto.setDatabase_username("");
+            connectionDto.setDatabase_password("");
+            Map<String, Object> incomingConfig = new LinkedHashMap<>();
+            incomingConfig.put("isUri", true);
+            incomingConfig.put("uri", "");
+            connectionDto.setConfig(incomingConfig);
+
+            DataSourceConnectionDto existingFull = new DataSourceConnectionDto();
+            existingFull.setId(existingId);
+            existingFull.setName("test_connection");
+            existingFull.setDatabase_uri("mongodb://real-host:27017/dmp");
+            existingFull.setDatabase_host("real-host:27017");
+            existingFull.setDatabase_password("s3cr3t");
+            Map<String, Object> existingConfig = new LinkedHashMap<>();
+            existingConfig.put("isUri", true);
+            existingConfig.put("uri", "mongodb://real-host:27017/dmp");
+            existingFull.setConfig(existingConfig);
+
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            DataSourceDefinitionService definitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitionService);
+            when(definitionService.findByPdkHash(eq("mongo-pdk-hash"), eq(Integer.MAX_VALUE), eq(user)))
+                    .thenReturn(definition);
+
+            doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(existingFull).when(dataSourceService).findById(eq(existingId), eq(user));
+            doReturn(connectionDto).when(dataSourceService).importSave(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            dataSourceService.batchImport(connectionDtos, user, ImportModeEnum.REPLACE);
+
+            assertEquals("mongodb://real-host:27017/dmp", connectionDto.getDatabase_uri());
+            assertEquals("real-host:27017", connectionDto.getDatabase_host());
+            assertEquals("s3cr3t", connectionDto.getDatabase_password());
+            assertEquals("mongodb://real-host:27017/dmp", connectionDto.getConfig().get("uri"));
+            verify(dataSourceService, times(1)).importSave(connectionDto, user);
+        }
+    }
+
+    @Nested
+    @DisplayName("beforeSave Mongo import (TAP-12823)")
+    class BeforeSaveMongoImportTest {
+        private DataSourceDefinitionService definitionService;
+        private UserDetail user;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceService = spy(new DataSourceServiceImpl(mock(DataSourceRepository.class)));
+            user = mock(UserDetail.class);
+            definitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitionService);
+            doNothing().when(dataSourceService).checkConn(any(), any());
+        }
+
+        @Test
+        @DisplayName("masked Mongo connection with blank host/uri does not throw IllegalArgument")
+        void maskedMongoBlankHost_doesNotThrowIllegalArgument() {
+            DataSourceConnectionDto connection = maskedMongoConnection();
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            when(definitionService.findByPdkHash(any(), anyInt(), eq(user))).thenReturn(definition);
+
+            assertDoesNotThrow(() -> dataSourceService.beforeSave(connection, user, true));
+        }
+
+        @Test
+        @DisplayName("Mongo with host still constructs uri and parses it")
+        void mongoWithHost_stillConstructsAndParsesUri() {
+            DataSourceConnectionDto connection = maskedMongoConnection();
+            connection.setDatabase_host("127.0.0.1:27017");
+            connection.setDatabase_username("tap");
+            connection.setPlain_password("tap");
+            connection.setDatabase_name("dmp");
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            when(definitionService.findByPdkHash(any(), anyInt(), eq(user))).thenReturn(definition);
+
+            assertDoesNotThrow(() -> dataSourceService.beforeSave(connection, user, true));
+            assertNotNull(connection.getDatabase_uri());
+            assertFalse(connection.getDatabase_uri().isBlank());
+            assertTrue(connection.getDatabase_uri().startsWith("mongodb://"));
+            assertTrue(connection.getDatabase_uri().contains("127.0.0.1:27017"));
+        }
+    }
+
+    private static DataSourceConnectionDto maskedMongoConnection() {
+        DataSourceConnectionDto connection = new DataSourceConnectionDto();
+        connection.setName("mongo_conn");
+        connection.setDatabase_type("mongodb");
+        connection.setPdkHash("mongo-pdk-hash");
+        connection.setDatabase_uri("");
+        connection.setDatabase_host("");
+        connection.setDatabase_username("");
+        connection.setDatabase_password("");
+        connection.setDatabase_name("dmp");
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("isUri", true);
+        config.put("uri", "");
+        connection.setConfig(config);
+        return connection;
+    }
+
+    private static DataSourceDefinitionDto mongoDefinitionWithUri() {
+        Map<String, Object> uriMeta = new LinkedHashMap<>();
+        uriMeta.put("apiServerKey", "database_uri");
+        Map<String, Object> connProps = new LinkedHashMap<>();
+        connProps.put("uri", uriMeta);
+        Map<String, Object> connection = new LinkedHashMap<>();
+        connection.put("properties", connProps);
+        LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+        properties.put("connection", connection);
+        DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+        definition.setBuildNumber(1);
+        definition.setVersion("1.0");
+        definition.setGroup("mongodb");
+        definition.setPdkId("mongodb");
+        definition.setProperties(properties);
+        return definition;
     }
 
     @Nested
