@@ -23,6 +23,7 @@ import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.script.JsNodeConfigParam;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
 import io.tapdata.entity.event.TapEvent;
@@ -33,6 +34,13 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
+import com.tapdata.processor.js.Aes256JsNodeConfigSecretResolver;
+import com.tapdata.processor.js.DefaultJsNodeConfigAccessor;
+import com.tapdata.processor.js.FileOperationServiceLoader;
+import com.tapdata.processor.js.FileScriptExecutor;
+import com.tapdata.processor.js.JsNodeConfigScriptFacade;
+import io.tapdata.file.operation.FileOperationException;
+import io.tapdata.file.operation.TapFileOperationService;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -84,6 +92,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	private String script;
 	private List<JavaScriptFunctions> javaScriptFunctions;
 	private ScriptCacheService scriptCacheService;
+	private DefaultJsNodeConfigAccessor jsNodeConfigAccessor;
+	private FileScriptExecutor fileScriptExecutor;
 
 	private final Map<String, Invocable> engineMap;
 	private final Map<String, ScriptExecutorsManager.ScriptExecutor> sourceMap;
@@ -123,6 +133,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 	private static TapCodeException wrapScriptProcessException(Throwable throwable) {
 		Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+		Throwable fileCause = cause;
+		while (fileCause != null && !(fileCause instanceof FileOperationException)) {
+			fileCause = fileCause.getCause();
+		}
+		if (fileCause instanceof FileOperationException) {
+			FileOperationException fileError = (FileOperationException) fileCause;
+			String safeMessage = "file operation failed: " + fileError.getCode();
+			return new TapCodeException(
+					ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,
+					safeMessage,
+					fileError
+			).dynamicDescriptionParameters(safeMessage);
+		}
 		String message = StringUtils.defaultIfBlank(
 				throwable.getMessage(),
 				StringUtils.defaultIfBlank(cause.getMessage(), cause.getClass().getName())
@@ -147,6 +170,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			this.script = ((CacheLookupProcessorNode) node).getScript();
 		} else {
 			throw new RuntimeException("unsupported node " + node.getClass().getName());
+		}
+		List<JsNodeConfigParam> scriptParams = getScriptParams(node);
+		TaskDto currentTask = processorBaseContext.getTaskDto();
+		this.jsNodeConfigAccessor = new DefaultJsNodeConfigAccessor(scriptParams,
+				currentTask != null && currentTask.isNormalTask() ? new Aes256JsNodeConfigSecretResolver() : null);
+		if (hasFileOperationConfig(scriptParams)) {
+			TapFileOperationService service = FileOperationServiceLoader.load();
+			this.fileScriptExecutor = new FileScriptExecutor(service, jsNodeConfigAccessor);
 		}
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
@@ -227,7 +258,27 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			((ScriptEngine) engine).put(TARGET_TAG, targetMap.get(node.getId()));
 		}
 		((ScriptEngine) engine).put("env", getTaskEnvReadMap());
+		((ScriptEngine) engine).put("jsNodeConfig", new JsNodeConfigScriptFacade(jsNodeConfigAccessor));
+		if (fileScriptExecutor != null) {
+			((ScriptEngine) engine).put("ftp", fileScriptExecutor);
+		}
 		return engine;
+	}
+
+	private static List<JsNodeConfigParam> getScriptParams(Node<?> node) {
+		if (node instanceof JsProcessorNode) {
+			return ((JsProcessorNode) node).getScriptParams();
+		}
+		if (node instanceof MigrateJsProcessorNode) {
+			return ((MigrateJsProcessorNode) node).getScriptParams();
+		}
+		return Collections.emptyList();
+	}
+
+	private static boolean hasFileOperationConfig(List<JsNodeConfigParam> params) {
+		if (params == null) return false;
+		return params.stream().filter(Objects::nonNull).map(JsNodeConfigParam::getKey)
+				.anyMatch(key -> key != null && (key.endsWith(".protocol") || "protocol".equals(key)));
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
@@ -426,6 +477,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	@Override
 	protected void doClose() throws TapCodeException {
 		try {
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.fileScriptExecutor != null) {
+					this.fileScriptExecutor.close();
+					this.fileScriptExecutor = null;
+				}
+			}, TAG);
 			// Close and clear source executors
 			CommonUtils.ignoreAnyError(() -> {
 				if (this.sourceMap != null) {
@@ -499,7 +556,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 	@Override
 	public boolean supportConcurrentProcess() {
-		return true;
+		return !hasFileOperationConfig(getScriptParams(getNode()));
 	}
 
 	@Override
