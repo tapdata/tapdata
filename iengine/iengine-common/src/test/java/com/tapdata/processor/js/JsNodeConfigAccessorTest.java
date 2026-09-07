@@ -57,4 +57,17 @@ class JsNodeConfigAccessorTest {
                 () -> new DefaultJsNodeConfigAccessor(Collections.singletonList(invalid)));
         assertEquals("JS_NODE_CONFIG_TYPE_INVALID", error.getCode());
     }
+
+    @Test
+    void encryptedPrimitiveValuesAreConvertedAfterDecryption() {
+        DefaultJsNodeConfigAccessor accessor = new DefaultJsNodeConfigAccessor(Arrays.asList(
+                JsNodeConfigParam.builder().key("mgm.port").type(JsNodeConfigValueType.NUMBER)
+                        .value("cipher-port").encrypted(true).build(),
+                JsNodeConfigParam.builder().key("mgm.passive").type(JsNodeConfigValueType.BOOLEAN)
+                        .value("cipher-passive").encrypted(true).build()),
+                (key, value) -> "mgm.port".equals(key) ? "21" : "true");
+
+        assertEquals(21, ((Number) accessor.get("mgm.port")).intValue());
+        assertEquals(true, accessor.get("mgm.passive"));
+    }
 }

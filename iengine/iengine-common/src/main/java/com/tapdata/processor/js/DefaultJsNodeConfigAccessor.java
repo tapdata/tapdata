@@ -99,15 +99,29 @@ public final class DefaultJsNodeConfigAccessor implements JsNodeConfigAccessor {
 
     private static Object normalize(com.tapdata.tm.commons.dag.process.script.JsNodeConfigValueType type,
                                     Object value, String key) {
-        if (type == com.tapdata.tm.commons.dag.process.script.JsNodeConfigValueType.JSON && value instanceof CharSequence) {
-            try {
-                return JSON.readValue(value.toString(), Object.class);
-            } catch (Exception e) {
-                throw new JsNodeConfigAccessException("JS_NODE_CONFIG_TYPE_INVALID", key,
-                        "invalid JSON value for JS node config key: " + safeKey(key), e);
+        if (!(value instanceof CharSequence)) return value;
+        String text = value.toString();
+        try {
+            switch (type) {
+                case JSON:
+                    return JSON.readValue(text, Object.class);
+                case NUMBER:
+                    if (text.contains(".")) return Double.parseDouble(text);
+                    long integer = Long.parseLong(text);
+                    return integer <= Integer.MAX_VALUE && integer >= Integer.MIN_VALUE
+                            ? (int) integer : integer;
+                case BOOLEAN:
+                    if ("true".equalsIgnoreCase(text)) return true;
+                    if ("false".equalsIgnoreCase(text)) return false;
+                    throw new IllegalArgumentException("boolean must be true or false");
+                case STRING:
+                default:
+                    return text;
             }
+        } catch (Exception e) {
+            throw new JsNodeConfigAccessException("JS_NODE_CONFIG_TYPE_INVALID", key,
+                    "invalid " + type.name().toLowerCase() + " value for JS node config key: " + safeKey(key), e);
         }
-        return value;
     }
 
     private static String safeKey(String key) {
