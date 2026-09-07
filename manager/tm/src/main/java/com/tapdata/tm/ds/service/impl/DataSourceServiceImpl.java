@@ -48,6 +48,7 @@ import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.group.handler.ResourceHandler;
 import com.tapdata.tm.job.dto.JobDto;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.libSupported.entity.LibSupportedsEntity;
@@ -1208,14 +1209,15 @@ public class DataSourceServiceImpl extends DataSourceService{
         //schema 不能入库，应该是通过update接口存在metadataInstance里面
         connection.setSchema(null);
 
-        //mongo的特殊处理
+        //mongo的特殊处理。导出脱敏会把 host/uri 抹成空串，此时拼出来是 mongodb:///db，
+        //ConnectionString 解析失败会变成「无效参数: {0}」。host 为空说明 URI 在 config 里，不要发明非法串。
         if ((DataSourceEnum.isMongoDB(connection.getDatabase_type()) || DataSourceEnum.isGridFs(connection.getDatabase_type()))
                 && StringUtils.isBlank(connection.getDatabase_uri())) {
-            log.debug("set the uri of the mongo type data source");
-
-            connection.setDatabase_uri(UriRootConvertUtils.constructUri(connection));
-            parserMongo(connection);
-
+            if (StringUtils.isNotBlank(connection.getDatabase_host())) {
+                log.debug("set the uri of the mongo type data source");
+                connection.setDatabase_uri(UriRootConvertUtils.constructUri(connection));
+                parserMongo(connection);
+            }
         } else if (StringUtils.isNotBlank(connection.getDatabase_uri())) {
             parserMongo(connection);
         }
@@ -2046,6 +2048,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         // 替换模式：保留现有ID，使用导入数据覆盖
                         ObjectId existingId = existingConnectionByName.getId();
                         connectionDto.setId(existingId);
+                        restoreMaskedSecretsForOverwrite(connectionDto, user);
 
                         if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
                             ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
@@ -2158,6 +2161,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         if (existingById != null) {
             // 已存在相同 _id，覆盖更新（保留原始 userId）
+            restoreMaskedSecretsForOverwrite(connectionDto, user);
             log.info("[handleGroupImportConnection] existing found for id={}, calling importSave, connectionDto.userId={}", connectionDto.getId(), connectionDto.getUserId());
             DataSourceConnectionDto result = importSave(connectionDto, user);
             log.info("[handleGroupImportConnection] importSave returned, result.userId={}", result.getUserId());
@@ -2493,6 +2497,29 @@ public class DataSourceServiceImpl extends DataSourceService{
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, dto);
         entity = repository.importSave(entity, userDetail);
         return convertToDto(entity, DataSourceConnectionDto.class);
+    }
+
+    /**
+     * 覆盖导入时包内敏感字段已被导出脱敏抹空，不能整文档覆盖成空。
+     * 缺值则沿用目标环境已有连接的凭据（与分组导入 {@link ResourceHandler#restoreMissingSecretsFromExisting} 同一套规则）。
+     */
+    protected void restoreMaskedSecretsForOverwrite(DataSourceConnectionDto incoming, UserDetail user) {
+        if (incoming == null || incoming.getId() == null) {
+            return;
+        }
+        DataSourceConnectionDto existing = findById(incoming.getId(), user);
+        if (existing == null) {
+            return;
+        }
+        DataSourceDefinitionDto definition = null;
+        if (StringUtils.isNotBlank(incoming.getPdkHash()) && dataSourceDefinitionService != null) {
+            definition = dataSourceDefinitionService.findByPdkHash(incoming.getPdkHash(), Integer.MAX_VALUE, user);
+        }
+        List<String> preserved = ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, definition);
+        if (CollectionUtils.isNotEmpty(preserved)) {
+            log.warn("Import overwrite: package omits secret field(s) for connection '{}', kept existing value(s): {}",
+                    incoming.getName(), preserved);
+        }
     }
 
     public List<TaskDto> findUsingDigginTaskByConnectionId(String connectionId, UserDetail user) {
