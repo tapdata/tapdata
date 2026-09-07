@@ -568,6 +568,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (StringUtils.isNotBlank(script)) {
                 jsNode.setScript(script);
             }
+            if (dto.getScriptParams() != null) {
+                jsNode.setScriptParams(dto.getScriptParams());
+            }
             nodes.add(jsNode);
 
             Node<?> target = new VirtualTargetNode();
@@ -604,6 +607,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                         .peek(n -> {
                             if (n instanceof JsProcessorNode) {
                                 ((JsProcessorNode)n).setScript(script);
+                                if (dto.getScriptParams() != null) {
+                                    ((JsProcessorNode)n).setScriptParams(dto.getScriptParams());
+                                }
                             }
                         })
                         .filter(n -> predIds.contains(n.getId()))
@@ -673,6 +679,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (StringUtils.isNotBlank(script)) {
                 jsNode.setScript(script);
             }
+            if (dto.getScriptParams() != null) {
+                jsNode.setScriptParams(dto.getScriptParams());
+            }
             nodes.add(jsNode);
 
             Node<?> target = new VirtualTargetNode();
@@ -717,6 +726,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                         .peek(n -> {
                             if (n instanceof ScriptProcessNode) {
                                 ((ScriptProcessNode)n).setScript(script);
+                                if (dto.getScriptParams() != null) {
+                                    ((ScriptProcessNode)n).setScriptParams(dto.getScriptParams());
+                                }
                             }
                         })
                         .filter(n -> predIds.contains(n.getId()))

@@ -177,7 +177,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				currentTask != null && currentTask.isNormalTask() ? new Aes256JsNodeConfigSecretResolver() : null);
 		if (hasFileOperationConfig(scriptParams)) {
 			TapFileOperationService service = FileOperationServiceLoader.load();
-			this.fileScriptExecutor = new FileScriptExecutor(service, jsNodeConfigAccessor);
+			this.fileScriptExecutor = new FileScriptExecutor(service, jsNodeConfigAccessor,
+					currentTask != null && !currentTask.isNormalTask());
 		}
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {

@@ -1,9 +1,12 @@
 package com.tapdata.tm.commons.dag.vo;
 
+import com.tapdata.tm.commons.dag.process.script.JsNodeConfigParam;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -19,4 +22,5 @@ public class TestRunDto {
     private String testRunInputEventJson;
     private String sql;
     private int logOutputCount = 100;
+    private List<JsNodeConfigParam> scriptParams;
 }

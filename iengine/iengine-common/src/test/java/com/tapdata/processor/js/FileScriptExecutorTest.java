@@ -68,6 +68,24 @@ class FileScriptExecutorTest {
         verify(service).copy(any(FileCopyRequest.class));
     }
 
+    @Test
+    void forcedDryRunOverridesScriptRequest() {
+        TapFileOperationService service = mock(TapFileOperationService.class);
+        when(service.copy(any(FileCopyRequest.class))).thenReturn(FileOperationResult.builder()
+                .status(FileOperationStatus.DRY_RUN).sourcePath("a.txt").targetPath("b.txt")
+                .bytes(12).attempts(1).durationMs(4).build());
+        FileScriptExecutor executor = new FileScriptExecutor(service,
+                new DefaultJsNodeConfigAccessor(Collections.emptyList()), true);
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("source", endpoint("ftp", "/in"));
+        request.put("target", endpoint("ftp", "/out"));
+        request.put("sourcePath", "a.txt");
+        request.put("targetPath", "b.txt");
+        request.put("dryRun", false);
+        assertEquals("DRY_RUN", executor.copy(request).get("status"));
+        verify(service).copy(argThat(FileCopyRequest::isDryRun));
+    }
+
     private static Map<String, Object> endpoint(String protocol, String rootPath) {
         Map<String, Object> endpoint = new LinkedHashMap<>();
         endpoint.put("protocol", protocol);

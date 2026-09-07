@@ -19,14 +19,20 @@ import java.util.Map;
 public final class FileScriptExecutor implements AutoCloseable {
     private final TapFileOperationService service;
     private final DefaultJsNodeConfigAccessor config;
+    private final boolean forceDryRun;
 
     public FileScriptExecutor(TapFileOperationService service, DefaultJsNodeConfigAccessor config) {
+        this(service, config, false);
+    }
+
+    public FileScriptExecutor(TapFileOperationService service, DefaultJsNodeConfigAccessor config, boolean forceDryRun) {
         if (service == null) {
             throw new FileOperationException(io.tapdata.file.operation.FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE,
                     "file operation service is unavailable");
         }
         this.service = service;
         this.config = config;
+        this.forceDryRun = forceDryRun;
     }
 
     public Map<String, Object> copy(Map<?, ?> request) {
@@ -78,7 +84,7 @@ public final class FileScriptExecutor implements AutoCloseable {
                     .expectedChecksum(stringValue(values.get("expectedChecksum")))
                     .retryTimes(intValue(values, "retryTimes", 0))
                     .timeoutMs(longValue(values, "timeoutMs", 120_000L))
-                    .dryRun(booleanValue(values, "dryRun", false));
+                    .dryRun(forceDryRun || booleanValue(values, "dryRun", false));
             return builder.build();
         } catch (FileOperationException e) {
             throw e;
