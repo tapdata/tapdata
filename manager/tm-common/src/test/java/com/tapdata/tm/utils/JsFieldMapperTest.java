@@ -2,6 +2,8 @@ package com.tapdata.tm.utils;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Map;
 
@@ -24,6 +26,17 @@ class JsFieldMapperTest {
         void returnsEmptyMapWhenReturningRecordDirectly() {
             String script = """
                     return record;
+                    """;
+
+            assertTrue(JsFieldMapper.parseMapping(script).isEmpty());
+        }
+
+        @Test
+        void doesNotSkipRecordReturnForLaterReturn() {
+            String script = """
+                    var ret = { fieldA: record.field_a };
+                    return record;
+                    return ret;
                     """;
 
             assertTrue(JsFieldMapper.parseMapping(script).isEmpty());
@@ -142,6 +155,55 @@ class JsFieldMapperTest {
             assertEquals(Map.of("fieldA", "field_a"), JsFieldMapper.parseMapping(script));
         }
 
+        @ParameterizedTest
+        @ValueSource(strings = {
+                "var process = function(record)",
+                "let process = function (record)",
+                "const process = function transform(record)",
+                "process = function(record)"
+        })
+        void parsesReturnInsideProcessFunctionExpression(String functionHeader) {
+            String script = """
+                    function helper(record) {
+                        return { wrongField: record.helper_field };
+                    }
+                    %s {
+                        if (!record.id) return record;
+                        function nested(record) {
+                            return { wrongField: record.nested_field };
+                        }
+                        var ret = { fieldA: record.field_a };
+                        return ret;
+                    };
+                    """.formatted(functionHeader);
+
+            assertEquals(Map.of("fieldA", "field_a"), JsFieldMapper.parseMapping(script));
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {
+                "var process = (record) =>",
+                "let process = record =>",
+                "const process = (record, context) =>",
+                "process = record =>"
+        })
+        void parsesReturnInsideProcessArrowFunction(String functionHeader) {
+            String script = """
+                    function helper(record) {
+                        return { wrongField: record.helper_field };
+                    }
+                    %s {
+                        if (!record.id) return record;
+                        const nested = () => {
+                            return { wrongField: record.nested_field };
+                        };
+                        return { fieldA: record.field_a };
+                    };
+                    """.formatted(functionHeader);
+
+            assertEquals(Map.of("fieldA", "field_a"), JsFieldMapper.parseMapping(script));
+        }
+
         @Test
         void usesReturnFromProcessBodyAfterGuardClause() {
             String script = """
@@ -198,6 +260,30 @@ class JsFieldMapperTest {
 
     @Nested
     class AssignmentScenarios {
+        @Test
+        void parsesAssignmentsWhenReturningRecord() {
+            String script = """
+                    record.newName = record.old_name;
+                    return record;
+                    """;
+
+            assertEquals(Map.of("newName", "old_name"), JsFieldMapper.parseMapping(script));
+        }
+
+        @Test
+        void appliesDeletesWhenProcessReturnsRecord() {
+            String script = """
+                    function process(record) {
+                        record.newName = record.old_name;
+                        record.removedName = record.removed_name;
+                        delete record.removedName;
+                        return record;
+                    }
+                    """;
+
+            assertEquals(Map.of("newName", "old_name"), JsFieldMapper.parseMapping(script));
+        }
+
         @Test
         void parsesReturnedObjectAssignmentsWithoutObjectLiteralMappings() {
             String script = """

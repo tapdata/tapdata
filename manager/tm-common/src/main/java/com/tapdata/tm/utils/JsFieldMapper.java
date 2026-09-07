@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
  * 支持的场景：
  * <ul>
  *     <li>{@code process} 函数体或脚本顶层的简单返回语句：{@code return ret;}。</li>
+ *     <li>{@code process} 支持函数声明、函数表达式和带块体的箭头函数。</li>
  *     <li>{@code process} 函数体或脚本顶层直接返回简单对象字面量：{@code return { newField: record.oldField };}。</li>
  *     <li>{@code var/let/const ret = { newField: record.oldField }} 或 {@code ret = {...}} 对象字面量。</li>
  *     <li>{@code ret.newField = record.oldField} 形式的点号赋值。</li>
@@ -328,8 +329,11 @@ public final class JsFieldMapper {
     }
 
     private static int[] findNamedFunctionBody(String jsCode, String functionName) {
+        String quotedName = Pattern.quote(functionName);
         Pattern functionPattern = Pattern.compile(
-                "\\bfunction\\s+" + Pattern.quote(functionName) + "\\s*\\([^)]*\\)\\s*\\{",
+                "(?:\\bfunction\\s+" + quotedName + "\\s*\\([^)]*\\)"
+                        + "|\\b" + quotedName + "\\s*=\\s*function(?:\\s+" + IDENTIFIER + ")?\\s*\\([^)]*\\)"
+                        + "|\\b" + quotedName + "\\s*=\\s*(?:\\([^)]*\\)|" + IDENTIFIER + ")\\s*=>)\\s*\\{",
                 Pattern.DOTALL
         );
         Matcher matcher = functionPattern.matcher(jsCode);
@@ -454,7 +458,7 @@ public final class JsFieldMapper {
             return ReturnExpression.objectLiteral(jsCode.substring(expressionStart + 1, closeBrace));
         }
         String returnedExpression = readSimpleReturnExpression(jsCode, expressionStart, rangeEnd).trim();
-        if (!returnedExpression.matches(IDENTIFIER) || "record".equals(returnedExpression)) {
+        if (!returnedExpression.matches(IDENTIFIER)) {
             return null;
         }
         return ReturnExpression.variable(returnedExpression);
