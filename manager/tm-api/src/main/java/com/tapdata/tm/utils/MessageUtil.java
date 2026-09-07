@@ -1,5 +1,6 @@
 package com.tapdata.tm.utils;
 
+import com.tapdata.tm.commons.dag.NodeEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.springframework.data.util.Streamable;
@@ -107,7 +108,29 @@ public class MessageUtil {
 
 	public static String getDagCheckMsg(Locale locale, String resourceId, Object... params){
 		String msg = getStringOrNull(getResourceBundle(locale, "dagCheck"), resourceId);
-		return getString(locale, resourceId, msg, params);
+		return getString(locale, resourceId, msg, localizeDagCheckParams(locale, params));
+	}
+
+	public static String localizeDagNodeName(Locale locale, String nodeName) {
+		if (StringUtils.isBlank(nodeName)) {
+			return nodeName;
+		}
+		for (NodeEnum nodeEnum : NodeEnum.values()) {
+			if (StringUtils.equals(nodeEnum.getNodeName(), nodeName)) {
+				String localized = getStringOrNull(getResourceBundle(locale, "dagCheck"), "NODE_NAME_" + nodeEnum.name());
+				return StringUtils.defaultIfBlank(localized, nodeName);
+			}
+		}
+		return nodeName;
+	}
+
+	private static Object[] localizeDagCheckParams(Locale locale, Object[] params) {
+		if (params == null) {
+			return null;
+		}
+		return Streamable.of(params).stream()
+				.map(param -> param instanceof String ? localizeDagNodeName(locale, (String) param) : param)
+				.toArray();
 	}
 	public static String getAlarmMsg(Locale locale, String resourceId, Object... params){
 		String msg = getStringOrNull(getResourceBundle(locale, "alarmTemplate"), resourceId);

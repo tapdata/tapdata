@@ -115,7 +115,8 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode || n instanceof PyProcessNode || n instanceof MigratePyProcessNode) && !(n instanceof CustomProcessorNode))
                 .findFirst();
         if (jsNode.isPresent()) {
-            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(), NodeEnum.valueOf(jsNode.get().getType()).getNodeName());
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(),
+                    MessageUtil.localizeDagNodeName(locale, NodeEnum.valueOf(jsNode.get().getType()).getNodeName()));
             Optional.ofNullable(jsNodeLog).ifPresent(checkLogs::addAll);
         }
 
@@ -183,7 +184,8 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         LinkedHashMap<String, String> nodeMap = dag.getNodes().stream()
-                .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
+                .collect(Collectors.toMap(Node::getId, node -> MessageUtil.localizeDagNodeName(locale, node.getName()),
+                        (x, y) -> y, LinkedHashMap::new));
 
         List<TaskDagCheckLog> checkLogList;
         if (CollectionUtils.isEmpty(checkLogs)) {
