@@ -251,6 +251,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         this.taskInspect = TaskInspectHelper.get(taskId);
     }
 
+    @Override
+    protected boolean decodeConnectorOffsetInBatchOffset() {
+        return true;
+    }
+
     private boolean needCdcDelay() {
         if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
             return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {

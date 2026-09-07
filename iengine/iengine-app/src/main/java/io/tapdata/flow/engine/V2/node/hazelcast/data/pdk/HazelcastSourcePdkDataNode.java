@@ -547,7 +547,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                 , BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName)
             );
             TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-            tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+            tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableName));
             tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
             enqueue(tapdataCompleteTableSnapshotEvent);
             return;
@@ -597,6 +597,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
         BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = functions.getQueryByAdvanceFilterFunction();
         ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
+        Object tableOffset = BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId);
 
         PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
         try {
@@ -604,7 +605,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                 BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
                     .eventBatchSize(readBatchSize)
                     .connectorContext(connectorNode.getConnectorContext())
-                    .offsetState(null)
+                    .offsetState(tableOffset)
                     .dataProcessorContext(this.getDataProcessorContext())
                     .start()
                     .table(tapTable),
@@ -693,10 +694,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             handleCustomCommandResult(result, tableName, consumer);
                                         });
                                     } else {
-                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
+                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
                                     }
                                 } else {
-                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
+                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
                                 }
                             } catch (SkipErrorTableException e) {
                                 logger.warn("skip error table '{}'", e.getTableName());
@@ -713,7 +714,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
         }
         executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
         TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-        tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+        tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableName));
         tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
         enqueue(tapdataCompleteTableSnapshotEvent);
     }

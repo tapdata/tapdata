@@ -7,6 +7,7 @@ import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
@@ -584,11 +585,22 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 		String batchOffset = syncProgress.getBatchOffset();
 		if (StringUtils.isNotBlank(batchOffset)) {
-			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
+			Object batchOffsetObj = PdkUtil.decodeOffset(batchOffset, getConnectorNode());
+			if (decodeConnectorOffsetInBatchOffset()) {
+				batchOffsetObj = BatchOffsetUtil.decodeConnectorOffset(
+						batchOffsetObj,
+						offset -> PdkUtil.decodeOffset(offset, getConnectorNode())
+				);
+			}
+			syncProgress.setBatchOffsetObj(batchOffsetObj);
 		}
 		if (null == syncProgress.getBatchOffsetObj()) {
 			syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
 		}
+	}
+
+	protected boolean decodeConnectorOffsetInBatchOffset() {
+		return false;
 	}
 
 
