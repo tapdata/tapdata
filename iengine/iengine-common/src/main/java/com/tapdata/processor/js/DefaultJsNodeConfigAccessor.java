@@ -21,7 +21,8 @@ public final class DefaultJsNodeConfigAccessor implements JsNodeConfigAccessor {
     }
 
     public DefaultJsNodeConfigAccessor(List<JsNodeConfigParam> params, JsNodeConfigSecretResolver secretResolver) {
-        List<JsNodeConfigValidationError> errors = JsNodeConfigValidator.validate(params);
+        List<JsNodeConfigParam> safeParams = params == null ? Collections.emptyList() : params;
+        List<JsNodeConfigValidationError> errors = JsNodeConfigValidator.validate(safeParams);
         if (!errors.isEmpty()) {
             JsNodeConfigValidationError error = errors.get(0);
             throw new JsNodeConfigAccessException("JS_NODE_CONFIG_TYPE_INVALID", error.getKey(),
@@ -29,7 +30,7 @@ public final class DefaultJsNodeConfigAccessor implements JsNodeConfigAccessor {
         }
         this.secretResolver = secretResolver;
         Map<String, Entry> values = new LinkedHashMap<>();
-        for (JsNodeConfigParam param : params) {
+        for (JsNodeConfigParam param : safeParams) {
             Object value = param.getValue();
             if (param.isEncrypted()) {
                 values.put(param.getKey(), Entry.encrypted(param.getType(), String.valueOf(value)));

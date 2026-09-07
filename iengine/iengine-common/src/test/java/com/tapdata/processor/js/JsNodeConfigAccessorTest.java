@@ -31,6 +31,13 @@ class JsNodeConfigAccessorTest {
     }
 
     @Test
+    void nullParamsAreCompatibleWithOldNodes() {
+        DefaultJsNodeConfigAccessor accessor = new DefaultJsNodeConfigAccessor(null);
+        assertFalse(accessor.has("missing"));
+        assertEquals("fallback", accessor.getOrDefault("missing", "fallback"));
+    }
+
+    @Test
     void encryptedValueRequiresPermissionAndUsesInjectedResolver() {
         JsNodeConfigParam secret = JsNodeConfigParam.builder().key("mgm.password")
                 .type(JsNodeConfigValueType.STRING).value("ciphertext").encrypted(true).build();
