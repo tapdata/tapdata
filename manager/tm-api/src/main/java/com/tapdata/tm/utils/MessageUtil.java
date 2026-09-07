@@ -126,10 +126,10 @@ public class MessageUtil {
 
 	public static Object[] localizeDagCheckParams(Locale locale, Object[] params) {
 		if (params == null) {
-			return null;
+			return new Object[0];
 		}
 		return Streamable.of(params).stream()
-				.map(param -> param instanceof String ? localizeDagNodeName(locale, (String) param) : param)
+				.map(param -> param instanceof String string ? localizeDagNodeName(locale, string) : param)
 				.toArray();
 	}
 	public static String getAlarmMsg(Locale locale, String resourceId, Object... params){
