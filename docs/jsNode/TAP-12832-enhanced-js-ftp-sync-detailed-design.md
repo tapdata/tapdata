@@ -286,9 +286,7 @@ public final class FileScriptExecutor {
     public Map<String, Object> copy(Map<String, Object> options);
     public Map<String, Object> copyByConfig(Map<String, Object> options);
     public Map<String, Object> copyBatch(List<Map<String, Object>> options);
-    public Map<String, Object> stat(Map<String, Object> options);
     public boolean exists(Map<String, Object> options);
-    public List<Map<String, Object>> list(Map<String, Object> options);
 }
 ```
 
@@ -299,9 +297,8 @@ JS 推荐写法：
 ```javascript
 function process(record) {
     var result = ftp.copyByConfig({
-        sourcePrefix: "mgm.in.",
-        targetPrefix: "mgm.out.",
-        protocolKey: "mgm.file.protocol",
+        sourcePrefix: "mgm.in",
+        targetPrefix: "mgm.out",
         sourcePath: record.file_path,
         targetPath: record.file_path,
         verify: jsNodeConfig.getOrDefault("mgm.file.verify", "SIZE"),
@@ -323,18 +320,24 @@ function process(record) {
 var result = ftp.copy({
     source: {
         protocol: jsNodeConfig.get("mgm.in.protocol"),
-        host: jsNodeConfig.get("mgm.in.host"),
-        port: jsNodeConfig.getOrDefault("mgm.in.port", 21),
-        username: jsNodeConfig.get("mgm.in.username"),
-        password: jsNodeConfig.get("mgm.in.password")
+        rootPath: jsNodeConfig.getOrDefault("mgm.in.rootPath", "/"),
+        params: {
+            host: jsNodeConfig.get("mgm.in.host"),
+            port: jsNodeConfig.getOrDefault("mgm.in.port", 21),
+            username: jsNodeConfig.get("mgm.in.username"),
+            password: jsNodeConfig.get("mgm.in.password")
+        }
     },
     sourcePath: record.source_file,
     target: {
         protocol: jsNodeConfig.get("mgm.out.protocol"),
-        host: jsNodeConfig.get("mgm.out.host"),
-        port: jsNodeConfig.getOrDefault("mgm.out.port", 21),
-        username: jsNodeConfig.get("mgm.out.username"),
-        password: jsNodeConfig.get("mgm.out.password")
+        rootPath: jsNodeConfig.getOrDefault("mgm.out.rootPath", "/"),
+        params: {
+            host: jsNodeConfig.get("mgm.out.host"),
+            port: jsNodeConfig.getOrDefault("mgm.out.port", 21),
+            username: jsNodeConfig.get("mgm.out.username"),
+            password: jsNodeConfig.get("mgm.out.password")
+        }
     },
     targetPath: record.target_file,
     verify: "CHECKSUM",
@@ -350,9 +353,7 @@ var result = ftp.copy({
 
 ```java
 public interface FileServiceConfigMapper {
-    FileConfig mapToFileConfig(FileEndpoint endpoint);
     Map<String, Object> mapStorageParams(FileEndpoint endpoint);
-    String protocol(FileEndpoint endpoint);
 }
 ```
 
@@ -497,7 +498,7 @@ private boolean fileOperationEnabled;
 
 ```java
 ScriptEngine scriptEngine = (ScriptEngine) engine;
-scriptEngine.put("jsNodeConfig", jsNodeConfigAccessor);
+scriptEngine.put("jsNodeConfig", new JsNodeConfigScriptFacade(jsNodeConfigAccessor));
 if (fileOperationEnabled) {
     scriptEngine.put("ftp", fileScriptExecutor);
 }
@@ -882,3 +883,17 @@ A 记录关联文件 A，B 记录关联文件 B。A 传输成功，B 因权限�
 - [TapFileStorageBuilder.java](/Users/gavinxiao/kit/tapdata/tapdata-common-lib/plugin-kit/tapdata-api/src/main/java/io/tapdata/file/TapFileStorageBuilder.java)
 - [TapFileStorage.java](/Users/gavinxiao/kit/tapdata/tapdata-common-lib/plugin-kit/tapdata-api/src/main/java/io/tapdata/file/TapFileStorage.java)
 - [FtpFileStorage.java](/Users/gavinxiao/kit/tapdata/tapdata-connectors/file-storages/ftp-file/src/main/java/io/tapdata/storage/ftp/FtpFileStorage.java)
+
+## 17. 当前实现对齐说明
+
+以下内容以当前代码为准，覆盖早期方案中的抽象接口差异：
+
+1. `FileScriptExecutor` 当前只开放 `copy`、`copyByConfig`、`copyBatch`、`exists`；`stat/list/delete/move` 没有注入到 JS。
+2. `copyByConfig` 要求 `sourcePrefix`、`targetPrefix` 指向参数前缀，前缀下必须有 `protocol`，可选 `rootPath/path`，其余参数交给共享 `FileServiceConfigMapper`。示例使用 `mgm.in`，不传 `protocolKey`。
+3. `copy` 的 endpoint 结构是 `{protocol, rootPath, params}`；账号、密码、端口等放在 `params` 中。脚本通过 `jsNodeConfig` 读取后才组成 endpoint。
+4. 引擎注入的是 `new JsNodeConfigScriptFacade(jsNodeConfigAccessor)`，不会把内部 accessor 或完整配置 Map 暴露给 GraalJS；文件对象只在存在协议参数且 `tapdata.js.file-operation.enabled` 未关闭时注入。
+5. `DefaultFileStorageSessionManager` 使用“当前线程 + 协议 + rootPath + 排序后的参数”作为 session key，确保 FTP 当前目录状态不跨线程共享；引用释放后连接保留到 service close，以支持同线程事件复用。
+6. TM 保存和 DAG 独立更新都会对 `encrypted=true` 参数执行幂等 AES256 密文持久化；引擎正式任务使用现有 resolver 解密，试运行不提供 secret resolver 并强制 dry-run。
+7. `FileCopyRequest` 和 `FilePathPolicy` 双层拒绝绝对路径、协议 URL、`..` 和控制字符；文件 service 使用临时文件、能力检查、size/checksum 校验、重试和 `REUSED` 复用。
+
+这些边界是一期验收契约。若后续扩展 `stat/list`、跨线程 session 或协议专属参数，应先更新公共 API、前端模板、权限模型和对应步骤验收文档。
