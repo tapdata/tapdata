@@ -491,6 +491,7 @@ public class TaskServiceImpl extends TaskService{
             }
         }
 
+        encryptJsNodeConfigValues(dag);
         String editVersion = buildEditVersion(taskDto);
         taskDto.setEditVersion(editVersion);
         taskDto.setTestTaskId(new ObjectId().toHexString());
@@ -751,6 +752,7 @@ public class TaskServiceImpl extends TaskService{
         log.debug("check task dag complete, task id =- {}", taskDto.getId());
 
         if (!isAgentReq() && !importTask) {
+            encryptJsNodeConfigValues(dag);
             String editVersion = buildEditVersion(taskDto);
             taskDto.setEditVersion(editVersion);
         }
@@ -5438,11 +5440,15 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory) {
-        if (taskDto != null && taskDto.getDag() != null && taskDto.getDag().getNodes() != null) {
-            taskDto.getDag().getNodes().forEach(this::encryptJsNodeConfigValues);
-        }
+        encryptJsNodeConfigValues(taskDto == null ? null : taskDto.getDag());
         TaskDto oldTask = checkExistById(taskDto.getId(), user);
         taskUpdateDagService.updateDag(taskDto, oldTask, user, saveHistory);
+    }
+
+    private void encryptJsNodeConfigValues(DAG dag) {
+        if (dag != null && dag.getNodes() != null) {
+            dag.getNodes().forEach(this::encryptJsNodeConfigValues);
+        }
     }
 
     private void encryptJsNodeConfigValues(Node node) {
