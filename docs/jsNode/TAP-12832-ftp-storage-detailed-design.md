@@ -9,6 +9,8 @@
 | 范围 | JS 节点、文件连接、FTP 文件操作、文件存储公共能力 |
 | 关联概要设计 | /Users/gavinxiao/kit/tapdata/tapdata/docs/jsNode/TAP-12832-ftp-storage-overview-design.md |
 
+> 实现状态（2026-09-08）：共享文件 API、FileStorageFunction、文件 Connector 能力注册、FTP/SFTP 生命周期修复、引擎侧 session/operation service、PDK storage executor 缓存和 enhanced JS `storage` 注入已提交到对应仓库。本文件中的“当前实现”以 `StorageFacade`、`StorageExecutorsManager`、`PdkStorageExecutor` 和 `DefaultFileOperationService` 的源码为准；未实现的批量筛选、持久化幂等 ledger、`beforeTask`、feature flag 和指标审计不作为本期验收条件。
+
 ## 2. 目标、边界与核心结论
 
 ### 2.1 目标
@@ -100,7 +102,7 @@ FileConnector.initConnection()
 
 | 源码位置 | 当前行为 | 对本需求的影响 | 明确修复 |
 | --- | --- | --- | --- |
-| file-connector-core/src/main/java/io/tapdata/common/FileConnector.java:44-67 | initConnection 读取连接配置、构建 storage；buildStorage 直接进入 FileStorageFactory | 如果 JS 每次事件直接绕过连接级 manager 调用 buildStorage，就会每次真实初始化 connector/FTP 连接 | FileStorageFunction 只暴露连接级 storage handle；由 StorageExecutorsManager 按连接配置版本缓存并复用，不能在 process 的每次调用中直接 new storage |
+| file-connector-core/src/main/java/io/tapdata/common/FileConnector.java:44-67 | initConnection 读取连接配置、构建 storage；buildStorage 直接进入 FileStorageFactory | 如果 JS 每次事件直接绕过连接级 manager 调用 buildStorage，就会每次真实初始化 connector/FTP 连接 | FileStorageFunction 只暴露连接级 storage handle；由 StorageExecutorsManager 按连接名称缓存并复用，不能在 process 的每次调用中直接 new storage |
 | connectors-common/file-connector-core/src/main/java/io/tapdata/common/file/FileStorageFactory.java:20-32 | 根据 protocol 查找实现类，再由 TapFileStorageBuilder 创建实例 | FileStorageFactory 是 connector 内部工厂，不应由 engine 直接调用，否则会跨越 PDK/classloader 边界 | engine 只通过 PDK FileStorageFunction 取得能力；FileStorageFactory 只保留在 file connector/PDK 内部 |
 | tapdata-common-lib/plugin-kit/tapdata-api/src/main/java/io/tapdata/file/TapFileStorageBuilder.java:26-56 | 反射实例化 TapFileStorage 并调用 init(params) | 证明“获取 storage”会触发实际连接初始化；不能把它当成无连接的轻量对象 | 增加单飞初始化、连接级缓存、坏 session 失效和关闭流程；在测试中验证同一连接并发首次访问只建一次 |
 | connectors-common/file-connector-core/src/main/java/io/tapdata/common/FileConnector.java:90-101 | onStop 先 mergeCacheFiles、releaseResource，最后才 storage.destroy，没有 try/finally | merge 或 writer 释放异常时，storage.destroy 可能不执行，FTP/SFTP 等连接可能泄露 | 用 try/finally 保证 writer、storage、executorService 分别释放；释放异常只记录并继续清理其他资源 |
@@ -142,7 +144,7 @@ CSV、JSON、Excel 的 discoverSchema 在异常或提前 return 路径没有保�
 | 源码位置 | 已确认问题 | 明确修复 |
 | --- | --- | --- |
 | connectors-common/file-connector-core/src/main/java/io/tapdata/common/file/DefaultFileStorageSessionManager.java:27-50 | retain 超过 maxSessions 直接报 FILE_SESSION_LIMIT；没有空闲回收 | 增加 lastAccess、idle eviction 和可观测淘汰；maxSessions 仍保留为硬上限，避免无限建连 |
-| DefaultFileStorageSessionManager.java:79-87 | session key 包含 Thread.currentThread().getId()；同一连接不同 worker 无法共享；同时把 endpoint 参数（可能含 password/private key）串入 key | key 改为 tenant/connectionId/configVersion/protocol/rootPath 和非敏感配置 fingerprint；禁止线程 ID 和明文 secret 进入 key、日志或指标 |
+| DefaultFileStorageSessionManager.java:79-87 | session key 需要避免线程绑定和明文配置泄露 | 当前实现按 protocol、rootPath 和 endpoint params 的 SHA-256 fingerprint 建 key；不使用线程 ID，key 和日志不输出原始参数。连接配置变更由新的连接 executor 生命周期承接，当前 manager 没有动态配置版本监听 |
 | DefaultFileStorageSessionManager.java:52-70 | release 只减少引用；invalidate 直接 remove/destroy，即使仍有引用 | invalidate 改为 mark-draining；新请求不再取得旧 session，待引用归零后销毁；必要时由坏 session 触发新 session 建立 |
 | DefaultFileStorageSessionManager.java:72-77 | destroy 吞掉所有异常 | 保留清理不中断语义，但增加 debug/error 指标和连接标识；测试 destroy 异常不会阻塞其他 session 关闭 |
 | common/file/DefaultFileOperationService.java:31-53 | copy 重试 copyOnce，但重试前没有 sessions.invalidate；坏连接可能被重复复用 | 仅对可恢复远端错误执行 invalidate 后重试；参数、权限、路径和能力错误不重试 |
@@ -150,31 +152,31 @@ CSV、JSON、Excel 的 discoverSchema 在异常或提前 return 路径没有保�
 | DefaultFileOperationService.java:140-160 | copyBatch 固定 MAX_BATCH_FILES=100，按顺序处理，首个异常即停止 | 将批量上限和失败策略显式化；返回已完成/失败项，不能把“部分成功”伪装成整体成功；JS facade 只透传结果，不维护事件 ledger |
 | DefaultFileOperationService.java:60-84,129-160 | list/stat/exists/copy 等操作都通过 session manager retain/release，但远端异常没有统一 invalidate 入口 | 公共 operation 层统一错误分类：连接断开/远端 I/O 使 session 失效；业务错误保留原 session |
 
-#### 3.3.5 文件能力 API 与 Connector 注册的源码基线
+#### 3.3.5 文件能力 API 与 Connector 注册的源码基线及落地结果
 
-当前代码存在一个必须先解决的源码不一致：
+开发前确认过以下源码不一致，并已在 T1/T2 中收口：
 
 - TapFileStorage.java:13-129 的接口源码没有 capabilities()。
 - FtpFileStorage.java:227-230 已有 @Override capabilities()。
 - DefaultFileOperationService.java:86 已调用 target.getStorage().capabilities()。
 - file operation API 的 io.tapdata.file.operation 源码目录在当前工作树中未找到，但 file-connector-core 已导入这些类型。
 
-因此实现顺序必须是：
+已落地结果：
 
-1. 把 TapFileStorage.capabilities() 放入真实共享 API 源码，明确返回 EnumSet<FileStorageCapability>；为所有 protocol implementation 补齐实现或默认空能力。
-2. 把 FileEndpoint、FileCopyRequest、FileOperationErrorCode、FileOperationStatus、FileStorageCapability 等 operation 类型放入可被 engine、PDK 和 connector 共同编译的源码模块，不能只依赖 target/classes 或残留 sources jar。
-3. 让编译期检查覆盖 FTP、SFTP、local、SMB、S3FS、NFS、OSS 等实现；没有真实实现和测试的能力不得注册。
-4. 在 shared API 稳定后，再实现 FileStorageFunction 和 FileConnector 的统一能力注册，避免 engine 先于 connector 获得一个编译可见但运行不可用的函数。
+1. `TapFileStorage.capabilities()` 和 `io.tapdata.file.operation` DTO/错误码/服务接口已归入 `tapdata-common-lib/plugin-kit/tapdata-api`。
+2. `FileStorageFunction` 已加入 PDK API，`ConnectorFunctions` 已提供注册和 getter。
+3. `FileConnector.registerFileStorageFunction()` 已由 CSV、JSON、XML、Excel、File Stream Connector 调用。
+4. 协议能力仍以各实现真实返回值为准；engine 的 JS storage 当前只允许 FTP，其他协议由 `PdkStorageExecutor` 返回 `FILE_UNSUPPORTED_OPERATION`。
 
-当前五类文件 Connector 的注册代码都没有注册 FileStorageFunction：
+五类文件 Connector 的统一注册已完成：
 
 | Connector | 当前注册位置 | 已确认现状 | 修复 |
 | --- | --- | --- | --- |
-| CSV | csv-connector/src/main/java/io/tapdata/connector/csv/CsvConnector.java:62-77 | 注册 error、batchCount、batchRead、streamRead、timestamp、writeRecord，无 file storage function | 在统一的 FileConnector 注册入口增加 FileStorageFunction，并由 CSV 注册 |
-| JSON | json-connector/src/main/java/io/tapdata/connector/json/JsonConnector.java:102-116 | 注册 error、batchCount、batchRead、streamRead、timestamp，无 file storage function | 同上 |
-| XML | xml-connector/src/main/java/io/tapdata/connector/xml/XmlConnector.java:68-82 | 注册 error、batchCount、batchRead、streamRead、timestamp，无 file storage function | 同上 |
-| Excel | excel-connector/src/main/java/io/tapdata/connector/excel/ExcelConnector.java:177-203 | 注册 error、batchCount、batchRead、streamRead、timestamp，无 file storage function | 同上 |
-| File Stream | file-stream-connector/src/main/java/io/tapdata/connector/json/FileStreamConnector.java:58-73 | 注册 error、batchCount、batchRead、streamRead、timestamp、writeRecord，无 file storage function | 同上，并与 raw stream 所有权修复一起验证 |
+| CSV | csv-connector/src/main/java/io/tapdata/connector/csv/CsvConnector.java:62-77 | `registerCapabilities()` 调用统一注册入口 | 已完成；FileStorageFunction 返回 connector 已初始化的 storage |
+| JSON | json-connector/src/main/java/io/tapdata/connector/json/JsonConnector.java:102-116 | `registerCapabilities()` 调用统一注册入口 | 已完成 |
+| XML | xml-connector/src/main/java/io/tapdata/connector/xml/XmlConnector.java:68-82 | `registerCapabilities()` 调用统一注册入口 | 已完成 |
+| Excel | excel-connector/src/main/java/io/tapdata/connector/excel/ExcelConnector.java:177-203 | `registerCapabilities()` 调用统一注册入口 | 已完成 |
+| File Stream | file-stream-connector/src/main/java/io/tapdata/connector/json/FileStreamConnector.java:58-73 | `registerCapabilities()` 调用统一注册入口 | 已完成；raw stream 仍按对应 connector 的实现负责关闭 |
 
 #### 3.3.6 SFTP 等其他文件实现的同步优化边界
 
@@ -186,7 +188,7 @@ CSV、JSON、Excel 的 discoverSchema 在异常或提前 return 路径没有保�
 | SftpFileStorage.java:53-98,192-198 | channel.cd 改变共享 current directory；raw readFile 返回 channel.get 流 | 与 FTP 相同，按 storage session 串行化有状态操作；raw stream 使用受管 close 或强制 callback API |
 | SftpFileStorage.java:101-126 | move 直接 UnsupportedOperationException；delete 把所有 SftpException 都当成 false | 能力矩阵不得声明 MOVE/ATOMIC_RENAME；区分 not found、权限错误和连接错误，不能吞掉远端异常 |
 
-以上是公共文件层的代码修复，不是 JS 节点业务校验；JS 只负责调用 facade 和处理用户脚本选择的结果/异常。
+以上是公共文件层的代码修复，不是 JS 节点业务校验；JS 只负责调用 facade 和处理用户脚本选择的结果/异常。当前 SFTP 已完成边界修复，但没有在 `PdkStorageExecutor` 中开放给 JS；本期仍只开放 FTP。
 
 ## 4. 总体架构
 
@@ -332,13 +334,19 @@ io.tapdata.flow.engine.V2.script.storage.StorageExecutorsManager
 - 连接认证失败、远程 I/O 失败或超时时使 session 失效。
 - 节点关闭时关闭所有 StorageExecutor 和 PDK 节点。
 
-缓存键建议：
+实际缓存分两层：
 
 ~~~text
-tenantId + connectionId + connectionConfigVersion + pdkHash
+StorageExecutorsManager:
+  trimmed connectionName -> CompletableFuture<StorageExecutor>
+  作用域：一个 JS processor node 实例
+
+DefaultFileStorageSessionManager:
+  protocol + rootPath + SHA-256(endpoint.params)
+  作用域：一个 StorageExecutor
 ~~~
 
-密码、私钥和完整连接参数不能进入日志或缓存键。连接配置变更必须使旧缓存失效。
+`StorageExecutorsManager` 当前通过连接名称查询 `Connections`，并用单飞 future 防止并发首次访问重复创建 PDK；创建失败有 1 秒连接级退避。当前实现没有动态配置版本监听，连接配置变更应通过任务/节点重启或显式 `invalidate(connectionName, cause)` 使旧 executor 失效。密码、私钥和完整连接参数不进入日志；session key 只保存不可逆 fingerprint。
 
 ### 6.3 连接解析和配置边界
 
@@ -388,12 +396,12 @@ TAP-12832 允许 process(record) 按事件调用文件操作，因此要区分�
 
 StorageExecutorsManager 只需要提供连接级资源管理，不承担业务级事件验证或任务级状态维护：
 
-1. 按 connectionId、连接配置版本和 pdkHash 缓存 StorageExecutor。
+1. 按连接名称缓存 StorageExecutor；一个 manager 实例内同名连接只创建一个 executor。
 2. 同一连接并发首次访问使用单飞初始化，避免同时创建多个 PDK/FTP session。
 3. 连接初始化失败采用有限的连接级退避，避免异常时每条事件重复登录；退避不改变用户脚本的事件语义。
 4. 远程 I/O 失败后让 session 失效并在下一次操作重建。
-5. 批量 copy 在同一次服务调用中复用 source/target session，但不记录每条事件的持久化状态。
-6. 提供连接命中、创建、失效和重建指标，便于用户判断脚本的文件操作频率和性能。
+5. 一次 copy 调用内复用 source/target session，但不记录每条事件的持久化状态。
+6. manager 关闭时关闭 executor、session、底层 storage 和 PDK associate id；命中/创建指标暂未接入本期实现。
 
 这里的缓存只解决连接和 PDK 创建成本，不阻止用户根据事件执行文件操作。文件操作本身的次数和业务条件由 JS 脚本决定。
 
@@ -441,7 +449,7 @@ invalidate(session)
   -> 下次 retain 重新连接
 ~~~
 
-必须支持最大 session 数、空闲回收、重复 close 保护、配置版本失效、连接失败 invalidate 和初始化异常清理。现有使用 thread id 参与 key 的逻辑不能作为唯一复用边界；key 应优先使用 connectionId、root、配置版本和非敏感指纹。
+当前实现支持最大 session 数、空闲回收、重复 close 保护、连接失败 invalidate 和初始化异常清理；session key 使用 protocol、rootPath 和非敏感 fingerprint，不绑定线程。配置动态变更监听尚未实现，应通过上层 executor 失效/重建处理。
 
 ### 7.3 路径与 endpoint
 
@@ -480,7 +488,7 @@ storage.update(targetConnectionName, data, options)
 storage.delete(connectionName, data, options)
 ~~~
 
-首期 update 支持按事件进行 write、copy、exists、list 和 delete 操作，不暴露 getConnection、openStream、getRawClient。storage 调用可以出现在 process(record) 中，操作结果同步返回；连接和 session 由 Java 文件服务复用。
+首期 `update` 支持按事件进行 `write` 和 `copy`；`find` 当前返回单个文件/目录 metadata，`exists` 和 `delete` 是独立方法，不提供 `list` facade。接口不暴露 getConnection、openStream、getRawClient。storage 调用可以出现在 process(record) 中，操作结果同步返回；连接和 session 由 Java 文件服务复用。
 
 推荐脚本：
 
@@ -512,14 +520,11 @@ update 选项：
 | --- | --- |
 | overwrite | skip、overwrite、fail，默认 skip |
 | verify | none、size、checksum，默认 size |
-| preservePath | 是否保留 source root 下相对目录 |
-| recursive | 是否递归目录 |
-| pattern/include/exclude | glob 过滤 |
-| maxFiles/maxBytes | 数量和字节上限，不能超过系统硬上限 |
-| timeoutMs/retryTimes | 超时和可重试次数 |
-| operationId | 当前调用的诊断标识，不持久化为每事件 ledger |
+| preservePath、recursive、pattern/include/exclude、maxFiles/maxBytes | 当前 facade 尚未实现；不要传入后假设会生效 |
+| timeoutMs/retryTimes | 超时和可重试次数；当前 copy 支持，write 使用底层单次写入 |
+| operationId | 当前 facade 尚未对外提供；不持久化为每事件 ledger |
 | dryRun | 只列出计划，不写入 |
-| failFast | 首个失败是否停止批次 |
+| failFast | 当前 facade 尚未实现批量操作 |
 
 大文件内容不进入 JS，返回值只包含状态、文件摘要、字节数、耗时和错误。
 
@@ -542,7 +547,7 @@ doClose() 负责关闭 StorageExecutorsManager、StorageExecutor 和关联 PDK/s
 
 ### 8.3 JS 脚本编写示例与协议范围
 
-以下代码是 TAP-12832 实现后的目标脚本契约；当前工作树尚未提供 storage facade，不能在未完成实现前直接运行。storage 由 enhanced JS 运行时注入，用户只传连接名称和普通 JSON/字符串参数，不获取 ScriptExecutor、FTPClient、PDK 节点或 Java stream。
+以下代码是当前实现可直接使用的脚本契约。storage 由 enhanced JS 运行时注入，用户只传连接名称和普通 JSON/字符串参数，不获取 ScriptExecutor、FTPClient、PDK 节点或 Java stream。
 
 #### 8.3.1 按事件直接写入 FTP
 
@@ -599,7 +604,13 @@ function process(record) {
     retryTimes: 2
   });
 
-  record.fileOperation = result.summary;
+  record.fileOperation = {
+    status: result.status,
+    sourcePath: result.sourcePath,
+    targetPath: result.targetPath,
+    bytes: result.bytes,
+    attempts: result.attempts
+  };
   return record;
 }
 ~~~
@@ -663,11 +674,11 @@ ftp.update(...);
 | 连接类型 | 首期是否可通过 storage 使用 | 前置条件 |
 | --- | --- | --- |
 | FTP | 是 | Connector 注册 FileStorageFunction；FTP 初始化、流关闭、session 复用和能力矩阵修复完成 |
-| SFTP | 否，预留扩展 | 修复 host key 校验、状态型 channel、错误分类，并注册经过测试的 FileStorageFunction |
+| SFTP | 否，当前明确不开放 | SFTP 生命周期边界已修复，但 engine storage executor 当前只允许 FTP |
 | SMB、S3、NFS、OSS 等文件连接 | 否，预留扩展 | 各自实现 FileStorageFunction、TapFileStorage 能力和统一 operation API |
 | 数据库连接 | 否 | 继续使用 ScriptExecutorsManager.getScriptExecutor 和数据库命令 API |
 
-因此，当前设计不是“只能操作 FTP”的长期接口设计，而是“公共 storage 契约 + FTP 首期落地”。后续协议只要实现同一 FileStorageFunction 并声明真实支持的能力，即可复用上述 JS API；如果源端没有 READ 或目标端没有 WRITE/ATOMIC_RENAME，公共服务应返回不支持，而不是在 JS 中写协议特判。
+因此，当前实现是“公共 storage 契约 + FTP 首期落地”：用户现在只能通过 storage 操作 FTP；SFTP/SMB/S3 等只有在 engine 明确放开协议、完成 FileStorageFunction 接入和集成测试后才能使用。协议差异应由 adapter 和能力矩阵处理，不在 JS 中写协议特判。
 
 ## 9. 文件操作执行语义
 
@@ -835,12 +846,12 @@ Tapdata 事件 -> JS process(record)
 3. process(record) 可以根据事件逻辑直接写入 FTP，也可以在两个 FTP 连接之间复制文件。
 4. 大文件内容不进入 JS。
 5. 同一连接的事件级调用复用 StorageExecutor、PDK 和 FTP session。
-6. 复制支持过滤、递归、建目录、覆盖、校验和连接级重试。
+6. 复制支持单文件、覆盖策略、size 校验、临时文件清理和连接级重试；过滤、递归批量复制和 checksum 不属于当前 facade 已交付能力。
 7. 不产生按 Tapdata 事件写入的 file_operation_ledger。
 8. 连接初始化失败不会无界重复建连；修复配置后可以重新初始化。
 9. FTP 异常会使坏 session 失效并重建。
 10. Mongo aggregate、既有文件 source/target 回归测试通过。
-11. FTPS 未完成时不会被错误宣称为已支持。
+11. FTPS、SFTP 和其他未开放协议不会被错误宣称为已支持。
 
 ## 15. 最终结论
 

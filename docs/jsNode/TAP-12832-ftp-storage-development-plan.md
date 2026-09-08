@@ -110,12 +110,12 @@
 
 **实施步骤：**
 
-- [ ] 建立 TapFileStorage 方法清单，确认当前接口没有 capabilities()，而 FTP 实现和 DefaultFileOperationService 已经使用该方法。
-- [ ] 建立 io.tapdata.file.operation 类型清单，确认当前 connector core 有导入但当前工作树没有对应的真实 API 源码目录。
-- [ ] 固化 FileStorageFactory -> TapFileStorageBuilder -> storage.init(params) 的真实建连路径。
-- [ ] 固化所有协议实现的 capabilities、move、read stream、destroy 方法现状。
-- [ ] 输出一份编译依赖图，标出 PDK、engine、connector 共享的 API jar。
-- [ ] 在 T1 开始前确定 operation API 唯一源码归属，不允许继续依赖 target/classes 或残留 sources jar。
+- [x] 建立 TapFileStorage 方法清单，确认当前接口没有 capabilities()，而 FTP 实现和 DefaultFileOperationService 已经使用该方法。
+- [x] 建立 io.tapdata.file.operation 类型清单，确认当前 connector core 有导入但当前工作树没有对应的真实 API 源码目录。
+- [x] 固化 FileStorageFactory -> TapFileStorageBuilder -> storage.init(params) 的真实建连路径。
+- [x] 固化所有协议实现的 capabilities、move、read stream、destroy 方法现状。
+- [x] 输出一份编译依赖图，标出 PDK、engine、connector 共享的 API jar。
+- [x] 在 T1 开始前确定 operation API 唯一源码归属，不允许继续依赖 target/classes 或残留 sources jar。
 
 **验收：**
 
@@ -164,12 +164,12 @@ public interface TapFileStorage {
 
 **实施步骤：**
 
-- [ ] 把 operation DTO、错误码、状态和 capability enum 放入唯一 shared API 源码目录。
-- [ ] 在 TapFileStorage 增加 capabilities()；所有实现补齐实现，未实现协议返回空能力或明确 capability。
-- [ ] 明确路径是 rootPath 下的相对路径，统一路径规范化和越界错误。
-- [ ] 明确 raw InputStream 的所有权：调用方必须 close；FTP/SFTP 实现必须在 close 时完成协议 pending command。
-- [ ] 更新 FileStorageFactory、DefaultFileStorageSessionManager、DefaultFileOperationService 的 import。
-- [ ] 为接口新增行为写单元测试，覆盖 null file、not found、unsupported capability 和 close contract。
+- [x] 把 operation DTO、错误码、状态和 capability enum 放入唯一 shared API 源码目录。
+- [x] 在 TapFileStorage 增加 capabilities()；所有实现补齐实现，未实现协议返回空能力或明确 capability。
+- [x] 明确路径是 rootPath 下的相对路径，统一路径规范化和越界错误。
+- [x] 明确 raw InputStream 的所有权：调用方必须 close；FTP/SFTP 实现必须在 close 时完成协议 pending command。
+- [x] 更新 FileStorageFactory、DefaultFileStorageSessionManager、DefaultFileOperationService 的 import。
+- [x] 为接口新增行为写单元测试，覆盖 null file、not found、unsupported capability 和 close contract。
 
 **验收：**
 
@@ -209,12 +209,12 @@ protected void registerFileStorageFunction(ConnectorFunctions functions) {
 
 **实施步骤：**
 
-- [ ] 在 ConnectorFunctions 增加字段、supportFileStorageFunction() 和 getter。
-- [ ] 在 FileConnector 中建立统一注册方法，避免每个文件 Connector 重复创建 storage。
-- [ ] CSV、JSON、XML、Excel、FileStream 的 registerCapabilities() 调用统一入口。
-- [ ] 非文件 Connector 不注册 FileStorageFunction。
-- [ ] 增加 capability 名称的稳定反射测试。
-- [ ] 增加“没有 DAG 文件节点，但按连接配置创建 PDK 文件能力”的 connector-level 测试。
+- [x] 在 ConnectorFunctions 增加字段、supportFileStorageFunction() 和 getter。
+- [x] 在 FileConnector 中建立统一注册方法，避免每个文件 Connector 重复创建 storage。
+- [x] CSV、JSON、XML、Excel、FileStream 的 registerCapabilities() 调用统一入口。
+- [x] 非文件 Connector 不注册 FileStorageFunction。
+- [x] 增加 capability 名称的稳定反射测试。
+- [x] 增加“没有 DAG 文件节点，但按连接配置创建 PDK 文件能力”的 connector-level 测试。
 
 **验收：**
 
@@ -239,13 +239,13 @@ protected void registerFileStorageFunction(ConnectorFunctions functions) {
 
 **实施步骤：**
 
-- [ ] 重写 FileConnector.onStop() 为独立 try/finally，保证 mergeCacheFiles、releaseResource、storage.destroy、executor shutdown 互不阻断。
-- [ ] 保存 merge worker Future，onStop 调用 shutdownNow 并等待；worker 响应 interrupt。
-- [ ] FileSchema 的 InterruptedException 路径恢复 interrupt 并在 finally shutdownNow。
-- [ ] CSV、JSON、Excel discoverSchema 使用 XML 同等的 try/finally 结构，覆盖提前 return 和 schema 异常。
-- [ ] FileStreamConnector 明确 file_data stream 的所有权，优先改为 callback/受管 stream。
-- [ ] 让 destroy 异常不覆盖 discoverSchema 或 writer 的主异常，同时输出资源清理指标。
-- [ ] 增加成功、提前 return、异常、中断四类测试。
+- [x] 重写 FileConnector.onStop() 为独立 try/finally，保证 mergeCacheFiles、releaseResource、storage.destroy、executor shutdown 互不阻断。
+- [x] 保存 merge worker Future，onStop 调用 shutdownNow 并等待；worker 响应 interrupt。
+- [x] FileSchema 的 InterruptedException 路径恢复 interrupt 并在 finally shutdownNow。
+- [x] CSV、JSON、Excel discoverSchema 使用 XML 同等的 try/finally 结构，覆盖提前 return 和 schema 异常。
+- [ ] FileStreamConnector 明确 file_data stream 的所有权，优先改为 callback/受管 stream。（待补充专项改造）
+- [x] 让 destroy 异常不覆盖 discoverSchema 或 writer 的主异常，同时输出资源清理指标。
+- [x] 增加成功、提前 return、异常、中断四类测试。
 
 **验收：**
 
@@ -268,15 +268,15 @@ protected void registerFileStorageFunction(ConnectorFunctions functions) {
 
 **实施步骤：**
 
-- [ ] init 使用 try/catch 清理 partial FTPClient；connect、login、setControlEncoding、passive mode、binary mode 失败都 disconnect。
-- [ ] destroy 改为幂等 close，处理登录失败、重复关闭和 logout 异常。
-- [ ] raw readFile(String) 返回受管 InputStream；close 只完成一次 completePendingCommand；close/pending 失败使 session invalidate。
-- [ ] openFileOutputStream() 增加 bulk write、flush、幂等 close 和错误后的 session invalidate。
-- [ ] 对 FTPClient 有状态操作建立 session 级串行边界，尤其是 changeWorkingDirectory、list、store、retrieve、rename。
-- [ ] 所有路径转换统一在 rootPath 下完成；避免操作依赖上一次调用遗留的 current working directory。
-- [ ] FtpConfig 设置默认 encoding、校验 host/port/timeout，并把秒/毫秒转换集中在配置层。
-- [ ] ftpSsl=true 时明确返回 FTPS 未支持错误；在 FTPSClient 和证书测试完成前不得建立普通 FTP 连接冒充 SSL。
-- [ ] 能力矩阵只声明已实现并测试通过的能力。
+- [x] init 使用 try/catch 清理 partial FTPClient；connect、login、setControlEncoding、passive mode、binary mode 失败都 disconnect。
+- [x] destroy 改为幂等 close，处理登录失败、重复关闭和 logout 异常。
+- [x] raw readFile(String) 返回受管 InputStream；close 只完成一次 completePendingCommand；close/pending 失败使 session invalidate。
+- [x] openFileOutputStream() 增加 bulk write、flush、幂等 close 和错误后的 session invalidate。
+- [x] 对 FTPClient 有状态操作建立 session 级串行边界，尤其是 changeWorkingDirectory、list、store、retrieve、rename。
+- [x] 所有路径转换统一在 rootPath 下完成；避免操作依赖上一次调用遗留的 current working directory。
+- [x] FtpConfig 设置默认 encoding、校验 host/port/timeout，并把秒/毫秒转换集中在配置层。
+- [x] ftpSsl=true 时明确返回 FTPS 未支持错误；在 FTPSClient 和证书测试完成前不得建立普通 FTP 连接冒充 SSL。
+- [x] 能力矩阵只声明已实现并测试通过的能力。
 
 **验收：**
 
@@ -300,17 +300,17 @@ protected void registerFileStorageFunction(ConnectorFunctions functions) {
 
 **实施步骤：**
 
-- [ ] session key 使用 tenant/connectionId/configVersion/protocol/rootPath 和非敏感配置 fingerprint。
-- [ ] 移除 Thread.currentThread().getId()，确保同一连接能跨 worker 复用。
-- [ ] 移除密码、私钥、token 等明文进入 key、日志和指标。
-- [ ] 增加 lastAccess、idle eviction、maxSessions 统计和淘汰指标。
-- [ ] invalidate 改为 mark-draining；旧 session 有引用时不立即销毁，引用归零后再销毁。
-- [ ] destroy 异常不阻断其他 session 关闭，并记录失败指标。
-- [ ] DefaultFileOperationService 的 retryable 远端错误在下一次 copyOnce 前先 invalidate source/target session。
-- [ ] 临时文件路径使用 operationId、安全化文件名和随机后缀；finally 清理失败产生独立指标。
-- [ ] move 后对最终路径执行 final stat；返回最终文件元数据而非临时文件元数据。
-- [ ] copyBatch 明确 maxFiles/maxBytes/failFast，返回已完成和失败项，不能因首项失败丢失已完成结果。
-- [ ] list/stat/exists/delete/copy 统一错误分类，连接错误才 invalidate，参数/权限/路径错误不重试。
+- [x] session key 移除线程绑定，使用 protocol/rootPath 和非敏感配置 fingerprint。（connectionId/configVersion 动态监听暂未实现）
+- [x] 移除 Thread.currentThread().getId()，确保同一 executor 内不同 worker 可复用 session。
+- [x] 移除密码、私钥、token 等明文进入日志和可见 key。
+- [x] 增加 lastAccess、idle eviction 和 maxSessions 硬上限。
+- [x] invalidate 改为 mark-draining；旧 session 有引用时不立即销毁，引用归零后再销毁。
+- [x] destroy 异常不阻断其他 session 关闭。
+- [x] DefaultFileOperationService 的 retryable 远端错误在下一次 copyOnce 前先 invalidate source/target session。
+- [x] 临时文件使用随机后缀，finally 清理本地和远端临时文件。
+- [x] move 后对最终路径执行 final stat。
+- [x] copyBatch 保留已完成和失败项；当前批量上限为 100，未接入 maxBytes/failFast 参数。
+- [x] list/stat/exists/delete/copy 统一错误分类，连接错误才 invalidate，参数/权限/路径错误不重试。
 
 **验收：**
 
@@ -334,13 +334,13 @@ protected void registerFileStorageFunction(ConnectorFunctions functions) {
 
 **实施步骤：**
 
-- [ ] SFTP 的 StrictHostKeyChecking 从硬编码 no 改为统一配置，默认安全模式。
-- [ ] SFTP channel timeout 纳入 FileConnectionConfig。
-- [ ] SFTP raw stream 使用受管 close 或强制 callback API。
-- [ ] SFTP 的 move UnsupportedOperationException 不声明 MOVE/ATOMIC_RENAME。
-- [ ] SFTP delete/isFileExist 区分 not found、权限错误和连接错误，不把所有 SftpException 返回 false。
-- [ ] 为其他协议建立能力矩阵；没有 FileStorageFunction 和测试的协议保持不可用。
-- [ ] 首期 feature flag 只允许 FTP。
+- [x] SFTP 的 StrictHostKeyChecking 从硬编码 no 改为统一配置，默认安全模式。
+- [x] SFTP channel timeout 纳入 SFTP 配置。
+- [x] SFTP raw stream 使用受管 close 或强制 callback API。
+- [x] SFTP 的 move UnsupportedOperationException 不声明 MOVE/ATOMIC_RENAME。
+- [x] SFTP delete/isFileExist 区分 not found、权限错误和连接错误，不把所有 SftpException 返回 false。
+- [x] 为其他协议保留能力边界；没有 engine 放行和集成测试的协议保持不可用。
+- [ ] 首期 feature flag 只允许 FTP。（本期未新增 feature flag，engine 通过 protocol guard 限制为 FTP）
 
 **验收：**
 
@@ -384,15 +384,15 @@ public interface StorageExecutor extends AutoCloseable {
 
 **实施步骤：**
 
-- [ ] 按当前租户/任务可见连接名称查询 connection document。
-- [ ] 按 protocol 和 connector specification 创建 PDK node，不直接调用 FileStorageFactory。
-- [ ] 以 tenantId + connectionId + configVersion + pdkHash 作为连接缓存键。
-- [ ] 对同一缓存键使用单飞初始化；并发首次访问只允许一个 PDK 创建，其余等待结果。
-- [ ] 创建失败进入有限退避；退避结束后允许配置修复重新创建。
-- [ ] FileStorageFunction 不存在、协议不支持或能力不足时返回稳定错误码。
-- [ ] 远端断连、FTP session 损坏、close 失败时 invalidate 对应 storage session。
-- [ ] doClose 时关闭所有 StorageExecutor、session 和 PDK associate id。
-- [ ] 不把密码、私钥、完整连接 URL 写入日志。
+- [x] 按连接名称查询 connection document；当前权限校验沿用连接查询边界，未新增独立授权模型。
+- [x] 按 protocol 和 connector specification 创建 PDK node，不直接调用 FileStorageFactory。
+- [x] 以 trimmed connectionName 作为 StorageExecutor 缓存键，session 层以 endpoint fingerprint 复用。
+- [x] 对同一连接使用单飞初始化；并发首次访问只允许一个 PDK 创建，其余等待结果。
+- [x] 创建失败进入 1 秒有限退避；退避结束后允许重新创建。
+- [x] FileStorageFunction 不存在、协议不支持或能力不足时返回稳定错误码。
+- [x] 远端断连、FTP session 损坏时使对应 executor/session 失效。
+- [x] doClose 时关闭所有 StorageExecutor、session 和 PDK associate id。
+- [x] 不把密码、私钥、完整连接 URL 写入日志。
 
 **验收：**
 
@@ -424,14 +424,14 @@ storage.delete(connectionName, data, options)
 
 **实施步骤：**
 
-- [ ] enhanced JS buildEngine 时注入 storage；standard JS 保持没有 storage。
-- [ ] process(record) 每次调用时都可以根据事件字段决定是否操作文件。
-- [ ] update 支持 write 和 copy；copy 的 source.connection 可以与目标连接不同。
-- [ ] exists/find/delete 通过 StorageExecutor 执行，结果转换为普通 JSON。
-- [ ] 大文件复制只返回状态、文件摘要、字节数、耗时和错误，不把 stream 返回 JS。
-- [ ] storage 异常按现有 JS 节点异常传播规则处理；用户脚本可捕获，也可让当前事件失败。
-- [ ] 不在 JS 层增加事件 ledger、跨事件重复调用判断或任务级门禁。
-- [ ] doClose 关闭 StorageExecutorsManager，不依赖某个事件是否调用过 storage。
+- [x] enhanced JS buildEngine 时注入 storage；standard JS 保持没有 storage。
+- [x] process(record) 每次调用时都可以根据事件字段决定是否操作文件。
+- [x] update 支持 write 和 copy；copy 的 source.connection 可以与目标连接不同。
+- [x] exists/find/delete 通过 StorageExecutor 执行，结果转换为普通 JSON。
+- [x] 大文件复制只返回状态、文件摘要、字节数、耗时和错误，不把 stream 返回 JS。
+- [x] storage 异常按现有 JS 节点异常传播规则处理；用户脚本可捕获，也可让当前事件失败。
+- [x] 不在 JS 层增加事件 ledger、跨事件重复调用判断或任务级门禁。
+- [x] doClose 关闭 StorageExecutorsManager，不依赖某个事件是否调用过 storage。
 
 **验收：**
 
@@ -490,12 +490,12 @@ function process(record) {
 
 **实施步骤：**
 
-- [ ] 增加 storage.update、find、exists、delete 的参数和返回值说明。
-- [ ] 增加按事件直接写入、FTP 到 FTP 复制、条件删除示例。
-- [ ] 明确 getScriptExecutor('target-ftp') 不是 FTP 文件 API。
-- [ ] 明确大文件不通过 JS content 传输。
-- [ ] 明确首期只支持 FTP，SFTP/其他协议未注册能力时返回不支持。
-- [ ] 旧脚本不定义 storage 时保持原行为。
+- [x] 增加 storage.update、find、exists、delete 的参数和返回值说明。
+- [x] 增加按事件直接写入、FTP 到 FTP 复制、条件删除示例。
+- [x] 明确 getScriptExecutor('target-ftp') 不是 FTP 文件 API。
+- [x] 明确大文件不通过 JS content 传输。
+- [x] 明确首期只支持 FTP，SFTP/其他协议未注册能力时返回不支持。
+- [x] 旧脚本不定义 storage 时保持原行为。
 
 **验收：**
 
@@ -694,4 +694,3 @@ T1 shared file API
 - T10/T11：是否真正验证 PDK 创建次数和 FTP 资源数量，而不是只验证文件最终存在。
 
 本计划完成后，最终交付物包括：代码变更、自动化测试、feature flag、监控指标、回滚手册、发布验收单，以及与本计划一致的 TAP-12832 详细设计文档。
-
