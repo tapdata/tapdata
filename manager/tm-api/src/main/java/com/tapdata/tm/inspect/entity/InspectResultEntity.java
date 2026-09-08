@@ -44,6 +44,7 @@ public class InspectResultEntity extends BaseEntity {
     private Date ttlTime;
     private String firstCheckId; // 初次校验结果编号，表示校验的批次号
     private String parentId; // 父校验结果编号，表示此校验基于 parentId 结果做的二次校验
+    private boolean judgeAutomaticCheck;
 
     private InspectDto inspect;
 
