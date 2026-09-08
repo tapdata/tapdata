@@ -93,6 +93,26 @@ class StorageExecutorsManagerTest {
         assertEquals(1, second.closed.get());
     }
 
+    @Test
+    void repeatedEventLevelAccessReusesOneExecutor() throws Throwable {
+        AtomicInteger created = new AtomicInteger();
+        FakeExecutor executor = new FakeExecutor("ftp-4");
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> {
+                    created.incrementAndGet();
+                    return executor;
+                }, 0L);
+
+        for (int i = 0; i < 100; i++) {
+            assertSame(executor, manager.getStorageExecutor("ftp-4"));
+        }
+
+        assertEquals(1, created.get());
+        manager.close();
+        assertEquals(1, executor.closed.get());
+    }
+
     private static StorageExecutor get(StorageExecutorsManager manager, String name) {
         try {
             return manager.getStorageExecutor(name);
