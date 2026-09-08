@@ -642,7 +642,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						DataSourceDefinitionDto::getType,
 						DataSourceDefinitionDto::getProperties, (e1, e2) -> e1
 				));
-		Map<String, String> fialedApi = new HashMap<>();
 		//set API server key in api
 		for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
 			String connectionId = dataSourceConnectionDto.getId().toHexString();
@@ -652,9 +651,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				try {
 					connectionConfig.put(URI, parseUri(connectionConfig));
 				} catch (Exception e) {
-					fialedApi.put(connectionId, "api.publish.failed");
-					log.warn("Failed to parse mongo connection config: {}", e.getMessage());
-					continue;
+					log.warn("Failed to parse mongo connection config: {}, connection id: {}", e.getMessage(), connectionId);
 				}
 			}
 			Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
@@ -680,7 +677,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			}
 			connectionVos.add(connectionVo);
 		}
-		apis = updatePublishMsg(apis, fialedApi);
 		apiDefinitionVo.setConnections(connectionVos);
 		apiDefinitionVo.setApis(apis);
 		withEncryptionRule(apis);
