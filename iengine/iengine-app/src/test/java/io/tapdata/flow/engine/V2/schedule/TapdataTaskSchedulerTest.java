@@ -170,7 +170,7 @@ public class TapdataTaskSchedulerTest {
 	@Nested
 	class DestroyCacheTest {
 		@Test
-		@DisplayName("destroy cache uses the known terminal status without querying the old job")
+		@DisplayName("destroy cache does not query the old job status")
 		void doesNotQueryTaskClientStatus() {
 			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
 			MessageDao messageDao = mock(MessageDao.class);
@@ -185,12 +185,11 @@ public class TapdataTaskSchedulerTest {
 			ReflectionTestUtils.invokeMethod(
 					taskScheduler,
 					"destroyCache",
-					taskClient,
-					TaskDto.STATUS_STOP
+					taskClient
 			);
 
 			verify(taskClient, never()).getStatus();
-			verify(messageDao).updateCacheStatus(cacheName, TaskDto.STATUS_STOP);
+			verify(messageDao, never()).updateCacheStatus(anyString(), anyString());
 			verify(messageDao).destroyCache(task, cacheName);
 		}
 	}

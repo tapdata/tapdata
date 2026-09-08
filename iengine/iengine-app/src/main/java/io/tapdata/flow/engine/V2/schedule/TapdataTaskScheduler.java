@@ -694,7 +694,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
                             stopTaskResource = StopTaskResource.COMPLETE;
                         } else if (TerminalMode.INTERNAL_STOP == terminalMode) {
 							if (taskClient.stop()) {
-								clearTaskCacheAfterStopped(taskClient, TaskDto.STATUS_STOP);
+								clearTaskCacheAfterStopped(taskClient);
 								clearTaskRetryCache(taskId);
 							}
 						} else {
@@ -707,7 +707,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 									if (stop) {
 										TaskDto taskDto = safeQueryTaskById(taskId);
 										ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
-										clearTaskCacheAfterStopped(taskClient, TaskDto.STATUS_STOP);
+										clearTaskCacheAfterStopped(taskClient);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
@@ -780,7 +780,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				final boolean stop = taskClient.stop();
 				if (stop) {
 					try {
-						destroyCache(taskClient, TaskDto.STATUS_STOP);
+						destroyCache(taskClient);
 						logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskId));
 					} catch (Exception e) {
 						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
@@ -836,12 +836,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
-	private void destroyCache(TaskClient<TaskDto> taskClient, String taskStatus) {
+	private void destroyCache(TaskClient<TaskDto> taskClient) {
 		String cacheName = taskClient.getCacheName();
 		if (StringUtils.isNotEmpty(cacheName)) {
-			// The caller already knows the terminal state. Querying the old Jet job here can
-			// wait indefinitely after the job has terminated, while the per-task lock is held.
-			messageDao.updateCacheStatus(cacheName, taskStatus);
 			messageDao.destroyCache(taskClient.getTask(), cacheName);
 		}
 	}
@@ -929,7 +926,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return false;
 	}
 
-	private void clearTaskCacheAfterStopped(TaskClient<TaskDto> taskClient, String taskStatus) {
+	private void clearTaskCacheAfterStopped(TaskClient<TaskDto> taskClient) {
 		if (null == taskClient) {
 			return;
 		}
@@ -943,7 +940,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
 		try {
-			destroyCache(taskClient, taskStatus);
+			destroyCache(taskClient);
 			logger.trace("Destroy memory task client cache succeed, task: {}[{}]",
 					taskClient.getTask().getName(), taskClient.getTask().getId());
 		} catch (Exception e) {
@@ -1000,7 +997,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	private void stopTaskAndClear(TaskClient<TaskDto> taskDtoTaskClient, StopTaskResource stopped, String taskId) {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
-			clearTaskCacheAfterStopped(taskDtoTaskClient, stopped.getTaskStatus());
+			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDtoTaskClient.getTask());
 		}
@@ -1034,24 +1031,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	protected enum StopTaskResource {
-		STOPPED("stopped", TaskDto.STATUS_STOP),
-		RUN_ERROR("runError", TaskDto.STATUS_ERROR),
-		COMPLETE("complete", TaskDto.STATUS_COMPLETE),
+		STOPPED("stopped"),
+		RUN_ERROR("runError"),
+		COMPLETE("complete"),
 		;
-		private final String resource;
-		private final String taskStatus;
+		private String resource;
 
-		StopTaskResource(String resource, String taskStatus) {
+		StopTaskResource(String resource) {
 			this.resource = resource;
-			this.taskStatus = taskStatus;
 		}
 
 		public String getResource() {
 			return resource;
-		}
-
-		public String getTaskStatus() {
-			return taskStatus;
 		}
 	}
 
