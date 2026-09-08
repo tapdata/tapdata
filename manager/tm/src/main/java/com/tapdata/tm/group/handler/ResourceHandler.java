@@ -734,6 +734,77 @@ public interface ResourceHandler {
     /**
      * 从 config map 中按点号分隔的路径读取值（支持嵌套路径，如 "ssl.password"）
      */
+    /**
+     * 导入侧：包内敏感字段缺失/为空时，保留目标环境已有的值（[ADR-0034] D5/D6）。
+     *
+     * 为什么需要它：导出会把敏感字段抹空，而 GROUP_IMPORT 的落库是整文档覆盖
+     * （{@code DataSourceServiceImpl.handleGroupImportConnection} → {@code importSave}），
+     * 于是「脱敏包 + 未提供 vault」会把目标环境已有的 uri/password 覆盖成空，导入还报成功。
+     * 包里那个空缺是脱敏流程的产物、不是用户配置的内容，因此**任何 importMode 下都不该覆盖**。
+     *
+     * @return 被保留（即包内缺值、改用目标既有值）的 config path，供调用方汇报——D7 要求绝不静默。
+     */
+    static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
+                                                          DataSourceConnectionDto existing, DataSourceDefinitionDto definition) {
+        List<String> preserved = new ArrayList<>();
+        if (incoming == null || existing == null) {
+            return preserved;
+        }
+        // 顶层镜像与 config 同等对待：导出把两处一起抹了，导入就得把两处一起补回来，
+        // 否则 ES-2b 只是把「凭据被抹空」从 config 挪到了顶层
+        restoreMirroredField("database_host", incoming.getDatabase_host(), existing.getDatabase_host(),
+                incoming::setDatabase_host, preserved);
+        restoreMirroredField("database_username", incoming.getDatabase_username(), existing.getDatabase_username(),
+                incoming::setDatabase_username, preserved);
+        restoreMirroredField("database_port", incoming.getDatabase_port(), existing.getDatabase_port(),
+                incoming::setDatabase_port, preserved);
+        restoreMirroredField("database_uri", incoming.getDatabase_uri(), existing.getDatabase_uri(),
+                incoming::setDatabase_uri, preserved);
+        restoreMirroredField("database_password", incoming.getDatabase_password(), existing.getDatabase_password(),
+                incoming::setDatabase_password, preserved);
+        restoreMirroredField("plain_password", incoming.getPlain_password(), existing.getPlain_password(),
+                incoming::setPlain_password, preserved);
+        restoreMirroredField("database_password_1", incoming.getDatabase_password_1(),
+                existing.getDatabase_password_1(), incoming::setDatabase_password_1, preserved);
+
+        Map<String, Object> existingConfig = existing.getConfig();
+        if (MapUtils.isEmpty(existingConfig)) {
+            return preserved;
+        }
+        Map<String, Object> config = incoming.getConfig();
+        if (config == null) {
+            config = new LinkedHashMap<>();
+            incoming.setConfig(config);
+        }
+        for (String path : getMaskedConfigPaths(definition)) {
+            if (isPresent(getNestedValue(config, path))) {
+                continue;
+            }
+            Object existingValue = getNestedValue(existingConfig, path);
+            if (!isPresent(existingValue)) {
+                continue;
+            }
+            setNestedValue(config, path, existingValue);
+            preserved.add(path);
+        }
+        return preserved;
+    }
+
+    /** 空字符串与 null 同等对待：脱敏既可能删键，也可能留下空串。 */
+    private static boolean isPresent(Object value) {
+        return value != null && !(value instanceof CharSequence && ((CharSequence) value).length() == 0);
+    }
+
+    /** 顶层镜像字段的逐个补回：包里缺、目标有 ⇒ 用目标的，并记下字段名交给导入报告。 */
+    private static <V> void restoreMirroredField(String name, V incomingValue, V existingValue,
+                                                 java.util.function.Consumer<V> setter, List<String> preserved) {
+        if (isPresent(incomingValue) || !isPresent(existingValue)) {
+            return;
+        }
+        setter.accept(existingValue);
+        preserved.add(name);
+    }
+
     static Object getNestedValue(Map<String, Object> config, String path) {
         if (config == null || path == null) return null;
         String[] parts = path.split("\\.");
