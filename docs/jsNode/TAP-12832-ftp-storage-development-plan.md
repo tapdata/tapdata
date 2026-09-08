@@ -86,9 +86,9 @@
 | T7 | 引擎 PDK-backed StorageExecutorsManager | 引擎 | T2、T5 | 6 | 连接解析、单飞初始化、缓存、关闭、失效 | 同连接并发只建一次 PDK/session，异常可恢复 |
 | T8 | JS StorageFacade 和 process(record) 注入 | 引擎/JS | T7 | 4 | storage.find/exists/update/delete、生命周期绑定 | 按事件可直接写 FTP、跨 FTP 复制并返回结果 |
 | T9 | JS 文档、编辑器提示和兼容处理 | JS/产品 | T8 | 2 | 使用示例、能力提示、旧脚本兼容 | 用户能区分 storage 与 ScriptExecutor |
-| T10 | 单元、FTP 集成和资源回归测试 | QA/各模块 | T3、T4、T5、T8 | 6 | 自动化测试集、故障注入 | 关键资源泄露和事件级语义全部有测试 |
-| T11 | 端到端、并发和性能验证 | QA/引擎/文件平台 | T8、T10 | 4 | E2E 报告、性能基线 | 事件吞吐和连接数量达到预设基线 |
-| T12 | 灰度发布、监控、回滚和验收 | 发布/QA/研发 | T11 | 3 | feature flag、指标、回滚手册、验收单 | FTP storage 可独立开关，旧脚本回归通过 |
+| T10 | 单元、FTP 集成和资源回归测试 | QA/各模块 | T3、T4、T5、T8 | 6 | 单元回归、资源测试、FTP 集成测试 | 当前已完成代码级回归；真实 FTP/CI 资源测试待环境 |
+| T11 | 端到端、并发和性能验证 | QA/引擎/文件平台 | T8、T10 | 4 | E2E 报告、性能基线 | 当前已完成 executor 复用代码验证；真实 FTP 吞吐待环境 |
+| T12 | 发布边界、回滚和验收 | 发布/QA/研发 | T11 | 3 | 验收手册、回滚说明 | 旧脚本兼容边界明确；feature flag/指标后端不在本期代码 |
 
 **总工作量初始估算：49 人日。** T3、T4、T6 可在 T1 后并行；T7 是关键路径，T8、T10、T11 依次依赖。
 
@@ -526,18 +526,19 @@ function process(record) {
 
 **实施步骤：**
 
-- [ ] 先为每个已确认 bug 编写失败测试。
-- [ ] 修复后分别运行对应 module test。
-- [ ] 使用本地 FTP server 或 Testcontainers 覆盖真实 FTP 命令序列。
-- [ ] 注入 connect/login/retrieve/store/completePendingCommand/rename 异常。
-- [ ] 统计测试前后 FTP session、线程和临时文件数量。
-- [ ] 将资源泄露测试加入 CI，不能只依赖人工检查日志。
+- [x] 先为已确认的公共 API、session、executor 和 facade 边界编写回归测试。
+- [x] 修复后分别运行对应 module test；当前 common storage 4/4、engine storage 8/8 通过。
+- [ ] 使用本地 FTP server 或 Testcontainers 覆盖真实 FTP 命令序列。（需要验收环境）
+- [ ] 注入 connect/login/retrieve/store/completePendingCommand/rename 异常。（FTP server 集成测试待补）
+- [ ] 统计测试前后 FTP session、线程和临时文件数量。（需要验收环境）
+- [ ] 将资源泄露测试加入 CI，不能只依赖人工检查日志。（需要 CI 配置变更）
 
 **验收：**
 
-- 资源泄露相关测试在重复运行和异常注入下稳定通过。
-- FTP 复制失败后不会留下可复用坏连接。
-- 测试验证每条事件可以按脚本条件调用 storage，未写入事件 ledger。
+- [x] 公共资源/session/executor 回归测试在重复运行下稳定通过。
+- [x] 代码级测试验证 FTP 复制失败会使坏连接/session 失效。
+- [x] 测试验证事件级 storage 不维护事件 ledger。
+- [ ] 真实 FTP 命令序列和资源数量需要在验收环境补测。
 
 ---
 
@@ -579,13 +580,13 @@ function process(record) {
 
 **实施步骤：**
 
-- [ ] 默认关闭 FTP storage 写能力，只在测试租户/灰度环境开启。
-- [ ] 发布 storage operation、session、PDK 创建和资源清理指标。
-- [ ] 配置失败率、重试率、session limit、temp cleanup failed 告警阈值。
-- [ ] 准备关闭 feature flag 的回滚步骤，不删除用户连接配置。
-- [ ] 执行旧 JS、Mongo aggregate、CSV/JSON/XML/Excel/FileStream 回归。
-- [ ] 执行无 DAG FTP 节点、事件级写入、跨 FTP 复制和异常恢复验收。
-- [ ] 形成发布验收单，记录版本、feature flag、测试文件、连接类型和结果。
+- [ ] 默认关闭 FTP storage 写能力，只在测试租户/灰度环境开启。（本期未新增 feature flag）
+- [ ] 发布 storage operation、session、PDK 创建和资源清理指标。（本期未接入指标后端）
+- [ ] 配置失败率、重试率、session limit、temp cleanup failed 告警阈值。（需要部署配置）
+- [x] 准备关闭 storage 能力的回滚步骤：停止使用 enhanced JS storage，保留连接配置，不影响旧 ScriptExecutor。
+- [ ] 执行旧 JS、Mongo aggregate、CSV/JSON/XML/Excel/FileStream 回归。（部分 module 已验证，完整回归待环境）
+- [ ] 执行无 DAG FTP 节点、事件级写入、跨 FTP 复制和异常恢复验收。（需要真实 FTP 环境）
+- [x] 形成发布验收手册：`docs/jsNode/TAP-12832-ftp-storage-acceptance.md`。
 
 **回滚条件：**
 
@@ -598,7 +599,7 @@ function process(record) {
 
 **回滚动作：**
 
-- 关闭 js.node.storage.ftp.enabled 和 js.node.storage.write.enabled。
+- 如果部署环境提供 storage feature flag，关闭 FTP storage 写能力；本期 engine 未内置该 flag 时，停止发布/回滚包含 storage 调用的脚本。
 - 保留 storage operation 诊断日志，停止新的文件写入。
 - 旧 ScriptExecutor、旧 JS 和既有 source/target 继续运行。
 - 修复后重新运行 T10/T11，不能通过直接放宽重试或跳过资源检查上线。
@@ -646,34 +647,34 @@ T1 shared file API
 
 ### 功能
 
-- [ ] DAG 不包含 FTP 节点时，JS 可以按连接名称使用授权 FTP。
-- [ ] process(record) 可以按事件条件直接写 FTP。
-- [ ] process(record) 可以按事件条件把 source FTP 文件复制到 target FTP。
-- [ ] 支持 skip/overwrite/fail、size 校验、受限重试和临时文件发布。
-- [ ] 文件操作结果和异常可以返回/传播到 JS。
+- [x] 代码路径支持 DAG 不包含 FTP 节点时按连接名称获取 FTP storage；真实 FTP 需环境验收。
+- [x] process(record) 可以按事件条件直接写 FTP。
+- [x] process(record) 可以按事件条件把 source FTP 文件复制到 target FTP。
+- [x] 支持 skip/overwrite/fail、size 校验、受限重试和临时文件发布。
+- [x] 文件操作结果和异常可以返回/传播到 JS。
 
 ### 性能与连接
 
-- [ ] PDK 创建不按事件发生，而是按连接配置版本复用。
-- [ ] FTP session 跨 worker 复用或按明确并发边界创建。
-- [ ] 坏连接重试前会 invalidate，不会重复复用。
-- [ ] maxSessions、idle eviction 和退避机制有指标。
+- [x] PDK 创建不按事件发生，而是按 manager 内连接名称复用；动态配置版本监听暂未实现。
+- [x] FTP session 在 executor 内按明确 session 边界复用；跨 worker 的真实数量需环境验收。
+- [x] 坏连接重试前会 invalidate，不会重复复用。
+- [ ] maxSessions、idle eviction 和退避机制的生产指标。（本期未接入指标后端）
 
 ### 资源安全
 
-- [ ] FTP 初始化中途失败会 disconnect。
-- [ ] raw stream close 会完成 pending command。
-- [ ] output stream close 幂等，bulk write/flush 正确。
-- [ ] FileConnector、discovery、writer、FileSchema executor 都会关闭。
-- [ ] 任务停止/取消后 PDK、session、executor、stream、临时文件无残留。
+- [x] FTP 初始化中途失败会 disconnect。
+- [x] raw stream close 会完成 pending command。
+- [x] output stream close 幂等，bulk write/flush 正确。
+- [x] FileConnector、discovery、writer、FileSchema executor 的已覆盖路径会关闭。
+- [ ] 任务停止/取消后 PDK、session、executor、stream、临时文件无残留。（需要真实任务验收）
 
 ### 范围和兼容
 
-- [ ] ScriptExecutorsManager 的 Mongo aggregate 语义不变。
-- [ ] standard JS 不自动获得 storage。
-- [ ] 不产生 file_operation_ledger。
-- [ ] 首期只对 FTP 开放 storage；SFTP/其他协议未完成时返回不支持。
-- [ ] ftpSsl 未实现 FTPS 前不会静默降级为明文 FTP。
+- [x] ScriptExecutorsManager 的 Mongo aggregate 语义不变。
+- [x] standard JS 不自动获得 storage。
+- [x] 不产生 file_operation_ledger。
+- [x] 首期只对 FTP 开放 storage；SFTP/其他协议未完成时返回不支持。
+- [x] ftpSsl 未实现 FTPS 前不会静默降级为明文 FTP。
 
 ## 7. 研发过程中的提交和评审策略
 
@@ -693,4 +694,4 @@ T1 shared file API
 - T8：JS 是否仍保持事件级语义，是否错误引入任务级 ledger。
 - T10/T11：是否真正验证 PDK 创建次数和 FTP 资源数量，而不是只验证文件最终存在。
 
-本计划完成后，最终交付物包括：代码变更、自动化测试、feature flag、监控指标、回滚手册、发布验收单，以及与本计划一致的 TAP-12832 详细设计文档。
+本计划本期交付物包括：代码变更、自动化测试、回滚说明、发布验收手册，以及与实际实现一致的 TAP-12832 设计文档。feature flag、生产监控指标后端、真实 FTP/Testcontainers 集成和多 worker 性能报告需要在发布环境继续完成，不作为本次代码提交的已完成项。
