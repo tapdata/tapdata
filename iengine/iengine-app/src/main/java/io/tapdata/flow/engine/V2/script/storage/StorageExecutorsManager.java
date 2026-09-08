@@ -35,6 +35,7 @@ public final class StorageExecutorsManager implements AutoCloseable {
     private final long failureBackoffMs;
     private final ConcurrentMap<String, CompletableFuture<StorageExecutor>> executors = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Failure> failures = new ConcurrentHashMap<>();
+    private volatile boolean closed;
 
     public StorageExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator,
                                    HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
@@ -65,6 +66,7 @@ public final class StorageExecutorsManager implements AutoCloseable {
     }
 
     public StorageExecutor getStorageExecutor(String connectionName) throws Throwable {
+        ensureOpen(connectionName);
         if (connectionName == null || connectionName.trim().isEmpty()) {
             throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
                     "File connection name is required");
@@ -100,7 +102,13 @@ public final class StorageExecutorsManager implements AutoCloseable {
                 throw new FileOperationException(FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE,
                         "File storage executor is not available: " + key);
             }
-            future.complete(executor);
+            synchronized (this) {
+                if (closed || executors.get(key) != future) {
+                    closeQuietly(executor);
+                    throw closedError(key);
+                }
+                future.complete(executor);
+            }
         } catch (Throwable throwable) {
             Throwable error = unwrap(throwable);
             failures.put(key, new Failure(error, System.currentTimeMillis()));
@@ -121,32 +129,63 @@ public final class StorageExecutorsManager implements AutoCloseable {
         }
     }
 
-    public void invalidate(String connectionName, Throwable cause) {
+    public synchronized void invalidate(String connectionName, Throwable cause) {
         if (connectionName == null) return;
         String key = connectionName.trim();
         CompletableFuture<StorageExecutor> future = executors.remove(key);
-        if (future == null || !future.isDone() || future.isCompletedExceptionally()) return;
+        if (future == null) return;
+        if (!future.isDone()) {
+            future.whenComplete((executor, error) -> closeQuietly(executor));
+            future.completeExceptionally(closedError(key));
+            return;
+        }
+        if (future.isCompletedExceptionally()) return;
         try {
-            future.get().close();
+            closeQuietly(future.get());
         } catch (Throwable ignored) {
             // Invalidation must not hide the original file operation failure.
         }
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) return;
+        closed = true;
         for (Map.Entry<String, CompletableFuture<StorageExecutor>> entry : executors.entrySet()) {
             CompletableFuture<StorageExecutor> future = entry.getValue();
             if (future.isDone() && !future.isCompletedExceptionally()) {
                 try {
-                    future.get().close();
+                    closeQuietly(future.get());
                 } catch (Throwable ignored) {
                     // Continue closing other connection executors.
                 }
+            } else if (!future.isDone()) {
+                future.whenComplete((executor, error) -> closeQuietly(executor));
+                future.completeExceptionally(closedError(entry.getKey()));
             }
         }
         executors.clear();
         failures.clear();
+    }
+
+    private void ensureOpen(String connectionName) {
+        if (closed) {
+            throw closedError(connectionName == null ? "" : connectionName.trim());
+        }
+    }
+
+    private FileOperationException closedError(String connectionName) {
+        return new FileOperationException(FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE,
+                "File storage executor manager is closed: " + connectionName);
+    }
+
+    private void closeQuietly(StorageExecutor executor) {
+        if (executor == null) return;
+        try {
+            executor.close();
+        } catch (Throwable ignored) {
+            // Continue closing other connection executors.
+        }
     }
 
     private Throwable unwrap(Throwable throwable) {

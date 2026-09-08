@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.script.storage;
 
 import com.tapdata.entity.Connections;
+import io.tapdata.file.operation.FileOperationErrorCode;
+import io.tapdata.file.operation.FileOperationException;
 import io.tapdata.file.operation.FileEndpoint;
 import io.tapdata.file.operation.TapFileOperationService;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StorageExecutorsManagerTest {
 
@@ -110,6 +113,56 @@ class StorageExecutorsManagerTest {
 
         assertEquals(1, created.get());
         manager.close();
+        assertEquals(1, executor.closed.get());
+    }
+
+    @Test
+    void closedManagerRejectsNewConnections() throws Throwable {
+        FakeExecutor executor = new FakeExecutor("ftp-5");
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> executor,
+                0L);
+
+        assertSame(executor, manager.getStorageExecutor("ftp-5"));
+        manager.close();
+
+        FileOperationException error = assertThrows(FileOperationException.class,
+                () -> manager.getStorageExecutor("ftp-5"));
+        assertEquals(FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE, error.getCode());
+        assertEquals(1, executor.closed.get());
+    }
+
+    @Test
+    void closeDuringCreationClosesLateExecutor() throws Exception {
+        CountDownLatch factoryStarted = new CountDownLatch(1);
+        CountDownLatch allowFactoryToFinish = new CountDownLatch(1);
+        FakeExecutor executor = new FakeExecutor("ftp-6");
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> {
+                    factoryStarted.countDown();
+                    if (!allowFactoryToFinish.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("factory did not finish");
+                    }
+                    return executor;
+                }, 0L);
+        Thread creator = new Thread(() -> {
+            try {
+                manager.getStorageExecutor("ftp-6");
+            } catch (Throwable throwable) {
+                failure.set(throwable);
+            }
+        });
+
+        creator.start();
+        factoryStarted.await(5, TimeUnit.SECONDS);
+        manager.close();
+        allowFactoryToFinish.countDown();
+        creator.join(5000L);
+
+        assertTrue(failure.get() instanceof FileOperationException);
         assertEquals(1, executor.closed.get());
     }
 
