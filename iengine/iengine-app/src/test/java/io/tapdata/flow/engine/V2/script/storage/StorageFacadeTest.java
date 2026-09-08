@@ -1,75 +1,79 @@
 package io.tapdata.flow.engine.V2.script.storage;
 
 import com.tapdata.entity.Connections;
-import io.tapdata.file.operation.FileAccess;
-import io.tapdata.file.operation.FileBatchResult;
-import io.tapdata.file.operation.FileCopyRequest;
-import io.tapdata.file.operation.FileEndpoint;
-import io.tapdata.file.operation.FileListRequest;
-import io.tapdata.file.operation.FileMetadata;
-import io.tapdata.file.operation.FileOperationErrorCode;
-import io.tapdata.file.operation.FileOperationException;
-import io.tapdata.file.operation.FileOperationResult;
-import io.tapdata.file.operation.FileOperationStatus;
-import io.tapdata.file.operation.FileValidationResult;
-import io.tapdata.file.operation.FileVerifyMode;
-import io.tapdata.file.operation.TapFileOperationService;
+import io.tapdata.file.TapFile;
+import io.tapdata.file.TapFileStorage;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StorageFacadeTest {
 
     @Test
-    void updateWriteOnlyPassesJsonContentAndReturnsPlainMap() throws Throwable {
-        RecordingService service = new RecordingService();
-        StorageFacade facade = facade(service);
+    void updateWriteUsesExistingTapFileStorageApi() throws Throwable {
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, null);
 
         Map<String, Object> result = facade.update("target-ftp",
                 map("action", "write", "target", map("path", "/out/1.json"), "content", "hello"),
                 map("overwrite", "overwrite"));
 
-        assertEquals("copied", result.get("status"));
-        assertEquals("/out/1.json", service.writtenPath.get());
-        assertEquals("hello", service.writtenContent.toString());
-        assertTrue(service.writtenOverwrite);
+        assertEquals("written", result.get("status"));
+        assertEquals("hello", new String(targetStorage.files.get("/out/1.json"), StandardCharsets.UTF_8));
     }
 
     @Test
-    void updateCopyUsesDifferentSourceConnectionAndNormalizesPaths() throws Throwable {
-        RecordingService targetService = new RecordingService();
-        StorageFacade facade = facade(targetService);
+    void updateCopyStreamsBetweenExistingTapFileStorageInstances() throws Throwable {
+        RecordingStorage sourceStorage = new RecordingStorage();
+        sourceStorage.files.put("/in/1.txt", bytes("source"));
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, sourceStorage);
 
         Map<String, Object> result = facade.update("target-ftp",
                 map("action", "copy",
                         "source", map("connection", "source-ftp", "path", "/in/1.txt"),
                         "target", map("path", "/out/1.txt")),
-                map("overwrite", "skip", "verify", "size", "retryTimes", 2));
+                map("overwrite", "overwrite"));
 
         assertEquals("copied", result.get("status"));
-        assertEquals("in/1.txt", targetService.copyRequest.get().getSourcePath());
-        assertEquals("out/1.txt", targetService.copyRequest.get().getTargetPath());
-        assertEquals(FileVerifyMode.SIZE, targetService.copyRequest.get().getVerifyMode());
-        assertFalse(targetService.copyRequest.get().isOverwrite());
-        assertEquals(2, targetService.copyRequest.get().getRetryTimes());
+        assertEquals("source", new String(targetStorage.files.get("/out/1.txt"), StandardCharsets.UTF_8));
     }
 
     @Test
-    void findExistsAndDeleteUsePlainFileValues() throws Throwable {
-        RecordingService service = new RecordingService();
-        service.existsResult = true;
-        service.metadata = new FileMetadata("/out/1.txt", 4L, 10L, null, false);
-        StorageFacade facade = facade(service);
+    void updateCopyWithinOneStorageDoesNotHoldReadLockWhileWriting() throws Throwable {
+        RecordingStorage storage = new RecordingStorage();
+        storage.files.put("/in/1.txt", bytes("source"));
+        StorageFacade facade = facadeForSameStorage(storage);
+
+        Map<String, Object> result = facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite"));
+
+        assertEquals("copied", result.get("status"));
+        assertEquals("source", new String(storage.files.get("/out/1.txt"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void findExistsAndDeleteUseExistingTapFileStorageApi() throws Throwable {
+        RecordingStorage storage = new RecordingStorage();
+        storage.files.put("/out/1.txt", bytes("data"));
+        StorageFacade facade = facade(storage, null);
 
         Map<String, Object> metadata = facade.find("target-ftp", map("path", "/out/1.txt"), null);
 
@@ -77,23 +81,30 @@ class StorageFacadeTest {
         assertEquals(4L, metadata.get("size"));
         assertTrue(facade.exists("target-ftp", "/out/1.txt"));
         assertTrue(facade.delete("target-ftp", map("path", "/out/1.txt"), null));
-        assertEquals("/out/1.txt", service.deletedPath);
+        assertTrue(!storage.files.containsKey("/out/1.txt"));
     }
 
     @Test
-    void unsupportedUpdateActionReturnsStableFileError() {
-        StorageFacade facade = facade(new RecordingService());
+    void unsupportedUpdateActionFailsInsideEngine() {
+        StorageFacade facade = facade(new RecordingStorage(), null);
 
-        FileOperationException error = assertThrows(FileOperationException.class,
+        assertThrows(StorageOperationException.class,
                 () -> facade.update("target-ftp", map("action", "move"), null));
-
-        assertEquals(FileOperationErrorCode.FILE_UNSUPPORTED_OPERATION, error.getCode());
     }
 
-    private static StorageFacade facade(RecordingService targetService) {
+    private static StorageFacade facade(RecordingStorage targetStorage, RecordingStorage sourceStorage) {
         StorageExecutorsManager manager = new StorageExecutorsManager(
                 name -> connection(name),
-                (name, connections) -> new FakeExecutor(name, "source-ftp".equals(name) ? new RecordingService() : targetService),
+                (name, connections) -> new FakeExecutor(name,
+                        "source-ftp".equals(name) ? sourceStorage : targetStorage),
+                0L);
+        return new StorageFacade(manager);
+    }
+
+    private static StorageFacade facadeForSameStorage(RecordingStorage storage) {
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> new FakeExecutor(name, storage),
                 0L);
         return new StorageFacade(manager);
     }
@@ -104,67 +115,128 @@ class StorageFacadeTest {
         return connections;
     }
 
+    private static byte[] bytes(String value) {
+        return value.getBytes(StandardCharsets.UTF_8);
+    }
+
     private static Map<String, Object> map(Object... values) {
-        Map<String, Object> result = new java.util.LinkedHashMap<>();
-        for (int i = 0; i < values.length; i += 2) result.put(String.valueOf(values[i]), values[i + 1]);
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (int i = 0; i < values.length; i += 2) {
+            result.put(String.valueOf(values[i]), values[i + 1]);
+        }
         return result;
     }
 
     private static final class FakeExecutor implements StorageExecutor {
         private final String name;
-        private final FileEndpoint endpoint = FileEndpoint.builder().protocol("ftp").build();
-        private final TapFileOperationService service;
+        private final TapFileStorage storage;
 
-        private FakeExecutor(String name, TapFileOperationService service) {
+        private FakeExecutor(String name, TapFileStorage storage) {
             this.name = name;
-            this.service = service;
+            this.storage = storage;
         }
 
-        @Override public String getConnectionName() { return name; }
-        @Override public FileEndpoint getEndpoint() { return endpoint; }
-        @Override public TapFileOperationService getOperationService() { return service; }
-        @Override public void close() { }
+        @Override
+        public String getConnectionName() {
+            return name;
+        }
+
+        @Override
+        public TapFileStorage getStorage() {
+            return storage;
+        }
+
+        @Override
+        public String resolvePath(String path) {
+            return path;
+        }
+
+        @Override
+        public void close() {
+        }
     }
 
-    private static final class RecordingService implements TapFileOperationService {
-        private final AtomicReference<String> writtenPath = new AtomicReference<>();
-        private final ByteArrayOutputStream writtenContent = new ByteArrayOutputStream();
-        private final AtomicReference<FileCopyRequest> copyRequest = new AtomicReference<>();
-        private FileMetadata metadata;
-        private boolean existsResult;
-        private String deletedPath;
-        private boolean writtenOverwrite;
+    private static final class RecordingStorage implements TapFileStorage {
+        private final Map<String, byte[]> files = new LinkedHashMap<>();
 
-        @Override public FileOperationResult copy(FileCopyRequest request) {
-            copyRequest.set(request);
-            return FileOperationResult.builder().status(FileOperationStatus.COPIED)
-                    .sourcePath(request.getSourcePath()).targetPath(request.getTargetPath()).bytes(4).build();
+        @Override
+        public void init(Map<String, Object> params) {
         }
-        @Override public FileBatchResult copyBatch(List<FileCopyRequest> requests) { return null; }
-        @Override public FileMetadata stat(FileEndpoint endpoint, String path) { return metadata; }
-        @Override public boolean exists(FileEndpoint endpoint, String path) { return existsResult; }
-        @Override public List<FileMetadata> list(FileListRequest request) { return Collections.emptyList(); }
-        @Override public FileValidationResult validate(FileEndpoint endpoint, String path, FileAccess access) { return FileValidationResult.valid(); }
-        @Override public FileOperationResult write(FileEndpoint endpoint, String path, InputStream inputStream, boolean overwrite) {
-            writtenPath.set(path);
-            writtenOverwrite = overwrite;
-            writtenContent.reset();
-            byte[] buffer = new byte[128];
-            int length;
-            try {
-                while ((length = inputStream.read(buffer)) >= 0) {
-                    if (length > 0) writtenContent.write(buffer, 0, length);
-                }
-            } catch (java.io.IOException e) {
-                throw new AssertionError(e);
-            }
-            return FileOperationResult.builder().status(FileOperationStatus.COPIED)
-                    .targetPath(path).bytes(writtenContent.size()).build();
+
+        @Override
+        public void destroy() {
         }
-        @Override public boolean delete(FileEndpoint endpoint, String path) {
-            deletedPath = path;
+
+        @Override
+        public TapFile getFile(String path) {
+            byte[] content = files.get(path);
+            if (content == null) return null;
+            return new TapFile().type(TapFile.TYPE_FILE).path(path).length((long) content.length).lastModified(0L);
+        }
+
+        @Override
+        public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
+            byte[] content = files.get(path);
+            if (content != null) consumer.accept(new ByteArrayInputStream(content));
+        }
+
+        @Override
+        public InputStream readFile(String path) {
+            byte[] content = files.get(path);
+            return content == null ? null : new ByteArrayInputStream(content);
+        }
+
+        @Override
+        public boolean isFileExist(String path) {
+            return files.containsKey(path);
+        }
+
+        @Override
+        public boolean move(String sourcePath, String destPath) {
+            byte[] content = files.remove(sourcePath);
+            if (content == null) return false;
+            files.put(destPath, content);
             return true;
         }
-        @Override public void close() { }
+
+        @Override
+        public boolean delete(String path) {
+            return files.remove(path) != null;
+        }
+
+        @Override
+        public TapFile saveFile(String path, InputStream inputStream, boolean canReplace) throws Exception {
+            if (files.containsKey(path) && !canReplace) return getFile(path);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[128];
+            int length;
+            while ((length = inputStream.read(buffer)) >= 0) {
+                if (length > 0) output.write(buffer, 0, length);
+            }
+            files.put(path, output.toByteArray());
+            return getFile(path);
+        }
+
+        @Override
+        public OutputStream openFileOutputStream(String path, boolean append) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
+                                        Collection<String> excludeRegs, boolean recursive, int batchSize,
+                                        Consumer<List<TapFile>> consumer) {
+            consumer.accept(Collections.emptyList());
+        }
+
+        @Override
+        public boolean isDirectoryExist(String path) {
+            return false;
+        }
+
+        @Override
+        public String getConnectInfo() {
+            return "recording";
+        }
     }
 }

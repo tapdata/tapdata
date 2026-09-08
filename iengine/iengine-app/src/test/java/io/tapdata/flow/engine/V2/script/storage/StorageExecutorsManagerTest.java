@@ -1,10 +1,7 @@
 package io.tapdata.flow.engine.V2.script.storage;
 
 import com.tapdata.entity.Connections;
-import io.tapdata.file.operation.FileOperationErrorCode;
-import io.tapdata.file.operation.FileOperationException;
-import io.tapdata.file.operation.FileEndpoint;
-import io.tapdata.file.operation.TapFileOperationService;
+import io.tapdata.file.TapFileStorage;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -127,9 +124,9 @@ class StorageExecutorsManagerTest {
         assertSame(executor, manager.getStorageExecutor("ftp-5"));
         manager.close();
 
-        FileOperationException error = assertThrows(FileOperationException.class,
+        StorageOperationException error = assertThrows(StorageOperationException.class,
                 () -> manager.getStorageExecutor("ftp-5"));
-        assertEquals(FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE, error.getCode());
+        assertTrue(error.getMessage().contains("closed"));
         assertEquals(1, executor.closed.get());
     }
 
@@ -162,7 +159,7 @@ class StorageExecutorsManagerTest {
         allowFactoryToFinish.countDown();
         creator.join(5000L);
 
-        assertTrue(failure.get() instanceof FileOperationException);
+        assertTrue(failure.get() instanceof StorageOperationException);
         assertEquals(1, executor.closed.get());
     }
 
@@ -189,8 +186,8 @@ class StorageExecutorsManagerTest {
         }
 
         @Override public String getConnectionName() { return name; }
-        @Override public FileEndpoint getEndpoint() { return null; }
-        @Override public TapFileOperationService getOperationService() { return null; }
+        @Override public TapFileStorage getStorage() { return null; }
+        @Override public String resolvePath(String path) { return path; }
         @Override public void close() { closed.incrementAndGet(); }
     }
 }

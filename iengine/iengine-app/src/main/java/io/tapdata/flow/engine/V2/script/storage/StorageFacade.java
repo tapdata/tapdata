@@ -1,20 +1,27 @@
 package io.tapdata.flow.engine.V2.script.storage;
 
-import io.tapdata.file.operation.FileCopyRequest;
-import io.tapdata.file.operation.FileOperationErrorCode;
-import io.tapdata.file.operation.FileOperationException;
-import io.tapdata.file.operation.FileOperationResult;
-import io.tapdata.file.operation.FileOperationStatus;
-import io.tapdata.file.operation.FileVerifyMode;
-import io.tapdata.file.operation.FileMetadata;
+import io.tapdata.file.TapFile;
+import io.tapdata.file.TapFileStorage;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+
+/**
+ * JavaScript-facing file operations.
+ *
+ * <p>The facade intentionally delegates to the existing {@link TapFileStorage}
+ * contract. It is an adapter for the script object shape, not a second file
+ * connector API.</p>
+ */
 public final class StorageFacade {
 
     private final StorageExecutorsManager executorsManager;
@@ -35,15 +42,14 @@ public final class StorageFacade {
         StorageExecutor target = executor(targetConnectionName);
         try {
             if ("copy".equals(action)) {
-                return copy(targetConnectionName, target, request, operationOptions);
+                return copy(target, request, operationOptions);
             }
             if ("write".equals(action)) {
                 return write(target, request, operationOptions);
             }
-            throw new FileOperationException(FileOperationErrorCode.FILE_UNSUPPORTED_OPERATION,
-                    "Unsupported storage.update action: " + action);
+            throw new StorageOperationException("Unsupported storage.update action: " + action);
         } catch (Throwable throwable) {
-            invalidateIfRemote(targetConnectionName, throwable);
+            invalidateOnRemoteFailure(targetConnectionName, throwable);
             throw throwable;
         }
     }
@@ -52,13 +58,12 @@ public final class StorageFacade {
                                     Map<String, Object> query,
                                     Map<String, Object> options) throws Throwable {
         Map<String, Object> request = requiredMap(query, "query");
-        String path = stringValue(request, "path", null);
         StorageExecutor executor = executor(connectionName);
         try {
-            FileMetadata metadata = executor.getOperationService().stat(executor.getEndpoint(), path);
-            return metadata == null ? null : metadataMap(metadata);
+            TapFile file = executor.getStorage().getFile(executor.resolvePath(requiredPath(request, "path")));
+            return file == null ? null : metadataMap(file);
         } catch (Throwable throwable) {
-            invalidateIfRemote(connectionName, throwable);
+            invalidateOnRemoteFailure(connectionName, throwable);
             throw throwable;
         }
     }
@@ -66,9 +71,9 @@ public final class StorageFacade {
     public boolean exists(String connectionName, String path) throws Throwable {
         StorageExecutor executor = executor(connectionName);
         try {
-            return executor.getOperationService().exists(executor.getEndpoint(), path);
+            return executor.getStorage().isFileExist(executor.resolvePath(requiredPath(path, "path")));
         } catch (Throwable throwable) {
-            invalidateIfRemote(connectionName, throwable);
+            invalidateOnRemoteFailure(connectionName, throwable);
             throw throwable;
         }
     }
@@ -77,12 +82,11 @@ public final class StorageFacade {
                           Map<String, Object> data,
                           Map<String, Object> options) throws Throwable {
         Map<String, Object> request = requiredMap(data, "data");
-        String path = stringValue(request, "path", null);
         StorageExecutor executor = executor(connectionName);
         try {
-            return executor.getOperationService().delete(executor.getEndpoint(), path);
+            return executor.getStorage().delete(executor.resolvePath(requiredPath(request, "path")));
         } catch (Throwable throwable) {
-            invalidateIfRemote(connectionName, throwable);
+            invalidateOnRemoteFailure(connectionName, throwable);
             throw throwable;
         }
     }
@@ -90,64 +94,96 @@ public final class StorageFacade {
     private Map<String, Object> write(StorageExecutor target,
                                       Map<String, Object> request,
                                       Map<String, Object> options) throws Exception {
-        String path = stringValue(targetPath(request), "path", null);
+        String path = target.resolvePath(requiredPath(targetPath(request), "path"));
         Object content = request.get("content");
         if (content == null) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
-                    "storage.update write requires content");
+            throw new StorageOperationException("storage.update write requires content");
         }
-        boolean overwrite = overwrite(options);
-        if ("fail".equals(overwriteMode(options))
-                && target.getOperationService().exists(target.getEndpoint(), path)) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_TARGET_CONFLICT,
-                    "Target file already exists: " + path);
+
+        TapFileStorage storage = target.getStorage();
+        String overwriteMode = overwriteMode(options);
+        boolean exists = storage.isFileExist(path);
+        if (exists && "fail".equals(overwriteMode)) {
+            throw new StorageOperationException("Target file already exists: " + path);
         }
-        byte[] bytes = content instanceof byte[]
-                ? (byte[]) content
-                : String.valueOf(content).getBytes(StandardCharsets.UTF_8);
-        if (booleanValue(options, "dryRun", false)) {
-            return resultMap(FileOperationResult.builder().status(FileOperationStatus.DRY_RUN)
-                    .targetPath(path).bytes(bytes.length).attempts(1).build());
+        if (exists && "skip".equals(overwriteMode)) {
+            return result("reused", null, path);
         }
-        try (InputStream inputStream = new ByteArrayInputStream(bytes)) {
-            FileOperationResult result = target.getOperationService()
-                    .write(target.getEndpoint(), path, inputStream, overwrite);
-            return resultMap(result);
+
+        try (InputStream input = contentStream(content)) {
+            TapFile saved = storage.saveFile(path, input, true);
+            return result("written", saved, path);
         }
     }
 
-    private Map<String, Object> copy(String targetConnectionName,
-                                     StorageExecutor target,
+    private Map<String, Object> copy(StorageExecutor target,
                                      Map<String, Object> request,
                                      Map<String, Object> options) throws Throwable {
         Map<String, Object> source = requiredMap(request.get("source"), "source");
-        String sourceConnectionName = stringValue(source, "connection", null);
-        String sourcePath = stringValue(source, "path", null);
+        String sourceConnectionName = requiredPath(source, "connection");
+        String sourcePath = requiredPath(source, "path");
         Map<String, Object> targetData = requiredMap(request.get("target"), "target");
-        String targetPath = stringValue(targetData, "path", null);
+        String targetPath = requiredPath(targetData, "path");
+
         StorageExecutor sourceExecutor = executor(sourceConnectionName);
+        String resolvedSourcePath = sourceExecutor.resolvePath(sourcePath);
+        String resolvedTargetPath = target.resolvePath(targetPath);
         try {
-            if ("fail".equals(overwriteMode(options))
-                    && target.getOperationService().exists(target.getEndpoint(), targetPath)) {
-                throw new FileOperationException(FileOperationErrorCode.FILE_TARGET_CONFLICT,
-                        "Target file already exists: " + targetPath);
+            TapFileStorage sourceStorage = sourceExecutor.getStorage();
+            TapFileStorage targetStorage = target.getStorage();
+            String overwriteMode = overwriteMode(options);
+            boolean targetExists = targetStorage.isFileExist(resolvedTargetPath);
+            if (targetExists && "fail".equals(overwriteMode)) {
+                throw new StorageOperationException("Target file already exists: " + resolvedTargetPath);
             }
-            FileCopyRequest copyRequest = FileCopyRequest.builder()
-                    .source(sourceExecutor.getEndpoint())
-                    .target(target.getEndpoint())
-                    .sourcePath(relativePath(sourcePath))
-                    .targetPath(relativePath(targetPath))
-                    .overwrite(overwrite(options))
-                    .verifyMode(verifyMode(options))
-                    .retryTimes(intValue(options, "retryTimes", 0))
-                    .timeoutMs(longValue(options, "timeoutMs", 120_000L))
-                    .dryRun(booleanValue(options, "dryRun", false))
-                    .build();
-            FileOperationResult result = target.getOperationService().copy(copyRequest);
-            return resultMap(result);
+            if (targetExists && "skip".equals(overwriteMode)) {
+                return result("reused", targetStorage.getFile(resolvedTargetPath), resolvedTargetPath);
+            }
+            if (sourceStorage.getFile(resolvedSourcePath) == null) {
+                throw new StorageOperationException("Source file does not exist: " + resolvedSourcePath);
+            }
+
+            if (sourceStorage == targetStorage) {
+                return copyThroughTempFile(sourceStorage, resolvedSourcePath, resolvedTargetPath);
+            }
+
+            final TapFile[] saved = new TapFile[1];
+            sourceStorage.readFile(resolvedSourcePath, input -> {
+                try (InputStream sourceInput = input) {
+                    saved[0] = targetStorage.saveFile(resolvedTargetPath, sourceInput, true);
+                } catch (Exception e) {
+                    throw new StorageOperationException("Copy file failed: " + resolvedSourcePath, e);
+                }
+            });
+            return result("copied", saved[0], resolvedTargetPath);
         } catch (Throwable throwable) {
-            invalidateIfRemote(sourceConnectionName, throwable);
+            invalidateOnRemoteFailure(sourceConnectionName, throwable);
+            if (!sourceConnectionName.equals(target.getConnectionName())) {
+                invalidateOnRemoteFailure(target.getConnectionName(), throwable);
+            }
             throw throwable;
+        }
+    }
+
+    private Map<String, Object> copyThroughTempFile(TapFileStorage storage,
+                                                     String sourcePath,
+                                                     String targetPath) throws Exception {
+        Path tempFile = Files.createTempFile("tapdata-js-storage-", UUID.randomUUID().toString());
+        try {
+            storage.readFile(sourcePath, input -> {
+                try (InputStream sourceInput = input) {
+                    Files.copy(sourceInput, tempFile, REPLACE_EXISTING);
+                } catch (Exception e) {
+                    throw new StorageOperationException("Read source file failed: " + sourcePath, e);
+                }
+            });
+            TapFile saved;
+            try (InputStream targetInput = Files.newInputStream(tempFile)) {
+                saved = storage.saveFile(targetPath, targetInput, true);
+            }
+            return result("copied", saved, targetPath);
+        } finally {
+            Files.deleteIfExists(tempFile);
         }
     }
 
@@ -159,12 +195,23 @@ public final class StorageFacade {
         return requiredMap(request.get("target"), "target");
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> requiredMap(Object value, String name) {
         if (!(value instanceof Map)) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
-                    name + " must be an object");
+            throw new StorageOperationException(name + " must be an object");
         }
         return (Map<String, Object>) value;
+    }
+
+    private String requiredPath(Map<String, Object> map, String key) {
+        return requiredPath(map.get(key), key);
+    }
+
+    private String requiredPath(Object value, String name) {
+        if (value == null || String.valueOf(value).trim().isEmpty()) {
+            throw new StorageOperationException(name + " is required");
+        }
+        return String.valueOf(value);
     }
 
     private String stringValue(Map<String, Object> map, String key, String defaultValue) {
@@ -172,101 +219,61 @@ public final class StorageFacade {
         return value == null ? defaultValue : String.valueOf(value);
     }
 
-    private String relativePath(String path) {
-        if (path == null) return null;
-        String normalized = path.trim().replace('\\', '/');
-        while (normalized.startsWith("/")) normalized = normalized.substring(1);
-        return normalized;
-    }
-
     private String overwriteMode(Map<String, Object> options) {
-        return stringValue(options, "overwrite", "skip").toLowerCase();
-    }
-
-    private boolean overwrite(Map<String, Object> options) {
-        String mode = overwriteMode(options);
-        if ("overwrite".equals(mode)) return true;
-        if ("skip".equals(mode) || "fail".equals(mode)) return false;
-        throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
-                "overwrite must be skip, overwrite or fail");
-    }
-
-    private FileVerifyMode verifyMode(Map<String, Object> options) {
-        String verify = stringValue(options, "verify", "size").toUpperCase();
-        try {
-            return FileVerifyMode.valueOf(verify);
-        } catch (IllegalArgumentException e) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
-                    "verify must be none, size or checksum", e);
+        String mode = stringValue(options, "overwrite", "skip").toLowerCase();
+        if (!"skip".equals(mode) && !"overwrite".equals(mode) && !"fail".equals(mode)) {
+            throw new StorageOperationException("overwrite must be skip, overwrite or fail");
         }
+        return mode;
     }
 
-    private boolean booleanValue(Map<String, Object> map, String key, boolean defaultValue) {
-        Object value = map.get(key);
-        return value == null ? defaultValue : Boolean.parseBoolean(String.valueOf(value));
-    }
-
-    private int intValue(Map<String, Object> map, String key, int defaultValue) {
-        Object value = map.get(key);
-        if (value == null) return defaultValue;
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
-                    key + " must be an integer", e);
+    private InputStream contentStream(Object content) {
+        if (content instanceof InputStream) {
+            return (InputStream) content;
         }
-    }
-
-    private long longValue(Map<String, Object> map, String key, long defaultValue) {
-        Object value = map.get(key);
-        if (value == null) return defaultValue;
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
-                    key + " must be a long", e);
+        if (content instanceof byte[]) {
+            return new ByteArrayInputStream((byte[]) content);
         }
+        if (content instanceof ByteArrayOutputStream) {
+            return new ByteArrayInputStream(((ByteArrayOutputStream) content).toByteArray());
+        }
+        return new ByteArrayInputStream(String.valueOf(content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    private Map<String, Object> metadataMap(FileMetadata metadata) {
+    private Map<String, Object> metadataMap(TapFile file) {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("path", metadata.getPath());
-        result.put("length", metadata.getLength());
-        result.put("size", metadata.getLength());
-        result.put("lastModified", metadata.getLastModified());
-        result.put("checksum", metadata.getChecksum());
-        result.put("directory", metadata.isDirectory());
+        result.put("path", file.getPath());
+        result.put("length", file.getLength());
+        result.put("size", file.getLength());
+        result.put("lastModified", file.getLastModified());
+        result.put("directory", file.getType() != null && file.getType() == TapFile.TYPE_DIRECTORY);
         return result;
     }
 
-    private Map<String, Object> resultMap(FileOperationResult result) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("status", result.getStatus().name().toLowerCase());
-        map.put("sourcePath", result.getSourcePath());
-        map.put("targetPath", result.getTargetPath());
-        map.put("bytes", result.getBytes());
-        map.put("checksum", result.getChecksum());
-        map.put("attempts", result.getAttempts());
-        map.put("durationMs", result.getDurationMs());
-        return map;
+    private Map<String, Object> result(String status, TapFile file, String targetPath) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", status);
+        result.put("targetPath", targetPath);
+        if (file != null) {
+            result.put("bytes", file.getLength());
+        }
+        return result;
     }
 
-    private void invalidateIfRemote(String connectionName, Throwable throwable) {
-        if (connectionName == null || !isRemoteFailure(throwable)) return;
-        executorsManager.invalidate(connectionName, throwable);
+    private void invalidateOnRemoteFailure(String connectionName, Throwable throwable) {
+        if (connectionName != null && isRemoteFailure(throwable)) {
+            executorsManager.invalidate(connectionName, throwable);
+        }
     }
 
     private boolean isRemoteFailure(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
-            if (current instanceof FileOperationException) {
-                FileOperationErrorCode code = ((FileOperationException) current).getCode();
-                return code == FileOperationErrorCode.FILE_CONNECT_FAILED
-                        || code == FileOperationErrorCode.FILE_REMOTE_IO_FAILED
-                        || code == FileOperationErrorCode.FILE_WRITE_FAILED;
+            if (current instanceof StorageOperationException) {
+                return false;
             }
             current = current.getCause();
         }
-        return false;
+        return true;
     }
 }

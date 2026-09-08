@@ -5,8 +5,6 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.logger.Log;
-import io.tapdata.file.operation.FileOperationErrorCode;
-import io.tapdata.file.operation.FileOperationException;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Map;
@@ -68,7 +66,7 @@ public final class StorageExecutorsManager implements AutoCloseable {
     public StorageExecutor getStorageExecutor(String connectionName) throws Throwable {
         ensureOpen(connectionName);
         if (connectionName == null || connectionName.trim().isEmpty()) {
-            throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
+            throw new StorageOperationException(
                     "File connection name is required");
         }
         String key = connectionName.trim();
@@ -94,12 +92,12 @@ public final class StorageExecutorsManager implements AutoCloseable {
         try {
             Connections connections = connectionResolver.resolve(key);
             if (connections == null) {
-                throw new FileOperationException(FileOperationErrorCode.FILE_CONFIG_INVALID,
+                throw new StorageOperationException(
                         "File connection does not exist: " + key);
             }
             StorageExecutor executor = executorFactory.create(key, connections);
             if (executor == null) {
-                throw new FileOperationException(FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE,
+                throw new StorageOperationException(
                         "File storage executor is not available: " + key);
             }
             synchronized (this) {
@@ -122,7 +120,7 @@ public final class StorageExecutorsManager implements AutoCloseable {
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new FileOperationException(FileOperationErrorCode.FILE_TIMEOUT,
+            throw new StorageOperationException(
                     "Interrupted while creating file storage executor: " + key, e);
         } catch (ExecutionException e) {
             throw unwrap(e.getCause());
@@ -174,8 +172,8 @@ public final class StorageExecutorsManager implements AutoCloseable {
         }
     }
 
-    private FileOperationException closedError(String connectionName) {
-        return new FileOperationException(FileOperationErrorCode.FILE_SERVICE_UNAVAILABLE,
+    private StorageOperationException closedError(String connectionName) {
+        return new StorageOperationException(
                 "File storage executor manager is closed: " + connectionName);
     }
 
