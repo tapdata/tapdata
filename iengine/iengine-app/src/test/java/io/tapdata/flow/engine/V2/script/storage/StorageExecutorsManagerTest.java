@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class StorageExecutorsManagerTest {
@@ -48,6 +49,48 @@ class StorageExecutorsManagerTest {
         assertSame(executor, second.get());
         manager.close();
         assertEquals(1, executor.closed.get());
+    }
+
+    @Test
+    void failedCreationUsesBackoffAndCanRecover() throws Throwable {
+        AtomicInteger created = new AtomicInteger();
+        FakeExecutor recovered = new FakeExecutor("ftp-2");
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> {
+                    if (created.incrementAndGet() == 1) {
+                        throw new IllegalStateException("temporary connection failure");
+                    }
+                    return recovered;
+                }, 100L);
+
+        assertThrows(IllegalStateException.class, () -> manager.getStorageExecutor("ftp-2"));
+        assertThrows(IllegalStateException.class, () -> manager.getStorageExecutor("ftp-2"));
+        assertEquals(1, created.get());
+
+        Thread.sleep(150L);
+        assertSame(recovered, manager.getStorageExecutor("ftp-2"));
+        assertEquals(2, created.get());
+        manager.close();
+    }
+
+    @Test
+    void invalidationClosesCachedExecutorAndAllowsRecreation() throws Throwable {
+        AtomicInteger created = new AtomicInteger();
+        FakeExecutor first = new FakeExecutor("ftp-3");
+        FakeExecutor second = new FakeExecutor("ftp-3");
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> created.incrementAndGet() == 1 ? first : second,
+                0L);
+
+        assertSame(first, manager.getStorageExecutor("ftp-3"));
+        manager.invalidate("ftp-3", new IllegalStateException("remote failure"));
+        assertEquals(1, first.closed.get());
+        assertSame(second, manager.getStorageExecutor("ftp-3"));
+        assertEquals(2, created.get());
+        manager.close();
+        assertEquals(1, second.closed.get());
     }
 
     private static StorageExecutor get(StorageExecutorsManager manager, String name) {

@@ -68,6 +68,26 @@ class DefaultFileStorageSessionManagerTest {
         assertEquals(2, destroyed.get());
     }
 
+    @Test
+    void idleSessionIsEvictedOnNextRetain() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        AtomicInteger destroyed = new AtomicInteger();
+        DefaultFileStorageSessionManager manager = new DefaultFileStorageSessionManager(
+                endpoint -> new RecordingStorage(opened.incrementAndGet(), destroyed), 4, 1L);
+        FileEndpoint endpoint = FileEndpoint.builder().protocol("ftp").build();
+
+        FileStorageSession first = manager.retain(endpoint);
+        manager.release(first);
+        Thread.sleep(10L);
+
+        FileStorageSession second = manager.retain(endpoint);
+        assertEquals(2, opened.get());
+        assertEquals(1, destroyed.get());
+        manager.release(second);
+        manager.close();
+        assertEquals(2, destroyed.get());
+    }
+
     private static final class RecordingStorage implements TapFileStorage {
         private final int id;
         private final AtomicInteger destroyed;

@@ -7,6 +7,8 @@ import io.tapdata.file.operation.FileCopyRequest;
 import io.tapdata.file.operation.FileEndpoint;
 import io.tapdata.file.operation.FileListRequest;
 import io.tapdata.file.operation.FileMetadata;
+import io.tapdata.file.operation.FileOperationErrorCode;
+import io.tapdata.file.operation.FileOperationException;
 import io.tapdata.file.operation.FileOperationResult;
 import io.tapdata.file.operation.FileOperationStatus;
 import io.tapdata.file.operation.FileValidationResult;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StorageFacadeTest {
@@ -59,6 +62,32 @@ class StorageFacadeTest {
         assertEquals(FileVerifyMode.SIZE, targetService.copyRequest.get().getVerifyMode());
         assertFalse(targetService.copyRequest.get().isOverwrite());
         assertEquals(2, targetService.copyRequest.get().getRetryTimes());
+    }
+
+    @Test
+    void findExistsAndDeleteUsePlainFileValues() throws Throwable {
+        RecordingService service = new RecordingService();
+        service.existsResult = true;
+        service.metadata = new FileMetadata("/out/1.txt", 4L, 10L, null, false);
+        StorageFacade facade = facade(service);
+
+        Map<String, Object> metadata = facade.find("target-ftp", map("path", "/out/1.txt"), null);
+
+        assertEquals("/out/1.txt", metadata.get("path"));
+        assertEquals(4L, metadata.get("size"));
+        assertTrue(facade.exists("target-ftp", "/out/1.txt"));
+        assertTrue(facade.delete("target-ftp", map("path", "/out/1.txt"), null));
+        assertEquals("/out/1.txt", service.deletedPath);
+    }
+
+    @Test
+    void unsupportedUpdateActionReturnsStableFileError() {
+        StorageFacade facade = facade(new RecordingService());
+
+        FileOperationException error = assertThrows(FileOperationException.class,
+                () -> facade.update("target-ftp", map("action", "move"), null));
+
+        assertEquals(FileOperationErrorCode.FILE_UNSUPPORTED_OPERATION, error.getCode());
     }
 
     private static StorageFacade facade(RecordingService targetService) {
@@ -101,6 +130,9 @@ class StorageFacadeTest {
         private final AtomicReference<String> writtenPath = new AtomicReference<>();
         private final ByteArrayOutputStream writtenContent = new ByteArrayOutputStream();
         private final AtomicReference<FileCopyRequest> copyRequest = new AtomicReference<>();
+        private FileMetadata metadata;
+        private boolean existsResult;
+        private String deletedPath;
         private boolean writtenOverwrite;
 
         @Override public FileOperationResult copy(FileCopyRequest request) {
@@ -109,8 +141,8 @@ class StorageFacadeTest {
                     .sourcePath(request.getSourcePath()).targetPath(request.getTargetPath()).bytes(4).build();
         }
         @Override public FileBatchResult copyBatch(List<FileCopyRequest> requests) { return null; }
-        @Override public FileMetadata stat(FileEndpoint endpoint, String path) { return null; }
-        @Override public boolean exists(FileEndpoint endpoint, String path) { return false; }
+        @Override public FileMetadata stat(FileEndpoint endpoint, String path) { return metadata; }
+        @Override public boolean exists(FileEndpoint endpoint, String path) { return existsResult; }
         @Override public List<FileMetadata> list(FileListRequest request) { return Collections.emptyList(); }
         @Override public FileValidationResult validate(FileEndpoint endpoint, String path, FileAccess access) { return FileValidationResult.valid(); }
         @Override public FileOperationResult write(FileEndpoint endpoint, String path, InputStream inputStream, boolean overwrite) {
@@ -129,7 +161,10 @@ class StorageFacadeTest {
             return FileOperationResult.builder().status(FileOperationStatus.COPIED)
                     .targetPath(path).bytes(writtenContent.size()).build();
         }
-        @Override public boolean delete(FileEndpoint endpoint, String path) { return true; }
+        @Override public boolean delete(FileEndpoint endpoint, String path) {
+            deletedPath = path;
+            return true;
+        }
         @Override public void close() { }
     }
 }
