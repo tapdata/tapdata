@@ -9,12 +9,10 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -49,33 +47,15 @@ public class RowFilterStrategyImpl implements DagLogStrategy {
                     String nodeId = node.getId();
 
                     if (StringUtils.isEmpty(name)) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_NAME_EMPTY"))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "ROW_FILTER_NAME_EMPTY"));
                     }
 
                     if (StringUtils.isEmpty(((RowFilterProcessorNode) node).getExpression())) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_EXP_EMPTY"), name))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "ROW_FILTER_EXP_EMPTY", DagCheckLogs.nodeName(node)));
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "ROW_FILTER_PASS"), name))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "ROW_FILTER_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
 

@@ -56,7 +56,7 @@ public class TargetSettingStrategyImplTest {
             databaseNode.setNodeConfig(nodeConfig);
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("sync Index");
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("databaseNodeId"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("databaseNodeId"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             targetSettingStrategy.checkNodeSyncIndex(locale,taskId,result,userId,databaseNode,name);
             assertEquals(1,result.size());
             assertEquals("sync Index",result.get(0).getLog());
@@ -84,7 +84,7 @@ public class TargetSettingStrategyImplTest {
             tableNode.setNodeConfig(nodeConfig);
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("sync Index");
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("databaseNodeId"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("databaseNodeId"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             targetSettingStrategy.checkNodeSyncIndex(locale,taskId,result,userId,tableNode,name);
             assertEquals(1,result.size());
             assertEquals("sync Index",result.get(0).getLog());
@@ -111,7 +111,7 @@ public class TargetSettingStrategyImplTest {
             tableNode.setExistDataProcessMode("dropTable");
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("dropTable");
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("tableNodeId"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("tableNodeId"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             targetSettingStrategy.checkNodeExistDataMode(locale,taskId,result,userId,tableNode,name);
             assertEquals(1,result.size());
             assertEquals("dropTable",result.get(0).getLog());
@@ -135,7 +135,7 @@ public class TargetSettingStrategyImplTest {
             databaseNode.setExistDataProcessMode("dropTable");
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("dropTable");
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("databaseNodeId"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("databaseNodeId"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             targetSettingStrategy.checkNodeExistDataMode(locale,taskId,result,userId,databaseNode,name);
             assertEquals(1,result.size());
             assertEquals("dropTable",result.get(0).getLog());
@@ -163,7 +163,7 @@ public class TargetSettingStrategyImplTest {
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("update field can create index");
             when(dataSourceService.findByIdByCheck(MongoUtils.toObjectId("connectionId"))).thenReturn(dto);
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("dataNodeId"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("dataNodeId"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             targetSettingStrategy.checkTargetUpdateField(locale,taskId,result,userId,dataParentNode,name,"connectionId");
             assertEquals(1,result.size());
             assertEquals("update field can create index",result.get(0).getLog());
@@ -181,7 +181,7 @@ public class TargetSettingStrategyImplTest {
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("update field can create index");
             when(dataSourceService.findByIdByCheck(MongoUtils.toObjectId("connectionId"))).thenReturn(dto);
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("dataNodeId"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("dataNodeId"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             targetSettingStrategy.checkTargetUpdateField(locale,taskId,result,userId,dataParentNode,name,"connectionId");
             assertEquals(1,result.size());
             assertEquals("update field can create index",result.get(0).getLog());
