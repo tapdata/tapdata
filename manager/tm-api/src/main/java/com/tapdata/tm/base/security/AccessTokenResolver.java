@@ -3,6 +3,8 @@ package com.tapdata.tm.base.security;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.base.filter.HttpServletRequestWrapper;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletRequestWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 
@@ -141,23 +143,27 @@ public final class AccessTokenResolver {
 	}
 
 	private static String readBody(HttpServletRequest request) {
-		if (request instanceof HttpServletRequestWrapper wrapper) {
-			try {
-				return wrapper.getContentAsString();
-			} catch (Exception e) {
-				return null;
-			}
+		HttpServletRequestWrapper cached = findCachedRequest(request);
+		if (cached == null) {
+			// LoginUserInterceptor runs before @RequestBody. Never consume a one-shot stream.
+			return null;
 		}
 		try {
-			byte[] bytes = request.getInputStream().readAllBytes();
-			if (bytes.length == 0) {
-				return null;
-			}
-			String encoding = request.getCharacterEncoding();
-			return new String(bytes, encoding == null ? StandardCharsets.UTF_8 : java.nio.charset.Charset.forName(encoding));
+			return cached.getContentAsString();
 		} catch (Exception e) {
 			return null;
 		}
+	}
+
+	private static HttpServletRequestWrapper findCachedRequest(HttpServletRequest request) {
+		ServletRequest current = request;
+		while (current instanceof ServletRequestWrapper wrapper) {
+			if (current instanceof HttpServletRequestWrapper cached) {
+				return cached;
+			}
+			current = wrapper.getRequest();
+		}
+		return null;
 	}
 
 	private static BearerParse parseBearer(HttpServletRequest request) {

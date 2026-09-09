@@ -1,9 +1,12 @@
 package com.tapdata.tm.base.security;
 
+import com.tapdata.tm.base.filter.HttpServletRequestWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -77,9 +80,26 @@ class AccessTokenResolverTest {
 		req.setContent("{\"access_token\":\"from-body\"}".getBytes());
 		req.setQueryString("access_token=from-body");
 
-		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		AccessTokenResolution r = AccessTokenResolver.resolve(new HttpServletRequestWrapper(req), UrlTokenMode.COMPAT);
 		assertEquals("from-body", r.getToken());
 		assertEquals(AccessTokenSource.BODY, r.getSource());
+	}
+
+	@Test
+	void loginInterceptorMustNotConsumeJsonBodyWithoutAccessToken() throws Exception {
+		byte[] json = "{\"singletonLock\":\"abc\"}".getBytes(StandardCharsets.UTF_8);
+		MockHttpServletRequest inner = new MockHttpServletRequest("POST", "/api/Workers/singleton-lock/upsertWithWhere");
+		inner.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		inner.setContent(json);
+		HttpServletRequestWrapper cached = new HttpServletRequestWrapper(inner);
+		jakarta.servlet.http.HttpServletRequestWrapper outer =
+				new jakarta.servlet.http.HttpServletRequestWrapper(cached);
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(outer, UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+
+		String remaining = new String(outer.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+		assertEquals("{\"singletonLock\":\"abc\"}", remaining);
 	}
 
 	@Test
