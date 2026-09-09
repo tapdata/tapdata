@@ -15,6 +15,7 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.zip.ZipOutputStream;
 
 public interface MonitoringLogsService {
@@ -41,5 +42,5 @@ public interface MonitoringLogsService {
 
     void deleteLogs(String taskId);
 
-    List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName, String nodeName);
+    List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName, String nodeName, Locale locale);
 }

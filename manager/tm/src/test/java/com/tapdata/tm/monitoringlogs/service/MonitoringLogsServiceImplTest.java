@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,9 +16,15 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -104,6 +111,53 @@ public class MonitoringLogsServiceImplTest {
             Assertions.assertEquals(0L, query.getTotal());
             Assertions.assertTrue(query.getItems().isEmpty());
 
+        }
+    }
+
+    @Nested
+    class GetJsNodeLogTest {
+        MongoTemplate mongoOperations;
+        MonitoringLogsServiceImpl service;
+
+        @BeforeEach
+        void setUp() throws ExecutionException, InterruptedException {
+            mongoOperations = mock(MongoTemplate.class);
+            service = new MonitoringLogsServiceImpl(
+                    mock(MonitoringLogsRepository.class),
+                    CompletableFuture.completedFuture(mongoOperations));
+            MonitoringLogsEntity entity = new MonitoringLogsEntity();
+            entity.setTaskId("transform-id");
+            entity.setDate(new Date());
+            entity.setLevel("INFO");
+            entity.setMessage("PDK connector node stopped");
+            when(mongoOperations.find(any(Query.class), eq(MonitoringLogsEntity.class))).thenReturn(List.of(entity));
+        }
+
+        @Test
+        void formatsEnglishLogWithoutChineseWrapperOrDefaultName() {
+            List<TaskDagCheckLog> logs = service.getJsNodeLog(
+                    "transform-id", "task-name", "Enhanced JS node", Locale.US);
+
+            String log = logs.get(0).getLog();
+            assertEquals(1, logs.size());
+            assertTrue(log.contains("[task-name]"));
+            assertTrue(log.contains("[Enhanced JS node]"));
+            assertTrue(log.contains("PDK connector node stopped"));
+            assertFalse(log.contains("增强JS"));
+            assertFalse(log.contains("节点"));
+            assertFalse(log.contains("【"));
+        }
+
+        @Test
+        void formatsChineseLogWithoutDuplicatedNodeSuffix() {
+            List<TaskDagCheckLog> logs = service.getJsNodeLog(
+                    "transform-id", "task-name", "增强JS节点", Locale.CHINA);
+
+            String log = logs.get(0).getLog();
+            assertTrue(log.contains("【task-name】"));
+            assertTrue(log.contains("【增强JS节点】"));
+            assertTrue(log.contains("PDK connector node stopped"));
+            assertFalse(log.contains("增强JS节点节点"));
         }
     }
 }

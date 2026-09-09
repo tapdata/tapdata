@@ -152,7 +152,16 @@ class TaskDagCheckLogServiceImplLocalizationTest {
     }
 
     @Test
-    void getLogsPassesOriginalJsNodeNameToMonitoringLogs() {
+    void getLogsPassesLocalizedJsTypeNameToMonitoringLogs() {
+        verifyJsNodeLogName("增强JS节点", "Enhanced JS node");
+    }
+
+    @Test
+    void getLogsPassesCustomJsNodeNameToMonitoringLogs() {
+        verifyJsNodeLogName("我的JS", "我的JS");
+    }
+
+    private void verifyJsNodeLogName(String storedName, String expectedName) {
         TaskDagCheckLogServiceImpl service = new TaskDagCheckLogServiceImpl();
         TaskService taskService = mock(TaskService.class);
         MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
@@ -162,7 +171,7 @@ class TaskDagCheckLogServiceImplLocalizationTest {
         String taskId = new ObjectId().toHexString();
         JsProcessorNode jsNode = new JsProcessorNode();
         jsNode.setId("js-node");
-        jsNode.setName("增强JS节点");
+        jsNode.setName(storedName);
 
         DAG dag = mock(DAG.class);
         when(dag.getNodes()).thenReturn(List.of(jsNode));
@@ -174,7 +183,7 @@ class TaskDagCheckLogServiceImplLocalizationTest {
         taskDto.setName("task-name");
         taskDto.setTransformTaskId("transform-id");
         when(taskService.findById(any())).thenReturn(taskDto);
-        when(monitoringLogsService.getJsNodeLog(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(monitoringLogsService.getJsNodeLog(any(), any(), any(), any())).thenReturn(Collections.emptyList());
 
         TaskLogDto dto = new TaskLogDto();
         dto.setTaskId(taskId);
@@ -186,6 +195,6 @@ class TaskDagCheckLogServiceImplLocalizationTest {
             service.getLogs(dto, mock(UserDetail.class), Locale.US);
         }
 
-        verify(monitoringLogsService).getJsNodeLog("transform-id", "task-name", "增强JS节点");
+        verify(monitoringLogsService).getJsNodeLog("transform-id", "task-name", expectedName, Locale.US);
     }
 }

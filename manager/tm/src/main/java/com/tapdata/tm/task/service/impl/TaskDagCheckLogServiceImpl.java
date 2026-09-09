@@ -115,8 +115,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode || n instanceof PyProcessNode || n instanceof MigratePyProcessNode) && !(n instanceof CustomProcessorNode))
                 .findFirst();
         if (jsNode.isPresent()) {
-            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(),
-                    NodeEnum.valueOf(jsNode.get().getType()).getNodeName());
+            Node node = jsNode.get();
+            String nodeType = node.getType();
+            String storedName = StringUtils.defaultIfBlank(node.getName(), NodeEnum.valueOf(nodeType).getNodeName());
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(
+                    taskDto.getTransformTaskId(),
+                    taskDto.getName(),
+                    MessageUtil.localizeDagNodeName(locale, nodeType, storedName),
+                    locale);
             Optional.ofNullable(jsNodeLog).ifPresent(checkLogs::addAll);
         }
 
