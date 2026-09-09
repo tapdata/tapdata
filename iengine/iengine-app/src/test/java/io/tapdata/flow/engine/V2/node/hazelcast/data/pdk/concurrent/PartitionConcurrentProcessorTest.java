@@ -94,6 +94,22 @@ class PartitionConcurrentProcessorTest {
     }
 
     @Test
+    void testStopFlushesProcessedWatermarkBeforeShutdown() {
+        PartitionConcurrentProcessor processor = new PartitionConcurrentProcessor(
+                2, 500, partitioner, keySelector, eventProcessor, flushOffset,
+                errorHandler, nodeRunning, taskDto);
+        when(nodeRunning.get()).thenReturn(true);
+        TapdataEvent event = generateInsertEvent("i", 1, null);
+
+        processor.start();
+        processor.process(Collections.singletonList(event), true);
+        processor.stop();
+
+        verify(flushOffset, times(1)).accept(event);
+        assertFalse(processor.isRunning());
+    }
+
+    @Test
     void testEventOrders() throws Exception {
         Map<String, Boolean> syncMap = new ConcurrentHashMap<>(); // executed to set true
         Map<String, Boolean> assertList = new LinkedHashMap<>(); // executed to assert results
@@ -386,6 +402,7 @@ class PartitionConcurrentProcessorTest {
     @Timeout(2)
     void testWatermarkEventRunner() throws Exception {
         PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
+        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkFlushLock", new Object());
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "logger", logger);
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "taskDto", taskDto);
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "errorHandler", errorHandler);
@@ -620,6 +637,8 @@ class PartitionConcurrentProcessorTest {
     void testOther() throws InterruptedException {
         PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "partitionsQueue", new ArrayList<>());
+        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkQueue", new LinkedBlockingQueue<>());
+        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkFlushLock", new Object());
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "currentRunning", new AtomicBoolean(false));
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "nodeRunning", (Supplier<Boolean>) () -> false);
 

@@ -69,6 +69,7 @@ public class PartitionConcurrentProcessor {
 	private AtomicLong eventSeq = new AtomicLong(0L);
 
 	private LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
+	private final Object watermarkFlushLock = new Object();
 
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
@@ -184,15 +185,12 @@ public class PartitionConcurrentProcessor {
 		while (isRunning()) {
 			Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 			try {
-				final WatermarkEvent watermarkEvent = pollWatermarkEvent();
-				if (watermarkEvent != null) {
-					final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
-					final TapdataEvent event = watermarkEvent.getEvent();
-					if (!waitCountDownLath(countDownLatch, () -> {
-						final Date sourceTime = Optional.ofNullable(event.getSourceTime()).map(Date::new).orElse(null);
-						logger.info("waiting watermark event for all thread process, ts {}", sourceTime);
-					})) return; // when task stop, do not need flush offset
-					this.flushOffset.accept(event);
+				synchronized (watermarkFlushLock) {
+					if (!isRunning()) return;
+					final WatermarkEvent watermarkEvent = pollWatermarkEvent();
+					if (watermarkEvent != null && !flushWatermarkEvent(watermarkEvent)) {
+						return;
+					}
 				}
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
@@ -204,6 +202,17 @@ public class PartitionConcurrentProcessor {
 				ThreadContext.clearAll();
 			}
 		}
+	}
+
+	private boolean flushWatermarkEvent(WatermarkEvent watermarkEvent) throws InterruptedException {
+		final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
+		final TapdataEvent event = watermarkEvent.getEvent();
+		if (!waitCountDownLath(countDownLatch, () -> {
+			final Date sourceTime = Optional.ofNullable(event.getSourceTime()).map(Date::new).orElse(null);
+			logger.info("waiting watermark event for all thread process, ts {}", sourceTime);
+		})) return false;
+		this.flushOffset.accept(event);
+		return true;
 	}
 
 	protected void partitionConsumer(int finalPartition, LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue) {
@@ -496,6 +505,13 @@ public class PartitionConcurrentProcessor {
 	public void stop() {
 		try {
 			waitingForProcessToCurrent();
+			synchronized (watermarkFlushLock) {
+				WatermarkEvent watermarkEvent;
+				while ((watermarkEvent = watermarkQueue.poll()) != null) {
+					if (!flushWatermarkEvent(watermarkEvent)) break;
+				}
+				currentRunning.compareAndSet(true, false);
+			}
 		} catch (InterruptedException ignored) {
 			Thread.currentThread().interrupt();
 		} finally {
