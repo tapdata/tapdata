@@ -1,113 +1,202 @@
 # TAP-12832 文件连接 JS 操作验收手册
 
-本文档只覆盖当前实现已经提供的能力。真实 FTP 服务、权限、断连和吞吐需要在部署环境验收，不能用 fake executor 单测替代。
+## 一、验收前置条件
 
-## 1. 验收前置条件
+1. 创建 FTP 连接：
+   - 源连接名称：`Source-ftp`
+   - 目标连接名称：`target-ftp`
+2. 创建增强 JS 任务，DAG 示例：
 
-1. 使用包含当前 engine、connectors 变更的构建产物；`tapdata-common-lib` 保持既有公共 API。
-2. 创建两个 FTP 连接：`source-ftp`、`target-ftp`，准备源文件 `in/a.txt`。
-3. 创建 enhanced JS 任务，DAG 中不放 FTP 节点。
-4. 确认 JS 节点可以访问连接名称对应的 `Connections` 配置。
+   ```text
+   源数据库 -> enhanced JS -> 下游数据库
+   ```
 
-## 2. 自动化验证
+3. FTP 节点不需要放入 DAG。
+4. JS 节点中使用对象：`storage`。
 
-engine 定向测试：
+## 二、场景 1：FTP 文件转发完成后继续数据库同步
 
-```bash
-mvn -o -Dmaven.repo.local=/Users/gavinxiao/.m2/repository \
-  -pl iengine/iengine-app -am \
-  -Dtest=StorageFacadeTest,StorageExecutorsManagerTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-```
+### 用户故事
 
-预期：`StorageExecutorsManagerTest` 6 项、`StorageFacadeTest` 5 项，共 11 项通过。
+源数据事件到达增强 JS 节点后，先将 `Source-ftp` 的文件复制到 `target-ftp`。文件复制成功后，事件继续流向下游数据库；文件复制失败时，事件不能写入下游数据库。
 
-文件 storage 和文件 Connector 编译：
+### 测试数据
 
-```bash
-mvn -o -Dmaven.repo.local=/Users/gavinxiao/.m2/repository \
-  -pl file-storages/local-file,file-storages/ftp-file,file-storages/smb-file,\
-file-storages/sftp-file,file-storages/s3fs-file,file-storages/oss-file \
-  -am -DskipTests -Dmaven.test.skip=true compile
-```
+源 FTP 文件：`in/a.txt`
+目标 FTP 文件：`out/a.txt`
 
-## 3. 业务场景
+输入事件：
 
-### 场景 A：DAG 无 FTP 节点时写入
-
-```javascript
-function process(record) {
-  return storage.update("target-ftp", {
-    action: "write",
-    target: { path: "out/" + record.id + ".json" },
-    content: JSON.stringify(record.payload)
-  }, { overwrite: "overwrite" });
+```json
+{
+  "id": "1001",
+  "sourceFtpPath": "in/a.txt",
+  "targetFtpPath": "out/a.txt",
+  "name": "demo"
 }
 ```
 
-预期：JS 成功返回，FTP 目标目录出现文件，文件内容与 `record.payload` 一致；DAG 中不存在 FTP 节点。
-
-### 场景 B：FTP 到 FTP 按事件复制
+### JS 代码
 
 ```javascript
 function process(record) {
-  if (!record.sourcePath) return record;
   var result = storage.update("target-ftp", {
     action: "copy",
-    source: { connection: "source-ftp", path: record.sourcePath },
-    target: { path: record.targetPath }
-  }, { overwrite: "skip" });
-  record.storageResult = result;
+    source: {
+      connection: "Source-ftp",
+      path: record.sourceFtpPath
+    },
+    target: {
+      path: record.targetFtpPath
+    }
+  }, {
+    overwrite: "overwrite"
+  });
+
+  if (!result || result.status !== "copied") {
+    throw new Error("FTP file transfer was not completed");
+  }
+
+  record.ftpTransferStatus = result.status;
+  record.ftpTargetPath = record.targetFtpPath;
   return record;
 }
 ```
 
-预期：目标文件内容和长度与源文件一致，返回 `status=copied`；目标已存在时 `skip` 返回 `status=reused`。
+### 预期结果
 
-### 场景 C：查询、存在性、删除和覆盖策略
+- `target-ftp/out/a.txt` 创建成功，文件内容与源文件一致。
+- 下游数据库收到该事件。
+- 下游数据库中的事件包含 `ftpTransferStatus=copied`。
+- 源文件不存在、FTP 无权限或目标连接失败时，JS 节点报错，事件不继续写入下游数据库。
 
-```javascript
-var file = storage.find("target-ftp", { path: "out/a.json" }, null);
-var exists = storage.exists("target-ftp", "out/a.json");
-var removed = storage.delete("target-ftp", { path: "out/a.json" }, null);
-```
+## 三、场景 2：按事件条件执行 FTP 文件转发
 
-分别验证 `overwrite=skip`、`overwrite=overwrite`、`overwrite=fail`。非法 action、空路径、目标冲突等应返回引擎本地 `StorageOperationException`，不会写入事件 ledger。
+### 用户故事
 
-### 场景 D：同连接复用和异常恢复
+只有满足业务条件的事件才执行 FTP 文件转发，其他事件直接继续正常数据同步。
 
-1. 连续发送 1000 条调用同一连接的事件，观察 PDK/storage 初始化次数和 FTP 登录次数。
-2. 预期同一 JS processor 实例内同名连接只创建一个 executor，后续事件命中缓存。
-3. 中断 FTP 控制连接，预期当前调用报错并使 executor 失效；下一次调用可以重新创建连接。
-4. 停止任务或关闭 JS 节点，确认 storage、FTP client、PDK associateId、state map 和 table map 释放。
-
-### 场景 E：大文件和同连接复制
-
-- 不同 FTP 连接复制大文件时，确认 Java 层流式传输，JS 不接触完整文件内容。
-- 同一个连接 source/target 相同的复制场景，确认实现先落本地临时文件再写目标，避免同一 FTP client 持有读锁时直接写入。
-- 检查复制完成后临时文件被删除，输入/输出流最终关闭。
-
-## 4. 兼容性场景
-
-### Mongo aggregate
+### JS 代码
 
 ```javascript
-var mongo = ScriptExecutorsManager.getScriptExecutor("mongo-test");
-var rows = mongo.aggregate({ database: "test", collection: "user", pipeline: [] });
+function process(record) {
+  if (record.fileReady !== true) {
+    return record;
+  }
+
+  var result = storage.update("target-ftp", {
+    action: "copy",
+    source: {
+      connection: "Source-ftp",
+      path: record.sourceFtpPath
+    },
+    target: {
+      path: record.targetFtpPath
+    }
+  }, {
+    overwrite: "skip"
+  });
+
+  if (!result ||
+      (result.status !== "copied" && result.status !== "reused")) {
+    throw new Error("FTP file transfer was not completed");
+  }
+
+  record.ftpTransferStatus = result.status;
+  return record;
+}
 ```
 
-预期仍通过原有数据库 `ScriptExecutor` 执行。`ScriptExecutorsManager.getScriptExecutor("target-ftp")` 不作为 FTP 文件 API。
+### 预期结果
 
-### 非 FTP 协议
+- `fileReady=false`：不执行 FTP 操作，事件继续进入下游数据库。
+- `fileReady=true`：执行文件转发，首次返回 `copied`。
+- 目标文件已存在时返回 `reused`，事件继续进入下游数据库。
+- 文件转发失败时，当前事件不进入下游数据库。
 
-当前引擎已有多种 storage class 映射，但 FTP 是本需求首要验收协议。对 SFTP、SMB、S3FS、OSS、NFS、Local，应先确认对应 PDK class、参数和真实环境，再逐协议验收；不能以 FTP 验收结果代替其他协议验收。
+## 四、场景 3：向目标 FTP 写入事件生成的文件
 
-## 5. 资源回归检查
+### 用户故事
 
-重点检查：
+增强 JS 根据当前事件内容生成 JSON 文件并写入 `target-ftp`。
 
-- FTP/SFTP 初始化失败是否断开半初始化资源；
-- raw stream 重复关闭是否不会重复完成协议 pending command；
-- FileConnector 停止时任一清理异常是否仍继续清理其他资源；
-- Local/SMB 输出流、OSS/S3FS 对象流是否在异常和正常路径关闭；
-- `InputStream.available()` 不再被当作 OSS/S3FS 远端文件总长度。
+### JS 代码
+
+```javascript
+function process(record) {
+  var result = storage.update("target-ftp", {
+    action: "write",
+    target: {
+      path: "out/" + record.id + ".json"
+    },
+    content: JSON.stringify(record)
+  }, {
+    overwrite: "overwrite"
+  });
+
+  if (!result || result.status !== "written") {
+    throw new Error("FTP file write was not completed");
+  }
+
+  return record;
+}
+```
+
+### 预期结果
+
+- `target-ftp/out/{record.id}.json` 创建成功。
+- 文件内容是当前事件的 JSON 内容。
+- 写入失败时，当前事件报错，不继续下游处理。
+
+## 五、场景 4：查询、判断存在和删除 FTP 文件
+
+### 用户故事
+
+增强 JS 根据业务条件查询 FTP 文件，必要时删除源文件。
+
+### JS 代码
+
+```javascript
+function process(record) {
+  var exists = storage.exists("Source-ftp", record.sourceFtpPath);
+
+  if (exists) {
+    var file = storage.find("Source-ftp", {
+      path: record.sourceFtpPath
+    }, null);
+    record.sourceFileSize = file ? file.size : null;
+  }
+
+  if (exists && record.deleteSource === true) {
+    storage.delete("Source-ftp", {
+      path: record.sourceFtpPath
+    }, null);
+  }
+
+  return record;
+}
+```
+
+### 预期结果
+
+- 文件存在时，`sourceFileSize` 返回文件大小。
+- `deleteSource=true` 时，源 FTP 文件删除成功。
+- 文件不存在时，不删除文件，事件仍可继续下游处理。
+
+## 六、场景 5：FTP 连接异常
+
+### 用户故事
+
+FTP 文件操作过程中发生连接中断或权限错误时，不能将未完成的文件转发结果继续写入下游数据库。
+
+### 验证步骤
+
+1. 执行场景 1 的 JS 代码。
+2. 执行过程中断开 FTP 连接，或配置无效的 FTP 权限。
+3. 检查 JS 节点和下游数据库结果。
+
+### 预期结果
+
+- JS 节点返回错误。
+- 当前事件不写入下游数据库。
+- 恢复 FTP 连接后，后续事件可以重新执行文件操作。
