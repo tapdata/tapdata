@@ -48,11 +48,11 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     String nodeName = NodeEnum.valueOf(node.getType()).getNodeName();
 
                     if (StringUtils.isEmpty(name)) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "JS_EDIT_NAME_EMPTY", nodeName));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "JS_EDIT_NAME_EMPTY", DagCheckLogs.nodeName(node, nodeName)));
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "JS_EDIT_PASS", nodeName, name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "JS_EDIT_PASS", DagCheckLogs.nodeName(node, nodeName), name));
                     }
                 });
 

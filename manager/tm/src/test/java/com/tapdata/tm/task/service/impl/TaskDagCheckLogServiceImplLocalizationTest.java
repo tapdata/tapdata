@@ -47,8 +47,9 @@ class TaskDagCheckLogServiceImplLocalizationTest {
                 "user-id",
                 Level.INFO,
                 DagOutputTemplateEnum.SOURCE_SETTING_CHECK,
+                Locale.US,
                 MessageUtil.getDagCheckMsg(Locale.US, "SOURCE_SETTING_INFO"),
-                "数据源节点");
+                MessageUtil.dagNodeName("database", "数据源节点"));
 
         assertTrue(log.getLog().contains("Data source node"));
     }
@@ -62,6 +63,7 @@ class TaskDagCheckLogServiceImplLocalizationTest {
                 "user-id",
                 Level.INFO,
                 DagOutputTemplateEnum.SOURCE_SETTING_CHECK,
+                Locale.US,
                 MessageUtil.getDagCheckMsg(Locale.US, "SOURCE_SETTING_INFO"),
                 "我的中文节点");
 
@@ -70,7 +72,7 @@ class TaskDagCheckLogServiceImplLocalizationTest {
     }
 
     @Test
-    void dagCheckLocaleLocalizesCreateLogParamsAndIsClearedAfterwards() {
+    void dagCheckPassesLocaleExplicitlyToCreateLog() {
         TaskDagCheckLogServiceImpl service = new TaskDagCheckLogServiceImpl();
         TaskDto taskDto = new TaskDto();
         taskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
@@ -85,8 +87,9 @@ class TaskDagCheckLogServiceImplLocalizationTest {
                 "user-id",
                 Level.INFO,
                 DagOutputTemplateEnum.SOURCE_SETTING_CHECK,
+                locale,
                 MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"),
-                "数据源节点"));
+                MessageUtil.dagNodeName("database", "数据源节点")));
 
         try (MockedStatic<SpringUtil> spring = mockStatic(SpringUtil.class)) {
             spring.when(() -> SpringUtil.getBean(anyString(), eq(DagLogStrategy.class))).thenReturn(strategy);
@@ -105,8 +108,9 @@ class TaskDagCheckLogServiceImplLocalizationTest {
                 "user-id",
                 Level.INFO,
                 DagOutputTemplateEnum.SOURCE_SETTING_CHECK,
+                Locale.US,
                 MessageUtil.getDagCheckMsg(Locale.US, "SOURCE_SETTING_INFO"),
-                "数据源节点");
+                MessageUtil.dagNodeName("database", "数据源节点"));
         assertTrue(afterCheck.getLog().contains("Data source node"));
     }
 
@@ -119,10 +123,10 @@ class TaskDagCheckLogServiceImplLocalizationTest {
         String taskId = new ObjectId().toHexString();
         TableNode defaultNode = new TableNode();
         defaultNode.setId("default-node");
-        defaultNode.setName("数据源节点");
+        defaultNode.setName("表节点");
         TableNode customNode = new TableNode();
         customNode.setId("custom-node");
-        customNode.setName("我的中文节点");
+        customNode.setName("数据源节点");
 
         DAG dag = mock(DAG.class);
         when(dag.getNodes()).thenReturn(List.of(defaultNode, customNode));
@@ -142,13 +146,13 @@ class TaskDagCheckLogServiceImplLocalizationTest {
 
             TaskDagCheckLogVo vo = service.getLogs(dto, mock(UserDetail.class), Locale.US);
 
-            assertEquals("Data source node", vo.getNodes().get("default-node"));
-            assertEquals("我的中文节点", vo.getNodes().get("custom-node"));
+            assertEquals("Table node", vo.getNodes().get("default-node"));
+            assertEquals("数据源节点", vo.getNodes().get("custom-node"));
         }
     }
 
     @Test
-    void getLogsPassesLocalizedJsNodeNameToMonitoringLogs() {
+    void getLogsPassesOriginalJsNodeNameToMonitoringLogs() {
         TaskDagCheckLogServiceImpl service = new TaskDagCheckLogServiceImpl();
         TaskService taskService = mock(TaskService.class);
         MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
@@ -182,6 +186,6 @@ class TaskDagCheckLogServiceImplLocalizationTest {
             service.getLogs(dto, mock(UserDetail.class), Locale.US);
         }
 
-        verify(monitoringLogsService).getJsNodeLog("transform-id", "task-name", "Enhanced JS node");
+        verify(monitoringLogsService).getJsNodeLog("transform-id", "task-name", "增强JS节点");
     }
 }

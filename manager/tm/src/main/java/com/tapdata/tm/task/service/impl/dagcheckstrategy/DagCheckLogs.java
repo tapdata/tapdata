@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.commons.alarm.Level;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.utils.MessageUtil;
@@ -26,5 +27,13 @@ final class DagCheckLogs {
         log.setCreateAt(now);
         log.setCreateUser(userId);
         return log;
+    }
+
+    static MessageUtil.DagNodeName nodeName(Node node) {
+        return nodeName(node, node.getName());
+    }
+
+    static MessageUtil.DagNodeName nodeName(Node node, String name) {
+        return MessageUtil.dagNodeName(node.getType(), name);
     }
 }

@@ -54,8 +54,6 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
-    private final ThreadLocal<Locale> dagCheckLocale = new ThreadLocal<>();
-
     private TaskDagCheckLogRepository repository;
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
@@ -84,23 +82,13 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             return result;
         }
         LinkedList<DagOutputTemplateEnum> checkList = startTask ? DagOutputTemplateEnum.getStartCheck() : DagOutputTemplateEnum.getSaveCheck();
-        Locale previousLocale = dagCheckLocale.get();
-        dagCheckLocale.set(locale);
-        try {
-            checkList.forEach(c -> {
-                DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
-                List<TaskDagCheckLog> logs = dagLogStrategy.getLogs(taskDto, userDetail, locale);
-                if (CollectionUtils.isNotEmpty(logs)) {
-                    result.addAll(logs);
-                }
-            });
-        } finally {
-            if (previousLocale == null) {
-                dagCheckLocale.remove();
-            } else {
-                dagCheckLocale.set(previousLocale);
+        checkList.forEach(c -> {
+            DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
+            List<TaskDagCheckLog> logs = dagLogStrategy.getLogs(taskDto, userDetail, locale);
+            if (CollectionUtils.isNotEmpty(logs)) {
+                result.addAll(logs);
             }
-        }
+        });
         return result;
     }
 
@@ -128,7 +116,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 .findFirst();
         if (jsNode.isPresent()) {
             List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(),
-                    MessageUtil.localizeDagNodeName(locale, NodeEnum.valueOf(jsNode.get().getType()).getNodeName()));
+                    NodeEnum.valueOf(jsNode.get().getType()).getNodeName());
             Optional.ofNullable(jsNodeLog).ifPresent(checkLogs::addAll);
         }
 
@@ -160,7 +148,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 List<String> nodeList = nodeSchemaMap.get(node.getId());
                 if (CollectionUtils.isEmpty(nodeList)) {
                     String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
-                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(tableNames));
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, JSON.toJSONString(tableNames));
                     checkLogs.add(modelLog);
 
                     schemaPass = false;
@@ -170,7 +158,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     temp.removeAll(nodeList);
 
                     String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
-                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(temp));
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, JSON.toJSONString(temp));
                     checkLogs.add(modelLog);
 
                     schemaPass = false;
@@ -187,7 +175,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 } else {
                     number = dag.getSourceNode().getFirst().getTableNames().size();
                 }
-                TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, number, number);
+                TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, number, number);
                 assert checkLogs != null;
                 checkLogs.add(modelLog);
             }
@@ -196,7 +184,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         LinkedHashMap<String, String> nodeMap = dag.getNodes().stream()
-                .collect(Collectors.toMap(Node::getId, node -> MessageUtil.localizeDagNodeName(locale, node.getName()),
+                .collect(Collectors.toMap(Node::getId, node -> MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName()),
                         (x, y) -> y, LinkedHashMap::new));
 
         List<TaskDagCheckLog> checkLogList;
@@ -278,9 +266,9 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param) {
+    public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade,
+                                     DagOutputTemplateEnum templateEnum, Locale locale, String template, Object ... param) {
         Date now = new Date();
-        Locale locale = Optional.ofNullable(dagCheckLocale.get()).orElseGet(MessageUtil::getLocale);
         String content = MessageFormat.format(template, MessageUtil.localizeDagCheckParams(locale, param));
 
         TaskDagCheckLog log = TaskDagCheckLog.builder()

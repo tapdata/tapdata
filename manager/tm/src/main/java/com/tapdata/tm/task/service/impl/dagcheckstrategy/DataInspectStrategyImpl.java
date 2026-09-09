@@ -58,7 +58,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
 //                    case migrate_field_rename_processor:
                         break;
                     default:
-                        filterNames.add(node.getName() + "(" + node.getType() + ")");
+                        filterNames.add(MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName()) + "(" + node.getType() + ")");
                         break;
                 }
             }
@@ -71,14 +71,16 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
             LinkedList<DatabaseNode> sourceNodes = dag.getSourceNode();
             for (DatabaseNode node : sourceNodes) {
                 if (null != node.getEnableDynamicTable() && node.getEnableDynamicTable()) {
-                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_SOURCE"), node.getName()), locale));
+                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_SOURCE"),
+                            MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName())), locale));
                 }
 
 //                results.add(createError(taskDto, userDetail, String.format("源 %s 不支持校验", node.getName())));
             }
             for (DatabaseNode node : dag.getTargetNode()) {
                 if (null != node.getEnableDynamicTable() && node.getEnableDynamicTable()) {
-                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_TARGET"), node.getName()), locale));
+                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_TARGET"),
+                            MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName())), locale));
                 }
 //                results.add(createError(taskDto, userDetail, String.format("目标 %s 不支持校验", node.getName())));
             }

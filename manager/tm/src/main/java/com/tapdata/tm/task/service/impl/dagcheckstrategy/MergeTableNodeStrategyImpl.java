@@ -58,11 +58,11 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
                     }
 
                     if (noRelate) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "MERGE_TABLE_RELATE_EMPTY", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "MERGE_TABLE_RELATE_EMPTY", DagCheckLogs.nodeName(node)));
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "MERGE_TABLE_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "MERGE_TABLE_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
         return result;

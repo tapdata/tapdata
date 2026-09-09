@@ -49,7 +49,7 @@ public class MigrateUnionNodeStrategyImpl implements DagLogStrategy {
                     }
 
                     if (CollectionUtils.isEmpty(result)) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "MIGRATE_UNION_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "MIGRATE_UNION_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
         return result;

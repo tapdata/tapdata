@@ -49,7 +49,7 @@ public class TableEditStrategyImpl implements DagLogStrategy {
         List<TaskDagCheckLog> result = Lists.newArrayList();
         collect.forEach(node -> result.add(DagCheckLogs.of(
                 taskId.toHexString(), node.getId(), userDetail.getUserId(), now,
-                Level.INFO, templateEnum, locale, "TABLE_EDIT_NODE_INFO", current, node.getName())));
+                Level.INFO, templateEnum, locale, "TABLE_EDIT_NODE_INFO", current, DagCheckLogs.nodeName(node))));
 
         return result;
     }

@@ -84,12 +84,12 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                         });
                     }
                     if (renameEmpty.get()) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "FIELD_EDIT_FIELD_EMPTY", name, fieldName.get()));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "FIELD_EDIT_FIELD_EMPTY", DagCheckLogs.nodeName(node), fieldName.get()));
                     }
 
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "FIELD_EDIT_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "FIELD_EDIT_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
 

@@ -8,6 +8,7 @@ import org.springframework.data.util.Streamable;
 import java.text.MessageFormat;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 import org.springframework.web.context.request.RequestAttributes;
@@ -94,7 +95,9 @@ public class MessageUtil {
 	private static String getString(Locale locale, String resourceId, String msg, Object[] params) {
 		if(msg == null) {
 			if (params != null && params.length > 0){
-				String paramsString = Streamable.of(params).stream().map(Object::toString).collect(Collectors.joining(","));
+				String paramsString = Streamable.of(params).stream()
+						.map(param -> Objects.toString(param, "null"))
+						.collect(Collectors.joining(","));
 				return paramsString;
 			}
 			return resourceId;
@@ -108,20 +111,34 @@ public class MessageUtil {
 
 	public static String getDagCheckMsg(Locale locale, String resourceId, Object... params){
 		String msg = getStringOrNull(getResourceBundle(locale, "dagCheck"), resourceId);
+		if (msg == null) {
+			return resourceId;
+		}
 		return getString(locale, resourceId, msg, localizeDagCheckParams(locale, params));
 	}
 
-	public static String localizeDagNodeName(Locale locale, String nodeName) {
-		if (StringUtils.isBlank(nodeName)) {
+	public record DagNodeName(String nodeType, String name) {
+	}
+
+	public static DagNodeName dagNodeName(String nodeType, String name) {
+		return new DagNodeName(nodeType, name);
+	}
+
+	public static String localizeDagNodeName(Locale locale, String nodeType, String nodeName) {
+		if (StringUtils.isBlank(nodeType) || StringUtils.isBlank(nodeName)) {
 			return nodeName;
 		}
-		for (NodeEnum nodeEnum : NodeEnum.values()) {
-			if (StringUtils.equals(nodeEnum.getNodeName(), nodeName)) {
-				String localized = getStringOrNull(getResourceBundle(locale, "dagCheck"), "NODE_NAME_" + nodeEnum.name());
-				return StringUtils.defaultIfBlank(localized, nodeName);
-			}
+		NodeEnum nodeEnum;
+		try {
+			nodeEnum = NodeEnum.valueOf(nodeType);
+		} catch (IllegalArgumentException ignored) {
+			return nodeName;
 		}
-		return nodeName;
+		if (!StringUtils.equals(nodeEnum.getNodeName(), nodeName)) {
+			return nodeName;
+		}
+		String localized = getStringOrNull(getResourceBundle(locale, "dagCheck"), "NODE_NAME_" + nodeEnum.name());
+		return StringUtils.defaultIfBlank(localized, nodeName);
 	}
 
 	public static Object[] localizeDagCheckParams(Locale locale, Object[] params) {
@@ -129,7 +146,9 @@ public class MessageUtil {
 			return new Object[0];
 		}
 		return Streamable.of(params).stream()
-				.map(param -> param instanceof String string ? localizeDagNodeName(locale, string) : param)
+				.map(param -> param instanceof DagNodeName nodeName
+						? localizeDagNodeName(locale, nodeName.nodeType(), nodeName.name())
+						: param)
 				.toArray();
 	}
 	public static String getAlarmMsg(Locale locale, String resourceId, Object... params){

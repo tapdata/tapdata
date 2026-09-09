@@ -51,11 +51,11 @@ public class RowFilterStrategyImpl implements DagLogStrategy {
                     }
 
                     if (StringUtils.isEmpty(((RowFilterProcessorNode) node).getExpression())) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "ROW_FILTER_EXP_EMPTY", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "ROW_FILTER_EXP_EMPTY", DagCheckLogs.nodeName(node)));
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "ROW_FILTER_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "ROW_FILTER_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
 

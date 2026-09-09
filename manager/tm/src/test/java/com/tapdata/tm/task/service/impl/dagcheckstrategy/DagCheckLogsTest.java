@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
+import com.tapdata.tm.utils.MessageUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -26,7 +27,7 @@ class DagCheckLogsTest {
                 DagOutputTemplateEnum.SOURCE_SETTING_CHECK,
                 Locale.US,
                 "SOURCE_SETTING_INFO",
-                "数据源节点");
+                MessageUtil.dagNodeName("database", "数据源节点"));
 
         assertEquals("task-id", log.getTaskId());
         assertEquals("node-id", log.getNodeId());

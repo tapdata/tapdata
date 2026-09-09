@@ -83,13 +83,13 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                             }
 
                             if (requiredFlag) {
-                                result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "CUSTOM_NODE_SET_EMPTY", name, formName));
+                                result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "CUSTOM_NODE_SET_EMPTY", DagCheckLogs.nodeName(node), formName));
                             }
                         }
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "CUSTOM_NODE_SET_EMPTY", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "CUSTOM_NODE_SET_EMPTY", DagCheckLogs.nodeName(node)));
                     }
                 });
 

@@ -47,15 +47,15 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     }
 
                     if (CollectionUtils.isEmpty(node.getJoinExpressions())) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "JOIN_NODE_NOT_SET", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "JOIN_NODE_NOT_SET", DagCheckLogs.nodeName(node)));
                     }
 
                     if (StringUtils.isEmpty(node.getLeftNodeId()) && StringUtils.isEmpty(node.getRightNodeId())) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "JOIN_NODE_SET_ERROR", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "JOIN_NODE_SET_ERROR", DagCheckLogs.nodeName(node)));
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "JOIN_NODE_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "JOIN_NODE_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
 

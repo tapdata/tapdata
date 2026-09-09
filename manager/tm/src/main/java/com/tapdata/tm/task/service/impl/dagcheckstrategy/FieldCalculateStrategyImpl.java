@@ -51,7 +51,7 @@ public class FieldCalculateStrategyImpl implements DagLogStrategy {
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "FIELD_CALC_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "FIELD_CALC_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
 

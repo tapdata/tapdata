@@ -73,12 +73,12 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     }
 
                     if (fieldEmpty) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "FIELD_ADD_ALL_DELETE", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "FIELD_ADD_ALL_DELETE", DagCheckLogs.nodeName(node)));
                     }
 
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "FIELD_ADD_ALL_PASS", name));
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "FIELD_ADD_ALL_PASS", DagCheckLogs.nodeName(node)));
                     }
                 });
 

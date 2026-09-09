@@ -6,7 +6,9 @@ import java.util.Date;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,7 +17,8 @@ class MessageUtilDagCheckLocalizationTest {
 
     @Test
     void localizesDefaultNodeNameInEnglishDagCheckMessage() {
-        String message = MessageUtil.getDagCheckMsg(Locale.US, "SOURCE_SETTING_INFO", "数据源节点");
+        String message = MessageUtil.getDagCheckMsg(Locale.US, "SOURCE_SETTING_INFO",
+                MessageUtil.dagNodeName("database", "数据源节点"));
 
         assertTrue(message.contains("Data source node"));
     }
@@ -24,24 +27,51 @@ class MessageUtilDagCheckLocalizationTest {
     void preservesCustomNodeName() {
         String customName = "我的中文节点";
 
-        assertEquals(customName, MessageUtil.localizeDagNodeName(Locale.US, customName));
+        assertEquals(customName, MessageUtil.localizeDagNodeName(Locale.US, "database", customName));
     }
 
     @Test
     void keepsDefaultNodeNameForChineseLocale() {
-        assertEquals("数据源节点", MessageUtil.localizeDagNodeName(Locale.CHINA, "数据源节点"));
+        assertEquals("数据源节点", MessageUtil.localizeDagNodeName(Locale.CHINA, "database", "数据源节点"));
+    }
+
+    @Test
+    void returnsMissingKeyInsteadOfJoiningParams() {
+        assertEquals("MISSING_DAG_CHECK_KEY",
+                MessageUtil.getDagCheckMsg(Locale.CHINA, "MISSING_DAG_CHECK_KEY", (Object) null));
+    }
+
+    @Test
+    void formatsChineseUnionPassAndDoesNotThrowOnNullName() {
+        String message = assertDoesNotThrow(
+                () -> MessageUtil.getDagCheckMsg(Locale.CHINA, "UNION_PASS", (Object) null));
+        assertTrue(message.contains("追加合并节点"));
+        assertTrue(message.contains("检测通过"));
+    }
+
+    @Test
+    void doesNotRewritePlainStringMatchingADefaultNodeName() {
+        String message = MessageUtil.getDagCheckMsg(Locale.US, "SOURCE_SETTING_INFO", "表节点");
+
+        assertTrue(message.contains("表节点"));
+        assertFalse(message.contains("Table node"));
+    }
+
+    @Test
+    void preservesDefaultNameOfADifferentNodeType() {
+        assertEquals("数据源节点", MessageUtil.localizeDagNodeName(Locale.US, "table", "数据源节点"));
     }
 
     @Test
     void localizesJsProcessorDefaultName() {
-        assertEquals("Enhanced JS node", MessageUtil.localizeDagNodeName(Locale.US, "增强JS节点"));
+        assertEquals("Enhanced JS node", MessageUtil.localizeDagNodeName(Locale.US, "js_processor", "增强JS节点"));
     }
 
     @Test
     void returnsBlankNodeNameUnchanged() {
-        assertEquals("", MessageUtil.localizeDagNodeName(Locale.US, ""));
-        assertEquals("   ", MessageUtil.localizeDagNodeName(Locale.US, "   "));
-        assertNull(MessageUtil.localizeDagNodeName(Locale.US, null));
+        assertEquals("", MessageUtil.localizeDagNodeName(Locale.US, "database", ""));
+        assertEquals("   ", MessageUtil.localizeDagNodeName(Locale.US, "database", "   "));
+        assertNull(MessageUtil.localizeDagNodeName(Locale.US, "database", null));
     }
 
     @Test
@@ -61,13 +91,13 @@ class MessageUtilDagCheckLocalizationTest {
     }
 
     @Test
-    void localizeDagCheckParamsLocalizesStringsAndLeavesOtherTypes() {
+    void localizeDagCheckParamsLocalizesOnlyTypedNodeNames() {
         Date timestamp = new Date();
         Object[] localized = MessageUtil.localizeDagCheckParams(
                 Locale.US,
-                new Object[]{"数据源节点", timestamp, 3, "我的自定义节点"});
+                new Object[]{MessageUtil.dagNodeName("database", "数据源节点"), "数据源节点", timestamp, 3, "我的自定义节点"});
 
-        assertArrayEquals(new Object[]{"Data source node", timestamp, 3, "我的自定义节点"}, localized);
+        assertArrayEquals(new Object[]{"Data source node", "数据源节点", timestamp, 3, "我的自定义节点"}, localized);
     }
 
     @Test
