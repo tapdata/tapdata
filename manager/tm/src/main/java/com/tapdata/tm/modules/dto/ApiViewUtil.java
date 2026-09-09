@@ -53,9 +53,8 @@ public class ApiViewUtil {
                 urlBuilder
                         .append(module.getIp())
                         .append(module.getPath())
-                        .append(PREFIX_ACCESS_TOKEN)
-                        .append(ACCESS_TOKEN.substring(0,8))
-                        .append(PARAMS);
+                        .append("?limit=1&page=1")
+                        .append("  Authorization: Bearer <token>");
                 String requestUrl = urlBuilder.toString();
                 module.setRequestString(requestUrl);
                 String testResult = doGet(module.getIp()+module.getPath());

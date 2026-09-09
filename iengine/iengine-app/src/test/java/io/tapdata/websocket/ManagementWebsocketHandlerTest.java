@@ -128,7 +128,7 @@ class ManagementWebsocketHandlerTest {
         void connectTest_error(){
             try(MockedStatic<WorkerSingletonLock> mockedStatic = Mockito.mockStatic(WorkerSingletonLock.class);
                 MockedStatic<Version> versionMockedStatic = Mockito.mockStatic(Version.class)){
-                mockedStatic.when(()->WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test&access_token=test");
+                mockedStatic.when(()->WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test");
                 versionMockedStatic.when(Version::get).thenReturn("test");
                 managementWebsocketHandlerTest.connect("http://test:8080/api/");
                 CompletableFuture<WebSocketSession> listenableFuture = (CompletableFuture<WebSocketSession>) ReflectionTestUtils.getField(managementWebsocketHandlerTest,"listenableFuture");
@@ -163,7 +163,7 @@ class ManagementWebsocketHandlerTest {
             try (MockedStatic<WorkerSingletonLock> mockedStatic = Mockito.mockStatic(WorkerSingletonLock.class);
                  MockedStatic<Version> versionMockedStatic = Mockito.mockStatic(Version.class);
                  MockedStatic<ManagementWebsocketHandler> managementWebsocketHandlerMockedStatic = mockStatic(ManagementWebsocketHandler.class);) {
-                mockedStatic.when(() -> WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test&access_token=test");
+                mockedStatic.when(() -> WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test");
                 versionMockedStatic.when(Version::get).thenReturn("test");
                 managementWebsocketHandlerMockedStatic.when(() -> ManagementWebsocketHandler.createWebSocketClient()).thenReturn(mockClient);
                 String baseStr = "http://test:8080/api/";

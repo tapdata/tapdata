@@ -13,6 +13,7 @@ import com.tapdata.tm.sso.service.SamlConfigService;
 import com.tapdata.tm.sso.service.SamlIdentityResolver;
 import com.tapdata.tm.sso.service.SamlLogoutService;
 import com.tapdata.tm.sso.service.SamlResponseValidator;
+import com.tapdata.tm.sso.service.LoginCodeService;
 import com.tapdata.tm.sso.service.SamlSessionService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.sso.service.SamlValidationException;
@@ -33,6 +34,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -77,6 +79,7 @@ class SsoLoginControllerTest {
         ReflectionTestUtils.setField(controller, "samlLogoutService", samlLogoutService);
         ReflectionTestUtils.setField(controller, "samlSessionService", samlSessionService);
         ReflectionTestUtils.setField(controller, "userService", userService);
+        ReflectionTestUtils.setField(controller, "loginCodeService", new LoginCodeService());
     }
 
     @Test
@@ -146,7 +149,10 @@ class SsoLoginControllerTest {
         controller.acs(request, response);
 
         verify(mongoTemplate).insert(any(com.tapdata.tm.sso.entity.SsoSession.class));
-        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
+        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?login_code="));
+        assertTrue(response.getHeaders("Set-Cookie").stream()
+                .anyMatch(h -> h.contains("TAPDATA_ACCESS_TOKEN=tok-123")));
+        assertFalse(response.getRedirectedUrl().contains("access_token="));
     }
 
     @Test
@@ -169,7 +175,10 @@ class SsoLoginControllerTest {
         controller.acs(request, response);
 
         // The self-referential RelayState is ignored; success falls back to loginRedirectUrl.
-        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
+        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?login_code="));
+        assertTrue(response.getHeaders("Set-Cookie").stream()
+                .anyMatch(h -> h.contains("TAPDATA_ACCESS_TOKEN=tok-123")));
+        assertFalse(response.getRedirectedUrl().contains("access_token="));
     }
 
     @Test
@@ -190,7 +199,8 @@ class SsoLoginControllerTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         controller.acs(request, response);
 
-        assertTrue(response.getRedirectedUrl().startsWith("/#/sso-callback?access_token=tok-123"));
+        assertTrue(response.getRedirectedUrl().startsWith("/#/sso-callback?login_code="));
+        assertFalse(response.getRedirectedUrl().contains("access_token="));
     }
 
     @Test
@@ -215,7 +225,8 @@ class SsoLoginControllerTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         controller.acs(request, response);
 
-        assertTrue(response.getRedirectedUrl().startsWith("/#/sso-callback?access_token=tok-123"));
+        assertTrue(response.getRedirectedUrl().startsWith("/#/sso-callback?login_code="));
+        assertFalse(response.getRedirectedUrl().contains("access_token="));
     }
 
     @Test
@@ -269,7 +280,10 @@ void acsValidationFailure() throws Exception {
         controller.acs(request, response);
 
         verify(accessTokenService).removeAccessTokenByAuthType(eq(userId), eq("saml_login"));
-        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
+        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?login_code="));
+        assertTrue(response.getHeaders("Set-Cookie").stream()
+                .anyMatch(h -> h.contains("TAPDATA_ACCESS_TOKEN=tok-123")));
+        assertFalse(response.getRedirectedUrl().contains("access_token="));
     }
 
     @Test

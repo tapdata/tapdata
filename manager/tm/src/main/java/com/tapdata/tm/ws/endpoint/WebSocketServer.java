@@ -32,6 +32,7 @@ import org.bson.types.ObjectId;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -64,6 +65,9 @@ public class WebSocketServer extends TextWebSocketHandler {
 
 	@Autowired
 	private MessageQueueService messageQueueService;
+
+	@Value("${security.auth.url-token-mode:COMPAT}")
+	private String urlTokenModeValue = "COMPAT";
 
 	/**
 	 * Send ping frame message every 10 seconds.
@@ -455,10 +459,20 @@ public class WebSocketServer extends TextWebSocketHandler {
 			if (CollectionUtils.isNotEmpty(userIds)){
 				UserDetail userDetail = userService.loadUserByExternalId(userIds.get(0));
 				return userDetail != null ? userDetail.getUserId() : null;
-			}else if (session.getUri() != null){
+			}
+			String token = bearerToken(session);
+			if (StringUtils.isBlank(token)) {
+				List<String> headerTokens = session.getHandshakeHeaders().get("access_token");
+				if (CollectionUtils.isNotEmpty(headerTokens)) {
+					token = headerTokens.get(0);
+				}
+			}
+			if (StringUtils.isBlank(token) && session.getUri() != null && urlTokenMode().acceptsUrlToken()) {
 				Map<String, String> queryStrMap = queryStr2Map(session.getUri().getQuery());
-				String accessToken = queryStrMap.get("access_token");
-				ObjectId userId = accessTokenService.validate(accessToken);
+				token = queryStrMap.get("access_token");
+			}
+			if (StringUtils.isNotBlank(token)) {
+				ObjectId userId = accessTokenService.validate(token);
 				return userId != null ? userId.toHexString() : null;
 			}
 		}catch (Exception e){
@@ -466,6 +480,29 @@ public class WebSocketServer extends TextWebSocketHandler {
 		}
 
 		return null;
+	}
+
+	private String bearerToken(WebSocketSession session) {
+		List<String> authorizations = session.getHandshakeHeaders().get("Authorization");
+		if (CollectionUtils.isEmpty(authorizations)) {
+			authorizations = session.getHandshakeHeaders().get("authorization");
+		}
+		if (CollectionUtils.isEmpty(authorizations)) {
+			return null;
+		}
+		String raw = authorizations.get(0);
+		if (raw == null) {
+			return null;
+		}
+		String trimmed = raw.trim();
+		if (trimmed.length() >= 7 && trimmed.regionMatches(true, 0, "Bearer", 0, 6)) {
+			return trimmed.substring(6).trim();
+		}
+		return null;
+	}
+
+	private com.tapdata.tm.base.security.UrlTokenMode urlTokenMode() {
+		return com.tapdata.tm.base.security.UrlTokenMode.from(urlTokenModeValue);
 	}
 
 	private Map<String, String> queryStr2Map(String queryStr){

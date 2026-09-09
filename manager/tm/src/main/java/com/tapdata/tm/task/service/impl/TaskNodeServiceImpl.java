@@ -8,6 +8,9 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.security.AccessTokenResolution;
+import com.tapdata.tm.base.security.AccessTokenResolver;
+import com.tapdata.tm.base.security.UrlTokenMode;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -49,6 +52,7 @@ import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +64,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -94,6 +99,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DAGDataService dagDataService;
     private AgentGroupService agentGroupService;
     private TaskScheduleService taskScheduleService;
+
+    @Setter(AccessLevel.NONE)
+    @Value("${security.auth.url-token-mode:COMPAT}")
+    private String urlTokenModeValue = "COMPAT";
 
     @SneakyThrows
     @Override
@@ -764,12 +773,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         } catch (Exception exception){
             return resultMap(testTaskId, false, "Can't get server port.");
         }
-        Map.Entry<String, Map<String, Object>> attributes = getLoginUserAttributes();
-        String attributesKey = attributes.getKey();
-        Map<String, Object> attributesValue = attributes.getValue();
-        String url = "http://localhost:" +
-                port +"/api/proxy/call" +
-                ("Param".equals(attributesKey) ? "?access_token=" + attributesValue.get("access_token")  : "");
+        Map<String, Object> attributesValue = getLoginUserAttributes();
+        String url = "http://localhost:" + port + "/api/proxy/call";
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
@@ -784,7 +789,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .url(url)
                     .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
                     .addHeader("Content-Type", "application/json");
-            if ("Header".equals(attributesKey) && null != attributesValue && !attributesValue.isEmpty()){
+            if (null != attributesValue && !attributesValue.isEmpty()){
                 for (Map.Entry<String, Object> entry : attributesValue.entrySet()) {
                     post.addHeader(entry.getKey(), String.valueOf(entry.getValue()));
                 }
@@ -801,7 +806,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
+    private Map<String, Object> getLoginUserAttributes() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
 
@@ -809,27 +814,18 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Map<String, Object> ent = new HashMap<>();
         if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
             ent.put("user_id", userIdFromHeader);
-            return new AbstractMap.SimpleEntry<>("Header", ent);
-        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
-            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
-                    .filter(s -> s.startsWith("access_token"))
-                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
-                        try {
-                            return URLDecoder.decode(a[1], "UTF-8");
-                        } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
-                            return a[1];
-                        }
-                    }, (a, b) -> a));
-            String accessToken = queryMap.get("access_token");
-            ent.put("access_token", accessToken);
-            return new AbstractMap.SimpleEntry<>("Param", ent);
-        } else if (request.getHeader("authorization") != null) {
-            ent.put("authorization", request.getHeader("authorization").trim());
-            return new AbstractMap.SimpleEntry<>("Header", ent);
-        } else {
-            throw new BizException("NotLogin");
+            return ent;
         }
+        AccessTokenResolution resolution = AccessTokenResolver.resolve(request, UrlTokenMode.from(urlTokenModeValue));
+        if (resolution.isFound() && StringUtils.isNotBlank(resolution.getToken())) {
+            ent.put("authorization", "Bearer " + resolution.getToken());
+            return ent;
+        }
+        if (request.getHeader("authorization") != null) {
+            ent.put("authorization", request.getHeader("authorization").trim());
+            return ent;
+        }
+        throw new BizException("NotLogin");
     }
 
     protected void sendMessageAfterFindAgent(TaskDto taskDto, TaskDto taskDtoCopy, UserDetail userDetail) {

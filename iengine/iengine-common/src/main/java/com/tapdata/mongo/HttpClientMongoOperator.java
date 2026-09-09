@@ -504,16 +504,23 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 	}
 
 	public Map<String, Object> addToken(Map<String, Object> params) {
-		params.put("access_token", configCenter.getConfig(ConfigurationCenter.TOKEN));
+		bindAccessToken();
+		if (params != null) {
+			params.remove("access_token");
+		}
 		return params;
 	}
 
 	public String addToken(String url) {
-		StringBuilder sb = new StringBuilder(url);
+		bindAccessToken();
+		return RestTemplateOperator.stripAccessTokenQuery(url);
+	}
 
-		sb.append(url.contains("?") ? "&" : "?").append("access_token=").append(configCenter.getConfig(ConfigurationCenter.TOKEN));
-
-		return sb.toString();
+	private void bindAccessToken() {
+		Object token = configCenter.getConfig(ConfigurationCenter.TOKEN);
+		if (token != null) {
+			RestTemplateOperator.bindAccessToken(String.valueOf(token));
+		}
 	}
 
 	private String resourceWithId(String collection, String id) {

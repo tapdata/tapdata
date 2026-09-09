@@ -6,6 +6,11 @@ application:
   build: '@maven.build.timestamp@'
   admin-account: 'admin@admin.com'
 
+security:
+  auth:
+    # COMPAT: accept URL access_token (V4.x default). WARN: accept + alert. REJECT: 401.
+    url-token-mode: ${SECURITY_AUTH_URL_TOKEN_MODE:COMPAT}
+
 spring:
   servlet:
     multipart:

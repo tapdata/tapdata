@@ -516,4 +516,12 @@ public class RestTemplateOperatorTest {
 			System.clearProperty("HTTP_EVICT_ON_IO_ERROR");
 		}
 	}
+
+	@Test
+	public void testStripAccessTokenQuery() {
+		assertEquals("/api/Workers", RestTemplateOperator.stripAccessTokenQuery("/api/Workers?access_token=secret"));
+		assertEquals("/api/Workers?agentId=1", RestTemplateOperator.stripAccessTokenQuery("/api/Workers?agentId=1&access_token=secret"));
+		assertEquals("/api/Workers?agentId=1", RestTemplateOperator.stripAccessTokenQuery("/api/Workers?access_token=secret&agentId=1"));
+		assertEquals("/api/Workers", RestTemplateOperator.stripAccessTokenQuery("/api/Workers"));
+	}
 }

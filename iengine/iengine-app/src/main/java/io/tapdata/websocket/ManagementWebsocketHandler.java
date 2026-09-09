@@ -307,28 +307,30 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				throw new RuntimeException("Connect web socket failed, invalid base url: " + baseURL);
 			}
 			currentWsUrl = currentWsUrl.replace("/api/", URL_SUFFIX + DESTINATION
-					+ "?agentId={agentId}&access_token={access_token}");
+					+ "?agentId={agentId}");
 
 
 			WebSocketClient client = ManagementWebsocketHandler.createWebSocketClient();
 
 			currentWsUrl = UriComponentsBuilder.fromUriString(currentWsUrl)
-					.buildAndExpand(agentId, configCenter.getConfig(ConfigurationCenter.TOKEN)).encode().toUri().toString();
+					.buildAndExpand(agentId).encode().toUri().toString();
 
 			currentWsUrl = WorkerSingletonLock.addTag2WsUrl(currentWsUrl);
 			if (CloudSignUtil.isNeedSign()) {
 				currentWsUrl = CloudSignUtil.getQueryStr("", currentWsUrl);
 			}
 
+			WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
+			Object token = configCenter.getConfig(ConfigurationCenter.TOKEN);
+			if (token != null && StringUtils.isNotBlank(String.valueOf(token))) {
+				webSocketHttpHeaders.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+			}
 			String version = Version.get();
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
-				WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
 				webSocketHttpHeaders.add(HttpHeaders.USER_AGENT, version);
-				this.listenableFuture = client.execute(this, webSocketHttpHeaders,
-						URI.create(currentWsUrl));
-			} else {
-				this.listenableFuture = client.execute(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
 			}
+			this.listenableFuture = client.execute(this, webSocketHttpHeaders,
+					URI.create(currentWsUrl));
 
 			session.setSession(listenableFuture.get(HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS));
 			logger.info("Connect to web socket server success, url {}", currentWsUrl);

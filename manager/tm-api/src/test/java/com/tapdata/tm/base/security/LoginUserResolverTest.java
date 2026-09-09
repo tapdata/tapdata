@@ -102,6 +102,41 @@ class LoginUserResolverTest {
 		}
 
 		@Test
+		void testResolveByBearerAuthorization() {
+			ObjectId userId = new ObjectId();
+			MockHttpServletRequest request = request("GET", "/api/Connections");
+			request.addHeader("Authorization", "Bearer bearer-token");
+			UserDetail userDetail = user("bearer");
+			when(accessTokenService.validate("bearer-token", true)).thenReturn(userId);
+			when(userService.loadUserById(userId)).thenReturn(userDetail);
+
+			UserDetail actual = loginUserResolver.resolve(request);
+
+			assertSame(userDetail, actual);
+			verify(accessTokenService).validate("bearer-token", true);
+		}
+
+		@Test
+		void testRejectWhenBearerAndQueryTokensDiffer() {
+			MockHttpServletRequest request = request("GET", "/api/Connections");
+			request.addHeader("Authorization", "Bearer A");
+			request.setQueryString("access_token=B");
+
+			assertThrows(BizException.class, () -> loginUserResolver.resolve(request));
+			verify(accessTokenService, never()).validate(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+		}
+
+		@Test
+		void testRejectUrlTokenWhenModeIsReject() {
+			ReflectionTestUtils.setField(loginUserResolver, "urlTokenModeValue", "REJECT");
+			MockHttpServletRequest request = request("GET", "/api/Connections");
+			request.setQueryString("access_token=valid");
+
+			assertThrows(BizException.class, () -> loginUserResolver.resolve(request));
+			verify(accessTokenService, never()).validate(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+		}
+
+		@Test
 		void testResolveByBasicAuthorization() {
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			String credential = Base64.getEncoder()

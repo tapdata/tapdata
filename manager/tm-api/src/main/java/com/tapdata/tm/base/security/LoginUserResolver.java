@@ -7,12 +7,15 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
@@ -52,6 +55,9 @@ public class LoginUserResolver {
 	private AccessTokenService accessTokenService;
 	@Autowired
 	private ProductComponent productComponent;
+
+	@Value("${security.auth.url-token-mode:COMPAT}")
+	private String urlTokenModeValue = "COMPAT";
 
 	public UserDetail resolve(HttpServletRequest request) {
 		return resolve(request, null);
@@ -93,22 +99,25 @@ public class LoginUserResolver {
 			throw new BizException("NotLogin");
 		}
 
-		String queryString = request.getQueryString() != null ? request.getQueryString() : "";
-		if (containsAccessTokenParameter(queryString)) {
-			String accessToken = extractAccessToken(queryString);
-			if (StringUtils.isBlank(accessToken)) {
+		AccessTokenResolution resolution = AccessTokenResolver.resolve(request, UrlTokenMode.from(urlTokenModeValue));
+		switch (resolution.getStatus()) {
+			case FOUND -> {
+				markQueryDeprecation(resolution);
+				ObjectId userId = accessTokenService.validate(resolution.getToken(), isCountAsActivity(request));
+				if (userId == null) {
+					throw new BizException("NotLogin");
+				}
+				UserDetail userDetail = userService.loadUserById(userId);
+				if (userDetail != null) {
+					judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
+					return userDetail;
+				}
 				throw new BizException("NotLogin");
 			}
-			ObjectId userId = accessTokenService.validate(accessToken, isCountAsActivity(request));
-			if (userId == null) {
-				throw new BizException("NotLogin");
+			case CONFLICT, INVALID_BEARER, URL_TOKEN_REJECTED -> throw new BizException("NotLogin");
+			case MISSING -> {
+				// fall through to Basic
 			}
-			UserDetail userDetail = userService.loadUserById(userId);
-			if (userDetail != null) {
-				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
-				return userDetail;
-			}
-			throw new BizException("NotLogin");
 		}
 
 		if (request.getHeader("authorization") != null) {
@@ -144,32 +153,23 @@ public class LoginUserResolver {
 		throw new BizException("NotLogin");
 	}
 
-	private boolean containsAccessTokenParameter(String queryString) {
-		if (StringUtils.isBlank(queryString)) {
-			return false;
+	private void markQueryDeprecation(AccessTokenResolution resolution) {
+		if (resolution.getSource() != AccessTokenSource.QUERY) {
+			return;
 		}
-		for (String parameter : queryString.split("&")) {
-			String[] pair = parameter.split("=", 2);
-			if ("access_token".equals(pair[0])) {
-				return true;
+		try {
+			ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+			if (attrs == null) {
+				return;
 			}
-		}
-		return false;
-	}
-
-	private String extractAccessToken(String queryString) {
-		for (String parameter : queryString.split("&")) {
-			String[] pair = parameter.split("=", 2);
-			if (pair.length == 2 && "access_token".equals(pair[0])) {
-				try {
-					return URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
-				} catch (IllegalArgumentException e) {
-					log.debug("Invalid access_token query parameter: {}", e.getMessage());
-					return null;
-				}
+			HttpServletResponse response = attrs.getResponse();
+			if (response != null) {
+				response.setHeader("Deprecation", "true");
+				response.setHeader("X-Auth-Source", "query");
 			}
+		} catch (Exception e) {
+			log.debug("Unable to set URL-token deprecation header: {}", e.getMessage());
 		}
-		return null;
 	}
 
 	private boolean isCountAsActivity(HttpServletRequest request) {
