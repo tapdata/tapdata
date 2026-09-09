@@ -127,7 +127,7 @@ function process(record) {
   var result = storage.update("target-ftp", {
     action: "write",
     target: {
-      path: "out/" + record.id + ".json"
+      path: "json_" + record.id + ".json"
     },
     content: JSON.stringify(record)
   }, {
