@@ -3,6 +3,7 @@ package io.tapdata.observable.alert;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 
@@ -11,28 +12,36 @@ import java.util.Map;
 
 /**
  * Posts structured task alerts to TM through the existing engine HTTP operator.
+ *
+ * The JVM dispatcher singleton can be created during {@code SpringApplication.run()},
+ * before {@link BeanUtil#configurableApplicationContext} is assigned. Resolve the
+ * operator lazily so a boot-time null does not permanently disable publishing.
  */
 public class HttpTaskAlertPublisher implements TaskAlertPublisher {
     public static final String RESOURCE = ConnectorConstant.TASK_ALARM + "/task-alerts";
+    static final String CLIENT_MONGO_OPERATOR_BEAN = "clientMongoOperator";
 
-    private final ClientMongoOperator clientMongoOperator;
+    private volatile ClientMongoOperator clientMongoOperator;
+    private final boolean operatorInjected;
 
     public HttpTaskAlertPublisher() {
-        this(BeanUtil.getBean(ClientMongoOperator.class));
+        this.operatorInjected = false;
     }
 
     public HttpTaskAlertPublisher(ClientMongoOperator clientMongoOperator) {
         this.clientMongoOperator = clientMongoOperator;
+        this.operatorInjected = true;
     }
 
     @Override
     public PublishResult publish(TaskAlertEvent event) {
-        if (clientMongoOperator == null) {
+        ClientMongoOperator operator = resolveOperator();
+        if (operator == null) {
             TaskAlertAudit.publishFailed(typeName(event), event.getCode(), "operator_unavailable", null);
             return PublishResult.RETRYABLE;
         }
         try {
-            clientMongoOperator.insertOne(toRequestBody(event), RESOURCE);
+            operator.insertOne(toRequestBody(event), RESOURCE);
             return PublishResult.SUCCESS;
         } catch (RuntimeException runtimeException) {
             HttpClientErrorException clientErrorException = findHttpClientError(runtimeException);
@@ -58,6 +67,37 @@ public class HttpTaskAlertPublisher implements TaskAlertPublisher {
                 return PublishResult.NON_RETRYABLE;
             }
             return PublishResult.RETRYABLE;
+        }
+    }
+
+    ClientMongoOperator resolveOperator() {
+        if (operatorInjected) {
+            return this.clientMongoOperator;
+        }
+        ClientMongoOperator current = this.clientMongoOperator;
+        if (current != null) {
+            return current;
+        }
+        ClientMongoOperator resolved = lookupOperator();
+        if (resolved != null) {
+            this.clientMongoOperator = resolved;
+        }
+        return resolved;
+    }
+
+    private static ClientMongoOperator lookupOperator() {
+        try {
+            ConfigurableApplicationContext context = BeanUtil.configurableApplicationContext;
+            if (context != null) {
+                if (context.containsBean(CLIENT_MONGO_OPERATOR_BEAN)) {
+                    return context.getBean(CLIENT_MONGO_OPERATOR_BEAN, ClientMongoOperator.class);
+                }
+                return context.getBean(ClientMongoOperator.class);
+            }
+            return BeanUtil.getBean(ClientMongoOperator.class);
+        } catch (RuntimeException runtimeException) {
+            TaskAlertAudit.publishFailed(null, null, "operator_lookup", runtimeException);
+            return null;
         }
     }
 
