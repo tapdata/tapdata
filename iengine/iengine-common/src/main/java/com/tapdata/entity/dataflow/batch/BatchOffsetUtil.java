@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public class BatchOffsetUtil {
@@ -38,9 +39,20 @@ public class BatchOffsetUtil {
         if (offsetValue instanceof BatchOffset) {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return ((BatchOffset) offsetValue).getOffset();
-        } else if (offsetValue instanceof Map
-                && ((Map<?, ?>)offsetValue).containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
-            return ((Map<String, Object>)offsetValue).get(BATCH_READ_CONNECTOR_OFFSET);
+        } else if (offsetValue instanceof Map) {
+            Map<?, ?> offsetMap = (Map<?, ?>) offsetValue;
+            if (offsetMap.containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
+                return offsetMap.get(BATCH_READ_CONNECTOR_OFFSET);
+            }
+            if (offsetMap.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
+                /**
+                 * Legacy breakpoint produced by an older engine only carried the batch read status
+                 * without a resumable offset. Returning the marker map itself (the previous behavior)
+                 * would hand it to the connector as the resume offset. There is nothing to resume, so
+                 * fall back to a full run from scratch.
+                 */
+                return null;
+            }
         }
 
         /** history data*/
@@ -55,6 +67,19 @@ public class BatchOffsetUtil {
                 return new HashMap<>((Map<?, ?>) tableBatchOffsetObj);
             }
             return tableBatchOffsetObj;
+        }
+        return batchOffsetObj;
+    }
+
+    /**
+     * The top level batch offset container (tableId -&gt; table offset) is mutated concurrently by the
+     * partition read worker threads, so it must always be a thread-safe map. A restored breakpoint
+     * must not downgrade it to a plain HashMap (decoding rebuilds maps and would otherwise lose the
+     * ConcurrentHashMap created on the first run).
+     */
+    public static Object asConcurrentBatchOffset(Object batchOffsetObj) {
+        if (batchOffsetObj instanceof Map && !(batchOffsetObj instanceof ConcurrentHashMap)) {
+            return new ConcurrentHashMap<>((Map<Object, Object>) batchOffsetObj);
         }
         return batchOffsetObj;
     }

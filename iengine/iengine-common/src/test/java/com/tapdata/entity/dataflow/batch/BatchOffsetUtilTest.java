@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -225,6 +226,72 @@ class BatchOffsetUtilTest {
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
                 assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
+        }
+
+        @Test
+        @DisplayName("legacy breakpoint with only status marker returns null instead of the marker map")
+        void testLegacyStatusOnlyReturnsNull() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> legacyTableOffset = new HashMap<>();
+            legacyTableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, legacyTableOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+            assertNull(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+        }
+
+        @Test
+        @DisplayName("marker map with offset key returns the connector offset")
+        void testOffsetKeyReturnsOffset() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, 100L);
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, tableOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+            assertEquals(100L, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+        }
+
+        @Test
+        @DisplayName("history format without marker keys still returns the raw value")
+        void testHistoryFormatReturnsRawValue() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> rawOffset = new HashMap<>();
+            rawOffset.put("position", 5);
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, rawOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+            assertEquals(rawOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+        }
+    }
+
+    @Nested
+    @DisplayName("method asConcurrentBatchOffset test")
+    class AsConcurrentBatchOffsetTest {
+        @Test
+        void testPlainMapBecomesConcurrent() {
+            Map<String, Object> plain = new HashMap<>();
+            plain.put("t1", 1);
+            Object result = BatchOffsetUtil.asConcurrentBatchOffset(plain);
+            assertInstanceOf(ConcurrentHashMap.class, result);
+            assertEquals(plain, result);
+            assertNotSame(plain, result);
+        }
+
+        @Test
+        void testConcurrentMapKeptAsIs() {
+            ConcurrentHashMap<String, Object> chm = new ConcurrentHashMap<>();
+            assertSame(chm, BatchOffsetUtil.asConcurrentBatchOffset(chm));
+        }
+
+        @Test
+        void testNonMapReturnedAsIs() {
+            assertEquals(0L, BatchOffsetUtil.asConcurrentBatchOffset(0L));
+            assertNull(BatchOffsetUtil.asConcurrentBatchOffset(null));
         }
     }
 

@@ -592,7 +592,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						offset -> PdkUtil.decodeOffset(offset, getConnectorNode())
 				);
 			}
-			syncProgress.setBatchOffsetObj(batchOffsetObj);
+			syncProgress.setBatchOffsetObj(BatchOffsetUtil.asConcurrentBatchOffset(batchOffsetObj));
 		}
 		if (null == syncProgress.getBatchOffsetObj()) {
 			syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
