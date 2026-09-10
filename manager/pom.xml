@@ -50,11 +50,14 @@
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
-		<!-- Pinned FORWARD of the Spring Boot 4.0.x BOM: the BOM values still carry open CVEs.
-		     tomcat 11.0.24 and httpclient5 5.5.2 are both flagged; netty / jackson / log4j /
-		     spring / spring-security are clean in the 4.0.8 BOM and are no longer overridden here.
+		<!-- Pinned FORWARD of the Spring Boot 4.0.x BOM: the BOM values still carry open CVEs
+		     (BOM 4.0.8 ships tomcat 11.0.24 / httpclient5 5.5.2 / netty 4.2.17.Final).
 		     Jakarta EE 11 baseline unchanged. Keep in sync with iengine/pom.xml. -->
 		<tomcat.version>11.0.25</tomcat.version>
+		<!-- netty 4.2.18.Final 是安全发布，修掉 28 条未分配 CVE 号的公告（http2/http3 头校验与
+		     请求走私、QUIC 主机名校验、mqtt/redis/smtp/stomp 资源无界、OCSP 证书校验等），
+		     即客户侧 Sonatype 报的 sonatype-2026-008011~008031 那一批。 -->
+		<netty.version>4.2.18.Final</netty.version>
 		<httpcore5.version>5.4.3</httpcore5.version>
 		<httpclient5.version>5.6.4</httpclient5.version>
 		<!-- Jackson pinned FORWARD of the Boot 4.0.8 BOM (2.21.5 / 3.1.5): both carry
