@@ -25,6 +25,7 @@ import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.dto.WebSocketInfo;
 import com.tapdata.tm.ws.enums.MessageType;
+import com.tapdata.tm.ws.config.WebSocketAuthHandshakeInterceptor;
 import com.tapdata.tm.ws.handler.WebSocketHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -460,16 +461,27 @@ public class WebSocketServer extends TextWebSocketHandler {
 				UserDetail userDetail = userService.loadUserByExternalId(userIds.get(0));
 				return userDetail != null ? userDetail.getUserId() : null;
 			}
-			String token = bearerToken(session);
+			String token = storedHandshakeToken(session);
+			if (StringUtils.isBlank(token)) {
+				token = bearerToken(session);
+			}
 			if (StringUtils.isBlank(token)) {
 				List<String> headerTokens = session.getHandshakeHeaders().get("access_token");
 				if (CollectionUtils.isNotEmpty(headerTokens)) {
 					token = headerTokens.get(0);
 				}
 			}
-			if (StringUtils.isBlank(token) && session.getUri() != null && urlTokenMode().acceptsUrlToken()) {
-				Map<String, String> queryStrMap = queryStr2Map(session.getUri().getQuery());
-				token = queryStrMap.get("access_token");
+			String queryToken = queryAccessToken(session);
+			if (StringUtils.isNotBlank(queryToken)) {
+				if (StringUtils.isNotBlank(token) && !token.equals(queryToken)) {
+					return null;
+				}
+				if (StringUtils.isBlank(token)) {
+					if (!urlTokenMode().acceptsUrlToken()) {
+						return null;
+					}
+					token = queryToken;
+				}
 			}
 			if (StringUtils.isNotBlank(token)) {
 				ObjectId userId = accessTokenService.validate(token);
@@ -480,6 +492,18 @@ public class WebSocketServer extends TextWebSocketHandler {
 		}
 
 		return null;
+	}
+
+	private String storedHandshakeToken(WebSocketSession session) {
+		Object stored = session.getAttributes().get(WebSocketAuthHandshakeInterceptor.ACCESS_TOKEN_ATTRIBUTE);
+		return stored instanceof String value ? value : null;
+	}
+
+	private String queryAccessToken(WebSocketSession session) {
+		if (session.getUri() == null) {
+			return null;
+		}
+		return queryStr2Map(session.getUri().getQuery()).get("access_token");
 	}
 
 	private String bearerToken(WebSocketSession session) {

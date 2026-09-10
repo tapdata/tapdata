@@ -1,0 +1,105 @@
+package com.tapdata.tm.base.security;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class WebSocketHandshakeAuthTest {
+
+	@BeforeEach
+	void resetMetrics() {
+		AuthTokenMetrics.reset();
+	}
+
+	@Test
+	void rejectQueryOnlyInRejectMode() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setQueryString("agentId=h_flow_engine&access_token=valid");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.REJECT);
+		assertTrue(d.rejected());
+		assertEquals(AccessTokenResolution.Status.URL_TOKEN_REJECTED, d.resolution().getStatus());
+		assertEquals(1, AuthTokenMetrics.rejected());
+	}
+
+	@Test
+	void acceptQueryOnlyInCompatAndMarkDeprecated() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setQueryString("access_token=valid");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertFalse(d.rejected());
+		assertTrue(d.queryDeprecated());
+		assertEquals(AccessTokenSource.QUERY, d.resolution().getSource());
+		assertEquals(1, AuthTokenMetrics.accepted());
+	}
+
+	@Test
+	void rejectBearerQueryConflictInCompat() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("Authorization", "Bearer token-a");
+		req.setQueryString("access_token=token-b");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertTrue(d.rejected());
+		assertEquals(AccessTokenResolution.Status.CONFLICT, d.resolution().getStatus());
+		assertEquals(1, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void rejectBearerQueryConflictInRejectMode() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("Authorization", "Bearer token-a");
+		req.setQueryString("access_token=token-b");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.REJECT);
+		assertTrue(d.rejected());
+		assertEquals(AccessTokenResolution.Status.CONFLICT, d.resolution().getStatus());
+	}
+
+	@Test
+	void allowMatchingBearerAndQuery() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("Authorization", "Bearer same");
+		req.setQueryString("access_token=same");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertFalse(d.rejected());
+		assertFalse(d.queryDeprecated());
+		assertEquals(AccessTokenSource.BEARER, d.resolution().getSource());
+	}
+
+	@Test
+	void allowAnonymousWhenNoToken() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setQueryString("agentId=h_flow_engine");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.REJECT);
+		assertFalse(d.rejected());
+		assertEquals(AccessTokenResolution.Status.MISSING, d.resolution().getStatus());
+	}
+
+	@Test
+	void userIdHeaderBypassesUrlTokenReject() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("user_id", "62bc5008d4958d013d97c7a6");
+		req.setQueryString("access_token=valid");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.REJECT);
+		assertFalse(d.rejected());
+	}
+
+	@Test
+	void rejectInvalidBearer() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("Authorization", "Bearer");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertTrue(d.rejected());
+		assertEquals(AccessTokenResolution.Status.INVALID_BEARER, d.resolution().getStatus());
+	}
+}
