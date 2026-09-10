@@ -51,8 +51,8 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 		Map<String, Map<String, Object>> recordMap = this.dataMap.find(CacheUtil.cacheKey(cacheKeys));
 		List<Map<String, Object>> resultList = new ArrayList<>();
 		if (recordMap != null && CollectionUtils.isNotEmpty(recordMap.values())) {
-			for (Map<String, Object> map : recordMap.values()) {
-				resultList.add(CacheUtil.returnCacheRow(map));
+			for (Map.Entry<String, Map<String, Object>> entry : usableRecords(recordMap).entrySet()) {
+				resultList.add(CacheUtil.returnCacheRow(entry.getValue()));
 			}
 		}
 		return resultList;
@@ -63,12 +63,28 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 		Map<String, Map<String, Object>> recordMap = this.dataMap.find(CacheUtil.cacheKey(cacheKeys));
 		Map<String, Object> result = null;
 		if (recordMap != null && CollectionUtils.isNotEmpty(recordMap.values())) {
-			Optional<Map<String, Object>> optional = recordMap.values().stream().findFirst();
+			Optional<Map<String, Object>> optional = usableRecords(recordMap).values().stream().findFirst();
 			if (optional.isPresent()) {
 				result = CacheUtil.returnCacheRow(optional.get());
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * A snapshot that did not carry its primary key used to be stored under
+	 * {@code null-}.  Prefer real primary-key entries when both forms exist so
+	 * old polluted cache records cannot make reads depend on Mongo iteration
+	 * order.  Once all real entries are absent, retain the old entry for
+	 * backwards compatibility.
+	 */
+	static Map<String, Map<String, Object>> usableRecords(Map<String, Map<String, Object>> recordMap) {
+		if (recordMap.containsKey("null-") && recordMap.size() > 1) {
+			Map<String, Map<String, Object>> filtered = new java.util.LinkedHashMap<>(recordMap);
+			filtered.remove("null-");
+			return filtered;
+		}
+		return recordMap;
 	}
 
 	@Override
