@@ -1478,6 +1478,7 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
 			assertEquals("originName", metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
 		}
+
 	}
 
 	@Nested
