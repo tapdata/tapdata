@@ -33,12 +33,17 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -170,8 +175,8 @@ public class TapdataTaskSchedulerTest {
 	@Nested
 	class DestroyCacheTest {
 		@Test
-		@DisplayName("destroy cache does not query the old job status")
-		void doesNotQueryTaskClientStatus() {
+		@DisplayName("destroy cache does not update cache status")
+		void doesNotUpdateCacheStatus() {
 			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
 			MessageDao messageDao = mock(MessageDao.class);
 			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
@@ -191,6 +196,42 @@ public class TapdataTaskSchedulerTest {
 			verify(taskClient, never()).getStatus();
 			verify(messageDao, never()).updateCacheStatus(anyString(), anyString());
 			verify(messageDao).destroyCache(task, cacheName);
+		}
+
+		@Test
+		@DisplayName("cache cleanup does not block the task stop path")
+		void cleanupRunsOutsideTheTaskStopPath() throws Exception {
+			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+			MessageDao messageDao = mock(MessageDao.class);
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("share-cache-task");
+			String cacheName = "share-cache";
+			CountDownLatch cleanupEntered = new CountDownLatch(1);
+			CountDownLatch releaseCleanup = new CountDownLatch(1);
+			ExecutorService cleanupExecutor = Executors.newSingleThreadExecutor();
+
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupThreadPool", cleanupExecutor);
+			when(taskClient.getTask()).thenReturn(task);
+			when(taskClient.getCacheName()).thenReturn(cacheName);
+			doAnswer(invocation -> {
+				cleanupEntered.countDown();
+				assertTrue(releaseCleanup.await(5, TimeUnit.SECONDS));
+				return null;
+			}).when(messageDao).destroyCache(task, cacheName);
+
+			try {
+				assertTimeoutPreemptively(Duration.ofSeconds(1), () ->
+						ReflectionTestUtils.invokeMethod(taskScheduler, "clearTaskCacheAfterStopped", taskClient));
+				assertTrue(cleanupEntered.await(2, TimeUnit.SECONDS));
+			} finally {
+				releaseCleanup.countDown();
+				cleanupExecutor.shutdownNow();
+			}
 		}
 	}
 
