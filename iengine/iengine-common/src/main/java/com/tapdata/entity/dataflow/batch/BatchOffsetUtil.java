@@ -39,7 +39,10 @@ public class BatchOffsetUtil {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return ((BatchOffset) offsetValue).getOffset();
         } else if (offsetValue instanceof Map
-                && ((Map<?, ?>)offsetValue).containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
+                && ((Map<?, ?>)offsetValue).containsKey(BATCH_READ_CONNECTOR_STATUS)) {
+            // legacy rows (TAP-3592 era) stored only {batch_read_connector_status: ...} without an offset;
+            // get(OFFSET) returns null for them so the table is re-scanned from scratch instead of
+            // handing the whole status map to batchRead as a bogus offset.
             return ((Map<String, Object>)offsetValue).get(BATCH_READ_CONNECTOR_OFFSET);
         }
 

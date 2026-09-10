@@ -219,6 +219,34 @@ class BatchOffsetUtilTest {
             }
         }
         @Test
+        @DisplayName("legacy status-only map (no offset) returns null instead of the whole status map")
+        void testLegacyStatusOnlyMapReturnsNull() {
+            Map<String, Object> legacy = new HashMap<>();
+            legacy.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+                bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(legacy);
+                bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
+                assertNull(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+            }
+        }
+
+        @Test
+        @DisplayName("status + offset map returns the stored offset")
+        void testStatusWithOffsetReturnsOffset() {
+            Object offset = new HashMap<String, Object>() {{
+                put("hash", "abc");
+            }};
+            Map<String, Object> map = new HashMap<>();
+            map.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            map.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, offset);
+            try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+                bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(map);
+                bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
+                assertSame(offset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+            }
+        }
+
+        @Test
         void testNotContainsAnyKey() {
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(0L);
