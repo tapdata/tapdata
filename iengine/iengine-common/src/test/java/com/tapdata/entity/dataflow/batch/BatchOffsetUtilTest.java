@@ -6,6 +6,7 @@ import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,6 +55,36 @@ class BatchOffsetUtilTest {
     void testParams() {
         Assertions.assertEquals("OVER", TableBatchReadStatus.OVER.name());
         Assertions.assertEquals("RUNNING", TableBatchReadStatus.RUNNING.name());
+    }
+
+    @Test
+    @DisplayName("full sync running batch saves offset and reads it back, over clears it")
+    void testRunningBatchOffsetSavedAndReadBack() {
+        SyncProgress syncProgress = new SyncProgress();
+        Map<String, Object> batchOffsetObj = new HashMap<>();
+        syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+        // simulating a hash-partition breakpoint produced by the connector in the first batch
+        Object firstBatchOffset = new HashMap<String, Object>() {{
+            put("hash", "abc");
+            put("position", 100);
+        }};
+        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, firstBatchOffset, TableBatchReadStatus.RUNNING.name());
+        assertFalse(BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+        assertEquals(firstBatchOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+
+        // next batch overwrites the saved offset of the unfinished table
+        Object secondBatchOffset = new HashMap<String, Object>() {{
+            put("hash", "abc");
+            put("position", 200);
+        }};
+        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, secondBatchOffset, TableBatchReadStatus.RUNNING.name());
+        assertEquals(secondBatchOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+
+        // table finished: status OVER and offset cleared
+        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name());
+        assertTrue(BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+        assertNull(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
     }
 
     @Nested
@@ -195,6 +227,72 @@ class BatchOffsetUtilTest {
                 assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
         }
+
+        @Test
+        @DisplayName("legacy breakpoint with only status marker returns null instead of the marker map")
+        void testLegacyStatusOnlyReturnsNull() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> legacyTableOffset = new HashMap<>();
+            legacyTableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, legacyTableOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+            assertNull(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+        }
+
+        @Test
+        @DisplayName("marker map with offset key returns the connector offset")
+        void testOffsetKeyReturnsOffset() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, 100L);
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, tableOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+            assertEquals(100L, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+        }
+
+        @Test
+        @DisplayName("history format without marker keys still returns the raw value")
+        void testHistoryFormatReturnsRawValue() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> rawOffset = new HashMap<>();
+            rawOffset.put("position", 5);
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, rawOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+
+            assertEquals(rawOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+        }
+    }
+
+    @Nested
+    @DisplayName("method asConcurrentBatchOffset test")
+    class AsConcurrentBatchOffsetTest {
+        @Test
+        void testPlainMapBecomesConcurrent() {
+            Map<String, Object> plain = new HashMap<>();
+            plain.put("t1", 1);
+            Object result = BatchOffsetUtil.asConcurrentBatchOffset(plain);
+            assertInstanceOf(ConcurrentHashMap.class, result);
+            assertEquals(plain, result);
+            assertNotSame(plain, result);
+        }
+
+        @Test
+        void testConcurrentMapKeptAsIs() {
+            ConcurrentHashMap<String, Object> chm = new ConcurrentHashMap<>();
+            assertSame(chm, BatchOffsetUtil.asConcurrentBatchOffset(chm));
+        }
+
+        @Test
+        void testNonMapReturnedAsIs() {
+            assertEquals(0L, BatchOffsetUtil.asConcurrentBatchOffset(0L));
+            assertNull(BatchOffsetUtil.asConcurrentBatchOffset(null));
+        }
     }
 
     @Nested
@@ -294,6 +392,62 @@ class BatchOffsetUtilTest {
             syncProgress.setBatchOffsetObj(objectObjectHashMap);
             BatchOffsetUtil.updateBatchOffset(syncProgress, "tableId", offset, "NOT_OK");
             Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
+        }
+    }
+
+    @Nested
+    @DisplayName("method encode/decode connector offset test")
+    class EncodeDecodeConnectorOffsetTest {
+        @Test
+        void testEncodeConnectorOffsetCopy() {
+            Map<String, Object> connectorOffset = new HashMap<>();
+            connectorOffset.put("split", 1);
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, connectorOffset);
+            Map<String, Object> batchOffset = new HashMap<>();
+            batchOffset.put(tableId, tableOffset);
+
+            Object encoded = BatchOffsetUtil.encodeConnectorOffset(batchOffset, value -> "encoded:" + value.getClass().getSimpleName());
+
+            assertNotSame(batchOffset, encoded);
+            assertInstanceOf(Map.class, encoded);
+            assertSame(connectorOffset, tableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+            Map<String, Object> encodedTableOffset = (Map<String, Object>) ((Map<String, Object>) encoded).get(tableId);
+            assertEquals(TableBatchReadStatus.RUNNING.name(), encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
+            assertEquals("encoded:HashMap", encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+        }
+
+        @Test
+        void testDecodeConnectorOffsetCopy() {
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, PdkUtil.ENCODE_PREFIX + "HashReadOffset");
+            Map<String, Object> batchOffset = new HashMap<>();
+            batchOffset.put(tableId, tableOffset);
+
+            Object decoded = BatchOffsetUtil.decodeConnectorOffset(batchOffset, value -> "decoded:" + value);
+
+            assertNotSame(batchOffset, decoded);
+            assertEquals(PdkUtil.ENCODE_PREFIX + "HashReadOffset", tableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+            Map<String, Object> decodedTableOffset = (Map<String, Object>) ((Map<String, Object>) decoded).get(tableId);
+            assertEquals("decoded:" + PdkUtil.ENCODE_PREFIX + "HashReadOffset", decodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+        }
+
+        @Test
+        void testEncodeConnectorOffsetSkipEncodedString() {
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, PdkUtil.ENCODE_PREFIX + "HashReadOffset");
+            Map<String, Object> batchOffset = new HashMap<>();
+            batchOffset.put(tableId, tableOffset);
+
+            Object encoded = BatchOffsetUtil.encodeConnectorOffset(batchOffset, value -> {
+                throw new AssertionError("encoded connector offset should not be encoded again");
+            });
+
+            Map<String, Object> encodedTableOffset = (Map<String, Object>) ((Map<String, Object>) encoded).get(tableId);
+            assertEquals(PdkUtil.ENCODE_PREFIX + "HashReadOffset", encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
         }
     }
 

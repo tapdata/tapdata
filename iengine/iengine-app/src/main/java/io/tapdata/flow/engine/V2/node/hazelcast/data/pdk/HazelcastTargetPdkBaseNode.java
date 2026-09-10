@@ -7,6 +7,7 @@ import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -411,7 +412,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
 		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
 			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
-			syncProgress.setBatchOffsetObj(new HashMap<>());
+			syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
 		} else {
 			throw new TapCodeException(e.getMessage(), e);
 		}
@@ -2038,7 +2039,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 SyncProgress syncProgress = entry.getValue();
                 List<String> list = Arrays.asList(key.split(","));
                 if (null != syncProgress.getBatchOffsetObj()) {
-                    syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+                    syncProgress.setBatchOffset(PdkUtil.encodeOffset(
+							BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset)
+					));
                 }
                 if (null != syncProgress.getStreamOffsetObj()) {
                     if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
