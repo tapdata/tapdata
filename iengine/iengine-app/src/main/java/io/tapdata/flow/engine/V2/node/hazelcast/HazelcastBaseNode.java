@@ -38,6 +38,7 @@ import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
@@ -326,6 +327,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected ExternalStorageDto initExternalStorage() {
 		if (processorBaseContext.getTaskDto().isPreviewTask()) {
+			return new ExternalStorageDto();
+		}
+		// DLQ recovery is a write-only runtime. External storage belongs to the
+		// normal task lifecycle and is not part of replaying one failed record.
+		if (DqlRecoveryCaptureGuard.isRecoveryTask(processorBaseContext.getTaskDto())) {
 			return new ExternalStorageDto();
 		}
 		return ExternalStorageUtil.getExternalStorage(

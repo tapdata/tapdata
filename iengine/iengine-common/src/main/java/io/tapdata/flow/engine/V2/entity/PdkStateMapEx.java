@@ -18,6 +18,10 @@ public class PdkStateMapEx extends PdkStateMap {
 		super(hazelcastInstance, node);
 	}
 
+	public PdkStateMapEx(HazelcastInstance hazelcastInstance, Node<?> node, String stateMapNamespace) {
+		super(hazelcastInstance, node, stateMapNamespace);
+	}
+
 	@Override
 	public Object get(String key) {
 		Object value = super.get(key);

@@ -281,6 +281,38 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
     }
 
     @Test
+    @DisplayName("test executeAndGetResult preserves custom script failure code and cause")
+    @SneakyThrows
+    void testExecuteAndGetResultPreservesScriptFailureCause() {
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapInsertRecordEvent event = TapInsertRecordEvent.create().init();
+        event.setAfter(new HashMap<>(Map.of("id", "1")));
+        tapdataEvent.setTapEvent(event);
+
+        CustomProcessorNode customProcessorNode = new CustomProcessorNode();
+        ReflectionTestUtils.setField(dataProcessorContext, "node", customProcessorNode);
+        doCallRealMethod().when(dataProcessorContext).getNode();
+        doCallRealMethod().when(hazelcastCustomProcessor).executeAndGetResult(tapdataEvent);
+        doCallRealMethod().when(hazelcastCustomProcessor).buildContextMap(any(), any(), any(), any(), any());
+        when(hazelcastCustomProcessor.getProcessorBaseContext()).thenReturn(dataProcessorContext);
+        when(dataProcessorContext.getTaskDto()).thenReturn(mock(TaskDto.class));
+        ReflectionTestUtils.setField(hazelcastCustomProcessor, "globalTaskContent", new HashMap<String, Object>());
+        ReflectionTestUtils.setField(hazelcastCustomProcessor, "processContextThreadLocal",
+                ThreadLocal.withInitial(HashMap::new));
+
+        Invocable engine = mock(Invocable.class, withSettings().extraInterfaces(ScriptEngine.class));
+        ScriptException scriptFailure = new ScriptException("undefined variable");
+        doThrow(scriptFailure).when(engine).invokeFunction(anyString(), any(), any());
+        doReturn(engine).when(hazelcastCustomProcessor).getOrInitEngine();
+
+        TapCodeException thrown = assertThrows(TapCodeException.class,
+                () -> hazelcastCustomProcessor.executeAndGetResult(tapdataEvent));
+
+        assertEquals(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED, thrown.getCode());
+        assertSame(scriptFailure, thrown.getCause());
+    }
+
+    @Test
     @SneakyThrows
     void testTryProcessUseOpListForListResult() {
         HazelcastCustomProcessor processor = spy(new HazelcastCustomProcessor(dataProcessorContext));

@@ -299,5 +299,34 @@ public class TaskSaveServiceImplTest {
 
             assertEquals(1, taskDto.getAlarmSettings().size());
         }
+
+        @Test
+        void shouldAppendDqlAlarmSettingsAfterExistingTaskAlarmSchema() {
+            TaskDto taskDto = new TaskDto();
+            List<AlarmSettingDto> dqlSettings = Arrays.stream(new AlarmKeyEnum[]{
+                            AlarmKeyEnum.TASK_DQL_EVENT,
+                            AlarmKeyEnum.TASK_DQL_SAVE_FAILED,
+                            AlarmKeyEnum.TASK_DQL_RECOVERY_FAILED,
+                            AlarmKeyEnum.TASK_DQL_STORM_GUARD})
+                    .map(key -> {
+                        AlarmSettingDto setting = new AlarmSettingDto();
+                        setting.setKey(key);
+                        return setting;
+                    })
+                    .toList();
+
+            when(alarmSettingService.findAllAlarmSetting(any(UserDetail.class))).thenReturn(dqlSettings);
+            when(alarmRuleService.findAllAlarm(any(UserDetail.class))).thenReturn(Collections.emptyList());
+            doCallRealMethod().when(taskSaveService).supplementAlarm(any(TaskDto.class), any(UserDetail.class));
+
+            taskSaveService.supplementAlarm(taskDto, mock(UserDetail.class));
+
+            assertEquals(Arrays.asList(
+                            AlarmKeyEnum.TASK_DQL_EVENT,
+                            AlarmKeyEnum.TASK_DQL_SAVE_FAILED,
+                            AlarmKeyEnum.TASK_DQL_RECOVERY_FAILED,
+                            AlarmKeyEnum.TASK_DQL_STORM_GUARD),
+                    taskDto.getAlarmSettings().stream().map(AlarmSettingVO::getKey).toList());
+        }
     }
 }

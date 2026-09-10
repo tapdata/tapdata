@@ -164,7 +164,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		this.baseURLs = (List<String>) configCenter.getConfig(ConfigurationCenter.BASR_URLS);
 		this.agentId = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		this.retryTime = (Integer) configCenter.getConfig(ConfigurationCenter.RETRY_TIME);
-		this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(Collections.singletonList("io.tapdata.websocket"),
+		this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(List.of(
+				"io.tapdata.websocket",
+				"io.tapdata.dql.recovery"),
 				Collections.singletonList(EventHandlerAnnotation.class));
 		healthThreadPool = new ScheduledThreadPoolExecutor(1);
 		this.reconnectExecutor = Executors.newSingleThreadExecutor(new ThreadFactory("Thread-ws-reconnect-"));
