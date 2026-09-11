@@ -9,6 +9,7 @@ import org.springframework.web.client.HttpServerErrorException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Posts structured task alerts to TM through the existing engine HTTP operator.
@@ -21,7 +22,7 @@ public class HttpTaskAlertPublisher implements TaskAlertPublisher {
     public static final String RESOURCE = ConnectorConstant.TASK_ALARM + "/task-alerts";
     static final String CLIENT_MONGO_OPERATOR_BEAN = "clientMongoOperator";
 
-    private volatile ClientMongoOperator clientMongoOperator;
+    private final AtomicReference<ClientMongoOperator> clientMongoOperator = new AtomicReference<>();
     private final boolean operatorInjected;
 
     public HttpTaskAlertPublisher() {
@@ -29,7 +30,7 @@ public class HttpTaskAlertPublisher implements TaskAlertPublisher {
     }
 
     public HttpTaskAlertPublisher(ClientMongoOperator clientMongoOperator) {
-        this.clientMongoOperator = clientMongoOperator;
+        this.clientMongoOperator.set(clientMongoOperator);
         this.operatorInjected = true;
     }
 
@@ -72,17 +73,21 @@ public class HttpTaskAlertPublisher implements TaskAlertPublisher {
 
     ClientMongoOperator resolveOperator() {
         if (operatorInjected) {
-            return this.clientMongoOperator;
+            return this.clientMongoOperator.get();
         }
-        ClientMongoOperator current = this.clientMongoOperator;
+        ClientMongoOperator current = this.clientMongoOperator.get();
         if (current != null) {
             return current;
         }
         ClientMongoOperator resolved = lookupOperator();
-        if (resolved != null) {
-            this.clientMongoOperator = resolved;
+        if (resolved == null) {
+            return null;
         }
-        return resolved;
+        if (this.clientMongoOperator.compareAndSet(null, resolved)) {
+            return resolved;
+        }
+        ClientMongoOperator winner = this.clientMongoOperator.get();
+        return winner != null ? winner : resolved;
     }
 
     private static ClientMongoOperator lookupOperator() {
