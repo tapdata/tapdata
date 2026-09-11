@@ -33,6 +33,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
+import io.tapdata.flow.engine.V2.script.storage.StorageExecutorsManager;
+import io.tapdata.flow.engine.V2.script.storage.StorageFacade;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -69,6 +71,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	public static final String BEFORE = "before";
 
 	private ScriptExecutorsManager scriptExecutorsManager;
+	private StorageExecutorsManager storageExecutorsManager;
+	private StorageFacade storageFacade;
 
 	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
 	private Map<String, Object> globalTaskContent;
@@ -174,10 +178,15 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		this.scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 
 		if (!this.standard) {
-			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+			ObsScriptLogger scriptLogger = new ObsScriptLogger(getScriptObsLogger());
+			this.scriptExecutorsManager = new ScriptExecutorsManager(scriptLogger, clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					!processorBaseContext.getTaskDto().isNormalTask()
 			);
+			this.storageExecutorsManager = new StorageExecutorsManager(scriptLogger, clientMongoOperator,
+					jetContext.hazelcastInstance(), node.getTaskId(), node.getId(),
+					!processorBaseContext.getTaskDto().isNormalTask());
+			this.storageFacade = new StorageFacade(storageExecutorsManager);
 			String nodeId = node.getId();
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
@@ -223,6 +232,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		}
 		if (!this.standard) {
 			((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+			((ScriptEngine) engine).put("storage", storageFacade);
 			((ScriptEngine) engine).put(SOURCE_TAG, sourceMap.get(node.getId()));
 			((ScriptEngine) engine).put(TARGET_TAG, targetMap.get(node.getId()));
 		}
@@ -455,6 +465,15 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				if (this.scriptExecutorsManager != null) {
 					this.scriptExecutorsManager.close();
 					this.scriptExecutorsManager = null;
+				}
+			}, TAG);
+
+			// Close connection-level file storage executors and their PDK/session resources.
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.storageExecutorsManager != null) {
+					this.storageExecutorsManager.close();
+					this.storageExecutorsManager = null;
+					this.storageFacade = null;
 				}
 			}, TAG);
 
