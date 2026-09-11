@@ -331,6 +331,15 @@
                 <version>1.0.2</version>
             </dependency>
 
+            <!-- zstd-jni: tapdata-storage-module 传入 1.5.2-5（深度 2，压过 kafka-clients 的
+                 1.5.6-4），其内置 libzstd 1.5.2 带 CVE-2022-4899（需 zstd 1.5.4+ 才修），
+                 客户侧 Sonatype 报 Security-High。统一钉到当前最高版。 -->
+            <dependency>
+                <groupId>com.github.luben</groupId>
+                <artifactId>zstd-jni</artifactId>
+                <version>1.5.7-16</version>
+            </dependency>
+
             <!-- Logging -->
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
