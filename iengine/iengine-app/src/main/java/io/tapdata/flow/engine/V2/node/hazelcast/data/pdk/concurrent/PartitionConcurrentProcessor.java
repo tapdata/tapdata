@@ -69,7 +69,7 @@ public class PartitionConcurrentProcessor {
 	private AtomicLong eventSeq = new AtomicLong(0L);
 
 	private LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
-	private final Object watermarkFlushLock = new Object();
+	private final java.util.concurrent.locks.ReentrantLock watermarkFlushLock = new java.util.concurrent.locks.ReentrantLock(true);
 
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
@@ -185,12 +185,13 @@ public class PartitionConcurrentProcessor {
 		while (isRunning()) {
 			Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 			try {
-				synchronized (watermarkFlushLock) {
+				watermarkFlushLock.lockInterruptibly();
+				try {
 					if (!isRunning()) return;
 					final WatermarkEvent watermarkEvent = pollWatermarkEvent();
-					if (watermarkEvent != null && !flushWatermarkEvent(watermarkEvent)) {
-						return;
-					}
+					if (watermarkEvent != null && !flushWatermarkEvent(watermarkEvent)) return;
+				} finally {
+					watermarkFlushLock.unlock();
 				}
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
@@ -505,12 +506,15 @@ public class PartitionConcurrentProcessor {
 	public void stop() {
 		try {
 			waitingForProcessToCurrent();
-			synchronized (watermarkFlushLock) {
+			watermarkFlushLock.lockInterruptibly();
+			try {
 				WatermarkEvent watermarkEvent;
 				while ((watermarkEvent = watermarkQueue.poll()) != null) {
 					if (!flushWatermarkEvent(watermarkEvent)) break;
 				}
 				currentRunning.compareAndSet(true, false);
+			} finally {
+				watermarkFlushLock.unlock();
 			}
 		} catch (InterruptedException ignored) {
 			Thread.currentThread().interrupt();

@@ -126,6 +126,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@BeforeEach
 	void setUp() {
 		hazelcastTargetPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "fromConcurrentProcessor", ThreadLocal.withInitial(() -> false));
 		when(hazelcastTargetPdkBaseNode.getDataProcessorContext()).thenReturn(dataProcessorContext);
 	}
 
@@ -1352,6 +1353,27 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	class HandleTapdataEventsTest {
+		@Test
+		void concurrentCallbackNeverFlushesPartitionOffsetAndRestoresContext() {
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			for (SyncStage stage : new SyncStage[]{SyncStage.INITIAL_SYNC, SyncStage.CDC}) {
+				TapdataEvent event = new TapdataEvent();
+				event.setSyncStage(stage);
+				event.setBatchOffset(new Object());
+				event.setStreamOffset(new Object());
+				doAnswer(invocation -> {
+					((AtomicReference<TapdataEvent>) invocation.getArgument(2)).set(event);
+					return null;
+				}).when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(), any(), any(), any(), any(), any());
+				// Both processor fields are absent: their live state must not permit a partition flush.
+				ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode, "handleTapdataEvents",
+						Collections.singletonList(event), true);
+				verify(hazelcastTargetPdkBaseNode, never()).flushSyncProgressMap(event);
+				hazelcastTargetPdkBaseNode.handleTapdataEvents(Collections.singletonList(event));
+				verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(event);
+			}
+		}
+
 		List<TapdataEvent> tapdataEvents;
 		JetJobStatusMonitor jobStatusMonitor = mock(JetJobStatusMonitor.class);
 		DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);

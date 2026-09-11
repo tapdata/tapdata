@@ -402,7 +402,7 @@ class PartitionConcurrentProcessorTest {
     @Timeout(2)
     void testWatermarkEventRunner() throws Exception {
         PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
-        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkFlushLock", new Object());
+        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkFlushLock", new java.util.concurrent.locks.ReentrantLock(true));
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "logger", logger);
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "taskDto", taskDto);
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "errorHandler", errorHandler);
@@ -638,7 +638,7 @@ class PartitionConcurrentProcessorTest {
         PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "partitionsQueue", new ArrayList<>());
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkQueue", new LinkedBlockingQueue<>());
-        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkFlushLock", new Object());
+        UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "watermarkFlushLock", new java.util.concurrent.locks.ReentrantLock(true));
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "currentRunning", new AtomicBoolean(false));
         UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "nodeRunning", (Supplier<Boolean>) () -> false);
 

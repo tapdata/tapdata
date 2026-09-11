@@ -1262,6 +1262,22 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
+    private final ThreadLocal<Boolean> fromConcurrentProcessor = ThreadLocal.withInitial(() -> false);
+
+    private void handleTapdataEvents(List<TapdataEvent> tapdataEvents, boolean fromConcurrent) {
+        boolean previous = fromConcurrentProcessor.get();
+        fromConcurrentProcessor.set(fromConcurrent);
+        try {
+            handleTapdataEvents(tapdataEvents);
+        } finally {
+            if (previous) {
+                fromConcurrentProcessor.set(true);
+            } else {
+                fromConcurrentProcessor.remove();
+            }
+        }
+    }
+
     protected void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
         AtomicReference<TapdataEvent> lastTapdataEvent = new AtomicReference<>();
         List<TapEvent> tapEvents = new ArrayList<>();
@@ -1628,12 +1644,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null != syncStage) {
                 switch (syncStage) {
                     case INITIAL_SYNC:
-                        if (null != lastTapdataEvent.get().getBatchOffset() && !isConcurrentProcessorRunning(syncStage)) {
+                        if (null != lastTapdataEvent.get().getBatchOffset() && !fromConcurrentProcessor.get()) {
                             flushSyncProgressMap(lastTapdataEvent.get());
                         }
                         break;
                     case CDC:
-                        if (null != lastTapdataEvent.get().getStreamOffset() && !isConcurrentProcessorRunning(syncStage)) {
+                        if (null != lastTapdataEvent.get().getStreamOffset() && !fromConcurrentProcessor.get()) {
                             flushSyncProgressMap(lastTapdataEvent.get());
                         }
                         break;
@@ -2234,7 +2250,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				batchSize,
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(partitionKeyFunction),
-				this::handleTapdataEvents,
+				events -> handleTapdataEvents(events, true),
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
@@ -2259,7 +2275,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						return values;
 					}
 				},
-				this::handleTapdataEvents,
+				events -> handleTapdataEvents(events, true),
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
@@ -2287,7 +2303,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						return Collections.emptyList();
 					}
 				},
-				this::handleTapdataEvents,
+				events -> handleTapdataEvents(events, true),
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
