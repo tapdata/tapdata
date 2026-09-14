@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import com.hazelcast.jet.core.Inbox;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StringCompression;
 import com.tapdata.entity.*;
@@ -2202,6 +2203,47 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			return syncProgressMap;
 		}
 
+	}
+
+	@Nested
+	class SaveToSnapshotBatchOffsetTest {
+		@Test
+		void testTargetPersistenceAndSourceDecodeRoundTrip() {
+			HazelcastTargetPdkBaseNode targetNode = mock(HazelcastTargetPdkBaseNode.class);
+			doCallRealMethod().when(targetNode).saveToSnapshot();
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("hash", "abc");
+			connectorOffset.put("position", 100);
+			SyncProgress syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+			BatchOffsetUtil.updateBatchOffset(syncProgress, "tableId", connectorOffset, TableBatchReadStatus.RUNNING.name());
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			syncProgressMap.put("sourceNodeId,targetNodeId", syncProgress);
+			ReflectionTestUtils.setField(targetNode, "syncProgressMap", syncProgressMap);
+			ReflectionTestUtils.setField(targetNode, "flushOffset", new AtomicBoolean(true));
+			ReflectionTestUtils.setField(targetNode, "uploadDagService", new AtomicBoolean(false));
+			ReflectionTestUtils.setField(targetNode, "clientMongoOperator", mockClientMongoOperator);
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			when(context.getTaskDto()).thenReturn(taskDto);
+			ReflectionTestUtils.setField(targetNode, "dataProcessorContext", context);
+
+			assertTrue(targetNode.saveToSnapshot());
+			verify(mockClientMongoOperator).insertOne(any(Map.class), eq(ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId()));
+
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(connectorNode.getConnectorClassLoader()).thenReturn(getClass().getClassLoader());
+			Object persistedBatchOffset = PdkUtil.decodeOffset(syncProgress.getBatchOffset(), connectorNode);
+			Object sourceDecodedOffset = BatchOffsetUtil.decodeConnectorOffset(
+					persistedBatchOffset,
+					offset -> PdkUtil.decodeOffset(offset, connectorNode)
+			);
+			SyncProgress restoredProgress = new SyncProgress();
+			restoredProgress.setBatchOffsetObj(sourceDecodedOffset);
+			assertEquals(connectorOffset, BatchOffsetUtil.getBatchOffsetOfTable(restoredProgress, "tableId"));
+		}
 	}
 
 	@Test

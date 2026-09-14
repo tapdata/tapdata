@@ -95,7 +95,9 @@ public class BatchOffsetUtil {
             Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
             Map<Object, Object> target = new HashMap<>(source);
             if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET) || target.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
-                target.put(BATCH_READ_CONNECTOR_OFFSET, encodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), encoder));
+                if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
+                    target.put(BATCH_READ_CONNECTOR_OFFSET, encodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), encoder));
+                }
                 return target;
             }
             source.forEach((key, value) -> target.put(key, encodeConnectorOffset(value, encoder)));
@@ -109,7 +111,9 @@ public class BatchOffsetUtil {
             Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
             Map<Object, Object> target = new HashMap<>(source);
             if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET) || target.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
-                target.put(BATCH_READ_CONNECTOR_OFFSET, decodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), decoder));
+                if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
+                    target.put(BATCH_READ_CONNECTOR_OFFSET, decodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), decoder));
+                }
                 return target;
             }
             source.forEach((key, value) -> target.put(key, decodeConnectorOffset(value, decoder)));

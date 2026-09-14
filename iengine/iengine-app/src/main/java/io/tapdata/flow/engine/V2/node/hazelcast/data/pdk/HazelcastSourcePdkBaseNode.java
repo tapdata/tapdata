@@ -256,6 +256,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         return true;
     }
 
+    @Override
+    protected void readBatchOffset(SyncProgress syncProgress) {
+        try {
+            super.readBatchOffset(syncProgress);
+        } catch (CoreException e) {
+            if (StringUtils.contains(e.getMessage(), "ClassNotFoundException")) {
+                obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+                syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
+                return;
+            }
+            throw e;
+        }
+    }
+
     private boolean needCdcDelay() {
         if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
             return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {

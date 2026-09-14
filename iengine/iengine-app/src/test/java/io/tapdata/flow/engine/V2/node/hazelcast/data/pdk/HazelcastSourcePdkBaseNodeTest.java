@@ -856,6 +856,41 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@DisplayName("target encoded connector offset is decoded and restored for source batch read")
+		void testTargetSourceBatchOffsetRoundTrip() {
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("hash", "abc");
+			connectorOffset.put("position", 100);
+			SyncProgress targetProgress = new SyncProgress();
+			targetProgress.setBatchOffsetObj(new HashMap<>());
+			BatchOffsetUtil.updateBatchOffset(targetProgress, "test", connectorOffset, "RUNNING");
+			Object targetEncodedOffset = BatchOffsetUtil.encodeConnectorOffset(targetProgress.getBatchOffsetObj(), PdkUtil::encodeOffset);
+			syncProgress.setBatchOffset(PdkUtil.encodeOffset(targetEncodedOffset));
+
+			instance.readBatchOffset(syncProgress);
+
+			assertEquals(connectorOffset, BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, "test"));
+		}
+
+		@Test
+		@DisplayName("missing connector offset class resets source batch offset")
+		void testConnectorOffsetClassNotFound() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(instance, "obsLogger", obsLogger);
+			syncProgress.setBatchOffset("invalid-offset");
+			CoreException exception = new CoreException("java.lang.ClassNotFoundException: io.tapdata.connector.Offset");
+			try (MockedStatic<PdkUtil> pdkUtil = mockStatic(PdkUtil.class)) {
+				pdkUtil.when(() -> PdkUtil.decodeOffset("invalid-offset", instance.getConnectorNode())).thenThrow(exception);
+
+				assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
+			}
+
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
+			assertTrue(((Map<?, ?>) syncProgress.getBatchOffsetObj()).isEmpty());
+			verify(obsLogger).warn("Decode batch offset failed, as class not found, will ignore, message: {}", exception.getMessage());
+		}
+
+		@Test
 		@DisplayName("test sync progress is null")
 		void testSyncProgressIsNull() {
 			ReflectionTestUtils.setField(instance, "syncProgress", null);

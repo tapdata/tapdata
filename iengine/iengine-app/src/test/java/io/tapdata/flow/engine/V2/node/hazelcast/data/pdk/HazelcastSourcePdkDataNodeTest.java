@@ -150,6 +150,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
@@ -1025,6 +1026,49 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                     bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
                     bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
                     verifyAssert(v);
+                }
+            }
+
+            @Test
+            @DisplayName("empty batch with offset saves breakpoint and restored offset is passed to batchRead")
+            void testEmptyBatchOffsetAndResume() throws Throwable {
+                Object restoredOffset = new HashMap<String, Object>() {{
+                    put("position", 100);
+                }};
+                Object nextOffset = new HashMap<String, Object>() {{
+                    put("position", 200);
+                }};
+                TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+                when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+                doCallRealMethod().when(pdkMethodInvoker).runnable(any(CommonUtils.AnyError.class));
+                doCallRealMethod().when(pdkMethodInvoker).getRunnable();
+                when(instance.executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class))).thenAnswer(invocation -> {
+                    Callable<?> aspectSupplier = invocation.getArgument(1);
+                    CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> aspectConsumer = invocation.getArgument(2);
+                    aspectSupplier.call();
+                    aspectConsumer.accept(mock(BatchReadFuncAspect.class));
+                    return mock(AspectInterceptResult.class);
+                });
+                doAnswer(invocation -> {
+                    BiConsumer<List<TapEvent>, Object> consumer = invocation.getArgument(4);
+                    consumer.accept(Collections.emptyList(), nextOffset);
+                    return null;
+                }).when(batchReadFunction).batchRead(eq(connectorContext), eq(tapTable), same(restoredOffset), eq(instance.readBatchSize), any());
+
+                DoSnapshotFunctions functions = new DoSnapshotFunctions(connectorNode, batchCountFunction, batchReadFunction, queryByAdvanceFilterFunction, executeCommandFunction);
+                try (MockedStatic<BatchOffsetUtil> batchOffsetUtil = mockStatic(BatchOffsetUtil.class);
+                     MockedStatic<PDKInvocationMonitor> invocationMonitor = mockStatic(PDKInvocationMonitor.class)) {
+                    batchOffsetUtil.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(restoredOffset);
+                    invocationMonitor.when(() -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ, pdkMethodInvoker)).thenAnswer(invocation -> {
+                        pdkMethodInvoker.getRunnable().run();
+                        return null;
+                    });
+
+                    instance.doSnapshotInvoke(tableId, functions, tapTable, new AtomicBoolean(true), tableId);
+
+                    verify(batchReadFunction).batchRead(eq(connectorContext), eq(tapTable), same(restoredOffset), eq(instance.readBatchSize), any());
+                    batchOffsetUtil.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, nextOffset, TableBatchReadStatus.RUNNING.name()));
+                    batchOffsetUtil.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()));
                 }
             }
 

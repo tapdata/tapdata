@@ -615,7 +615,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                     pdkMethodInvoker.runnable(() -> {
                             try {
                                 BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
-                                    if (events != null && !events.isEmpty()) {
+									boolean hasEvents = events != null && !events.isEmpty();
+									if (hasEvents) {
 										CpuMemoryCollector.listening(getNode().getId(), events);
                                         if (skipErrorTable.isSkipped(tableName))
                                             throw new SkipErrorTableException(tableName);
@@ -660,6 +661,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             if (batchReadFuncAspect != null)
                                                 AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
                                         }
+									} else if (offsetObject != null) {
+										BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject, TableBatchReadStatus.RUNNING.name());
                                     }
                                 };
                                 Node<?> node = getNode();

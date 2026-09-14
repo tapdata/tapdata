@@ -410,6 +410,22 @@ class BatchOffsetUtilTest {
             Map<String, Object> encodedTableOffset = (Map<String, Object>) ((Map<String, Object>) encoded).get(tableId);
             assertEquals(PdkUtil.ENCODE_PREFIX + "HashReadOffset", encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
         }
+
+        @Test
+        void testStatusOnlyMapDoesNotGainNullOffsetKey() {
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            Map<String, Object> batchOffset = new HashMap<>();
+            batchOffset.put(tableId, tableOffset);
+
+            Object encoded = BatchOffsetUtil.encodeConnectorOffset(batchOffset, value -> "encoded");
+            Object decoded = BatchOffsetUtil.decodeConnectorOffset(encoded, value -> "decoded");
+
+            Map<String, Object> encodedTableOffset = (Map<String, Object>) ((Map<String, Object>) encoded).get(tableId);
+            Map<String, Object> decodedTableOffset = (Map<String, Object>) ((Map<String, Object>) decoded).get(tableId);
+            assertFalse(encodedTableOffset.containsKey(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+            assertFalse(decodedTableOffset.containsKey(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+        }
     }
 
     @Nested
