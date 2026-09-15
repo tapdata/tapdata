@@ -27,6 +27,7 @@ import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.*;
+import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -34,6 +35,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -59,7 +61,11 @@ public class PkdSourceService {
 
 	public static final String METADATA_PDK_APIBUILD_NUMBER = "metadata.pdkAPIBuildNumber";
 	public static final String METADATA_PDK_HASH = "metadata.pdkHash";
+	@Setter(AccessLevel.NONE)
+	@Value("${pdk.registration.task-stop-timeout-millis:60000}")
 	private long taskStopTimeoutMillis = 60_000L;
+	@Setter(AccessLevel.NONE)
+	@Value("${pdk.registration.task-stop-poll-interval-millis:1000}")
 	private long taskStopPollIntervalMillis = 1_000L;
 	private static final long CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS = 300_000L;
 	private static final String CONNECTOR_REGISTRATION_LOCK_PREFIX = "PkdSourceService.uploadPdk.";
