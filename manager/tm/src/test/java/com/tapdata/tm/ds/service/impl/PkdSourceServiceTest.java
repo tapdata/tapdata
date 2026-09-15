@@ -263,7 +263,7 @@ public class PkdSourceServiceTest {
 
 		@Test
 		@SneakyThrows
-		void testContinueRegistrationWhenPauseDoesNotTakeEffect() {
+		void testAbortRegistrationWhenPauseDoesNotTakeEffect() {
 			ObjectId connectionId = new ObjectId();
 			ObjectId taskId = new ObjectId();
 			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
@@ -284,11 +284,14 @@ public class PkdSourceServiceTest {
 			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(affectedTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user));
 
+			assertTrue(exception.getMessage().contains("Affected resources did not stop"));
 			verify(taskService).pause(taskId, user, false);
-			verify(fileService).storeFile(any(), anyString(), isNull(), anyMap());
+			verifyNoInteractions(fileService);
 			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+			verify(dbLockRepository).release(anyString(), anyString());
 		}
 
 		@Test

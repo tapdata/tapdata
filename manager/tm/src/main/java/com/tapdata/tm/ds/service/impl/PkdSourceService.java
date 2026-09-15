@@ -398,10 +398,8 @@ public class PkdSourceService {
 				return;
 			}
 			if (System.currentTimeMillis() >= deadline) {
-				log.warn("Affected resources did not reach a stable status before connector registration timeout; "
-						+ "continue registration to avoid blocking on transient or ineffective pause states: {}",
-						String.join(", ", pendingResources));
-				return;
+				throw new BizException("Affected resources did not stop before connector registration timeout: "
+						+ String.join(", ", pendingResources));
 			}
 			sleepBeforeNextStatusCheck("affected resources", String.join(", ", pendingResources));
 		}
