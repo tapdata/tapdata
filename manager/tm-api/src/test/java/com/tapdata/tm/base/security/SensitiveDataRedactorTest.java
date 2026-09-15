@@ -21,6 +21,33 @@ class SensitiveDataRedactorTest {
 	}
 
 	@Test
+	void redactsAccessTokenInsideRefererLocationAndLink() {
+		String referer = SensitiveDataRedactor.redactHeaderValue(
+				"referer", "http://127.0.0.1:5173/sso/callback?access_token=PLAINTEXT&x=1");
+		assertEquals("http://127.0.0.1:5173/sso/callback?access_token=[REDACTED]&x=1", referer);
+
+		String hashReferer = SensitiveDataRedactor.redactHeaderValue(
+				"Referer", "http://127.0.0.1:5173/#/sso-callback?access_token=jwt.abc");
+		assertEquals("http://127.0.0.1:5173/#/sso-callback?access_token=[REDACTED]", hashReferer);
+
+		assertEquals(
+				"https://tapdata/app?access_token=[REDACTED]",
+				SensitiveDataRedactor.redactHeaderValue("Location", "https://tapdata/app?access_token=secret"));
+
+		String link = SensitiveDataRedactor.redactHeaderValue(
+				"Link", "<http://tm/api?ACCESS_TOKEN=abc>; rel=\"next\"");
+		assertEquals("<http://tm/api?ACCESS_TOKEN=[REDACTED]>; rel=\"next\"", link);
+
+		assertEquals(
+				"http://127.0.0.1:5173",
+				SensitiveDataRedactor.redactHeaderValue("origin", "http://127.0.0.1:5173"));
+		assertEquals(
+				"http://127.0.0.1:5173/#/sso-callback?login_code=once",
+				SensitiveDataRedactor.redactHeaderValue(
+						"referer", "http://127.0.0.1:5173/#/sso-callback?login_code=once"));
+	}
+
+	@Test
 	void redactsAccessTokenQueryIncludingEncodedAndCaseVariants() {
 		assertEquals("name=test&access_token=[REDACTED]",
 				SensitiveDataRedactor.redactQuery("name=test&access_token=token%2Bvalue"));

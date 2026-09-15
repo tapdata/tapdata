@@ -43,7 +43,62 @@ public final class SensitiveDataRedactor {
 		if (name != null && SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
 			return REDACTED;
 		}
-		return value;
+		// Referer / Location / Link / Origin can embed ?access_token= (TAP-11883 D-06).
+		return redactAccessTokenInText(value);
+	}
+
+	/**
+	 * Replace {@code access_token=} query/hash assignments inside a URL or
+	 * URL-bearing string. Leaves other params (including {@code login_code}) intact.
+	 */
+	public static String redactAccessTokenInText(String value) {
+		if (value == null || value.isEmpty()) {
+			return value;
+		}
+		String lower = value.toLowerCase(Locale.ROOT);
+		int from = 0;
+		StringBuilder sb = null;
+		while (true) {
+			int idx = lower.indexOf("access_token=", from);
+			if (idx < 0) {
+				if (sb == null) {
+					return value;
+				}
+				sb.append(value, from, value.length());
+				return sb.toString();
+			}
+			if (idx > 0) {
+				char prev = value.charAt(idx - 1);
+				if (prev != '?' && prev != '&' && prev != '#') {
+					if (sb == null) {
+						sb = new StringBuilder(value.length());
+					}
+					int keyEnd = idx + "access_token=".length();
+					sb.append(value, from, keyEnd);
+					from = keyEnd;
+					continue;
+				}
+			}
+			if (sb == null) {
+				sb = new StringBuilder(value.length());
+			}
+			int eq = idx + "access_token".length();
+			sb.append(value, from, eq + 1);
+			sb.append(REDACTED);
+			from = skipQueryValue(value, eq + 1);
+		}
+	}
+
+	private static int skipQueryValue(String value, int start) {
+		int i = start;
+		while (i < value.length()) {
+			char c = value.charAt(i);
+			if (c == '&' || c == '#' || c == ';' || c == '>' || Character.isWhitespace(c)) {
+				break;
+			}
+			i++;
+		}
+		return i;
 	}
 
 	public static Map<String, Object> redactHeaders(Map<String, ?> headers) {
