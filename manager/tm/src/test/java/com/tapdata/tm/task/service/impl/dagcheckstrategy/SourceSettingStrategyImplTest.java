@@ -75,7 +75,7 @@ public class SourceSettingStrategyImplTest {
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("DDL");
             when(dataSourceService.findByIdByCheck(MongoUtils.toObjectId("conId123"))).thenReturn(dto);
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("source123"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("source123"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             sourceSettingStrategy.checkDDL(locale,taskId,result,userId,name,sourceTableNode);
             assertTrue(result.size()>0);
             assertEquals("DDL",result.get(0).getLog());
@@ -130,7 +130,7 @@ public class SourceSettingStrategyImplTest {
             tableNode.setIsFilter(true);
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("isFilter");
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("isFileterSouce"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("isFileterSouce"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             sourceSettingStrategy.checkIsFilterOrCustomCommand(locale,taskId,result,userId,name,tableNode);
             assertEquals(1,result.size());
             assertEquals("isFilter",result.get(0).getLog());
@@ -144,7 +144,7 @@ public class SourceSettingStrategyImplTest {
             tableNode.setEnableCustomCommand(true);
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setLog("CommandSouce");
-            when(taskDagCheckLogService.createLog(eq(taskId),eq("isCommandSouce"),eq(userId), eq(Level.WARN),any(),any(),eq(name))).thenReturn(log);
+            when(taskDagCheckLogService.createLog(eq(taskId),eq("isCommandSouce"),eq(userId), eq(Level.WARN),any(),any(),any(),any())).thenReturn(log);
             sourceSettingStrategy.checkIsFilterOrCustomCommand(locale,taskId,result,userId,name,tableNode);
             assertEquals(1,result.size());
             assertEquals("CommandSouce",result.get(0).getLog());

@@ -29,7 +29,12 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 	@Override
 	protected ICacheGetter getCacheGetterInstance(String cacheName) {
 		logger.info("construct a cache getter for cache [{}]", cacheName);
-		return new ExternalStorageCacheGetter(getCacheStore(cacheName), getConfig(cacheName), clientMongoOperator, hazelcastInstance);
+		com.tapdata.entity.dataflow.DataFlowCacheConfig cacheConfig = getConfig(cacheName);
+		if (cacheConfig == null) {
+			logger.warn("Skip constructing cache getter for [{}]: cache configuration is unavailable", cacheName);
+			return null;
+		}
+		return new ExternalStorageCacheGetter(getCacheStore(cacheName), cacheConfig, clientMongoOperator, hazelcastInstance);
 	}
 
 	@Override
@@ -39,6 +44,12 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 
 	@Override
 	protected ICacheStore getCacheStore(String cacheName) {
-		return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> new ExternalStorageCacheStore(getConfig(cacheName), hazelcastInstance));
+		return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> {
+			com.tapdata.entity.dataflow.DataFlowCacheConfig cacheConfig = getConfig(cacheName);
+			if (cacheConfig == null) {
+				throw new IllegalStateException("Cache configuration is unavailable: " + cacheName);
+			}
+			return new ExternalStorageCacheStore(cacheConfig, hazelcastInstance);
+		});
 	}
 }
