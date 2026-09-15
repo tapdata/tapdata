@@ -5,7 +5,6 @@ import com.google.common.collect.Maps;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -82,7 +81,8 @@ public class PkdSourceService {
 	private PdkSourceRepository repository;
 
 	@SuppressWarnings(value = "unchecked")
-	public void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
+	public void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user,
+			boolean accessCodeRegistration) {
 		Map<String, MultipartFile> iconMap = new HashMap<>();
 		Map<String, MultipartFile> docMap = new HashMap<>();
 		MultipartFile jarFile = null;
@@ -104,7 +104,7 @@ public class PkdSourceService {
 		}
 
 		String lockOwner = dbLockConfiguration.getOwner() + ":" + UUID.randomUUID();
-		if (isAccessCodeRegistration(user)) {
+		if (accessCodeRegistration) {
 			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
 			log.debug("Upload pdk done.");
 			return;
@@ -112,25 +112,41 @@ public class PkdSourceService {
 		List<ILock> registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
 		List<TaskDto> stoppedTasks = new ArrayList<>();
 		List<InspectDto> stoppedInspects = new ArrayList<>();
+		List<String> restartFailures = new ArrayList<>();
+		RuntimeException registrationFailure = null;
 		try {
 			Set<String> connectionIds = findAffectedConnectionIds(pdkSourceDtos, user);
 			stopAffectedTasks(connectionIds, stoppedTasks, user);
 			stopAffectedInspects(connectionIds, stoppedInspects, user);
 			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user);
 			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+		} catch (RuntimeException e) {
+			registrationFailure = e;
 		} finally {
 			try {
-				restartAffectedInspects(stoppedInspects, user);
-				restartAffectedTasks(stoppedTasks, user);
+				restartAffectedInspects(stoppedInspects, user, restartFailures);
+				restartAffectedTasks(stoppedTasks, user, restartFailures);
 			} finally {
 				releaseRegistrationLocks(registrationLocks, lockOwner);
 			}
 		}
+		// The affected resources are already stopped at this point. A failed restart must
+		// never be swallowed, otherwise live business tasks would silently stay in STOP
+		// after a connector registration.
+		if (!restartFailures.isEmpty()) {
+			BizException restartException = new BizException(
+					"Connector registered but some affected resources could not be restarted: "
+							+ String.join("; ", restartFailures));
+			if (registrationFailure != null) {
+				registrationFailure.addSuppressed(restartException);
+				throw registrationFailure;
+			}
+			throw restartException;
+		}
+		if (registrationFailure != null) {
+			throw registrationFailure;
+		}
 		log.debug("Upload pdk done.");
-	}
-
-	private boolean isAccessCodeRegistration(UserDetail user) {
-		return user != null && AuthType.ACCESS_CODE.getValue().equals(user.getAuthType());
 	}
 
 	private List<ILock> acquireRegistrationLocks(List<PdkSourceDto> pdkSourceDtos, String lockOwner) {
@@ -444,7 +460,7 @@ public class PkdSourceService {
 		}
 	}
 
-	private void restartAffectedTasks(List<TaskDto> stoppedTasks, UserDetail user) {
+	private void restartAffectedTasks(List<TaskDto> stoppedTasks, UserDetail user, List<String> restartFailures) {
 		ListIterator<TaskDto> iterator = stoppedTasks.listIterator(stoppedTasks.size());
 		while (iterator.hasPrevious()) {
 			TaskDto stoppedTask = iterator.previous();
@@ -454,26 +470,41 @@ public class PkdSourceService {
 				if (task == null) {
 					continue;
 				}
-				if (TaskDto.STATUS_STOP.equals(task.getStatus())
-						|| TaskDto.STATUS_ERROR.equals(task.getStatus())
-						|| TaskDto.STATUS_SCHEDULE_FAILED.equals(task.getStatus())) {
+				if (TaskDto.STATUS_STOPPING.equals(task.getStatus())) {
+					taskService.pause(taskId, user, false, true);
+				} else if (shouldRestartAfterRegistration(stoppedTask.getStatus(), task.getStatus())) {
 					// The affected heartbeat and shared CDC tasks are restored explicitly below.
 					// Disable TaskService's dependency orchestration to avoid starting an already
 					// scheduling dependency again while the business task is being restored.
 					taskService.start(task, user, "00");
-				} else if (TaskDto.STATUS_STOPPING.equals(task.getStatus())) {
-					taskService.pause(taskId, user, false, true);
 				} else {
-					log.info("Skip restarting task '{}' (id={}) after connector registration because its status is '{}'",
-							stoppedTask.getName(), taskId, task.getStatus());
+					// The task did not stop the way our pause should have left it (e.g. it went to
+					// ERROR/COMPLETE for an unrelated reason). Do not blindly restart it and mask
+					// that failure; surface it so the operator can investigate.
+					log.warn("Not restarting task '{}' (id={}) after connector registration because its status"
+									+ " changed from '{}' to '{}' instead of stopping cleanly",
+							stoppedTask.getName(), taskId, stoppedTask.getStatus(), task.getStatus());
 				}
 			} catch (Exception e) {
+				restartFailures.add("task " + taskId + " (" + stoppedTask.getName() + "): " + e.getMessage());
 				log.error("Failed to restart task {} after connector registration", taskId, e);
 			}
 		}
 	}
 
-	private void restartAffectedInspects(List<InspectDto> stoppedInspects, UserDetail user) {
+	private boolean shouldRestartAfterRegistration(String statusBeforeStop, String statusNow) {
+		if (TaskDto.STATUS_STOP.equals(statusNow)) {
+			return TaskDto.STATUS_RUNNING.equals(statusBeforeStop)
+					|| TaskDto.STATUS_WAIT_RUN.equals(statusBeforeStop);
+		}
+		if (TaskDto.STATUS_SCHEDULE_FAILED.equals(statusNow)) {
+			// Pausing a task that is still scheduling leaves it in schedule_failed.
+			return TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
+		}
+		return false;
+	}
+
+	private void restartAffectedInspects(List<InspectDto> stoppedInspects, UserDetail user, List<String> restartFailures) {
 		ListIterator<InspectDto> iterator = stoppedInspects.listIterator(stoppedInspects.size());
 		while (iterator.hasPrevious()) {
 			InspectDto stoppedInspect = iterator.previous();
@@ -489,6 +520,7 @@ public class PkdSourceService {
 				scheduleDto.setStatus(InspectStatusEnum.SCHEDULING.getValue());
 				inspectService.doExecuteInspect(where, scheduleDto, user);
 			} catch (Exception e) {
+				restartFailures.add("inspect task " + inspectId + " (" + stoppedInspect.getName() + "): " + e.getMessage());
 				log.error("Failed to restart inspect task {} after connector registration", inspectId, e);
 			}
 		}

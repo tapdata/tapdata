@@ -132,7 +132,7 @@ public class AccessTokenServiceImpl implements AccessTokenService {
      * 用于前端被动轮询（带 {@code X-User-Activity: 0}），避免用户实际无操作期间会话被持续延期。
      * 对 {@link AuthType#ACCESS_CODE} 类 token，绝对寿命不受该参数影响，仅影响 Mongo TTL 索引的顺延。
      */
-    public ObjectId validate(String accessToken, boolean countAsActivity) {
+    private AccessTokenEntity validateInternal(String accessToken, boolean countAsActivity) {
         AccessTokenEntity accessTokenEntity = accessTokenRepository.getMongoOperations().findById(accessToken, AccessTokenEntity.class);
         if (accessTokenEntity == null)
             return null;
@@ -182,13 +182,18 @@ public class AccessTokenServiceImpl implements AccessTokenService {
                     : accessTokenEntity.getCreated();
             refreshLastUpdatedIfNeeded(accessToken, refreshBase, ttlSeconds, now);
         }
-        return accessTokenEntity.getUserId();
+        return accessTokenEntity;
     }
 
     @Override
-    public String getAuthType(String accessToken) {
-        AccessTokenEntity accessTokenEntity = accessTokenRepository.getMongoOperations().findById(accessToken, AccessTokenEntity.class);
-        return accessTokenEntity == null ? null : accessTokenEntity.getAuthType();
+    public ObjectId validate(String accessToken, boolean countAsActivity) {
+        AccessTokenEntity accessTokenEntity = validateInternal(accessToken, countAsActivity);
+        return accessTokenEntity == null ? null : accessTokenEntity.getUserId();
+    }
+
+    @Override
+    public AccessTokenEntity validateEntity(String accessToken, boolean countAsActivity) {
+        return validateInternal(accessToken, countAsActivity);
     }
 
     /**

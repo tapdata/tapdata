@@ -1,5 +1,7 @@
 package com.tapdata.tm.base.security;
 
+import com.tapdata.tm.accessToken.dto.AuthType;
+import com.tapdata.tm.accessToken.entity.AccessTokenEntity;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.component.ProductComponent;
@@ -17,6 +19,7 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -93,12 +96,13 @@ class LoginUserResolverTest {
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			request.setQueryString("name=test&access_token=token%2Bvalue");
 			UserDetail userDetail = user("access-token");
-			when(accessTokenService.validate("token+value", true)).thenReturn(userId);
+			when(accessTokenService.validateEntity("token+value", true)).thenReturn(token(userId));
 			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
+			assertEquals(AuthType.USERNAME_LOGIN.getValue(), actual.getAuthType());
 		}
 
 		@Test
@@ -145,7 +149,7 @@ class LoginUserResolverTest {
 		void testThrowNotLoginWhenAccessTokenInvalid() {
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			request.setQueryString("access_token=invalid");
-			when(accessTokenService.validate("invalid", true)).thenReturn(null);
+			when(accessTokenService.validateEntity("invalid", true)).thenReturn(null);
 
 			assertThrows(BizException.class, () -> loginUserResolver.resolve(request));
 		}
@@ -158,14 +162,14 @@ class LoginUserResolverTest {
 			request.setQueryString("access_token=t1");
 			request.addHeader(LoginUserResolver.USER_ACTIVITY_HEADER, "0");
 			UserDetail userDetail = user("polling");
-			when(accessTokenService.validate("t1", false)).thenReturn(userId);
+			when(accessTokenService.validateEntity("t1", false)).thenReturn(token(userId));
 			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
-			verify(accessTokenService, times(1)).validate("t1", false);
-			verify(accessTokenService, never()).validate("t1", true);
+			verify(accessTokenService, times(1)).validateEntity("t1", false);
+			verify(accessTokenService, never()).validateEntity("t1", true);
 		}
 
 		@Test
@@ -176,13 +180,13 @@ class LoginUserResolverTest {
 			request.setQueryString("access_token=t2");
 			request.addHeader(LoginUserResolver.USER_ACTIVITY_HEADER, "passive");
 			UserDetail userDetail = user("active-fallback");
-			when(accessTokenService.validate("t2", true)).thenReturn(userId);
+			when(accessTokenService.validateEntity("t2", true)).thenReturn(token(userId));
 			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
-			verify(accessTokenService, times(1)).validate("t2", true);
+			verify(accessTokenService, times(1)).validateEntity("t2", true);
 		}
 
 		@Test
@@ -224,5 +228,16 @@ class LoginUserResolverTest {
 
 	private UserDetail user(String username) {
 		return new UserDetail("user-id", "customer-id", username, "password", Collections.emptyList());
+	}
+
+	private AccessTokenEntity token(ObjectId userId) {
+		return token(userId, AuthType.USERNAME_LOGIN.getValue());
+	}
+
+	private AccessTokenEntity token(ObjectId userId, String authType) {
+		AccessTokenEntity entity = new AccessTokenEntity();
+		entity.setUserId(userId);
+		entity.setAuthType(authType);
+		return entity;
 	}
 }

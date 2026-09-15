@@ -4,7 +4,6 @@ import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -109,7 +108,7 @@ public class PkdSourceServiceTest {
             when(file.getInputStream()).thenReturn(ins);
             when(ins.read(any())).thenReturn(-1);
             when(fileService.storeFile(any(),anyString(),any(),anyMap())).thenReturn(mock(ObjectId.class));
-            pkdSourceService.uploadPdk(files,pdkSourceDtos,latest,user);
+            pkdSourceService.uploadPdk(files,pdkSourceDtos,latest,user,false);
             verify(fileService).storeFile(any(),anyString(),any(),anyMap());
             FileUtils.deleteQuietly(new File("a.jar"));
 
@@ -130,7 +129,7 @@ public class PkdSourceServiceTest {
 
                 return null;
             }).when(result).forEach(any());
-            pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
+            pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user, false);
             verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());
 
             /*pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
@@ -163,7 +162,7 @@ public class PkdSourceServiceTest {
 			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(stoppedTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			verify(taskService).pause(taskId, user, false);
 			verify(taskService).start(stoppedTask, user, "00");
@@ -176,10 +175,9 @@ public class PkdSourceServiceTest {
 			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
 			MultipartFile jarFile = mockJarFile();
 			UserDetail user = mock(UserDetail.class);
-			when(user.getAuthType()).thenReturn(AuthType.ACCESS_CODE.getValue());
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, true);
 
 			verify(dataSourceService, never()).findAllDto(any(Query.class), eq(user));
 			verify(taskService, never()).findAllDto(any(Query.class), eq(user));
@@ -217,7 +215,7 @@ public class PkdSourceServiceTest {
 			when(jarFile.getInputStream()).thenThrow(new IOException("upload failed"));
 
 			assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
-					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user));
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
 			verify(taskService).pause(taskId, user, false);
 			verify(taskService).start(stoppedTask, user, "00");
@@ -248,7 +246,7 @@ public class PkdSourceServiceTest {
 			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(completedTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			verify(taskService).pause(taskId, user, false);
 			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
@@ -256,7 +254,7 @@ public class PkdSourceServiceTest {
 
 		@Test
 		@SneakyThrows
-		void testRestartAffectedTaskWhenItEntersErrorWhileStopping() {
+		void testSkipRestartAffectedTaskWhenItEntersErrorWhileStopping() {
 			ObjectId connectionId = new ObjectId();
 			ObjectId taskId = new ObjectId();
 			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
@@ -279,9 +277,9 @@ public class PkdSourceServiceTest {
 			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(errorTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
-			verify(taskService).start(errorTask, user, "00");
+			verify(taskService, never()).start(any(TaskDto.class), any(UserDetail.class), anyString());
 		}
 
 		@Test
@@ -308,7 +306,7 @@ public class PkdSourceServiceTest {
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
 			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
-					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user));
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
 			assertTrue(exception.getMessage().contains("Affected resources did not stop"));
 			verify(taskService).pause(taskId, user, false);
@@ -345,7 +343,7 @@ public class PkdSourceServiceTest {
 			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(stoppedTask, stoppingTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			verify(taskService).pause(taskId, user, false, true);
 		}
@@ -358,7 +356,7 @@ public class PkdSourceServiceTest {
 			when(dbLockRepository.renew(anyString(), anyString(), any(Date.class))).thenReturn(LockStateEnums.NO);
 
 			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
-					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user));
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
 			assertTrue(exception.getMessage().contains("Connector registration is already in progress"));
 			verifyNoInteractions(dataSourceService, taskService, inspectService);
@@ -399,7 +397,7 @@ public class PkdSourceServiceTest {
 			when(inspectService.findById(inspectId)).thenReturn(stoppedInspect);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			verify(taskService).pause(taskId, user, false);
 			verify(taskService).start(stoppedTask, user, "00");
@@ -445,7 +443,7 @@ public class PkdSourceServiceTest {
 							stoppedHeartbeatTask, stoppedLogCollectorTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			InOrder stopOrder = inOrder(taskService);
 			stopOrder.verify(taskService).pause(logCollectorId, user, false);
@@ -465,7 +463,7 @@ public class PkdSourceServiceTest {
 			when(jarFile.getInputStream()).thenThrow(new IOException("upload failed"));
 
 			assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
-					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user));
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
 			verify(dbLockRepository).release(anyString(), anyString());
 		}
@@ -479,10 +477,44 @@ public class PkdSourceServiceTest {
 			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.emptyList());
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			verify(taskService, never()).findAllDto(any(Query.class), eq(user));
 			verify(inspectService, never()).findAllDto(any(Query.class), eq(user));
+		}
+
+		@Test
+		@SneakyThrows
+		void testSurfaceRestartFailureAfterSuccessfulUpload() {
+			ObjectId connectionId = new ObjectId();
+			ObjectId taskId = new ObjectId();
+			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
+			MultipartFile jarFile = mockJarFile();
+			UserDetail user = mock(UserDetail.class);
+
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(connectionId);
+			TaskDto affectedTask = new TaskDto();
+			affectedTask.setId(taskId);
+			affectedTask.setName("restart-fails");
+			affectedTask.setStatus(TaskDto.STATUS_RUNNING);
+			affectedTask.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			TaskDto stoppedTask = new TaskDto();
+			stoppedTask.setId(taskId);
+			stoppedTask.setStatus(TaskDto.STATUS_STOP);
+
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
+			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(stoppedTask);
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+			doThrow(new BizException("engine unavailable")).when(taskService).start(stoppedTask, user, "00");
+
+			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
+
+			assertTrue(exception.getMessage().contains("could not be restarted"));
+			verify(taskService).pause(taskId, user, false);
+			verify(taskService).start(stoppedTask, user, "00");
 		}
 
 		private PdkSourceDto mockPdkSourceDto() {

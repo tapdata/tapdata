@@ -24,7 +24,11 @@ public interface AccessTokenService {
      */
     ObjectId validate(String accessToken, boolean countAsActivity);
 
-    String getAuthType(String accessToken);
+    /**
+     * 校验 access token，并在同一次查询内返回校验通过的 token 实体（含 userId 与 authType）。
+     * token 无效时返回 {@code null}。供鉴权链路一次性取得 userId 与 authType，避免重复查库。
+     */
+    AccessTokenEntity validateEntity(String accessToken, boolean countAsActivity);
 
     AccessTokenDto save(User user);
 
