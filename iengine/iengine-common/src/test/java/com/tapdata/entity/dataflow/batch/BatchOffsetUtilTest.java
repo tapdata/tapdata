@@ -16,6 +16,7 @@ import org.mockito.MockedStatic;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -448,6 +449,64 @@ class BatchOffsetUtilTest {
 
             Map<String, Object> encodedTableOffset = (Map<String, Object>) ((Map<String, Object>) encoded).get(tableId);
             assertEquals(PdkUtil.ENCODE_PREFIX + "HashReadOffset", encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+        }
+
+        @Test
+        @DisplayName("encode transforms a table offset given as the whole batch offset")
+        void testEncodeConnectorOffsetTopLevelTableOffset() {
+            Map<String, Object> connectorOffset = new HashMap<>();
+            connectorOffset.put("position", 1);
+            Map<String, Object> tableOffset = new HashMap<>();
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            tableOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, connectorOffset);
+
+            Object encoded = BatchOffsetUtil.encodeConnectorOffset(tableOffset, value -> "encoded:" + value.getClass().getSimpleName());
+
+            assertNotSame(tableOffset, encoded);
+            Map<String, Object> encodedTableOffset = (Map<String, Object>) encoded;
+            assertEquals(TableBatchReadStatus.RUNNING.name(), encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
+            assertEquals("encoded:HashMap", encodedTableOffset.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+        }
+
+        @Test
+        @DisplayName("encode must not descend into a bare connector offset payload")
+        void testEncodeConnectorOffsetDoesNotDescendIntoPayload() {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            nested.put("b", 2);
+            nested.put("a", 1);
+            Map<String, Object> bareTableOffset = new HashMap<>();
+            bareTableOffset.put("hash", nested);
+            Map<String, Object> batchOffset = new HashMap<>();
+            batchOffset.put(tableId, bareTableOffset);
+
+            Object encoded = BatchOffsetUtil.encodeConnectorOffset(batchOffset, value -> {
+                throw new AssertionError("a bare offset without a marker must not be encoded");
+            });
+
+            Map<String, Object> encodedTableOffset = (Map<String, Object>) ((Map<String, Object>) encoded).get(tableId);
+            assertSame(bareTableOffset, encodedTableOffset);
+            assertSame(nested, encodedTableOffset.get("hash"));
+            assertInstanceOf(LinkedHashMap.class, encodedTableOffset.get("hash"));
+        }
+
+        @Test
+        @DisplayName("decode must not descend into a bare connector offset payload")
+        void testDecodeConnectorOffsetDoesNotDescendIntoPayload() {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            nested.put("b", 2);
+            nested.put("a", 1);
+            Map<String, Object> bareTableOffset = new HashMap<>();
+            bareTableOffset.put("hash", nested);
+            Map<String, Object> batchOffset = new HashMap<>();
+            batchOffset.put(tableId, bareTableOffset);
+
+            Object decoded = BatchOffsetUtil.decodeConnectorOffset(batchOffset, value -> {
+                throw new AssertionError("a bare offset without a marker must not be decoded");
+            });
+
+            Map<String, Object> decodedTableOffset = (Map<String, Object>) ((Map<String, Object>) decoded).get(tableId);
+            assertSame(bareTableOffset, decodedTableOffset);
+            assertInstanceOf(LinkedHashMap.class, decodedTableOffset.get("hash"));
         }
     }
 

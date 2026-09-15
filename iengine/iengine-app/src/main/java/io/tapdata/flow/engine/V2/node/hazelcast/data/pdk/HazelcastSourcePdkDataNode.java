@@ -547,7 +547,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                 , BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName)
             );
             TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-            tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableName));
+            tapdataCompleteTableSnapshotEvent.setBatchOffset(snapshotBatchOffset(tableName));
             tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
             enqueue(tapdataCompleteTableSnapshotEvent);
             return;
@@ -714,7 +714,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
         }
         executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
         TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-        tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableName));
+        tapdataCompleteTableSnapshotEvent.setBatchOffset(snapshotBatchOffset(tableName));
         tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
         enqueue(tapdataCompleteTableSnapshotEvent);
     }

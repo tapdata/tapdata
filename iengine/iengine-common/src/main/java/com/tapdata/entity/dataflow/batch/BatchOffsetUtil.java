@@ -113,31 +113,47 @@ public class BatchOffsetUtil {
     }
 
     public static Object encodeConnectorOffset(Object batchOffsetObj, Function<Object, String> encoder) {
-        if (batchOffsetObj instanceof Map) {
-            Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
-            Map<Object, Object> target = new HashMap<>(source);
-            if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET) || target.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
-                target.put(BATCH_READ_CONNECTOR_OFFSET, encodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), encoder));
-                return target;
-            }
-            source.forEach((key, value) -> target.put(key, encodeConnectorOffset(value, encoder)));
-            return target;
-        }
-        return batchOffsetObj;
+        return transformConnectorOffset(batchOffsetObj, offset -> encodeOffsetIfNeed(offset, encoder));
     }
 
     public static Object decodeConnectorOffset(Object batchOffsetObj, Function<String, Object> decoder) {
-        if (batchOffsetObj instanceof Map) {
-            Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
-            Map<Object, Object> target = new HashMap<>(source);
-            if (target.containsKey(BATCH_READ_CONNECTOR_OFFSET) || target.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
-                target.put(BATCH_READ_CONNECTOR_OFFSET, decodeOffsetIfNeed(target.get(BATCH_READ_CONNECTOR_OFFSET), decoder));
-                return target;
-            }
-            source.forEach((key, value) -> target.put(key, decodeConnectorOffset(value, decoder)));
-            return target;
+        return transformConnectorOffset(batchOffsetObj, offset -> decodeOffsetIfNeed(offset, decoder));
+    }
+
+    /**
+     * Rebuild the batch offset applying {@code offsetTransform} to the connector offset that is
+     * carried by a table offset marker ({@link #BATCH_READ_CONNECTOR_OFFSET}). The top level map is
+     * {@code tableId -&gt; tableOffset}, so we descend exactly one level and never walk into the
+     * connector offset payload. Rebuilding the payload would replace nested {@code LinkedHashMap}s
+     * (losing iteration order) and connector defined {@code Serializable} {@code Map} subclasses with
+     * plain {@code HashMap}s, which the connector would fail to cast back when resuming.
+     */
+    private static Object transformConnectorOffset(Object batchOffsetObj, Function<Object, Object> offsetTransform) {
+        if (!(batchOffsetObj instanceof Map)) {
+            return batchOffsetObj;
         }
-        return batchOffsetObj;
+        Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
+        if (isTableOffsetMarker(source)) {
+            // the whole batch offset already is a single table offset
+            return transformTableOffset(source, offsetTransform);
+        }
+        Map<Object, Object> target = new HashMap<>(source);
+        source.forEach((key, value) -> {
+            if (value instanceof Map && isTableOffsetMarker((Map<?, ?>) value)) {
+                target.put(key, transformTableOffset((Map<?, ?>) value, offsetTransform));
+            }
+        });
+        return target;
+    }
+
+    private static boolean isTableOffsetMarker(Map<?, ?> offsetMap) {
+        return offsetMap.containsKey(BATCH_READ_CONNECTOR_OFFSET) || offsetMap.containsKey(BATCH_READ_CONNECTOR_STATUS);
+    }
+
+    private static Object transformTableOffset(Map<?, ?> tableOffset, Function<Object, Object> offsetTransform) {
+        Map<Object, Object> target = new HashMap<>(tableOffset);
+        target.put(BATCH_READ_CONNECTOR_OFFSET, offsetTransform.apply(target.get(BATCH_READ_CONNECTOR_OFFSET)));
+        return target;
     }
 
     private static Object encodeOffsetIfNeed(Object offset, Function<Object, String> encoder) {

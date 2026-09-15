@@ -130,6 +130,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import io.tapdata.entity.CountResult;
 
@@ -1631,6 +1632,40 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertSame(currentOffset.getPartitions(), snapshot.getPartitions());
 			assertFalse(snapshot.getTableCompleted());
 			assertTrue(snapshot.getCompletedPartitions().isEmpty());
+		}
+
+		@DisplayName("test connector batch offset is handed off as an immutable encoded snapshot")
+		@Test
+		void testConnectorBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(hazelcastSourcePdkDataNode).getConnectorNode();
+
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("position", 100);
+
+			SyncProgress progress = new SyncProgress();
+			progress.setBatchOffsetObj(new ConcurrentHashMap<>());
+			BatchOffsetUtil.updateBatchOffset(progress, tableId, connectorOffset, TableBatchReadStatus.RUNNING.name());
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotBatchOffset(tableId);
+			// the snapshot is a table offset marker map; wrap it in a tableId keyed container just like it is stored
+			Map<String, Object> snapshotContainer = new HashMap<>();
+			snapshotContainer.put(tableId, snapshot);
+			SyncProgress snapshotProgress = new SyncProgress();
+			snapshotProgress.setBatchOffsetObj(snapshotContainer);
+			Object snapshotOffset = BatchOffsetUtil.getBatchOffsetOfTable(snapshotProgress, tableId);
+
+			// the live connector offset is serialized into an immutable string, not shared by reference
+			assertNotSame(connectorOffset, snapshotOffset);
+			assertInstanceOf(String.class, snapshotOffset);
+			assertTrue(((String) snapshotOffset).startsWith(PdkUtil.ENCODE_PREFIX));
+
+			// mutating the connector's live offset after the snapshot must not change the captured breakpoint
+			connectorOffset.put("position", 999);
+			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
+			assertEquals(100, decoded.get("position"));
 		}
 	}
 

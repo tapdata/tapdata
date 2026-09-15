@@ -1581,7 +1581,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         if (batchOffset instanceof PartitionTableOffset) {
             return ((PartitionTableOffset) batchOffset).copy();
         }
-        return batchOffset;
+        /**
+         * The connector may reuse and mutate the same offset instance across batches. Hand the target
+         * an immutable (already encoded) snapshot instead of the live reference, otherwise the target
+         * could persist a breakpoint ahead of the data it has actually written and the next crash
+         * resume would skip rows that were never persisted.
+         */
+        return BatchOffsetUtil.encodeConnectorOffset(batchOffset, PdkUtil::encodeOffset);
     }
 
     protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {
