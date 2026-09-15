@@ -5,15 +5,27 @@ import com.google.common.collect.Maps;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dblock.DBLock;
+import com.tapdata.tm.dblock.DBLockConfiguration;
+import com.tapdata.tm.dblock.DBLockRepository;
+import com.tapdata.tm.dblock.ILock;
+import com.tapdata.tm.dblock.LockStateEnums;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.ds.repository.PdkSourceRepository;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.inspect.constant.InspectStatusEnum;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.tcm.service.TcmService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.*;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +59,16 @@ public class PkdSourceService {
 
 	public static final String METADATA_PDK_APIBUILD_NUMBER = "metadata.pdkAPIBuildNumber";
 	public static final String METADATA_PDK_HASH = "metadata.pdkHash";
+	private long taskStopTimeoutMillis = 60_000L;
+	private long taskStopPollIntervalMillis = 1_000L;
+	private static final long CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS = 300_000L;
+	private static final String CONNECTOR_REGISTRATION_LOCK_PREFIX = "PkdSourceService.uploadPdk.";
 	private DataSourceDefinitionService dataSourceDefinitionService;
+	private DataSourceService dataSourceService;
+	private TaskService taskService;
+	private InspectService inspectService;
+	private DBLockRepository dbLockRepository;
+	private DBLockConfiguration dbLockConfiguration;
 	private FileService fileService;
 	private TcmService tcmService;
 	private SettingsService settingsService;
@@ -75,8 +96,70 @@ public class PkdSourceService {
 			throw new BizException("Invalid jar file, please upload a valid jar file.");
 		}
 
-        Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
-        for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
+		String lockOwner = dbLockConfiguration.getOwner() + ":" + UUID.randomUUID();
+		List<ILock> registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
+		List<TaskDto> stoppedTasks = new ArrayList<>();
+		List<InspectDto> stoppedInspects = new ArrayList<>();
+		try {
+			Set<String> connectionIds = findAffectedConnectionIds(pdkSourceDtos, user);
+			stopAffectedTasks(connectionIds, stoppedTasks, user);
+			stopAffectedInspects(connectionIds, stoppedInspects, user);
+			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user);
+			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+		} finally {
+			try {
+				restartAffectedInspects(stoppedInspects, user);
+				restartAffectedTasks(stoppedTasks, user);
+			} finally {
+				releaseRegistrationLocks(registrationLocks, lockOwner);
+			}
+		}
+		log.debug("Upload pdk done.");
+	}
+
+	private List<ILock> acquireRegistrationLocks(List<PdkSourceDto> pdkSourceDtos, String lockOwner) {
+		List<String> lockKeys = pdkSourceDtos.stream()
+				.filter(Objects::nonNull)
+				.filter(pdkSourceDto -> StringUtils.isNotBlank(pdkSourceDto.getId()))
+				.map(pdkSourceDto -> CONNECTOR_REGISTRATION_LOCK_PREFIX + pdkSourceDto.getGroup() + "." + pdkSourceDto.getId())
+				.distinct()
+				.sorted()
+				.collect(Collectors.toList());
+		List<ILock> acquiredLocks = new ArrayList<>();
+		try {
+			for (String lockKey : lockKeys) {
+				ILock lock = DBLock.create(dbLockRepository, lockKey);
+				LockStateEnums lockState = lock.acquire(lockOwner, CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS);
+				if (!lockState.isYes()) {
+					throw new BizException("Connector registration is already in progress: " + lockKey);
+				}
+				acquiredLocks.add(lock);
+			}
+			return acquiredLocks;
+		} catch (RuntimeException e) {
+			releaseRegistrationLocks(acquiredLocks, lockOwner);
+			throw e;
+		}
+	}
+
+	private void releaseRegistrationLocks(List<ILock> registrationLocks, String lockOwner) {
+		ListIterator<ILock> iterator = registrationLocks.listIterator(registrationLocks.size());
+		while (iterator.hasPrevious()) {
+			ILock lock = iterator.previous();
+			try {
+				if (!lock.release(lockOwner)) {
+					log.warn("Failed to release connector registration lock '{}' for owner '{}'", lock.getKey(), lockOwner);
+				}
+			} catch (Exception e) {
+				log.warn("Failed to release connector registration lock '{}' for owner '{}'", lock.getKey(), lockOwner, e);
+			}
+		}
+	}
+
+	private void uploadPdkDefinitions(MultipartFile jarFile, Map<String, MultipartFile> iconMap,
+			Map<String, MultipartFile> docMap, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
+		Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
+		for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
             String version  = pdkSourceDto.getVersion();
             Integer pdkAPIBuildNumber = pdkSourceDto.getPdkAPIBuildNumber();
@@ -189,7 +272,209 @@ public class PkdSourceService {
 			}
 			log.debug("Upsert data source definition success");
 		}
-		log.debug("Upload pdk done.");
+	}
+
+	private Set<String> findAffectedConnectionIds(List<PdkSourceDto> pdkSourceDtos, UserDetail user) {
+		List<Criteria> connectorCriteria = pdkSourceDtos.stream()
+				.filter(Objects::nonNull)
+				.filter(pdkSourceDto -> StringUtils.isNotBlank(pdkSourceDto.getId()))
+				.map(pdkSourceDto -> Criteria.where("definitionPdkId").is(pdkSourceDto.getId())
+						.and("definitionGroup").is(pdkSourceDto.getGroup()))
+				.collect(Collectors.toList());
+		if (CollectionUtils.isEmpty(connectorCriteria)) {
+			return Collections.emptySet();
+		}
+
+		Criteria criteria = new Criteria().andOperator(
+				Criteria.where("is_deleted").ne(true),
+				new Criteria().orOperator(connectorCriteria)
+		);
+		Query query = Query.query(criteria);
+		query.fields().include("_id");
+		List<DataSourceConnectionDto> connections = dataSourceService.findAllDto(query, user);
+		if (CollectionUtils.isEmpty(connections)) {
+			return Collections.emptySet();
+		}
+		return connections.stream()
+				.map(DataSourceConnectionDto::getId)
+				.filter(Objects::nonNull)
+				.map(ObjectId::toHexString)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
+	private void stopAffectedTasks(Set<String> connectionIds, List<TaskDto> stoppedTasks, UserDetail user) {
+		if (CollectionUtils.isEmpty(connectionIds)) {
+			return;
+		}
+		List<Criteria> connectionCriteria = new ArrayList<>();
+		connectionCriteria.add(Criteria.where("dag.nodes.connectionId").in(connectionIds));
+		connectionCriteria.add(Criteria.where("dag.nodes.connectionIds").in(connectionIds));
+		connectionIds.forEach(connectionId -> connectionCriteria.add(
+				Criteria.where("dag.nodes.logCollectorConnConfigs." + connectionId).exists(true)));
+
+		Criteria criteria = new Criteria().andOperator(
+				Criteria.where("is_deleted").ne(true),
+				Criteria.where("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE,
+						TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT),
+				Criteria.where("status").in(TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_RUNNING),
+				new Criteria().orOperator(connectionCriteria)
+		);
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "name", "status", "syncType");
+		List<TaskDto> tasks = taskService.findAllDto(query, user);
+		if (CollectionUtils.isEmpty(tasks)) {
+			return;
+		}
+
+		tasks.sort(Comparator.comparingInt(this::taskStopOrder));
+		for (TaskDto task : tasks) {
+			log.info("Stopping task '{}' (id={}, syncType={}) before connector registration",
+					task.getName(), task.getId(), task.getSyncType());
+			taskService.pause(task.getId(), user, false);
+			stoppedTasks.add(task);
+		}
+	}
+
+	private int taskStopOrder(TaskDto task) {
+		if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(task.getSyncType())) {
+			return 2;
+		}
+		if (TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
+			return 1;
+		}
+		return 0;
+	}
+
+	private void stopAffectedInspects(Set<String> connectionIds, List<InspectDto> stoppedInspects, UserDetail user) {
+		if (CollectionUtils.isEmpty(connectionIds)) {
+			return;
+		}
+		Criteria criteria = new Criteria().andOperator(
+				Criteria.where("is_deleted").ne(true),
+				Criteria.where("status").in(InspectStatusEnum.RUNNING.getValue(), InspectStatusEnum.SCHEDULING.getValue()),
+				new Criteria().orOperator(
+						Criteria.where("tasks.source.connectionId").in(connectionIds),
+						Criteria.where("tasks.target.connectionId").in(connectionIds))
+		);
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "name", "status");
+		List<InspectDto> inspectTasks = inspectService.findAllDto(query, user);
+		if (CollectionUtils.isEmpty(inspectTasks)) {
+			return;
+		}
+
+		for (InspectDto inspectTask : inspectTasks) {
+			Where where = new Where();
+			where.put("id", inspectTask.getId().toHexString());
+			InspectDto stopDto = new InspectDto();
+			stopDto.setStatus(InspectStatusEnum.STOPPING.getValue());
+			log.info("Stopping inspect task '{}' (id={}) before connector registration",
+					inspectTask.getName(), inspectTask.getId());
+			inspectService.doExecuteInspect(where, stopDto, user);
+			stoppedInspects.add(inspectTask);
+		}
+	}
+
+	private void waitForAffectedResourcesStopped(List<TaskDto> stoppedTasks, List<InspectDto> stoppedInspects, UserDetail user) {
+		if (CollectionUtils.isEmpty(stoppedTasks) && CollectionUtils.isEmpty(stoppedInspects)) {
+			return;
+		}
+		long deadline = System.currentTimeMillis() + taskStopTimeoutMillis;
+		while (true) {
+			List<String> pendingResources = new ArrayList<>();
+			for (TaskDto stoppedTask : stoppedTasks) {
+				TaskDto task = taskService.findOne(Query.query(Criteria.where("_id").is(stoppedTask.getId())), user);
+				if (task != null && !isTaskInactive(task.getStatus())) {
+					pendingResources.add("task " + stoppedTask.getName());
+				}
+			}
+			for (InspectDto stoppedInspect : stoppedInspects) {
+				InspectDto inspect = inspectService.findById(stoppedInspect.getId());
+				if (inspect != null && !isInspectStopped(inspect.getStatus())) {
+					pendingResources.add("inspect task " + stoppedInspect.getName());
+				}
+			}
+			if (pendingResources.isEmpty()) {
+				return;
+			}
+			if (System.currentTimeMillis() >= deadline) {
+				log.warn("Affected resources did not reach a stable status before connector registration timeout; "
+						+ "continue registration to avoid blocking on transient or ineffective pause states: {}",
+						String.join(", ", pendingResources));
+				return;
+			}
+			sleepBeforeNextStatusCheck("affected resources", String.join(", ", pendingResources));
+		}
+	}
+
+	private boolean isTaskInactive(String status) {
+		return TaskDto.STATUS_STOP.equals(status)
+				|| TaskDto.STATUS_COMPLETE.equals(status)
+				|| TaskDto.STATUS_ERROR.equals(status)
+				|| TaskDto.STATUS_SCHEDULE_FAILED.equals(status);
+	}
+
+	private boolean isInspectStopped(String status) {
+		return InspectStatusEnum.DONE.getValue().equals(status)
+				|| InspectStatusEnum.PASSED.getValue().equals(status)
+				|| InspectStatusEnum.FAILED.getValue().equals(status)
+				|| InspectStatusEnum.ERROR.getValue().equals(status);
+	}
+
+	private void sleepBeforeNextStatusCheck(String taskType, String taskName) {
+		try {
+			Thread.sleep(taskStopPollIntervalMillis);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new BizException("Interrupted while waiting for " + taskType + " to stop: " + taskName);
+		}
+	}
+
+	private void restartAffectedTasks(List<TaskDto> stoppedTasks, UserDetail user) {
+		ListIterator<TaskDto> iterator = stoppedTasks.listIterator(stoppedTasks.size());
+		while (iterator.hasPrevious()) {
+			TaskDto stoppedTask = iterator.previous();
+			ObjectId taskId = stoppedTask.getId();
+			try {
+				TaskDto task = taskService.findOne(Query.query(Criteria.where("_id").is(taskId)), user);
+				if (task == null) {
+					continue;
+				}
+				if (TaskDto.STATUS_STOP.equals(task.getStatus())
+						|| TaskDto.STATUS_ERROR.equals(task.getStatus())
+						|| TaskDto.STATUS_SCHEDULE_FAILED.equals(task.getStatus())) {
+					taskService.start(taskId, user);
+				} else if (TaskDto.STATUS_STOPPING.equals(task.getStatus())) {
+					taskService.pause(taskId, user, false, true);
+				} else {
+					log.info("Skip restarting task '{}' (id={}) after connector registration because its status is '{}'",
+							stoppedTask.getName(), taskId, task.getStatus());
+				}
+			} catch (Exception e) {
+				log.error("Failed to restart task {} after connector registration", taskId, e);
+			}
+		}
+	}
+
+	private void restartAffectedInspects(List<InspectDto> stoppedInspects, UserDetail user) {
+		ListIterator<InspectDto> iterator = stoppedInspects.listIterator(stoppedInspects.size());
+		while (iterator.hasPrevious()) {
+			InspectDto stoppedInspect = iterator.previous();
+			ObjectId inspectId = stoppedInspect.getId();
+			try {
+				InspectDto inspect = inspectService.findById(inspectId);
+				if (inspect == null || !isInspectStopped(inspect.getStatus())) {
+					continue;
+				}
+				Where where = new Where();
+				where.put("id", inspectId.toHexString());
+				InspectDto scheduleDto = new InspectDto();
+				scheduleDto.setStatus(InspectStatusEnum.SCHEDULING.getValue());
+				inspectService.doExecuteInspect(where, scheduleDto, user);
+			} catch (Exception e) {
+				log.error("Failed to restart inspect task {} after connector registration", inspectId, e);
+			}
+		}
 	}
 	public String checkJarMD5(String pdkHash, int pdkBuildNumber, String fileName){
 		String md5 = null;
