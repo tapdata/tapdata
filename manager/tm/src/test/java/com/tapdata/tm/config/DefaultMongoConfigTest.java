@@ -1,6 +1,5 @@
 package com.tapdata.tm.config;
 
-import com.tapdata.tm.config.convert.BigIntegerWriteConverter;
 import com.tapdata.tm.commons.schema.Field;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
@@ -24,38 +23,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Regression tests for the Spring Boot 4 / Spring Data MongoDB 5.x migration, which changed the
+ * default {@link MongoCustomConversions.BigDecimalRepresentation} from STRING to UNSPECIFIED.
+ * Without an explicit STRING configuration, BigInteger/BigDecimal field default values (e.g.
+ * derived from unsigned BIGINT columns) fail to encode or silently become Decimal128. The STRING
+ * representation — and the symmetric framework-provided read/write converters behind it — is what
+ * the persistence format relies on, so these tests pin it down.
+ */
 class DefaultMongoConfigTest {
 
     @Test
-    void testMongoCustomConversionsShouldRegisterBigIntegerWriteConverter() {
-        DefaultMongoConfig defaultMongoConfig = new DefaultMongoConfig();
-
-        MongoCustomConversions conversions = defaultMongoConfig.mongoCustomConversions();
-
-        assertTrue(conversions.hasCustomWriteTarget(BigInteger.class, String.class));
-    }
-
-    @Test
-    void testMongoCustomConversionsShouldPersistBigDecimalAsString() {
+    void testMongoCustomConversionsShouldPersistBigIntegerAndBigDecimalAsString() {
         MongoCustomConversions conversions = new DefaultMongoConfig().mongoCustomConversions();
 
+        assertTrue(conversions.hasCustomWriteTarget(BigInteger.class, String.class));
         assertTrue(conversions.hasCustomWriteTarget(BigDecimal.class, String.class));
-    }
-
-    @Test
-    void testBigIntegerWriteConverterShouldPreserveFullValueAsString() {
-        BigIntegerWriteConverter converter = new BigIntegerWriteConverter();
-
-        String actual = converter.convert(new BigInteger("123456789012345678901234567890"));
-
-        assertEquals("123456789012345678901234567890", actual);
     }
 
     @Test
     void testUpdateMapperShouldWriteBigIntegerFieldDefaultsAsString() {
         MappingMongoConverter converter = createProductionMappingMongoConverter();
 
-        BigInteger bigInteger = new BigInteger("123456789012345678901234567890");
+        BigInteger bigInteger = new BigInteger("18446744073709551615");
         Field field = new Field();
         field.setDefaultValue(bigInteger);
         field.setOriginalDefaultValue(bigInteger);
@@ -64,8 +54,25 @@ class DefaultMongoConfigTest {
         Document mappedUpdate = new UpdateMapper(converter).getMappedObject(update.getUpdateObject(), (MongoPersistentEntity<?>) null);
         Document mappedField = (Document) ((List<?>) ((Document) mappedUpdate.get("$set")).get("fields")).get(0);
 
-        assertEquals("123456789012345678901234567890", mappedField.get("default_value"));
-        assertEquals("123456789012345678901234567890", mappedField.get("originalDefaultValue"));
+        assertEquals("18446744073709551615", mappedField.get("default_value"));
+        assertEquals("18446744073709551615", mappedField.get("originalDefaultValue"));
+    }
+
+    @Test
+    void testUpdateMapperShouldWriteBigDecimalFieldDefaultAsStringNotDecimal128() {
+        MappingMongoConverter converter = createProductionMappingMongoConverter();
+
+        BigDecimal bigDecimal = new BigDecimal("123456789012345678901234567890.123456789");
+        Field field = new Field();
+        field.setDefaultValue(bigDecimal);
+
+        Update update = new Update().set("fields", Collections.singletonList(field));
+
+        Document mappedUpdate = new UpdateMapper(converter).getMappedObject(update.getUpdateObject(), (MongoPersistentEntity<?>) null);
+        Document mappedField = (Document) ((List<?>) ((Document) mappedUpdate.get("$set")).get("fields")).get(0);
+
+        assertEquals(bigDecimal.toString(), mappedField.get("default_value"));
+        assertTrue(mappedField.get("default_value") instanceof String);
     }
 
     @Test
