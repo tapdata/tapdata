@@ -47,6 +47,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +69,11 @@ public class PkdSourceService {
 	@Setter(AccessLevel.NONE)
 	@Value("${pdk.registration.task-stop-poll-interval-millis:1000}")
 	private long taskStopPollIntervalMillis = 1_000L;
+	// Renew the registration lock well before its lease elapses so a long running registration
+	// (stop tasks + wait + upload) cannot lose its lease to a concurrent registration.
+	@Setter(AccessLevel.NONE)
+	@Value("${pdk.registration.lock-renew-interval-millis:60000}")
+	private long registrationLockRenewIntervalMillis = 60_000L;
 	private static final long CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS = 300_000L;
 	private static final String CONNECTOR_REGISTRATION_LOCK_PREFIX = "PkdSourceService.uploadPdk.";
 	private DataSourceDefinitionService dataSourceDefinitionService;
@@ -110,13 +117,19 @@ public class PkdSourceService {
 			return;
 		}
 		List<ILock> registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
+		RegistrationLockRenewal lockRenewal = scheduleRegistrationLockRenewal(registrationLocks, lockOwner);
 		List<TaskDto> stoppedTasks = new ArrayList<>();
 		List<InspectDto> stoppedInspects = new ArrayList<>();
 		List<String> restartFailures = new ArrayList<>();
 		RuntimeException registrationFailure = null;
 		try {
 			Set<String> connectionIds = findAffectedConnectionIds(pdkSourceDtos, user);
-			stopAffectedTasks(connectionIds, stoppedTasks, user);
+			List<TaskDto> affectedTasks = findAffectedTasks(connectionIds, user);
+			// Besides the per-connector locks acquired above, serialise registrations that touch the same
+			// tasks. Two different connectors may be referenced by one task, so connector level locks alone
+			// do not stop two registrations from stopping/restarting the same task concurrently.
+			acquireAffectedTaskLocks(affectedTasks, lockOwner, registrationLocks);
+			pauseAffectedTasks(affectedTasks, stoppedTasks, user);
 			stopAffectedInspects(connectionIds, stoppedInspects, user);
 			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user);
 			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
@@ -124,9 +137,15 @@ public class PkdSourceService {
 			registrationFailure = e;
 		} finally {
 			try {
+				// A status poll may have set the interrupt flag before aborting the registration; clear
+				// it so the restore calls below are not aborted by a stale interrupt.
+				Thread.interrupted();
 				restartAffectedInspects(stoppedInspects, user, restartFailures);
 				restartAffectedTasks(stoppedTasks, user, restartFailures);
 			} finally {
+				if (lockRenewal != null) {
+					lockRenewal.stop();
+				}
 				releaseRegistrationLocks(registrationLocks, lockOwner);
 			}
 		}
@@ -160,17 +179,94 @@ public class PkdSourceService {
 		List<ILock> acquiredLocks = new ArrayList<>();
 		try {
 			for (String lockKey : lockKeys) {
-				ILock lock = DBLock.create(dbLockRepository, lockKey);
-				LockStateEnums lockState = lock.acquire(lockOwner, CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS);
-				if (!lockState.isYes()) {
-					throw new BizException("Connector registration is already in progress: " + lockKey);
-				}
-				acquiredLocks.add(lock);
+				acquireRegistrationLock(lockKey, lockOwner, acquiredLocks);
 			}
 			return acquiredLocks;
 		} catch (RuntimeException e) {
 			releaseRegistrationLocks(acquiredLocks, lockOwner);
 			throw e;
+		}
+	}
+
+	private void acquireRegistrationLock(String lockKey, String lockOwner, List<ILock> acquiredLocks) {
+		ILock lock = DBLock.create(dbLockRepository, lockKey);
+		LockStateEnums lockState = lock.acquire(lockOwner, CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS);
+		if (!lockState.isYes()) {
+			throw new BizException("Connector registration is already in progress: " + lockKey);
+		}
+		acquiredLocks.add(lock);
+	}
+
+	/**
+	 * Serialises registrations that stop/restart the same tasks. Two different connectors may be referenced
+	 * by one task, so per-connector locks alone do not prevent two registrations from racing on that task.
+	 * Any locks acquired here are appended to {@code acquiredLocks} and released by the caller.
+	 */
+	private void acquireAffectedTaskLocks(List<TaskDto> affectedTasks, String lockOwner, List<ILock> acquiredLocks) {
+		List<String> lockKeys = affectedTasks.stream()
+				.map(TaskDto::getId)
+				.filter(Objects::nonNull)
+				.distinct()
+				.map(taskId -> CONNECTOR_REGISTRATION_LOCK_PREFIX + "task." + taskId.toHexString())
+				.sorted()
+				.collect(Collectors.toList());
+		for (String lockKey : lockKeys) {
+			acquireRegistrationLock(lockKey, lockOwner, acquiredLocks);
+		}
+	}
+
+	private RegistrationLockRenewal scheduleRegistrationLockRenewal(List<ILock> registrationLocks, String lockOwner) {
+		if (CollectionUtils.isEmpty(registrationLocks)) {
+			return null;
+		}
+		return new RegistrationLockRenewal(registrationLocks, lockOwner, registrationLockRenewIntervalMillis);
+	}
+
+	/**
+	 * Keeps the connector registration locks alive while a registration is in progress. The locks are acquired
+	 * with a fixed lease ({@link #CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS}); without renewal a slow
+	 * registration could out-live the lease and let a concurrent registration take over. {@link #stop()} must be
+	 * called before the locks are released so a renewal cannot re-acquire a lock after it was released.
+	 */
+	private static final class RegistrationLockRenewal {
+		private final List<ILock> locks;
+		private final String owner;
+		private final Object monitor = new Object();
+		private final ScheduledFuture<?> future;
+		private volatile boolean renewing = true;
+
+		private RegistrationLockRenewal(List<ILock> locks, String owner, long renewIntervalMillis) {
+			this.locks = locks;
+			this.owner = owner;
+			this.future = DBLock.executor.scheduleWithFixedDelay(this::renewAll,
+					renewIntervalMillis, renewIntervalMillis, TimeUnit.MILLISECONDS);
+		}
+
+		private void renewAll() {
+			synchronized (monitor) {
+				if (!renewing) {
+					return;
+				}
+				for (ILock lock : locks) {
+					try {
+						LockStateEnums state = lock.acquire(owner, CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS);
+						if (!state.isYes()) {
+							log.warn("Connector registration lock '{}' for owner '{}' could not be renewed;"
+									+ " it may have been taken over by another instance", lock.getKey(), owner);
+						}
+					} catch (Exception e) {
+						log.warn("Failed to renew connector registration lock '{}' for owner '{}'", lock.getKey(), owner, e);
+					}
+				}
+			}
+		}
+
+		private void stop() {
+			future.cancel(false);
+			synchronized (monitor) {
+				// Wait for any in-flight renewal, so no lock is re-acquired after the caller releases it.
+				renewing = false;
+			}
 		}
 	}
 
@@ -334,9 +430,9 @@ public class PkdSourceService {
 				.collect(Collectors.toCollection(LinkedHashSet::new));
 	}
 
-	private void stopAffectedTasks(Set<String> connectionIds, List<TaskDto> stoppedTasks, UserDetail user) {
+	private List<TaskDto> findAffectedTasks(Set<String> connectionIds, UserDetail user) {
 		if (CollectionUtils.isEmpty(connectionIds)) {
-			return;
+			return Collections.emptyList();
 		}
 		List<Criteria> connectionCriteria = new ArrayList<>();
 		connectionCriteria.add(Criteria.where("dag.nodes.connectionId").in(connectionIds));
@@ -355,11 +451,15 @@ public class PkdSourceService {
 		query.fields().include("_id", "name", "status", "syncType");
 		List<TaskDto> tasks = taskService.findAllDto(query, user);
 		if (CollectionUtils.isEmpty(tasks)) {
-			return;
+			return Collections.emptyList();
 		}
 
 		tasks.sort(Comparator.comparingInt(this::taskStopOrder));
-		for (TaskDto task : tasks) {
+		return tasks;
+	}
+
+	private void pauseAffectedTasks(List<TaskDto> affectedTasks, List<TaskDto> stoppedTasks, UserDetail user) {
+		for (TaskDto task : affectedTasks) {
 			log.info("Stopping task '{}' (id={}, syncType={}) before connector registration",
 					task.getName(), task.getId(), task.getSyncType());
 			taskService.pause(task.getId(), user, false);
@@ -477,10 +577,18 @@ public class PkdSourceService {
 					// Disable TaskService's dependency orchestration to avoid starting an already
 					// scheduling dependency again while the business task is being restored.
 					taskService.start(task, user, "00");
+				} else if (shouldReportRestartFailure(stoppedTask.getStatus(), task.getStatus())) {
+					// The task was running before we paused it but is now in ERROR instead of being restored.
+					// Surface it through restartFailures so the registration does not report success while a
+					// live task silently stayed down.
+					restartFailures.add("task " + taskId + " (" + stoppedTask.getName() + "): status changed from '"
+							+ stoppedTask.getStatus() + "' to '" + task.getStatus() + "' and was not restarted");
+					log.error("Task '{}' (id={}) was not restarted after connector registration because its status"
+									+ " changed from '{}' to '{}'",
+							stoppedTask.getName(), taskId, stoppedTask.getStatus(), task.getStatus());
 				} else {
-					// The task did not stop the way our pause should have left it (e.g. it went to
-					// ERROR/COMPLETE for an unrelated reason). Do not blindly restart it and mask
-					// that failure; surface it so the operator can investigate.
+					// The task did not stop the way our pause should have left it (e.g. it completed normally).
+					// Do not blindly restart it and mask that; log it for the operator to investigate.
 					log.warn("Not restarting task '{}' (id={}) after connector registration because its status"
 									+ " changed from '{}' to '{}' instead of stopping cleanly",
 							stoppedTask.getName(), taskId, stoppedTask.getStatus(), task.getStatus());
@@ -502,6 +610,16 @@ public class PkdSourceService {
 			return TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
 		}
 		return false;
+	}
+
+	private boolean shouldReportRestartFailure(String statusBeforeStop, String statusNow) {
+		// A task that was running (or about to run) when we paused it but ended up in ERROR never came
+		// back: report it instead of swallowing the failure. A clean COMPLETE is a normal finish and is
+		// intentionally not reported.
+		boolean wasActiveBeforeStop = TaskDto.STATUS_RUNNING.equals(statusBeforeStop)
+				|| TaskDto.STATUS_WAIT_RUN.equals(statusBeforeStop)
+				|| TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
+		return wasActiveBeforeStop && TaskDto.STATUS_ERROR.equals(statusNow);
 	}
 
 	private void restartAffectedInspects(List<InspectDto> stoppedInspects, UserDetail user, List<String> restartFailures) {
