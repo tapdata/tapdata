@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -103,6 +104,11 @@ public class PkdSourceService {
 		}
 
 		String lockOwner = dbLockConfiguration.getOwner() + ":" + UUID.randomUUID();
+		if (isAccessCodeRegistration(user)) {
+			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+			log.debug("Upload pdk done.");
+			return;
+		}
 		List<ILock> registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
 		List<TaskDto> stoppedTasks = new ArrayList<>();
 		List<InspectDto> stoppedInspects = new ArrayList<>();
@@ -121,6 +127,10 @@ public class PkdSourceService {
 			}
 		}
 		log.debug("Upload pdk done.");
+	}
+
+	private boolean isAccessCodeRegistration(UserDetail user) {
+		return user != null && AuthType.ACCESS_CODE.getValue().equals(user.getAuthType());
 	}
 
 	private List<ILock> acquireRegistrationLocks(List<PdkSourceDto> pdkSourceDtos, String lockOwner) {
@@ -447,7 +457,10 @@ public class PkdSourceService {
 				if (TaskDto.STATUS_STOP.equals(task.getStatus())
 						|| TaskDto.STATUS_ERROR.equals(task.getStatus())
 						|| TaskDto.STATUS_SCHEDULE_FAILED.equals(task.getStatus())) {
-					taskService.start(taskId, user);
+					// The affected heartbeat and shared CDC tasks are restored explicitly below.
+					// Disable TaskService's dependency orchestration to avoid starting an already
+					// scheduling dependency again while the business task is being restored.
+					taskService.start(task, user, "00");
 				} else if (TaskDto.STATUS_STOPPING.equals(task.getStatus())) {
 					taskService.pause(taskId, user, false, true);
 				} else {

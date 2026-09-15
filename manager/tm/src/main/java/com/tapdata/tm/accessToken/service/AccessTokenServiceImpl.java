@@ -185,6 +185,12 @@ public class AccessTokenServiceImpl implements AccessTokenService {
         return accessTokenEntity.getUserId();
     }
 
+    @Override
+    public String getAuthType(String accessToken) {
+        AccessTokenEntity accessTokenEntity = accessTokenRepository.getMongoOperations().findById(accessToken, AccessTokenEntity.class);
+        return accessTokenEntity == null ? null : accessTokenEntity.getAuthType();
+    }
+
     /**
      * 获取浏览器登录态的不活跃过期时间（秒）：优先读取 Settings（以分钟为单位存储，此处换算为秒，
      * 支持运行时热加载），回退到 application.yml 中 {@code access.token.ttl}（秒）。

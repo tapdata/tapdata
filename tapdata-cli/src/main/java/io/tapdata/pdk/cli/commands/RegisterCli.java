@@ -36,6 +36,7 @@ import java.util.*;
 )
 public class RegisterCli extends CommonCli {
     private static final String TAG = RegisterCli.class.getSimpleName();
+    private static final String ADMIN_EMAIL = "admin@admin.com";
     private PrintUtil printUtil;
     @CommandLine.Parameters(paramLabel = "FILE", description = "One or more pdk jar files")
     File[] files;
@@ -45,6 +46,12 @@ public class RegisterCli extends CommonCli {
 
     @CommandLine.Option(names = {"-a", "--auth"}, required = false, description = "Provide auth token to register")
     private String authToken;
+
+    @CommandLine.Option(names = {"-u", "--user"}, defaultValue = ADMIN_EMAIL, description = "TM administrator email")
+    private String username;
+
+    @CommandLine.Option(names = {"-p", "--password"}, required = false, interactive = true, arity = "0..1", description = "TM administrator password")
+    private String password;
 
     @CommandLine.Option(names = {"-ak", "--accessKey"}, required = false, description = "Provide auth accessKey")
     private String ak;
@@ -71,6 +78,7 @@ public class RegisterCli extends CommonCli {
     public Integer execute() throws Exception {
         printUtil = new PrintUtil(showAllMessage);
         TapLogger.setLogListener(printUtil.getLogListener());
+        validateAuthentication(authToken, username, password, ak);
 
         List<String> filterTypes = generateSkipTypes();
         if (!filterTypes.isEmpty()) {
@@ -244,7 +252,7 @@ public class RegisterCli extends CommonCli {
                     }
                     if (file.isFile()) {
                         printUtil.print(PrintUtil.TYPE.INFO, " => uploading ");
-                        UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk, printUtil);
+                        UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, username, password, ak, sk, printUtil);
                         printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s | (%s) Completed", file.getName(), connectionType));
                     } else {
                         printUtil.print(PrintUtil.TYPE.DEBUG, "File " + file + " doesn't exists");
@@ -266,6 +274,22 @@ public class RegisterCli extends CommonCli {
             System.exit(-1);
         }
         return 0;
+    }
+
+    static void validateAuthentication(String authToken, String username, String password, String ak) {
+        if (StringUtils.isNotBlank(ak) || StringUtils.isNotBlank(authToken)) {
+            return;
+        }
+        validateAdministrator(username, password);
+    }
+
+    static void validateAdministrator(String username, String password) {
+        if (!ADMIN_EMAIL.equals(StringUtils.trim(username))) {
+            throw new IllegalArgumentException("Connector registration only supports admin@admin.com");
+        }
+        if (StringUtils.isBlank(password)) {
+            throw new IllegalArgumentException("Administrator password is required");
+        }
     }
 
     public File[] getAllJarFile(File[] paths) {

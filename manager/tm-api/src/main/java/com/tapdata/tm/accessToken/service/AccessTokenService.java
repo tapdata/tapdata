@@ -24,6 +24,8 @@ public interface AccessTokenService {
      */
     ObjectId validate(String accessToken, boolean countAsActivity);
 
+    String getAuthType(String accessToken);
+
     AccessTokenDto save(User user);
 
     /**

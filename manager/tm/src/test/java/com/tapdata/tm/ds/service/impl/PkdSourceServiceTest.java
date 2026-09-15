@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -165,7 +166,29 @@ public class PkdSourceServiceTest {
 			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
 
 			verify(taskService).pause(taskId, user, false);
-			verify(taskService).start(taskId, user);
+			verify(taskService).start(stoppedTask, user, "00");
+			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+		}
+
+		@Test
+		@SneakyThrows
+		void testAccessCodeRegistrationKeepsLegacyUploadOnlyBehavior() {
+			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
+			MultipartFile jarFile = mockJarFile();
+			UserDetail user = mock(UserDetail.class);
+			when(user.getAuthType()).thenReturn(AuthType.ACCESS_CODE.getValue());
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+
+			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
+
+			verify(dataSourceService, never()).findAllDto(any(Query.class), eq(user));
+			verify(taskService, never()).findAllDto(any(Query.class), eq(user));
+			verify(taskService, never()).pause(any(ObjectId.class), any(UserDetail.class), anyBoolean());
+			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+			verify(taskService, never()).start(any(TaskDto.class), any(UserDetail.class), anyString());
+			verify(inspectService, never()).findAllDto(any(Query.class), eq(user));
+			verify(dbLockRepository, never()).renew(anyString(), anyString(), any(Date.class));
+			verify(fileService).storeFile(any(), anyString(), isNull(), anyMap());
 		}
 
 		@Test
@@ -197,7 +220,7 @@ public class PkdSourceServiceTest {
 					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user));
 
 			verify(taskService).pause(taskId, user, false);
-			verify(taskService).start(taskId, user);
+			verify(taskService).start(stoppedTask, user, "00");
 		}
 
 		@Test
@@ -258,7 +281,7 @@ public class PkdSourceServiceTest {
 
 			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
 
-			verify(taskService).start(taskId, user);
+			verify(taskService).start(errorTask, user, "00");
 		}
 
 		@Test
@@ -379,7 +402,7 @@ public class PkdSourceServiceTest {
 			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
 
 			verify(taskService).pause(taskId, user, false);
-			verify(taskService).start(taskId, user);
+			verify(taskService).start(stoppedTask, user, "00");
 			ArgumentCaptor<InspectDto> inspectStatusCaptor = ArgumentCaptor.forClass(InspectDto.class);
 			verify(inspectService, times(2)).doExecuteInspect(any(), inspectStatusCaptor.capture(), eq(user));
 			assertEquals(InspectStatusEnum.STOPPING.getValue(), inspectStatusCaptor.getAllValues().get(0).getStatus());
@@ -408,12 +431,18 @@ public class PkdSourceServiceTest {
 			logCollectorTask.setName("log-collector-task");
 			logCollectorTask.setStatus(TaskDto.STATUS_RUNNING);
 			logCollectorTask.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
-			TaskDto stoppedTask = new TaskDto();
-			stoppedTask.setStatus(TaskDto.STATUS_STOP);
+			TaskDto stoppedHeartbeatTask = new TaskDto();
+			stoppedHeartbeatTask.setId(heartbeatId);
+			stoppedHeartbeatTask.setStatus(TaskDto.STATUS_STOP);
+			TaskDto stoppedLogCollectorTask = new TaskDto();
+			stoppedLogCollectorTask.setId(logCollectorId);
+			stoppedLogCollectorTask.setStatus(TaskDto.STATUS_STOP);
 
 			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
 			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Arrays.asList(heartbeatTask, logCollectorTask));
-			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(stoppedTask);
+			when(taskService.findOne(any(Query.class), eq(user)))
+					.thenReturn(stoppedLogCollectorTask, stoppedHeartbeatTask,
+							stoppedHeartbeatTask, stoppedLogCollectorTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
 			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user);
@@ -421,8 +450,10 @@ public class PkdSourceServiceTest {
 			InOrder stopOrder = inOrder(taskService);
 			stopOrder.verify(taskService).pause(logCollectorId, user, false);
 			stopOrder.verify(taskService).pause(heartbeatId, user, false);
-			verify(taskService).start(heartbeatId, user);
-			verify(taskService).start(logCollectorId, user);
+			InOrder restartOrder = inOrder(taskService);
+			restartOrder.verify(taskService).start(stoppedHeartbeatTask, user, "00");
+			restartOrder.verify(taskService).start(stoppedLogCollectorTask, user, "00");
+			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
 		}
 
 		@Test

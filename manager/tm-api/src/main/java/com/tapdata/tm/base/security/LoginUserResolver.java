@@ -105,6 +105,7 @@ public class LoginUserResolver {
 			}
 			UserDetail userDetail = userService.loadUserById(userId);
 			if (userDetail != null) {
+				userDetail.setAuthType(accessTokenService.getAuthType(accessToken));
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
