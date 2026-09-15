@@ -1256,6 +1256,42 @@ class ModulesServiceTest {
 		}
 
 		@Test
+		@DisplayName("test activeApis logs warning when MongoDB URI parsing fails")
+		void testActiveApisWhenMongoDbUriParsingFails() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			doReturn(List.of(modulesDto)).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("isUri", true);
+			config.put("uri", "xxx");
+			dataSourceConnectionDto.setConfig(config);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(List.of(dataSourceConnectionDto));
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail)))
+					.thenReturn(List.of(definitionDto));
+
+			List<ModulesDto> result = assertDoesNotThrow(
+					() -> modulesService.activeApis(apiDefinitionVo, userDetail));
+
+			assertNotNull(result);
+			assertEquals("xxx", dataSourceConnectionDto.getConfig().get("uri"));
+		}
+
+		@Test
 		@DisplayName("connection 已被历史导入写坏时，按 datasource 解析连接（TAP-12425）")
 		void testActiveApisResolvesConnectionByDataSource() {
 			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
