@@ -17,7 +17,10 @@ import java.util.Locale;
 
 /**
  * Shared inbound token extraction. Priority: Bearer, {@code access_token} header,
- * JSON body {@code access_token}, URL {@code access_token} (COMPAT/WARN only).
+ * JSON body {@code access_token}, cookie (WS only), URL {@code access_token}
+ * (COMPAT/WARN only). URL query is ignored when a higher-priority source is
+ * already present (TAP-12923 Header-wins). Different non-query tokens still
+ * fail closed.
  */
 public final class AccessTokenResolver {
 
@@ -77,17 +80,12 @@ public final class AccessTokenResolver {
 		}
 
 		String queryToken = fromQuery(request);
-		if (queryToken != null) {
+		if (queryToken != null && candidates.isEmpty()) {
 			if (!effective.acceptsUrlToken()) {
-				if (candidates.isEmpty()) {
-					AuthTokenMetrics.urlTokenRejected();
-					return AccessTokenResolution.urlRejected();
-				}
-				// URL token present alongside a higher-priority source: conflict if different.
-				candidates.add(new Candidate(queryToken, AccessTokenSource.QUERY));
-			} else {
-				candidates.add(new Candidate(queryToken, AccessTokenSource.QUERY));
+				AuthTokenMetrics.urlTokenRejected();
+				return AccessTokenResolution.urlRejected();
 			}
+			candidates.add(new Candidate(queryToken, AccessTokenSource.QUERY));
 		}
 
 		if (candidates.isEmpty()) {

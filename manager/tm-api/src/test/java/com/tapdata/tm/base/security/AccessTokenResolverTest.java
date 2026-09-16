@@ -134,12 +134,49 @@ class AccessTokenResolverTest {
 	}
 
 	@Test
-	void differentTokensConflict() {
+	void bearerWinsOverDifferentQueryToken() {
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
 		req.addHeader("Authorization", "Bearer A");
 		req.setQueryString("access_token=B");
 
 		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.WARN);
+		assertEquals(AccessTokenResolution.Status.FOUND, r.getStatus());
+		assertEquals("A", r.getToken());
+		assertEquals(AccessTokenSource.BEARER, r.getSource());
+		assertEquals(0, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void bearerWinsOverDifferentQueryTokenInRejectMode() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer A");
+		req.setQueryString("access_token=B");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT);
+		assertEquals(AccessTokenResolution.Status.FOUND, r.getStatus());
+		assertEquals("A", r.getToken());
+		assertEquals(AccessTokenSource.BEARER, r.getSource());
+	}
+
+	@Test
+	void headerWinsOverDifferentQueryToken() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("access_token", "from-header");
+		req.setQueryString("access_token=from-query");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals("from-header", r.getToken());
+		assertEquals(AccessTokenSource.HEADER, r.getSource());
+		assertEquals(0, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void bearerAndAccessTokenHeaderStillConflictWhenDifferent() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer A");
+		req.addHeader("access_token", "B");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
 		assertEquals(AccessTokenResolution.Status.CONFLICT, r.getStatus());
 		assertEquals(1, AuthTokenMetrics.conflicts());
 	}
@@ -184,13 +221,15 @@ class AccessTokenResolverTest {
 	}
 
 	@Test
-	void cookieAndQueryConflictWhenDifferent() {
+	void cookieWinsOverDifferentQueryToken() {
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
 		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "cookie-tok"));
 		req.setQueryString("access_token=query-tok");
 
 		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT, false, true);
-		assertEquals(AccessTokenResolution.Status.CONFLICT, r.getStatus());
+		assertEquals("cookie-tok", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+		assertEquals(0, AuthTokenMetrics.conflicts());
 	}
 
 	@Test

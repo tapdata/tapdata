@@ -39,26 +39,28 @@ class WebSocketHandshakeAuthTest {
 	}
 
 	@Test
-	void rejectBearerQueryConflictInCompat() {
+	void bearerWinsOverDifferentQueryInCompat() {
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
 		req.addHeader("Authorization", "Bearer token-a");
 		req.setQueryString("access_token=token-b");
 
 		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
-		assertTrue(d.rejected());
-		assertEquals(AccessTokenResolution.Status.CONFLICT, d.resolution().getStatus());
-		assertEquals(1, AuthTokenMetrics.conflicts());
+		assertFalse(d.rejected());
+		assertEquals(AccessTokenSource.BEARER, d.resolution().getSource());
+		assertEquals("token-a", d.resolution().getToken());
+		assertEquals(0, AuthTokenMetrics.conflicts());
 	}
 
 	@Test
-	void rejectBearerQueryConflictInRejectMode() {
+	void bearerWinsOverDifferentQueryInRejectMode() {
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
 		req.addHeader("Authorization", "Bearer token-a");
 		req.setQueryString("access_token=token-b");
 
 		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.REJECT);
-		assertTrue(d.rejected());
-		assertEquals(AccessTokenResolution.Status.CONFLICT, d.resolution().getStatus());
+		assertFalse(d.rejected());
+		assertEquals(AccessTokenSource.BEARER, d.resolution().getSource());
+		assertEquals("token-a", d.resolution().getToken());
 	}
 
 	@Test

@@ -117,13 +117,21 @@ class LoginUserResolverTest {
 		}
 
 		@Test
-		void testRejectWhenBearerAndQueryTokensDiffer() {
+		void testPreferBearerWhenQueryTokenDiffers() {
+			ObjectId userId = new ObjectId();
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			request.addHeader("Authorization", "Bearer A");
 			request.setQueryString("access_token=B");
+			UserDetail userDetail = user("bearer");
+			when(accessTokenService.validate("A", true)).thenReturn(userId);
+			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
-			assertThrows(BizException.class, () -> loginUserResolver.resolve(request));
-			verify(accessTokenService, never()).validate(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+			UserDetail actual = loginUserResolver.resolve(request);
+
+			assertSame(userDetail, actual);
+			verify(accessTokenService).validate("A", true);
+			verify(accessTokenService, never()).validate(org.mockito.ArgumentMatchers.eq("B"),
+					org.mockito.ArgumentMatchers.anyBoolean());
 		}
 
 		@Test

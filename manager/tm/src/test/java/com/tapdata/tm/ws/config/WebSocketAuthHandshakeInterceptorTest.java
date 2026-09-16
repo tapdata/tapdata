@@ -31,15 +31,15 @@ class WebSocketAuthHandshakeInterceptorTest {
 	}
 
 	@Test
-	void conflictAbortsHandshakeWith401() throws Exception {
+	void bearerWinsOverDifferentQueryAndStoresBearer() throws Exception {
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
 		req.addHeader("Authorization", "Bearer token-a");
 		req.setQueryString("access_token=token-b");
 		HandshakeCall call = handshake(req);
 
-		assertFalse(call.ok);
-		assertEquals(401, call.servletResponse.getStatus());
-		assertNull(call.attributes.get(WebSocketAuthHandshakeInterceptor.ACCESS_TOKEN_ATTRIBUTE));
+		assertTrue(call.ok);
+		assertEquals("token-a", call.attributes.get(WebSocketAuthHandshakeInterceptor.ACCESS_TOKEN_ATTRIBUTE));
+		assertNull(call.servletResponse.getHeader("Deprecation"));
 	}
 
 	@Test

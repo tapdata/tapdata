@@ -476,16 +476,11 @@ public class WebSocketServer extends TextWebSocketHandler {
 				token = cookieToken(session);
 			}
 			String queryToken = queryAccessToken(session);
-			if (StringUtils.isNotBlank(queryToken)) {
-				if (StringUtils.isNotBlank(token) && !token.equals(queryToken)) {
+			if (StringUtils.isBlank(token) && StringUtils.isNotBlank(queryToken)) {
+				if (!urlTokenMode().acceptsUrlToken()) {
 					return null;
 				}
-				if (StringUtils.isBlank(token)) {
-					if (!urlTokenMode().acceptsUrlToken()) {
-						return null;
-					}
-					token = queryToken;
-				}
+				token = queryToken;
 			}
 			if (StringUtils.isNotBlank(token)) {
 				ObjectId userId = accessTokenService.validate(token);

@@ -3,7 +3,7 @@ package com.tapdata.tm.base.security;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * WebSocket upgrade-time token policy. Same conflict / URL-token rules as REST,
+ * WebSocket upgrade-time token policy. Same Header-wins / URL-token rules as REST,
  * but missing tokens still allow the handshake (legacy anonymous sessions).
  */
 public final class WebSocketHandshakeAuth {
