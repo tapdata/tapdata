@@ -19,10 +19,8 @@ import com.tapdata.tm.sso.service.SamlLoginError;
 import com.tapdata.tm.sso.service.SamlLoginException;
 import com.tapdata.tm.sso.service.SamlLogoutService;
 import com.tapdata.tm.sso.service.SamlResponseValidator;
-import com.tapdata.tm.sso.service.LoginCodeService;
 import com.tapdata.tm.sso.service.SamlSessionService;
 import com.tapdata.tm.sso.service.SamlValidationException;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -62,7 +60,7 @@ public class SsoLoginController extends BaseController {
 
     private static final String REQUEST_ID_COOKIE = "TAPDATA_SAML_REQ";
     private static final String SAML_BASE_PATH = "/api/sso/saml";
-    /** SPA hash route that consumes the one-time login_code and completes the login. */
+    /** SPA hash route that consumes the access_token and completes the login. */
     private static final String DEFAULT_CALLBACK_REDIRECT = "/#/sso-callback";
     static final String ACCESS_COOKIE = "TAPDATA_ACCESS_TOKEN";
     /** SPA hash route shown when SAML login is refused; carries a sso_error reason code. */
@@ -77,7 +75,6 @@ public class SsoLoginController extends BaseController {
     private AccessTokenService accessTokenService;
     private UserService userService;
     private MongoTemplate mongoTemplate;
-    private LoginCodeService loginCodeService;
 
     @Operation(summary = "Whether SAML SSO login is enabled (for showing the login button)")
     @GetMapping("/enabled")
@@ -156,8 +153,7 @@ public class SsoLoginController extends BaseController {
             recordSession(subject, user, token);
             clearRequestIdCookie(response);
             writeAccessCookie(request, response, token.getId());
-            String loginCode = loginCodeService.issue(token.getId());
-            response.sendRedirect(buildSuccessRedirect(config, relayState, loginCode));
+            response.sendRedirect(buildSuccessRedirect(config, relayState, token.getId()));
         } catch (SamlValidationException e) {
             // Do not leak assertion contents; log message only (AC-055). Redirect the
             // browser back to the SPA login page carrying a stable reason code so the
@@ -360,20 +356,7 @@ public class SsoLoginController extends BaseController {
         mongoTemplate.insert(session);
     }
 
-    @Operation(summary = "Exchange a one-time SSO login_code for the access token")
-    @PostMapping("/exchange")
-    public ResponseMessage<AccessTokenDto> exchange(@RequestBody java.util.Map<String, String> body) {
-        String code = body == null ? null : body.get("login_code");
-        String tokenId = loginCodeService.redeem(code);
-        if (StringUtils.isBlank(tokenId)) {
-            throw new BizException("NotLogin");
-        }
-        AccessTokenDto dto = new AccessTokenDto();
-        dto.setId(tokenId);
-        return success(dto);
-    }
-
-    private String buildSuccessRedirect(SamlConfig config, String relayState, String loginCode) {
+    private String buildSuccessRedirect(SamlConfig config, String relayState, String tokenId) {
         // Neither the RelayState nor the configured loginRedirectUrl may point back at the
         // SAML endpoints: doing so would re-start SP-initiated login and loop indefinitely.
         // Both are guarded here so a misconfigured loginRedirectUrl (e.g. .../api/sso/saml/login)
@@ -383,7 +366,7 @@ public class SsoLoginController extends BaseController {
                 : StringUtils.isNotBlank(configured) && !isSamlEndpointRedirect(configured) ? configured
                 : DEFAULT_CALLBACK_REDIRECT;
         String separator = base.contains("?") ? "&" : "?";
-        return base + separator + "login_code=" + URLEncoder.encode(loginCode, StandardCharsets.UTF_8);
+        return base + separator + "access_token=" + URLEncoder.encode(tokenId, StandardCharsets.UTF_8);
     }
 
     private void writeAccessCookie(HttpServletRequest request, HttpServletResponse response, String tokenId) {
