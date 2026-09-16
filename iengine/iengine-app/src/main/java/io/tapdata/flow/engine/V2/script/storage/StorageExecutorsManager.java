@@ -5,6 +5,8 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.logger.Log;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.concurrent.ExecutionException;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public final class StorageExecutorsManager implements AutoCloseable {
+    private final Logger logger = LogManager.getLogger(StorageExecutorsManager.class);
 
     @FunctionalInterface
     public interface ConnectionResolver {
@@ -96,10 +99,7 @@ public final class StorageExecutorsManager implements AutoCloseable {
                         "File connection does not exist: " + key);
             }
             StorageExecutor executor = executorFactory.create(key, connections);
-            if (executor == null) {
-                throw new StorageOperationException(
-                        "File storage executor is not available: " + key);
-            }
+            assert executor != null;
             synchronized (this) {
                 if (closed || executors.get(key) != future) {
                     closeQuietly(executor);
@@ -140,8 +140,12 @@ public final class StorageExecutorsManager implements AutoCloseable {
         if (future.isCompletedExceptionally()) return;
         try {
             closeQuietly(future.get());
-        } catch (Throwable ignored) {
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+            logger.warn("Interrupted while closing file storage executor: {}", key);
+        } catch (ExecutionException e) {
             // Invalidation must not hide the original file operation failure.
+            logger.warn("Error while closing file storage executor: {}", key, e);
         }
     }
 
@@ -154,8 +158,12 @@ public final class StorageExecutorsManager implements AutoCloseable {
             if (future.isDone() && !future.isCompletedExceptionally()) {
                 try {
                     closeQuietly(future.get());
-                } catch (Throwable ignored) {
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.warn("Interrupted while closing file storage executor: {} - {}", entry.getKey(), e.getMessage());
+                } catch (Exception e) {
                     // Continue closing other connection executors.
+                    logger.warn("Error while closing file storage executor: {}", entry.getKey(), e);
                 }
             } else if (!future.isDone()) {
                 future.whenComplete((executor, error) -> closeQuietly(executor));
