@@ -1,6 +1,8 @@
 package com.tapdata.tm.config;
 
+import com.mongodb.BasicDBObject;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
@@ -82,8 +84,14 @@ class DefaultMongoConfigTest {
         Field field = new Field();
         field.setDefaultValue(bigDecimal);
 
-        Update update = new Update().push("histories").each(Collections.singletonList(
-                Collections.singletonMap("fields", Collections.singletonList(field))));
+        // Mirror MetadataInstancesServiceImpl.bulkSave: a raw BasicDBObject("$each", List<MetadataInstancesDto>)
+        // with a "$slice" appended, pushed onto the "histories" array. Using the production container and
+        // element types (not a Spring-built push().each(List<Map>)) is what actually pins the regression.
+        MetadataInstancesDto historyModel = new MetadataInstancesDto();
+        historyModel.setFields(Collections.singletonList(field));
+        BasicDBObject pushEach = new BasicDBObject("$each", Collections.singletonList(historyModel));
+        pushEach.append("$slice", -5);
+        Update update = new Update().push("histories", pushEach);
 
         Document mappedUpdate = new UpdateMapper(converter)
                 .getMappedObject(update.getUpdateObject(), (MongoPersistentEntity<?>) null);
@@ -94,6 +102,7 @@ class DefaultMongoConfigTest {
         Document mappedField = (Document) ((List<?>) history.get("fields")).get(0);
 
         assertEquals(bigDecimal.toString(), mappedField.get("default_value"));
+        assertTrue(mappedField.get("default_value") instanceof String);
     }
 
     private MappingMongoConverter createProductionMappingMongoConverter() {
