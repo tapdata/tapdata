@@ -609,4 +609,21 @@ class MailUtilsTest {
             }
         }
     }
+
+    @Test
+    void assemblyMessageBodyKeepsEmailCardWithoutHelloShell() {
+        String card = "<div class=\"email-content-root\"><p>alert</p></div>";
+        String body = MailUtils.assemblyMessageBody(card);
+        assertTrue(body.contains("email-content-root"));
+        assertTrue(body.contains("<!DOCTYPE html>"));
+        assertFalse(body.contains("Hello there"));
+        assertTrue(body.contains("<p>alert</p>"));
+    }
+
+    @Test
+    void assemblyMessageBodyStillWrapsPlainText() {
+        String body = MailUtils.assemblyMessageBody("plain alarm");
+        assertTrue(body.contains("plain alarm"));
+        assertTrue(body.contains("<!DOCTYPE html>"));
+    }
 }
