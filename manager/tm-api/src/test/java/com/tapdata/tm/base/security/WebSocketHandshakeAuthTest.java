@@ -102,4 +102,17 @@ class WebSocketHandshakeAuthTest {
 		assertTrue(d.rejected());
 		assertEquals(AccessTokenResolution.Status.INVALID_BEARER, d.resolution().getStatus());
 	}
+
+	@Test
+	void cookieAuthenticatesBrowserWebsocketWithoutQueryToken() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setQueryString("id=0f8b427d-0f3d-4a2d-af84-114dd7e7eeaa");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.REJECT);
+		assertFalse(d.rejected());
+		assertFalse(d.queryDeprecated());
+		assertEquals(AccessTokenSource.COOKIE, d.resolution().getSource());
+		assertEquals("browser-tok", d.resolution().getToken());
+	}
 }

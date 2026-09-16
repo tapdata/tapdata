@@ -86,6 +86,19 @@ class WebSocketAuthHandshakeInterceptorTest {
 		assertEquals(200, call.servletResponse.getStatus());
 	}
 
+	@Test
+	void cookieStoresTokenWithoutDeprecation() throws Exception {
+		ReflectionTestUtils.setField(interceptor, "urlTokenModeValue", "REJECT");
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setQueryString("id=client-1");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
+		HandshakeCall call = handshake(req);
+
+		assertTrue(call.ok);
+		assertEquals("browser-tok", call.attributes.get(WebSocketAuthHandshakeInterceptor.ACCESS_TOKEN_ATTRIBUTE));
+		assertNull(call.servletResponse.getHeader("Deprecation"));
+	}
+
 	private HandshakeCall handshake(MockHttpServletRequest req) throws Exception {
 		ServletServerHttpRequest serverReq = new ServletServerHttpRequest(req);
 		MockHttpServletResponse servletResponse = new MockHttpServletResponse();

@@ -23,6 +23,10 @@ public final class AccessTokenResolver {
 
 	public static final String AUTH_SOURCE_ATTRIBUTE = "tapdata.auth_source";
 	public static final String ACCESS_TOKEN_HEADER = "access_token";
+	/** Console JS session cookie. Browser WebSocket cannot set Authorization. */
+	public static final String ACCESS_TOKEN_COOKIE = "access_token";
+	/** HttpOnly cookie set by SAML ACS. */
+	public static final String TAPDATA_ACCESS_COOKIE = "TAPDATA_ACCESS_TOKEN";
 	private static final String AUTHORIZATION = "Authorization";
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -34,6 +38,11 @@ public final class AccessTokenResolver {
 	}
 
 	public static AccessTokenResolution resolve(HttpServletRequest request, UrlTokenMode mode, boolean allowBody) {
+		return resolve(request, mode, allowBody, false);
+	}
+
+	public static AccessTokenResolution resolve(HttpServletRequest request, UrlTokenMode mode,
+			boolean allowBody, boolean allowCookie) {
 		if (request == null) {
 			return AccessTokenResolution.missing();
 		}
@@ -58,6 +67,12 @@ public final class AccessTokenResolver {
 			String bodyToken = fromJsonBody(request);
 			if (bodyToken != null) {
 				candidates.add(new Candidate(bodyToken, AccessTokenSource.BODY));
+			}
+		}
+
+		if (allowCookie) {
+			for (String cookieToken : fromCookies(request)) {
+				candidates.add(new Candidate(cookieToken, AccessTokenSource.COOKIE));
 			}
 		}
 
@@ -93,6 +108,59 @@ public final class AccessTokenResolver {
 		}
 		request.setAttribute(AUTH_SOURCE_ATTRIBUTE, chosen.source.name());
 		return AccessTokenResolution.found(chosen.token, chosen.source);
+	}
+
+	static List<String> fromCookies(HttpServletRequest request) {
+		List<String> tokens = new ArrayList<>();
+		if (request == null) {
+			return tokens;
+		}
+		jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+		if (cookies != null) {
+			for (jakarta.servlet.http.Cookie cookie : cookies) {
+				if (cookie == null || cookie.getName() == null) {
+					continue;
+				}
+				if (ACCESS_TOKEN_COOKIE.equals(cookie.getName())
+						|| TAPDATA_ACCESS_COOKIE.equals(cookie.getName())) {
+					String value = nullIfBlank(urlDecode(cookie.getValue()));
+					if (value != null && !tokens.contains(value)) {
+						tokens.add(value);
+					}
+				}
+			}
+		}
+		if (tokens.isEmpty()) {
+			String header = request.getHeader("Cookie");
+			if (header == null) {
+				header = request.getHeader("cookie");
+			}
+			tokens.addAll(fromCookieHeader(header));
+		}
+		return tokens;
+	}
+
+	public static List<String> fromCookieHeader(String header) {
+		List<String> tokens = new ArrayList<>();
+		if (header == null || header.isBlank()) {
+			return tokens;
+		}
+		for (String part : header.split(";")) {
+			String trimmed = part.trim();
+			int eq = trimmed.indexOf('=');
+			if (eq <= 0) {
+				continue;
+			}
+			String name = trimmed.substring(0, eq).trim();
+			if (!ACCESS_TOKEN_COOKIE.equals(name) && !TAPDATA_ACCESS_COOKIE.equals(name)) {
+				continue;
+			}
+			String value = nullIfBlank(urlDecode(trimmed.substring(eq + 1).trim()));
+			if (value != null && !tokens.contains(value)) {
+				tokens.add(value);
+			}
+		}
+		return tokens;
 	}
 
 	static String fromQuery(HttpServletRequest request) {

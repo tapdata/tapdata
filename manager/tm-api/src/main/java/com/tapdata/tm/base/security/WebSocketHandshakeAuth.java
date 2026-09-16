@@ -18,7 +18,7 @@ public final class WebSocketHandshakeAuth {
 				return Decision.allow(AccessTokenResolution.missing());
 			}
 		}
-		AccessTokenResolution resolution = AccessTokenResolver.resolve(request, mode, false);
+		AccessTokenResolution resolution = AccessTokenResolver.resolve(request, mode, false, true);
 		return switch (resolution.getStatus()) {
 			case CONFLICT, INVALID_BEARER, URL_TOKEN_REJECTED -> Decision.reject(resolution);
 			default -> Decision.allow(resolution);

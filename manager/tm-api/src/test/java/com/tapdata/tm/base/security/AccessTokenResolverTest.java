@@ -153,4 +153,53 @@ class AccessTokenResolverTest {
 		assertTrue(r.isFound());
 		assertEquals(AccessTokenSource.QUERY, r.getSource());
 	}
+
+	@Test
+	void restDoesNotReadCookieByDefault() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "from-cookie"));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+	}
+
+	@Test
+	void cookieIsAcceptedForWebsocketEvenInRejectMode() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "from-cookie"));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT, false, true);
+		assertEquals("from-cookie", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+	}
+
+	@Test
+	void samlAccessCookieIsAcceptedWhenAllowCookie() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("TAPDATA_ACCESS_TOKEN", "saml-tok"));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT, false, true);
+		assertEquals("saml-tok", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+	}
+
+	@Test
+	void cookieAndQueryConflictWhenDifferent() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "cookie-tok"));
+		req.setQueryString("access_token=query-tok");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT, false, true);
+		assertEquals(AccessTokenResolution.Status.CONFLICT, r.getStatus());
+	}
+
+	@Test
+	void cookieHeaderFallbackWhenServletCookiesEmpty() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("Cookie", "other=1; access_token=hdr-tok; theme=dark");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT, false, true);
+		assertEquals("hdr-tok", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+	}
 }

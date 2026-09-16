@@ -4,5 +4,6 @@ public enum AccessTokenSource {
 	BEARER,
 	HEADER,
 	BODY,
+	COOKIE,
 	QUERY
 }

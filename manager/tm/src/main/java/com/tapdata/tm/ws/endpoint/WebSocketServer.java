@@ -9,6 +9,7 @@ package com.tapdata.tm.ws.endpoint;
 import cn.hutool.core.bean.BeanException;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
+import com.tapdata.tm.base.security.AccessTokenResolver;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.websocket.AllowRemoteCall;
@@ -471,6 +472,9 @@ public class WebSocketServer extends TextWebSocketHandler {
 					token = headerTokens.get(0);
 				}
 			}
+			if (StringUtils.isBlank(token)) {
+				token = cookieToken(session);
+			}
 			String queryToken = queryAccessToken(session);
 			if (StringUtils.isNotBlank(queryToken)) {
 				if (StringUtils.isNotBlank(token) && !token.equals(queryToken)) {
@@ -497,6 +501,18 @@ public class WebSocketServer extends TextWebSocketHandler {
 	private String storedHandshakeToken(WebSocketSession session) {
 		Object stored = session.getAttributes().get(WebSocketAuthHandshakeInterceptor.ACCESS_TOKEN_ATTRIBUTE);
 		return stored instanceof String value ? value : null;
+	}
+
+	private String cookieToken(WebSocketSession session) {
+		List<String> cookies = session.getHandshakeHeaders().get("Cookie");
+		if (CollectionUtils.isEmpty(cookies)) {
+			cookies = session.getHandshakeHeaders().get("cookie");
+		}
+		if (CollectionUtils.isEmpty(cookies)) {
+			return null;
+		}
+		List<String> tokens = AccessTokenResolver.fromCookieHeader(cookies.get(0));
+		return tokens.isEmpty() ? null : tokens.get(0);
 	}
 
 	private String queryAccessToken(WebSocketSession session) {
