@@ -573,10 +573,14 @@ public class PkdSourceService {
 				if (TaskDto.STATUS_STOPPING.equals(task.getStatus())) {
 					taskService.pause(taskId, user, false, true);
 				} else if (shouldRestartAfterRegistration(stoppedTask.getStatus(), task.getStatus())) {
-					// The affected heartbeat and shared CDC tasks are restored explicitly below.
-					// Disable TaskService's dependency orchestration to avoid starting an already
-					// scheduling dependency again while the business task is being restored.
-					taskService.start(task, user, "00");
+					// Restore the task exactly as a normal start would ("11"), so the shared-mining /
+					// heartbeat orchestration gated by startFlag bits 0 and 1 is not skipped. Passing "00"
+					// silently dropped it: logCollector() starts the task's shared-CDC miner when that miner is
+					// not running, and findAffectedTasks only selects scheduling/wait_run/running tasks, so a
+					// miner or heartbeat task that was already in stop is never restored separately. The
+					// orchestration is idempotent (it checks the dependency's status before starting it), so it
+					// is also safe when that dependency is restarted separately in this same pass.
+					taskService.start(task, user, "11");
 				} else if (shouldReportRestartFailure(stoppedTask.getStatus(), task.getStatus())) {
 					// The task was running before we paused it but is now in ERROR instead of being restored.
 					// Surface it through restartFailures so the registration does not report success while a
@@ -602,8 +606,14 @@ public class PkdSourceService {
 
 	private boolean shouldRestartAfterRegistration(String statusBeforeStop, String statusNow) {
 		if (TaskDto.STATUS_STOP.equals(statusNow)) {
+			// A task captured as SCHEDULING can end up in STOP rather than SCHEDULE_FAILED: the status is
+			// snapshotted when the affected tasks are selected, but pause() runs later, and by then the
+			// task has usually moved on to wait_run/running, so pausing it lands in STOP instead of
+			// SCHEDULE_FAILED. Treat it as active so it is restored rather than silently left stopped while
+			// the registration still reports success.
 			return TaskDto.STATUS_RUNNING.equals(statusBeforeStop)
-					|| TaskDto.STATUS_WAIT_RUN.equals(statusBeforeStop);
+					|| TaskDto.STATUS_WAIT_RUN.equals(statusBeforeStop)
+					|| TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
 		}
 		if (TaskDto.STATUS_SCHEDULE_FAILED.equals(statusNow)) {
 			// Pausing a task that is still scheduling leaves it in schedule_failed.
