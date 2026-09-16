@@ -62,7 +62,6 @@ public class SsoLoginController extends BaseController {
     private static final String SAML_BASE_PATH = "/api/sso/saml";
     /** SPA hash route that consumes the access_token and completes the login. */
     private static final String DEFAULT_CALLBACK_REDIRECT = "/#/sso-callback";
-    static final String ACCESS_COOKIE = "TAPDATA_ACCESS_TOKEN";
     /** SPA hash route shown when SAML login is refused; carries a sso_error reason code. */
     private static final String LOGIN_ERROR_REDIRECT = "/#/login";
 
@@ -152,7 +151,6 @@ public class SsoLoginController extends BaseController {
             AccessTokenDto token = accessTokenService.save(user, AuthType.SAML_LOGIN.getValue());
             recordSession(subject, user, token);
             clearRequestIdCookie(response);
-            writeAccessCookie(request, response, token.getId());
             response.sendRedirect(buildSuccessRedirect(config, relayState, token.getId()));
         } catch (SamlValidationException e) {
             // Do not leak assertion contents; log message only (AC-055). Redirect the
@@ -367,17 +365,6 @@ public class SsoLoginController extends BaseController {
                 : DEFAULT_CALLBACK_REDIRECT;
         String separator = base.contains("?") ? "&" : "?";
         return base + separator + "access_token=" + URLEncoder.encode(tokenId, StandardCharsets.UTF_8);
-    }
-
-    private void writeAccessCookie(HttpServletRequest request, HttpServletResponse response, String tokenId) {
-        boolean secure = request != null && request.isSecure();
-        StringBuilder cookie = new StringBuilder(ACCESS_COOKIE)
-                .append('=').append(tokenId)
-                .append("; Path=/; HttpOnly; SameSite=Lax");
-        if (secure) {
-            cookie.append("; Secure");
-        }
-        response.addHeader("Set-Cookie", cookie.toString());
     }
 
     /** Map a refused login to its stable reason code; unknown causes are generic. */
