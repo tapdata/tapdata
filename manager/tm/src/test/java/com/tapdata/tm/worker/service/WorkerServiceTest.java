@@ -264,6 +264,28 @@ class WorkerServiceTest {
     }
 
     @Test
+    void strictAgentSchedulingDoesNotFallbackToAnotherAgent() {
+        when(settingsService.isCloud()).thenReturn(false);
+        UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password",
+                "customerType", "accessCode", false, false, false, false,
+                Arrays.asList(new SimpleGrantedAuthority("role")));
+        TaskDto task = new TaskDto();
+        task.setAgentId("requested-agent");
+
+        doReturn(null).when(workerService).findOne(any(Query.class));
+
+        try (MockedStatic<SettingUtil> settingUtilMockedStatic = Mockito.mockStatic(SettingUtil.class)) {
+            settingUtilMockedStatic.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue()))
+                    .thenReturn("30");
+            settingUtilMockedStatic.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(), "workerScheduleSafetyMarginSeconds"))
+                    .thenReturn("5");
+            assertThrows(BizException.class,
+                    () -> workerService.scheduleTaskToEngineWithStrictAgent(task, user, "task", "shared"));
+        }
+        verify(workerRepository, never()).findAll(any(Query.class));
+    }
+
+    @Test
     void test_getLastCheckAvailableAgentCount(){
         try(MockedStatic<SettingUtil> mockedStatic = mockStatic(SettingUtil.class)){
             mockedStatic.when(()->SettingUtil.getValue(anyString(),anyString())).thenReturn("300");
