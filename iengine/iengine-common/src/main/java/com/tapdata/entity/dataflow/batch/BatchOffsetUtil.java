@@ -76,10 +76,23 @@ public class BatchOffsetUtil {
      * partition read worker threads, so it must always be a thread-safe map. A restored breakpoint
      * must not downgrade it to a plain HashMap (decoding rebuilds maps and would otherwise lose the
      * ConcurrentHashMap created on the first run).
+     *
+     * <p>{@link ConcurrentHashMap} rejects null keys/values, but a table offset marker written by
+     * {@link #updateBatchOffset(Map, Object, String)} may carry a null connector offset, and a restored
+     * breakpoint can even be a bare marker map ({@code {status, offset: null}}). Copy entry by entry and
+     * skip nulls so restoring such a breakpoint does not throw a NullPointerException and leave the task
+     * unable to start. A null entry is semantically equivalent to a missing one:
+     * {@link #getBatchOffsetOfTable} already returns null in that case.
      */
     public static Object asConcurrentBatchOffset(Object batchOffsetObj) {
         if (batchOffsetObj instanceof Map && !(batchOffsetObj instanceof ConcurrentHashMap)) {
-            return new ConcurrentHashMap<>((Map<Object, Object>) batchOffsetObj);
+            Map<Object, Object> concurrent = new ConcurrentHashMap<>();
+            ((Map<?, ?>) batchOffsetObj).forEach((key, value) -> {
+                if (null != key && null != value) {
+                    concurrent.put(key, value);
+                }
+            });
+            return concurrent;
         }
         return batchOffsetObj;
     }

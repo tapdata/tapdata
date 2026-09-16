@@ -1205,7 +1205,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapCreateTableEvent.setPartitionMasterTableId(addTapTable.getPartitionMasterTableId());
                 TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
                 BatchOffsetUtil.updateBatchOffset(syncProgress, addTapTable.getId(), null, TableBatchReadStatus.RUNNING.name());
-                tapdataEvent.setBatchOffset(syncProgress.getBatchOffsetObj());
+                tapdataEvent.setBatchOffset(snapshotEntireBatchOffset());
                 tapdataEvent.setSourceTime(System.currentTimeMillis());
 
                 if (null == tapdataEvent) {
@@ -1588,6 +1588,21 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
          * resume would skip rows that were never persisted.
          */
         return BatchOffsetUtil.encodeConnectorOffset(batchOffset, PdkUtil::encodeOffset);
+    }
+
+    /**
+     * Snapshot the whole batch offset container ({@code tableId -&gt; table offset}) into an immutable,
+     * already-encoded copy.
+     *
+     * <p>The dynamic-new-table path hands this to the target vertex, which stores it as its own
+     * {@code batchOffsetObj} (see {@code HazelcastTargetPdkBaseNode#flushOffsetCallback}). Passing the
+     * source's live map would let the target alias - and concurrently mutate - the source container, so
+     * the 10s {@code saveToSnapshot} could persist a breakpoint ahead of the data actually written and a
+     * crash resume would skip rows. Same reasoning as {@link #snapshotBatchOffset(String)}, but for the
+     * whole container instead of a single table.
+     */
+    protected Object snapshotEntireBatchOffset() {
+        return BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset);
     }
 
     protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {

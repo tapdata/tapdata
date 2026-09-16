@@ -294,6 +294,21 @@ class BatchOffsetUtilTest {
             assertEquals(0L, BatchOffsetUtil.asConcurrentBatchOffset(0L));
             assertNull(BatchOffsetUtil.asConcurrentBatchOffset(null));
         }
+
+        @Test
+        void testNullValuedEntriesAreSkippedNotRejected() {
+            // a bare table offset marker left behind with a null connector offset used to make
+            // new ConcurrentHashMap<>(map) throw NPE on restart and left the task unable to start
+            Map<String, Object> marker = new HashMap<>();
+            marker.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.RUNNING.name());
+            marker.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, null);
+
+            Object result = assertDoesNotThrow(() -> BatchOffsetUtil.asConcurrentBatchOffset(marker));
+            assertInstanceOf(ConcurrentHashMap.class, result);
+            Map<?, ?> concurrent = (Map<?, ?>) result;
+            assertEquals(TableBatchReadStatus.RUNNING.name(), concurrent.get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
+            assertFalse(concurrent.containsKey(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+        }
     }
 
     @Nested

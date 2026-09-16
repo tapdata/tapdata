@@ -1667,6 +1667,40 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
 			assertEquals(100, decoded.get("position"));
 		}
+
+		@DisplayName("test whole batch offset is handed off as an immutable encoded snapshot")
+		@Test
+		void testEntireBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(hazelcastSourcePdkDataNode).getConnectorNode();
+
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("position", 100);
+
+			SyncProgress progress = new SyncProgress();
+			progress.setBatchOffsetObj(new ConcurrentHashMap<>());
+			BatchOffsetUtil.updateBatchOffset(progress, tableId, connectorOffset, TableBatchReadStatus.RUNNING.name());
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotEntireBatchOffset();
+
+			// the snapshot is a fresh container, not the source's live map, and does not alias its table markers
+			assertNotSame(progress.getBatchOffsetObj(), snapshot);
+			assertNotSame(((Map<String, Object>) progress.getBatchOffsetObj()).get(tableId), ((Map<String, Object>) snapshot).get(tableId));
+
+			SyncProgress snapshotProgress = new SyncProgress();
+			snapshotProgress.setBatchOffsetObj(snapshot);
+			Object snapshotOffset = BatchOffsetUtil.getBatchOffsetOfTable(snapshotProgress, tableId);
+			assertNotSame(connectorOffset, snapshotOffset);
+			assertInstanceOf(String.class, snapshotOffset);
+			assertTrue(((String) snapshotOffset).startsWith(PdkUtil.ENCODE_PREFIX));
+
+			// mutating the connector's live offset after the snapshot must not change the captured breakpoint
+			connectorOffset.put("position", 999);
+			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
+			assertEquals(100, decoded.get("position"));
+		}
 	}
 
 	@Nested
