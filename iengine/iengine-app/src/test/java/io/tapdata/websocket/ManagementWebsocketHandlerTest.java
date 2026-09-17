@@ -166,8 +166,6 @@ class ManagementWebsocketHandlerTest {
                 mockedStatic.when(() -> WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test");
                 versionMockedStatic.when(Version::get).thenReturn("test");
                 managementWebsocketHandlerMockedStatic.when(() -> ManagementWebsocketHandler.createWebSocketClient()).thenReturn(mockClient);
-                managementWebsocketHandlerMockedStatic.when(() -> ManagementWebsocketHandler.appendAccessTokenQuery(any(), any()))
-                        .thenCallRealMethod();
                 String baseStr = "http://test:8080/api/";
                 spyManagementWebsocketHandlerTest.connect(baseStr);
                 verify(mockLogger, times(1)).warn("Connect to web socket Thread interrupted,Thread name:{}", Thread.currentThread().getName());
@@ -442,23 +440,6 @@ class ManagementWebsocketHandlerTest {
             when(event.getApplicationContext()).thenReturn(ctx);
 
             Assertions.assertDoesNotThrow(() -> handler.startHttpFallbackBeforeWsReady(event));
-        }
-    }
-
-    @Nested
-    class AppendAccessTokenQueryTest {
-        @Test
-        void appendsTokenToExistingQuery() {
-            Assertions.assertEquals(
-                    "ws://tm/ws/agent?agentId=a&access_token=tok",
-                    ManagementWebsocketHandler.appendAccessTokenQuery("ws://tm/ws/agent?agentId=a", "tok"));
-        }
-
-        @Test
-        void doesNotDuplicateExistingToken() {
-            Assertions.assertEquals(
-                    "ws://tm/ws/agent?access_token=old",
-                    ManagementWebsocketHandler.appendAccessTokenQuery("ws://tm/ws/agent?access_token=old", "new"));
         }
     }
 

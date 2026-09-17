@@ -39,8 +39,6 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -321,11 +319,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
 			Object token = configCenter.getConfig(ConfigurationCenter.TOKEN);
 			if (token != null && StringUtils.isNotBlank(String.valueOf(token))) {
-				String tokenValue = String.valueOf(token);
-				webSocketHttpHeaders.set(HttpHeaders.AUTHORIZATION, "Bearer " + tokenValue);
-				// Keep query token so a new agent can still auth against a TM that only
-				// reads session.getUri(). New TM ignores URL when Bearer is present.
-				currentWsUrl = appendAccessTokenQuery(currentWsUrl, tokenValue);
+				webSocketHttpHeaders.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
 			}
 			String version = Version.get();
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
@@ -354,17 +348,6 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			}
 			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
 		}
-	}
-
-	static String appendAccessTokenQuery(String url, String token) {
-		if (StringUtils.isBlank(url) || StringUtils.isBlank(token)) {
-			return url;
-		}
-		if (url.contains("access_token=")) {
-			return url;
-		}
-		String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
-		return url.contains("?") ? url + "&access_token=" + encoded : url + "?access_token=" + encoded;
 	}
 
 	@Override
