@@ -181,9 +181,23 @@ public class JsonUtil {
 		public TapType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
 			ObjectCodec codec = p.getCodec();
 			TreeNode treeNode = codec.readTree(p);
-			TreeNode type = treeNode.get("type");
-			int typeInt = (int) ((IntNode) type).numberValue();
-			Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
+			TreeNode typeName = treeNode.get("typeName");
+			Class<? extends TapType> tapTypeClass = null;
+			if (typeName instanceof TextNode && !((TextNode) typeName).asText().trim().isEmpty()) {
+				tapTypeClass = TapType.getTapTypeClass(((TextNode) typeName).asText());
+				if (tapTypeClass == null) {
+					throw new RuntimeException("Unsupported tap typeName: " + typeName);
+				}
+			}
+			int typeInt = -1;
+			if (tapTypeClass == null) {
+				TreeNode type = treeNode.get("type");
+				if (!(type instanceof IntNode)) {
+					throw new RuntimeException("Unsupported tap type payload: " + treeNode);
+				}
+				typeInt = (int) ((IntNode) type).numberValue();
+				tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
+			}
 			if (null != tapTypeClass) {
 				return codec.treeToValue(treeNode, tapTypeClass);
 			} else {

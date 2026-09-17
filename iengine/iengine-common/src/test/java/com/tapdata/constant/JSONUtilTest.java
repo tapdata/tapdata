@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.entity.User;
 import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.type.TapType;
 import org.junit.jupiter.api.Assertions;
@@ -127,6 +128,19 @@ public class JSONUtilTest {
         Assertions.assertNotNull(list);
         Assertions.assertEquals(2, list.size());
         Assertions.assertInstanceOf(TapString.class, list.get(0));
+    }
+
+    @Test
+    public void testFloatingPointTapTypeCompatibility() throws IOException {
+        String json = JSONUtil.obj2Json(Collections.singletonList(new TapFloat()));
+        Assertions.assertTrue(json.contains("\"typeName\":\"TapFloat\""));
+        List<TapType> types = JSONUtil.json2POJO(json, new TypeReference<List<TapType>>() {
+        });
+        Assertions.assertInstanceOf(TapFloat.class, types.get(0));
+
+        List<TapType> legacy = JSONUtil.json2POJO("[{\"type\":8}]", new TypeReference<List<TapType>>() {
+        });
+        Assertions.assertInstanceOf(TapNumber.class, legacy.get(0));
     }
 
 }
