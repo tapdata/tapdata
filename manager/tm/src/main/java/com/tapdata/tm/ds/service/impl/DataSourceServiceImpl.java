@@ -858,7 +858,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Criteria taskCriteria = Criteria.where("is_deleted").is(false).and("status").ne("delete_failed").orOperator(Criteria.where("dag.nodes.connectionId").is(id), Criteria.where("dag.nodes.connectionIds").in(id));
         Query taskQuery = new Query(taskCriteria);
         taskQuery.fields().include("_id", "name");
-        List<TaskDto> allDto = taskService.findAllDto(taskQuery, user);
+        List<TaskDto> allDto = taskService.findAll(taskQuery);
 
         if (CollectionUtils.isNotEmpty(allDto)) {
             log.info("the connection referenced by other jobs, tasks = {}", allDto.size());
