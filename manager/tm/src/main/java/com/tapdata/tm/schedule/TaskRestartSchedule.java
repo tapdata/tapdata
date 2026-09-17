@@ -129,8 +129,7 @@ public class TaskRestartSchedule {
             if (CollectionUtils.isNotEmpty(workerList)) {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
                 if (stateMachineResult.isOk()) {
-                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                    taskScheduleService.scheduling(taskDto, user,true);
+                    scheduleTaskSafely(taskDto, user);
                 }
             }
         }
@@ -295,8 +294,7 @@ public class TaskRestartSchedule {
                 );
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             } else {
-                transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user, true);
+                scheduleTaskSafely(taskDto, user);
             }
         }
     }
@@ -351,11 +349,15 @@ public class TaskRestartSchedule {
         }
         // scheduling() re-selects an agent and moves SCHEDULING->WAIT_RUN; if none is available it
         // keeps the task in SCHEDULING for the next round. Guarded so one failure can't abort a scan.
+        scheduleTaskSafely(taskDto, user);
+        return true;
+    }
+
+    private void scheduleTaskSafely(TaskDto taskDto, UserDetail user) {
         FunctionUtils.ignoreAnyError(() -> {
             transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
             taskScheduleService.scheduling(taskDto, user, true);
         });
-        return true;
     }
 
     private static final int ENGINE_ONLINE_MAX_ATTEMPTS = 6;
@@ -511,8 +513,7 @@ public class TaskRestartSchedule {
                         taskDto, DataFlowEvent.OVERTIME, user);
                 if (result.isOk()) {
                     log.info("Auto-retrying scheduling_failed task [{}]", taskDto.getName());
-                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                    taskScheduleService.scheduling(taskDto, user, true);
+                    scheduleTaskSafely(taskDto, user);
                 }
             }
         }
