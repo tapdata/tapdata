@@ -32,6 +32,7 @@ public final class AccessTokenResolver {
 	public static final String TAPDATA_ACCESS_COOKIE = "TAPDATA_ACCESS_TOKEN";
 	private static final String AUTHORIZATION = "Authorization";
 	private static final ObjectMapper MAPPER = new ObjectMapper();
+	private static final int JSON_BODY_TOKEN_SCAN_LIMIT = 64 * 1024;
 
 	private AccessTokenResolver() {
 	}
@@ -192,8 +193,15 @@ public final class AccessTokenResolver {
 		if (contentType == null || !contentType.toLowerCase(Locale.ROOT).contains(MediaType.APPLICATION_JSON_VALUE)) {
 			return null;
 		}
+		long declaredLength = request.getContentLengthLong();
+		if (declaredLength > JSON_BODY_TOKEN_SCAN_LIMIT) {
+			return null;
+		}
 		String body = readBody(request);
-		if (body == null || body.isBlank()) {
+		if (body == null || body.isBlank() || body.length() > JSON_BODY_TOKEN_SCAN_LIMIT) {
+			return null;
+		}
+		if (body.indexOf("access_token") < 0) {
 			return null;
 		}
 		try {

@@ -67,7 +67,11 @@ public class RequestFilter implements Filter {
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
 
 		if (log.isTraceEnabled()) {
-			logReq(httpServletRequest);
+			try {
+				logReq(httpServletRequest);
+			} catch (Exception e) {
+				log.debug("Unable to trace request", e);
+			}
 		}
 
 		try {
@@ -79,7 +83,11 @@ public class RequestFilter implements Filter {
 		}
 
 		if (log.isTraceEnabled()) {
-			logRes(httpServletResponse);
+			try {
+				logRes(httpServletResponse, requestURI);
+			} catch (Exception e) {
+				log.debug("Unable to trace response", e);
+			}
 		}
 	}
 
@@ -125,7 +133,7 @@ public class RequestFilter implements Filter {
 			}
 		}
 	}
-	private void logRes(ServletResponse servletResponse) {
+	private void logRes(ServletResponse servletResponse, String requestURI) {
 		HttpServletResponse httpServletResponse = (HttpServletResponse) servletResponse;
 		log.trace(" < {}", httpServletResponse.getStatus());
 		httpServletResponse.getHeaderNames().forEach(headerName -> {
@@ -134,13 +142,28 @@ public class RequestFilter implements Filter {
 		String contentType = httpServletResponse.getHeader("Content-Type");
 		if (!"application/zip".equals(contentType) && servletResponse instanceof HttpServletResponseWrapper) {
 			try {
+				if (isCredentialIssuingPath(requestURI)) {
+					log.trace(" < [omitted credential response body]");
+					log.trace(" <");
+					return;
+				}
 				String content = ((HttpServletResponseWrapper) servletResponse).getContentAsString();
-				log.trace(" < {}", content);
+				String redacted = SensitiveDataRedactor.redactJsonOrNull(content);
+				log.trace(" < {}", redacted != null ? redacted : content);
 				log.trace(" <");
 			} catch (UnsupportedEncodingException e) {
-				e.printStackTrace();
+				log.debug("Unable to decode response body for trace log");
 			}
 		}
+	}
+
+	static boolean isCredentialIssuingPath(String requestURI) {
+		if (requestURI == null || requestURI.isEmpty()) {
+			return false;
+		}
+		return requestURI.contains("/users/login")
+				|| requestURI.contains("/users/generatetoken")
+				|| requestURI.contains("/users/refreshToken");
 	}
 
 	@Override

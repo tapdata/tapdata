@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,6 +28,9 @@ public class WebSocketAuthHandshakeInterceptor implements HandshakeInterceptor {
 	@Value("${security.auth.url-token-mode:COMPAT}")
 	private String urlTokenModeValue = "COMPAT";
 
+	@Value("${security.auth.websocket-allowed-origins:}")
+	private String websocketAllowedOrigins = "";
+
 	@Override
 	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
 			WebSocketHandler wsHandler, Map<String, Object> attributes) {
@@ -35,7 +40,7 @@ public class WebSocketAuthHandshakeInterceptor implements HandshakeInterceptor {
 		}
 		HttpServletRequest httpRequest = servletRequest.getServletRequest();
 		WebSocketHandshakeAuth.Decision decision = WebSocketHandshakeAuth.evaluate(
-				httpRequest, UrlTokenMode.from(urlTokenModeValue));
+				httpRequest, UrlTokenMode.from(urlTokenModeValue), extraAllowedOrigins());
 		if (decision.rejected()) {
 			response.setStatusCode(HttpStatus.UNAUTHORIZED);
 			return false;
@@ -55,5 +60,15 @@ public class WebSocketAuthHandshakeInterceptor implements HandshakeInterceptor {
 	public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
 			WebSocketHandler wsHandler, Exception exception) {
 		// no-op
+	}
+
+	private List<String> extraAllowedOrigins() {
+		if (websocketAllowedOrigins == null || websocketAllowedOrigins.isBlank()) {
+			return List.of();
+		}
+		return Arrays.stream(websocketAllowedOrigins.split(","))
+				.map(String::trim)
+				.filter(s -> !s.isEmpty())
+				.toList();
 	}
 }

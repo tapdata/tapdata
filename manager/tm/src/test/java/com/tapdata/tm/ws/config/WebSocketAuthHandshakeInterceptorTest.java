@@ -87,9 +87,24 @@ class WebSocketAuthHandshakeInterceptorTest {
 	}
 
 	@Test
+	void cookieFromCrossSiteOriginAbortsHandshakeWith401() throws Exception {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setServerName("tm.example.com");
+		req.addHeader("Origin", "https://evil.com");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
+		HandshakeCall call = handshake(req);
+
+		assertFalse(call.ok);
+		assertEquals(401, call.servletResponse.getStatus());
+		assertNull(call.attributes.get(WebSocketAuthHandshakeInterceptor.ACCESS_TOKEN_ATTRIBUTE));
+	}
+
+	@Test
 	void cookieStoresTokenWithoutDeprecation() throws Exception {
 		ReflectionTestUtils.setField(interceptor, "urlTokenModeValue", "REJECT");
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setServerName("localhost");
+		req.addHeader("Origin", "http://localhost:5173");
 		req.setQueryString("id=client-1");
 		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
 		HandshakeCall call = handshake(req);

@@ -161,11 +161,10 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 
 		Document queryObject = query.getQueryObject();
 		Map<String, Object> reqParams = new HashMap<>();
-		addToken(reqParams);
-
 		if (MapUtils.isNotEmpty(queryObject)) {
 			reqParams.put("where", queryObject.toJson());
 		}
+		addToken(reqParams);
 
 		try {
 			T t = restTemplateOperator.upsert(reqParams, update.getUpdateObject().get("$set"), collection, clazz);
@@ -368,7 +367,6 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		validateToken();
 
 		Map<String, Object> params = new HashMap<>();
-		addToken(params);
 		Document queryObject = query.getQueryObject();
 		if (MapUtils.isNotEmpty(queryObject)) {
 			queryObject.keySet().forEach(key -> {
@@ -382,6 +380,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			});
 			params.put("where", queryObject.toJson());
 		}
+		addToken(params);
 
 		ResponseCount responseCount = restTemplateOperator.getOne(params, collection + "/count", ResponseCount.class, cookies(), cloudRegion);
 		if (responseCount == null) {
@@ -516,11 +515,9 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		return RestTemplateOperator.stripAccessTokenQuery(url);
 	}
 
-	private void bindAccessToken() {
+	private AutoCloseable bindAccessToken() {
 		Object token = configCenter.getConfig(ConfigurationCenter.TOKEN);
-		if (token != null) {
-			RestTemplateOperator.bindAccessToken(String.valueOf(token));
-		}
+		return RestTemplateOperator.bindAccessToken(token == null ? null : String.valueOf(token));
 	}
 
 	private String resourceWithId(String collection, String id) {

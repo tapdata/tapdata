@@ -64,13 +64,22 @@ class SensitiveDataRedactorTest {
 
 	@Test
 	void redactsNestedJsonSecrets() {
-		String json = "{\"user\":\"a\",\"nested\":{\"refresh_token\":\"r1\",\"access_token\":\"t1\"},\"authorization\":\"Bearer x\"}";
+		String json = "{\"user\":\"a\",\"nested\":{\"refresh_token\":\"r1\",\"access_token\":\"t1\"},\"authorization\":\"Bearer x\",\"password\":\"Secret123\"}";
 		String redacted = SensitiveDataRedactor.redactJsonOrNull(json);
 		assertTrue(redacted.contains("\"access_token\":\"[REDACTED]\""));
 		assertTrue(redacted.contains("\"refresh_token\":\"[REDACTED]\""));
 		assertTrue(redacted.contains("\"authorization\":\"[REDACTED]\""));
+		assertTrue(redacted.contains("\"password\":\"[REDACTED]\""));
 		assertFalse(redacted.contains("t1"));
+		assertFalse(redacted.contains("Secret123"));
 		assertTrue(redacted.contains("\"user\":\"a\""));
+	}
+
+	@Test
+	void redactAccessTokenInTextDoesNotUseLowercaseIndexes() {
+		String value = "https://tm/app?ACCESS_TOKEN=secret&x=1";
+		assertEquals("https://tm/app?ACCESS_TOKEN=[REDACTED]&x=1",
+				SensitiveDataRedactor.redactAccessTokenInText(value));
 	}
 
 	@Test

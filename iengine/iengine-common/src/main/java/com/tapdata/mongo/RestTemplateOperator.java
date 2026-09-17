@@ -166,10 +166,11 @@ public class RestTemplateOperator {
 		this.getRetryTimeout = getRetryTimeout;
 	}
 
-	public static void bindAccessToken(String token) {
+	public static AutoCloseable bindAccessToken(String token) {
 		if (StringUtils.isNotBlank(token)) {
 			ACCESS_TOKEN.set(token);
 		}
+		return ACCESS_TOKEN::remove;
 	}
 
 	public static String currentAccessToken() {
@@ -192,6 +193,9 @@ public class RestTemplateOperator {
 			int eq = pair.indexOf('=');
 			String key = eq >= 0 ? pair.substring(0, eq) : pair;
 			if ("access_token".equalsIgnoreCase(key)) {
+				if (eq >= 0 && eq + 1 < pair.length()) {
+					bindAccessToken(pair.substring(eq + 1));
+				}
 				continue;
 			}
 			if (sb.length() > 0) {

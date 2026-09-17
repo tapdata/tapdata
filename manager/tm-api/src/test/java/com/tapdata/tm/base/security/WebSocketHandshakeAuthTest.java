@@ -108,6 +108,8 @@ class WebSocketHandshakeAuthTest {
 	@Test
 	void cookieAuthenticatesBrowserWebsocketWithoutQueryToken() {
 		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setServerName("localhost");
+		req.addHeader("Origin", "http://localhost:5173");
 		req.setQueryString("id=0f8b427d-0f3d-4a2d-af84-114dd7e7eeaa");
 		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
 
@@ -116,5 +118,51 @@ class WebSocketHandshakeAuthTest {
 		assertFalse(d.queryDeprecated());
 		assertEquals(AccessTokenSource.COOKIE, d.resolution().getSource());
 		assertEquals("browser-tok", d.resolution().getToken());
+	}
+
+	@Test
+	void cookieFromCrossSiteOriginIsRejected() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setServerName("tm.example.com");
+		req.addHeader("Origin", "https://evil.com");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertTrue(d.rejected());
+		assertEquals(AccessTokenSource.COOKIE, d.resolution().getSource());
+	}
+
+	@Test
+	void cookieWithoutOriginIsRejected() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertTrue(d.rejected());
+	}
+
+	@Test
+	void cookieFromConfiguredExtraOriginIsAllowed() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setServerName("tm.example.com");
+		req.addHeader("Origin", "https://console.example.com");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "browser-tok"));
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(
+				req, UrlTokenMode.COMPAT, java.util.List.of("https://console.example.com"));
+		assertFalse(d.rejected());
+		assertEquals("browser-tok", d.resolution().getToken());
+	}
+
+	@Test
+	void bearerIgnoresCrossSiteOrigin() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setServerName("tm.example.com");
+		req.addHeader("Origin", "https://evil.com");
+		req.addHeader("Authorization", "Bearer engine-tok");
+
+		WebSocketHandshakeAuth.Decision d = WebSocketHandshakeAuth.evaluate(req, UrlTokenMode.COMPAT);
+		assertFalse(d.rejected());
+		assertEquals(AccessTokenSource.BEARER, d.resolution().getSource());
 	}
 }

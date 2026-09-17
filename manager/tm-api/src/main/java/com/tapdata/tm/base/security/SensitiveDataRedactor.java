@@ -30,7 +30,14 @@ public final class SensitiveDataRedactor {
 			"access_token",
 			"authorization",
 			"refresh_token",
-			"client_secret"
+			"client_secret",
+			"password",
+			"passwd",
+			"secret",
+			"token",
+			"privatekey",
+			"accesskey",
+			"secretkey"
 	);
 
 	private SensitiveDataRedactor() {
@@ -55,11 +62,11 @@ public final class SensitiveDataRedactor {
 		if (value == null || value.isEmpty()) {
 			return value;
 		}
-		String lower = value.toLowerCase(Locale.ROOT);
+		final String needle = "access_token=";
 		int from = 0;
 		StringBuilder sb = null;
 		while (true) {
-			int idx = lower.indexOf("access_token=", from);
+			int idx = indexOfIgnoreCase(value, needle, from);
 			if (idx < 0) {
 				if (sb == null) {
 					return value;
@@ -73,7 +80,7 @@ public final class SensitiveDataRedactor {
 					if (sb == null) {
 						sb = new StringBuilder(value.length());
 					}
-					int keyEnd = idx + "access_token=".length();
+					int keyEnd = idx + needle.length();
 					sb.append(value, from, keyEnd);
 					from = keyEnd;
 					continue;
@@ -87,6 +94,16 @@ public final class SensitiveDataRedactor {
 			sb.append(REDACTED);
 			from = skipQueryValue(value, eq + 1);
 		}
+	}
+
+	private static int indexOfIgnoreCase(String value, String needle, int from) {
+		int max = value.length() - needle.length();
+		for (int i = from; i <= max; i++) {
+			if (value.regionMatches(true, i, needle, 0, needle.length())) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private static int skipQueryValue(String value, int start) {

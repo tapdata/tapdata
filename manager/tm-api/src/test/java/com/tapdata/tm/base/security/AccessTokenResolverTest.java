@@ -74,6 +74,17 @@ class AccessTokenResolverTest {
 	}
 
 	@Test
+	void skipsJsonBodyTokenWhenPayloadExceedsScanLimit() throws Exception {
+		String huge = "{\"access_token\":\"from-body\",\"pad\":\"" + "x".repeat(70_000) + "\"}";
+		MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/Task");
+		req.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		req.setContent(huge.getBytes(StandardCharsets.UTF_8));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(new HttpServletRequestWrapper(req), UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+	}
+
+	@Test
 	void jsonBodyBeatsQueryWhenTokensMatch() throws Exception {
 		MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/x");
 		req.setContentType(MediaType.APPLICATION_JSON_VALUE);
