@@ -18,6 +18,8 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.compat.LegacyTapTypeResolution;
+import io.tapdata.entity.schema.compat.LegacyTapTypeResolver;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
@@ -260,6 +262,11 @@ public class LoadSchemaRunner implements Runnable {
 				nameFieldMap.forEach((fieldName, tapField) -> {
 					if (null == tapField.getTapType()) {
 						tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+					}
+					LegacyTapTypeResolution resolution = LegacyTapTypeResolver.resolve(null, tapField, dataTypesMap);
+					if (resolution.isResolved() && resolution.getTapType() != null
+							&& resolution.getTapType() != tapField.getTapType()) {
+						tapField.setTapType(resolution.getTapType());
 					}
 				});
 			}
