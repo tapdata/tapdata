@@ -62,23 +62,26 @@ def validate_entry(source_path: str, source_type: str, value: Mapping[str, Any],
     errors: List[str] = []
     target = value.get("to")
     allowed = allowlist.get(source_type)
+    resolver = value.get("mapping") == "TapFloatingPoint"
 
     if target == "TapFloat":
-        if value.get("bit") != 32:
-            errors.append("TapFloat requires bit=32")
-        if value.get("storageBytes") != 4:
-            errors.append("TapFloat requires storageBytes=4")
-        if value.get("effectivePrecision") != 7:
-            errors.append("TapFloat requires effectivePrecision=7")
+        if not resolver:
+            if value.get("bit") != 32:
+                errors.append("TapFloat requires bit=32")
+            if value.get("storageBytes") != 4:
+                errors.append("TapFloat requires storageBytes=4")
+            if value.get("effectivePrecision") != 7:
+                errors.append("TapFloat requires effectivePrecision=7")
         if value.get("fixed") is True:
             errors.append("TapFloat cannot have fixed=true")
     elif target == "TapDouble":
-        if value.get("bit") != 64:
-            errors.append("TapDouble requires bit=64")
-        if value.get("storageBytes") != 8:
-            errors.append("TapDouble requires storageBytes=8")
-        if value.get("effectivePrecision") != 15:
-            errors.append("TapDouble requires effectivePrecision=15")
+        if not resolver:
+            if value.get("bit") != 64:
+                errors.append("TapDouble requires bit=64")
+            if value.get("storageBytes") != 8:
+                errors.append("TapDouble requires storageBytes=8")
+            if value.get("effectivePrecision") != 15:
+                errors.append("TapDouble requires effectivePrecision=15")
         if value.get("fixed") is True:
             errors.append("TapDouble cannot have fixed=true")
     elif target == "TapNumber" and not allowed:
@@ -93,6 +96,15 @@ def validate_entry(source_path: str, source_type: str, value: Mapping[str, Any],
             errors.append("parameterized floating-point entry must use mapping=TapFloatingPoint")
         if "mapping" in value and target == "TapDouble" and value.get("mapping") != "TapFloatingPoint":
             errors.append("parameterized floating-point entry must use mapping=TapFloatingPoint")
+        if resolver:
+            if value.get("binaryPrecision") != [1, 53]:
+                errors.append("TapFloatingPoint resolver requires binaryPrecision=[1,53]")
+            if value.get("defaultBinaryPrecision") != 53:
+                errors.append("TapFloatingPoint resolver requires defaultBinaryPrecision=53")
+            if value.get("singlePrecision", {}).get("range") != [1, 24]:
+                errors.append("TapFloatingPoint resolver requires singlePrecision.range=[1,24]")
+            if value.get("doublePrecision", {}).get("range") != [25, 53]:
+                errors.append("TapFloatingPoint resolver requires doublePrecision.range=[25,53]")
 
     if target == "TapNumber" and allowed:
         if allowed.get("type") != source_type:
