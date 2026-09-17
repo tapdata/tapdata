@@ -107,6 +107,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final ExecutorService cacheCleanupThreadPool = new ThreadPoolExecutor(1, 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
 			r -> new Thread(r, "Task-Cache-Cleanup"));
+	private final Map<String, CompletableFuture<Void>> cacheCleanupFutures = new ConcurrentHashMap<>();
+	private final Map<String, TaskDto> startsWaitingForCacheCleanup = new ConcurrentHashMap<>();
+	private volatile boolean destroying;
 	private final Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
 	private final Map<String, ScheduledFuture<?>> scheduledFutureMap = new ConcurrentHashMap<>();
 
@@ -303,6 +306,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	public void sendStopTask(String taskId) {
+		startsWaitingForCacheCleanup.remove(taskId);
 		taskOpEnqueue(StopTaskOperation.create().taskId(taskId));
 		if (logger.isDebugEnabled()) {
 			List<String> stackTraces = Arrays.stream(Thread.currentThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
@@ -573,6 +577,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	protected void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
+		if (deferStartUntilCacheCleanupCompletes(taskId, taskDto)) {
+			return;
+		}
 		TaskClient<TaskDto> taskClient = getTaskClient(taskId);
 		if (null != taskClient) {
 			// 正在执行的任务，只更新状态
@@ -710,12 +717,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 									if (stop) {
 										TaskDto taskDto = safeQueryTaskById(taskId);
 										ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
-										clearTaskCacheAfterStopped(taskClient, () -> {
-											ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
-											long retryStartTime = System.currentTimeMillis();
-											sendStartTask(taskDto);
-											taskRetryTimeMap.put(taskId, retryStartTime);
-										});
+										clearTaskCacheAfterStopped(taskClient);
+										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
+										long retryStartTime = System.currentTimeMillis();
+										sendStartTask(taskDto);
+										taskRetryTimeMap.put(taskId, retryStartTime);
 									}
 								} else {
 									stopTaskResource = StopTaskResource.RUN_ERROR;
@@ -931,10 +937,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	private void clearTaskCacheAfterStopped(TaskClient<TaskDto> taskClient) {
-		clearTaskCacheAfterStopped(taskClient, null);
-	}
-
-	private void clearTaskCacheAfterStopped(TaskClient<TaskDto> taskClient, Runnable afterCleanup) {
 		if (null == taskClient) {
 			return;
 		}
@@ -947,22 +949,72 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			throw new RuntimeException(String.format("Remove memory task client failed, task: %s[%s]",
 				taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
-		// Cache destruction can synchronously query TM and execute a cluster-wide destroy.
-		// Keep it out of the per-task lock so a slow or unavailable cache backend cannot
-		// prevent later stop/start operations from acquiring the lock.
-		cacheCleanupThreadPool.submit(() -> {
-			try {
-				destroyCache(taskClient);
-				logger.trace("Destroy memory task client cache succeed, task: {}[{}]",
-						taskClient.getTask().getName(), taskClient.getTask().getId());
-				if (afterCleanup != null) {
-					afterCleanup.run();
-				}
-			} catch (Exception e) {
-				logger.error("Destroy memory task client cache failed, task: {}[{}]",
-						taskClient.getTask().getName(), taskClient.getTask().getId(), e);
+		scheduleCacheDestroy(taskClient);
+	}
+
+	private void scheduleCacheDestroy(TaskClient<TaskDto> taskClient) {
+		TaskDto task = taskClient.getTask();
+		String cacheName = taskClient.getCacheName();
+		if (StringUtils.isEmpty(cacheName)) {
+			return;
+		}
+		String taskId = task.getId().toHexString();
+		CompletableFuture<Void> cleanupFuture = new CompletableFuture<>();
+		CompletableFuture<Void> runningCleanup = cacheCleanupFutures.putIfAbsent(taskId, cleanupFuture);
+		if (null != runningCleanup) {
+			logger.warn("Cache destruction is already running, task: {}[{}]", task.getName(), taskId);
+			return;
+		}
+		try {
+			cacheCleanupThreadPool.execute(() -> runCacheDestroy(task, cacheName, cleanupFuture));
+		} catch (RejectedExecutionException e) {
+			cacheCleanupFutures.remove(taskId, cleanupFuture);
+			cleanupFuture.completeExceptionally(e);
+			logger.warn("Submit cache destruction failed, task: {}[{}]", task.getName(), taskId, e);
+		}
+	}
+
+	private void runCacheDestroy(TaskDto task, String cacheName, CompletableFuture<Void> cleanupFuture) {
+		String taskId = task.getId().toHexString();
+		Throwable failure = null;
+		try {
+			messageDao.destroyCache(task, cacheName);
+			logger.trace("Destroy memory task client cache succeed, task: {}[{}]", task.getName(), taskId);
+		} catch (Throwable e) {
+			failure = e;
+			logger.error("Destroy memory task client cache failed, task: {}[{}]", task.getName(), taskId, e);
+		} finally {
+			// Remove only this cleanup generation before waking a deferred start. An older
+			// cleanup must never clear a newer generation registered for the same task.
+			cacheCleanupFutures.remove(taskId, cleanupFuture);
+			if (null == failure) {
+				cleanupFuture.complete(null);
+			} else {
+				cleanupFuture.completeExceptionally(failure);
 			}
-		});
+		}
+	}
+
+	private boolean deferStartUntilCacheCleanupCompletes(String taskId, TaskDto taskDto) {
+		CompletableFuture<Void> cleanupFuture = cacheCleanupFutures.get(taskId);
+		if (null == cleanupFuture) {
+			return false;
+		}
+		TaskDto previous = startsWaitingForCacheCleanup.put(taskId, taskDto);
+		if (null == previous) {
+			cleanupFuture.whenComplete((ignored, throwable) -> {
+				TaskDto waitingTask = startsWaitingForCacheCleanup.remove(taskId);
+				if (null != waitingTask && !destroying) {
+					if (null != throwable) {
+						logger.warn("Cache destruction failed before restarting task {}[{}], continue starting",
+								waitingTask.getName(), taskId, throwable);
+					}
+					sendStartTask(waitingTask);
+				}
+			});
+		}
+		logger.info("Defer starting task {}[{}] until cache destruction generation completes", taskDto.getName(), taskId);
+		return true;
 	}
 
 	private void addAgentIdUpdate(Update update) {
@@ -997,6 +1049,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	protected void stopTask(String taskId) {
+		startsWaitingForCacheCleanup.remove(taskId);
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
 			try {
@@ -1069,6 +1122,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@PreDestroy
 	public void destroy() {
 		logger.info("Shutting down TapdataTaskScheduler resources");
+		destroying = true;
+		startsWaitingForCacheCleanup.clear();
 
 		// 关闭引擎启动任务调度器
 		if (engineStartTaskScheduler != null && !engineStartTaskScheduler.isShutdown()) {

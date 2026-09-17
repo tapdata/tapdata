@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.schedule;
 
 import com.hazelcast.jet.core.JobStatus;
+import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -39,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -202,7 +204,9 @@ public class TapdataTaskSchedulerTest {
 		@DisplayName("cache cleanup does not block the task stop path")
 		void cleanupRunsOutsideTheTaskStopPath() throws Exception {
 			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
-			MessageDao messageDao = mock(MessageDao.class);
+			MessageDao messageDao = new MessageDao();
+			ICacheService cacheService = mock(ICacheService.class);
+			messageDao.setCacheService(cacheService);
 			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
 			TaskDto task = new TaskDto();
 			task.setId(new ObjectId());
@@ -214,6 +218,8 @@ public class TapdataTaskSchedulerTest {
 
 			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
 			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "startsWaitingForCacheCleanup", new ConcurrentHashMap<>());
 			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
 			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupThreadPool", cleanupExecutor);
 			when(taskClient.getTask()).thenReturn(task);
@@ -222,7 +228,7 @@ public class TapdataTaskSchedulerTest {
 				cleanupEntered.countDown();
 				assertTrue(releaseCleanup.await(5, TimeUnit.SECONDS));
 				return null;
-			}).when(messageDao).destroyCache(task, cacheName);
+			}).when(cacheService).destroy(cacheName);
 
 			try {
 				assertTimeoutPreemptively(Duration.ofSeconds(1), () ->
@@ -232,6 +238,36 @@ public class TapdataTaskSchedulerTest {
 				releaseCleanup.countDown();
 				cleanupExecutor.shutdownNow();
 			}
+		}
+
+		@Test
+		@DisplayName("task restart is resubmitted only after its cache cleanup generation")
+		void restartWaitsForCacheCleanupGeneration() {
+			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("task-waiting-for-cache-cleanup");
+			String taskId = task.getId().toHexString();
+			CompletableFuture<Void> cleanupFuture = new CompletableFuture<>();
+			Map<String, CompletableFuture<Void>> cleanupFutures = new ConcurrentHashMap<>();
+			cleanupFutures.put(taskId, cleanupFuture);
+			Map<String, TaskDto> waitingStarts = new ConcurrentHashMap<>();
+
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", cleanupFutures);
+			ReflectionTestUtils.setField(taskScheduler, "startsWaitingForCacheCleanup", waitingStarts);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+
+			Boolean deferred = ReflectionTestUtils.invokeMethod(taskScheduler,
+					"deferStartUntilCacheCleanupCompletes", taskId, task);
+
+			assertTrue(Boolean.TRUE.equals(deferred));
+			verify(taskScheduler, never()).sendStartTask(any());
+
+			cleanupFutures.remove(taskId, cleanupFuture);
+			cleanupFuture.complete(null);
+
+			verify(taskScheduler).sendStartTask(task);
+			assertFalse(waitingStarts.containsKey(taskId));
 		}
 	}
 
@@ -244,6 +280,8 @@ public class TapdataTaskSchedulerTest {
 		void setUp() {
 			taskScheduler = mock(TapdataTaskScheduler.class);
 			ReflectionTestUtils.setField(taskScheduler, "startTaskLock", new Object());
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "startsWaitingForCacheCleanup", new ConcurrentHashMap<>());
 		}
 
 		@Test
