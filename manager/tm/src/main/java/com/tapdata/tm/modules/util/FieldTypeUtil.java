@@ -8,6 +8,8 @@ import io.tapdata.entity.schema.type.TapArray;
 import io.tapdata.entity.schema.type.TapBoolean;
 import io.tapdata.entity.schema.type.TapDate;
 import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapMap;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
@@ -33,6 +35,8 @@ public final class FieldTypeUtil {
             "Map", "{\"type\": 4}",
             "Boolean", "{\"type\": 3}",
             "Integer", "{\"bit\":32,\"maxValue\":2147483647,\"minValue\":-2147483648,\"precision\":10,\"type\":8}",
+            "Float", "{\"type\":8,\"typeName\":\"TapFloat\",\"bit\":32,\"storageBytes\":4,\"effectivePrecision\":7,\"fixed\":false}",
+            "Double", "{\"type\":8,\"typeName\":\"TapDouble\",\"bit\":64,\"storageBytes\":8,\"effectivePrecision\":15,\"fixed\":false}",
             "Number", "{\"fixed\":false,\"maxValue\":1.7976931348623157E+308,\"minValue\":-1.7976931348623157E+308,\"precision\":255,\"scale\":30,\"type\":8}",
             "String", "{\"type\": 10}",
             "Time", "{\"defaultFraction\":3,\"fraction\":3,\"max\":\"23:59:59.999\",\"min\":\"00:00:00.000\",\"type\":6}",
@@ -44,6 +48,8 @@ public final class FieldTypeUtil {
             TapArray.class, "Array",
             TapMap.class, "Map",
             TapBoolean.class, "Boolean",
+            TapFloat.class, "Float",
+            TapDouble.class, "Double",
             TapNumber.class, "Number",
             TapString.class, "String",
             TapTime.class, "Time",
