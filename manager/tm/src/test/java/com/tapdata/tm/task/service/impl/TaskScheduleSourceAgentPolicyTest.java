@@ -28,6 +28,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -114,7 +115,7 @@ class TaskScheduleSourceAgentPolicyTest {
     }
 
     @Test
-    void sourcePolicyLookupIncludesPersistedAgentList() {
+    void unavailableSourceAgentKeepsTaskPendingInsteadOfThrowing() {
         TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
         TaskService taskService = mock(TaskService.class);
         WorkerService workerService = mock(WorkerService.class);
@@ -144,42 +145,38 @@ class TaskScheduleSourceAgentPolicyTest {
         task.setName("shared");
         task.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
         task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        task.setAgentId("stale-agent");
 
-        LogCollectorNode logCollectorNode = new LogCollectorNode();
-        logCollectorNode.setConnectionIds(List.of(connectionId));
+        LogCollectorNode source = new LogCollectorNode();
+        source.setConnectionIds(List.of(connectionId));
         DAG dag = mock(DAG.class);
-        when(dag.getSources()).thenReturn(List.of((Node) logCollectorNode));
+        when(dag.getSources()).thenReturn(List.of((Node) source));
         task.setDag(dag);
 
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
         when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
-                .thenReturn(List.of(sourceConnection(connectionId, "agent-a")));
+                .thenReturn(List.of(sourceConnection(connectionId, "source-agent", "source")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
-                .thenReturn(List.of("agent-a"));
-        Worker sourceAgent = new Worker();
-        sourceAgent.setProcessId("agent-a");
-        when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of(sourceAgent));
+                .thenReturn(List.of("source-agent"));
+        when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of());
         when(workerService.findByProcessId(anyString(), eq(user), any(String[].class))).thenReturn(new WorkerDto());
         when(workerService.getLimitTaskNum(any(WorkerDto.class), eq(user))).thenReturn(10);
         when(taskService.runningTaskNum(anyString(), eq(user))).thenReturn(0);
         when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(0))).thenReturn(0);
-        CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
-        calculationEngineVo.setProcessId("agent-a");
-        calculationEngineVo.setRunningNum(0);
-        calculationEngineVo.setTaskLimit(10);
         when(workerService.scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), eq("task"), eq("shared")))
-                .thenReturn(calculationEngineVo);
+                .thenThrow(new BizException("Task.AgentNotFound"));
 
-        service.cloudTaskLimitNum(task, user, true);
+        CalculationEngineVo result = service.cloudTaskLimitNum(task, user, true);
 
-        verify(dataSourceService).findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user),
-                eq("accessNodeType"), eq("accessNodeProcessId"), eq("accessNodeProcessIdList"), eq("priorityProcessId"));
+        assertEquals(0, result.getAvailable());
+        assertNull(task.getAgentId());
+        verify(workerService).scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), eq("task"), eq("shared"));
     }
 
     @Test
-    void sourcePolicyLookupFailureDoesNotFallBackToPlatformAllocation() {
+    void missingSourceConnectionFallsBackToTaskPolicy() {
         TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
         TaskService taskService = mock(TaskService.class);
         WorkerService workerService = mock(WorkerService.class);
@@ -209,6 +206,7 @@ class TaskScheduleSourceAgentPolicyTest {
         task.setName("shared");
         task.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
         task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
         LogCollectorNode source = new LogCollectorNode();
         source.setConnectionIds(List.of(connectionId));
         DAG dag = mock(DAG.class);
@@ -220,10 +218,78 @@ class TaskScheduleSourceAgentPolicyTest {
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
         when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
                 .thenReturn(List.of());
+        when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user))).thenReturn(List.of());
+        when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of());
+        when(taskService.runningTaskNum(any(UserDetail.class))).thenReturn(0);
+        CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+        calculationEngineVo.setProcessId("task-agent");
+        calculationEngineVo.setRunningNum(0);
+        calculationEngineVo.setTaskLimit(10);
+        when(workerService.scheduleTaskToEngine(any(SchedulableDto.class), eq(user), eq("task"), eq("shared")))
+                .thenReturn(calculationEngineVo);
 
-        assertThrows(BizException.class, () -> service.cloudTaskLimitNum(task, user, true));
-        verify(workerService, never()).scheduleTaskToEngine(any(SchedulableDto.class), eq(user), anyString(), anyString());
-        verify(workerService, never()).scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), anyString(), anyString());
+        CalculationEngineVo result = service.cloudTaskLimitNum(task, user, true);
+
+        assertEquals("task-agent", result.getProcessId());
+        verify(workerService).scheduleTaskToEngine(any(SchedulableDto.class), eq(user), eq("task"), eq("shared"));
+        verify(workerService, never()).scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), eq("task"), eq("shared"));
+    }
+
+    @Test
+    void conflictingSourceAgentPoliciesAreReportedWithConnectionNames() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        AgentGroupService agentGroupService = mock(AgentGroupService.class);
+        UserService userService = mock(UserService.class);
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        SettingsService settingsService = mock(SettingsService.class);
+
+        ReflectionTestUtils.setField(service, "taskService", taskService);
+        ReflectionTestUtils.setField(service, "workerService", workerService);
+        ReflectionTestUtils.setField(service, "agentGroupService", agentGroupService);
+        ReflectionTestUtils.setField(service, "userService", userService);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        ReflectionTestUtils.setField(service, "settingsService", settingsService);
+
+        String userId = new ObjectId().toHexString();
+        UserDetail user = mock(UserDetail.class);
+        when(user.getUserId()).thenReturn(userId);
+        when(settingsService.isCloud()).thenReturn(false);
+        when(userService.loadUserById(any(ObjectId.class))).thenReturn(user);
+
+        ObjectId taskId = new ObjectId();
+        String firstConnectionId = new ObjectId().toHexString();
+        String secondConnectionId = new ObjectId().toHexString();
+        TaskDto task = new TaskDto();
+        task.setId(taskId);
+        task.setUserId(userId);
+        task.setName("shared");
+        task.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+        task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
+        LogCollectorNode firstSource = new LogCollectorNode();
+        firstSource.setConnectionIds(List.of(firstConnectionId));
+        LogCollectorNode secondSource = new LogCollectorNode();
+        secondSource.setConnectionIds(List.of(secondConnectionId));
+        DAG dag = mock(DAG.class);
+        when(dag.getSources()).thenReturn(List.of((Node) firstSource, secondSource));
+        task.setDag(dag);
+
+        TaskDto taskOwner = new TaskDto();
+        taskOwner.setUserId(userId);
+        when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId)), eq(user), any(String[].class)))
+                .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a", "orders"),
+                        sourceConnection(secondConnectionId, "agent-b", "users")));
+
+        BizException exception = assertThrows(BizException.class, () -> service.cloudTaskLimitNum(task, user, true));
+
+        assertEquals("Task.SourceAgentConflict", exception.getErrorCode());
+        assertTrue(exception.getMessage().contains("orders"));
+        assertTrue(exception.getMessage().contains("users"));
+        verify(workerService, never()).scheduleTaskToEngine(any(SchedulableDto.class), any(UserDetail.class), anyString(), anyString());
+        verify(workerService, never()).scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), any(UserDetail.class), anyString(), anyString());
     }
 
     @Test
@@ -344,8 +410,13 @@ class TaskScheduleSourceAgentPolicyTest {
     }
 
     private DataSourceConnectionDto sourceConnection(String connectionId, String processId) {
+        return sourceConnection(connectionId, processId, connectionId);
+    }
+
+    private DataSourceConnectionDto sourceConnection(String connectionId, String processId, String name) {
         DataSourceConnectionDto connection = new DataSourceConnectionDto();
         connection.setId(new ObjectId(connectionId));
+        connection.setName(name);
         connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
         connection.setAccessNodeProcessId(processId);
         return connection;

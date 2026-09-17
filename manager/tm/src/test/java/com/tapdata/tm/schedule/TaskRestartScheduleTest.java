@@ -369,7 +369,8 @@ public class TaskRestartScheduleTest {
             taskRestartSchedule.setWorkerService(workerService);
 
             MetadataDefinitionService metadataDefinitionService = mock(MetadataDefinitionService.class);
-            when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(all);
+            when(metadataDefinitionService.orderTaskByTagPriority(anyList()))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
             taskRestartSchedule.setMetadataDefinitionService(metadataDefinitionService);
         }
 
@@ -384,6 +385,21 @@ public class TaskRestartScheduleTest {
 
             verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+        }
+
+        @Test
+        void testOneSchedulingFailureDoesNotAbortTheRemainingTasks() {
+            TaskDto firstTask = runningTask();
+            TaskDto secondTask = runningTask();
+            wire(firstTask, 0L);
+            when(taskService.findAll(any(Query.class))).thenReturn(List.of(firstTask, secondTask));
+            doThrow(new RuntimeException("source policy conflict"))
+                    .doNothing()
+                    .when(taskScheduleService).scheduling(any(TaskDto.class), eq(userDetail), eq(true));
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(taskScheduleService).scheduling(secondTask, userDetail, true);
         }
 
         @Test
