@@ -65,6 +65,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -104,9 +105,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final TaskOperationQueue taskOperationQueue = new TaskOperationQueue(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
-	private final ExecutorService cacheCleanupThreadPool = new ThreadPoolExecutor(1, 1,
-			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
-			r -> new Thread(r, "Task-Cache-Cleanup"));
+	private static final long CACHE_CLEANUP_STUCK_WARN_MS = Long.getLong("cache.cleanup.stuck.warn.ms", TimeUnit.MINUTES.toMillis(1L));
+	private final AtomicInteger cacheCleanupThreadIndex = new AtomicInteger();
+	// 共享缓存的销毁可能在 TM 同步往返 / IMap 集群销毁上无界阻塞，因此每个任务的清理必须彼此隔离：
+	// 单线程池会让一个卡住的任务把后面排队的清理全部挡住，那些任务的启动随之被 deferStartUntilCacheCleanupCompletes
+	// 无限期推迟，症状又回到 TAP-12865 的「停在启动中」。同一任务的在途清理至多一个（cacheCleanupFutures 保证），
+	// 所以线程数上界就是本节点共享缓存任务数。
+	private final ExecutorService cacheCleanupThreadPool = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+			60L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+			r -> new Thread(r, "Task-Cache-Cleanup-" + cacheCleanupThreadIndex.incrementAndGet()));
 	private final Map<String, CompletableFuture<Void>> cacheCleanupFutures = new ConcurrentHashMap<>();
 	private final Map<String, TaskDto> startsWaitingForCacheCleanup = new ConcurrentHashMap<>();
 	private volatile boolean destroying;
@@ -789,12 +796,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				final String taskId = taskClient.getTask().getId().toHexString();
 				final boolean stop = taskClient.stop();
 				if (stop) {
-					try {
-						destroyCache(taskClient);
-						logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskId));
-					} catch (Exception e) {
-						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
-					}
+					// 必须与 clearTaskCacheAfterStopped 走同一条异步清理路径：本方法跑在 taskControlScheduler 上，
+					// 而它是单线程的（ThreadPoolTaskScheduler 默认 poolSize=1），同一条线程还驱动 scheduledTask
+					// （wait_run 扫描）与 forceStoppingTask。在这里同步 destroy 一旦阻塞，本引擎就再也扫不到待启动任务。
+					// 走 scheduleCacheDestroy 还能登记 cacheCleanupFutures，使同任务的下一次 start 被正确 defer，
+					// 避免旧清理销毁新一代缓存、或 registerCache 撞上清理标记把任务判成 runError。
+					scheduleCacheDestroy(taskClient);
 					clearTaskRetryCache(taskId);
 					ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskClient.getTask());
 					iterator.remove();
@@ -843,13 +850,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 			}
 		} catch (Throwable ignored) {
-		}
-	}
-
-	private void destroyCache(TaskClient<TaskDto> taskClient) {
-		String cacheName = taskClient.getCacheName();
-		if (StringUtils.isNotEmpty(cacheName)) {
-			messageDao.destroyCache(taskClient.getTask(), cacheName);
 		}
 	}
 
@@ -967,11 +967,26 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 		try {
 			cacheCleanupThreadPool.execute(() -> runCacheDestroy(task, cacheName, cleanupFuture));
+			warnIfCacheDestroyStuck(task, taskId, cleanupFuture);
 		} catch (RejectedExecutionException e) {
 			cacheCleanupFutures.remove(taskId, cleanupFuture);
 			cleanupFuture.completeExceptionally(e);
 			logger.warn("Submit cache destruction failed, task: {}[{}]", task.getName(), taskId, e);
 		}
+	}
+
+	/**
+	 * 同一任务的启动会一直等自己这一代缓存清理结束（不能带超时：destroy 是物理销毁，抢跑会抹掉新一代缓存的数据）。
+	 * 所以清理卡死时任务确实会停在启动中，这里至少要把它喊出来，而不是静默等待。
+	 */
+	private void warnIfCacheDestroyStuck(TaskDto task, String taskId, CompletableFuture<Void> cleanupFuture) {
+		CompletableFuture.runAsync(() -> {
+			if (!cleanupFuture.isDone()) {
+				logger.warn("Cache destruction of task {}[{}] has been running for over {} ms, "
+								+ "starting this task stays deferred until it returns",
+						task.getName(), taskId, CACHE_CLEANUP_STUCK_WARN_MS);
+			}
+		}, CompletableFuture.delayedExecutor(CACHE_CLEANUP_STUCK_WARN_MS, TimeUnit.MILLISECONDS));
 	}
 
 	private void runCacheDestroy(TaskDto task, String cacheName, CompletableFuture<Void> cleanupFuture) {
