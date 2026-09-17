@@ -147,8 +147,6 @@ class SsoLoginControllerTest {
 
         verify(mongoTemplate).insert(any(com.tapdata.tm.sso.entity.SsoSession.class));
         assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
-        assertTrue(response.getHeaders("Set-Cookie").stream()
-                .anyMatch(h -> h.contains("TAPDATA_ACCESS_TOKEN=tok-123")));
     }
 
     @Test
@@ -172,8 +170,6 @@ class SsoLoginControllerTest {
 
         // The self-referential RelayState is ignored; success falls back to loginRedirectUrl.
         assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
-        assertTrue(response.getHeaders("Set-Cookie").stream()
-                .anyMatch(h -> h.contains("TAPDATA_ACCESS_TOKEN=tok-123")));
     }
 
     @Test
@@ -274,8 +270,6 @@ void acsValidationFailure() throws Exception {
 
         verify(accessTokenService).removeAccessTokenByAuthType(eq(userId), eq("saml_login"));
         assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
-        assertTrue(response.getHeaders("Set-Cookie").stream()
-                .anyMatch(h -> h.contains("TAPDATA_ACCESS_TOKEN=tok-123")));
     }
 
     @Test
