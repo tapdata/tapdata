@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ALLOWLIST = Path(__file__).with_name("floating-point-spec-allowlist.json")
+DEFAULT_REGISTRY = Path(__file__).with_name("floating-point-source-registry.json")
 
 
 def normalize_path(path: Path) -> str:
@@ -52,6 +53,47 @@ def load_allowlist(path: Path) -> Dict[str, Dict[str, Mapping[str, Any]]]:
             raise ValueError(f"allowlist entry must include reason and officialUrl: {entry}")
         result.setdefault(source_path, {})[source_type] = entry
     return result
+
+
+def load_registry(path: Path) -> Mapping[str, Any]:
+    registry = json.loads(path.read_text(encoding="utf-8"))
+    steps = registry.get("steps")
+    families = registry.get("families")
+    if not isinstance(steps, list) or not isinstance(families, Mapping):
+        raise ValueError("registry must contain steps and families")
+    return registry
+
+
+def validate_registry(registry: Mapping[str, Any]) -> List[str]:
+    errors: List[str] = []
+    steps = registry.get("steps", [])
+    families = registry.get("families", {})
+    expected_ids = {f"S-{index:02d}" for index in range(1, 75)}
+    actual_ids = {step.get("id") for step in steps if isinstance(step, Mapping)}
+    if actual_ids != expected_ids:
+        errors.append("source registry must contain exactly S-01 through S-74")
+    registered_paths = set()
+    for step in steps:
+        if not isinstance(step, Mapping):
+            errors.append("source registry step must be an object")
+            continue
+        family = step.get("family")
+        if family not in families:
+            errors.append(f"{step.get('id')}: unknown source family {family}")
+        paths = step.get("paths")
+        if not isinstance(paths, list) or not paths:
+            errors.append(f"{step.get('id')}: paths must be a non-empty list")
+            continue
+        for relative_path in paths:
+            if not isinstance(relative_path, str):
+                errors.append(f"{step.get('id')}: registry path must be a string")
+                continue
+            registered_paths.add(relative_path)
+            if not (ROOT / relative_path).is_file():
+                errors.append(f"{step.get('id')}: missing registry path {relative_path}")
+    if not registered_paths:
+        errors.append("source registry contains no spec paths")
+    return errors
 
 
 def format_location(source_path: str, source_type: str) -> str:
@@ -97,14 +139,21 @@ def validate_entry(source_path: str, source_type: str, value: Mapping[str, Any],
         if "mapping" in value and target == "TapDouble" and value.get("mapping") != "TapFloatingPoint":
             errors.append("parameterized floating-point entry must use mapping=TapFloatingPoint")
         if resolver:
-            if value.get("binaryPrecision") != [1, 53]:
-                errors.append("TapFloatingPoint resolver requires binaryPrecision=[1,53]")
-            if value.get("defaultBinaryPrecision") != 53:
-                errors.append("TapFloatingPoint resolver requires defaultBinaryPrecision=53")
-            if value.get("singlePrecision", {}).get("range") != [1, 24]:
-                errors.append("TapFloatingPoint resolver requires singlePrecision.range=[1,24]")
-            if value.get("doublePrecision", {}).get("range") != [25, 53]:
-                errors.append("TapFloatingPoint resolver requires doublePrecision.range=[25,53]")
+            binary_range = value.get("binaryPrecision")
+            default_precision = value.get("defaultBinaryPrecision")
+            single_range = value.get("singlePrecision", {}).get("range")
+            double_range = value.get("doublePrecision", {}).get("range")
+            if not (isinstance(binary_range, list) and len(binary_range) == 2 and all(isinstance(item, int) for item in binary_range)):
+                errors.append("TapFloatingPoint resolver requires an integer binaryPrecision range")
+            if not isinstance(default_precision, int) or not isinstance(binary_range, list) or not (binary_range[0] <= default_precision <= binary_range[1]):
+                errors.append("TapFloatingPoint resolver defaultBinaryPrecision must be inside binaryPrecision range")
+            if not (isinstance(single_range, list) and len(single_range) == 2 and all(isinstance(item, int) for item in single_range)):
+                errors.append("TapFloatingPoint resolver requires an integer singlePrecision.range")
+            if not (isinstance(double_range, list) and len(double_range) == 2 and all(isinstance(item, int) for item in double_range)):
+                errors.append("TapFloatingPoint resolver requires an integer doublePrecision.range")
+            if isinstance(binary_range, list) and isinstance(single_range, list) and isinstance(double_range, list):
+                if single_range[0] != binary_range[0] or double_range[1] != binary_range[1] or single_range[1] + 1 != double_range[0]:
+                    errors.append("TapFloatingPoint resolver precision ranges must be contiguous and cover binaryPrecision")
 
     if target == "TapNumber" and allowed:
         if allowed.get("type") != source_type:
@@ -113,25 +162,39 @@ def validate_entry(source_path: str, source_type: str, value: Mapping[str, Any],
     return errors
 
 
-def iter_files(paths: Sequence[str]) -> Iterable[Path]:
+def iter_files(paths: Sequence[str], registry: Mapping[str, Any]) -> Iterable[Path]:
     if paths:
         yield from (Path(path).resolve() for path in paths)
         return
-    for repository in (ROOT / "tapdata-connectors", ROOT / "tapdata-connectors-enterprise"):
-        for path in repository.glob("**/src/main/resources/*.json"):
-            yield path
+    seen = set()
+    for step in registry.get("steps", []):
+        for relative_path in step.get("paths", []):
+            path = (ROOT / relative_path).resolve()
+            if path not in seen:
+                seen.add(path)
+                yield path
 
 
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", help="spec JSON files; default scans both connector repositories")
     parser.add_argument("--allowlist", default=str(DEFAULT_ALLOWLIST), help="allowlist JSON path")
+    parser.add_argument("--registry", default=str(DEFAULT_REGISTRY), help="canonical source registry JSON path")
     args = parser.parse_args(argv)
 
     allowlist = load_allowlist(Path(args.allowlist).resolve())
-    errors: List[str] = []
+    registry = load_registry(Path(args.registry).resolve())
+    errors: List[str] = validate_registry(registry)
+    registered_paths = {
+        relative_path
+        for step in registry.get("steps", [])
+        for relative_path in step.get("paths", [])
+    }
+    for source_path in allowlist:
+        if source_path not in registered_paths:
+            errors.append(f"allowlist path is absent from source registry: {source_path}")
     checked = 0
-    for path in iter_files(args.paths):
+    for path in iter_files(args.paths, registry):
         if not path.is_file():
             errors.append(f"missing spec file: {path}")
             continue
