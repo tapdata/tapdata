@@ -399,7 +399,7 @@ public class TaskRestartScheduleTest {
 
             taskRestartSchedule.engineRestartNeedStartTask();
 
-            verify(taskScheduleService).scheduling(secondTask, userDetail, true);
+            verify(taskScheduleService).scheduling(same(secondTask), same(userDetail), eq(true));
         }
 
         @Test
