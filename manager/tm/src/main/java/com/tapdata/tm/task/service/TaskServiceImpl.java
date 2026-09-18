@@ -4473,6 +4473,7 @@ public class TaskServiceImpl extends TaskService{
                 .unset("stopTime")
                 .unset(STOP_RETRY_TIMES)
                 .unset(CURRENT_EVENT_TIMESTAMP)
+                .unset("nodeCurrentEventTimestamp")
                 .unset("snapshotDoneAt")
                 .unset(SCHEDULE_DATE)
                 .unset(STOPED_DATE)
