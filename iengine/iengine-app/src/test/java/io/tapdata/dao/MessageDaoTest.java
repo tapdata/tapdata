@@ -3,6 +3,8 @@ package io.tapdata.dao;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.error.ShareCacheExCode_20;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
@@ -48,8 +50,10 @@ class MessageDaoTest {
             }));
             ExecutionException failure = assertThrows(ExecutionException.class,
                     () -> registration.get(1, TimeUnit.SECONDS));
-            assertInstanceOf(IllegalStateException.class, failure.getCause());
-            assertTrue(failure.getCause().getMessage().contains("cleanup is still running"));
+            // 注册缓存的四个入口里只有正常启动经过 defer，试运行/预览会把这个异常直接抛给用户，
+            // 所以必须是带错误码的业务异常，不能是裸的 IllegalStateException
+            TapCodeException failed = assertInstanceOf(TapCodeException.class, failure.getCause());
+            assertEquals(ShareCacheExCode_20.CACHE_CLEANUP_IN_PROGRESS, failed.getCode());
             verify(cacheService, never()).registerCache(any());
             assertTrue(taskLock.tryRun(taskId, () -> {}, 100, TimeUnit.MILLISECONDS),
                     "cache registration must not retain the per-task lock while cleanup is blocked");

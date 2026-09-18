@@ -11,6 +11,8 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.error.ShareCacheExCode_20;
+import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
@@ -156,7 +158,12 @@ public class MessageDao {
 	private boolean prepareCacheRegistration(String jobId) {
 		synchronized (cacheLifecycleMonitor) {
 			if (cacheCleanupJobIds.contains(jobId)) {
-				throw new IllegalStateException("Cache cleanup is still running for task " + jobId);
+				// 这条会直接抛给用户：注册缓存的四个入口里只有正常启动经过
+				// TapdataTaskScheduler.deferStartUntilCacheCleanupCompletes，试运行与预览是同步的用户操作、
+				// 等不起 defer，所以这里必须给一个能看懂的业务错误，而不是裸的 IllegalStateException。
+				throw new TapCodeException(ShareCacheExCode_20.CACHE_CLEANUP_IN_PROGRESS,
+						"Cache cleanup is still running for task " + jobId)
+						.dynamicDescriptionParameters(jobId);
 			}
 			if (cacheRegisterJobIds.contains(jobId)) {
 				logger.info("Job cache is registered '{}'", jobId);

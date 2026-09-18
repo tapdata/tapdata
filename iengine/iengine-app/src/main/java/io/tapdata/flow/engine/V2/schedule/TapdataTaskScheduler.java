@@ -796,12 +796,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				final String taskId = taskClient.getTask().getId().toHexString();
 				final boolean stop = taskClient.stop();
 				if (stop) {
-					// 必须与 clearTaskCacheAfterStopped 走同一条异步清理路径：本方法跑在 taskControlScheduler 上，
-					// 而它是单线程的（ThreadPoolTaskScheduler 默认 poolSize=1），同一条线程还驱动 scheduledTask
-					// （wait_run 扫描）与 forceStoppingTask。在这里同步 destroy 一旦阻塞，本引擎就再也扫不到待启动任务。
-					// 走 scheduleCacheDestroy 还能登记 cacheCleanupFutures，使同任务的下一次 start 被正确 defer，
-					// 避免旧清理销毁新一代缓存、或 registerCache 撞上清理标记把任务判成 runError。
-					scheduleCacheDestroy(taskClient);
+					// 清理必须异步、且必须在 taskLock 内登记，两点缺一不可：
+					// 1) 本方法跑在 taskControlScheduler 上，而它是单线程的（ThreadPoolTaskScheduler 默认
+					//    poolSize=1），同一条线程还驱动 scheduledTask（wait_run 扫描）与 forceStoppingTask，
+					//    在这里同步 destroy 一旦阻塞，本引擎就再也扫不到待启动任务；
+					// 2) 登记 cacheCleanupFutures 要与 startTask 的 defer 检查互斥，否则它可以插在
+					//    defer 检查与其后 HazelcastTaskService 那次 registerCache 之间，让那次启动撞上清理标记。
+					// 拿不到锁就留到下一轮（10s 后）再处理。
+					if (!taskLock.tryRun(taskId, () -> scheduleCacheDestroy(taskClient), 1L, TimeUnit.SECONDS)) {
+						logger.warn("Schedule cache destruction of internally stopped task {}[{}] failed because of task lock, will retry later",
+								taskClient.getTask().getName(), taskId);
+						continue;
+					}
 					clearTaskRetryCache(taskId);
 					ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskClient.getTask());
 					iterator.remove();

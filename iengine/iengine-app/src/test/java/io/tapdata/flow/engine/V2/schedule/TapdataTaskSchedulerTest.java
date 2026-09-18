@@ -20,6 +20,7 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
@@ -316,6 +317,67 @@ public class TapdataTaskSchedulerTest {
 			} finally {
 				releaseCleanup.countDown();
 				cleanupPool.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("internal stop keeps the task for the next round when the task lock is held")
+		void internalStopTaskWaitsForTaskLockBeforeSchedulingCleanup() throws Exception {
+			// internalStopTask 不持 taskLock 时，清理登记可以插在 startTask 的 defer 检查与其后
+			// registerCache 之间，让那次启动撞上清理标记
+			TapdataTaskScheduler taskScheduler = new TapdataTaskScheduler();
+			MessageDao messageDao = mock(MessageDao.class);
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("internal-stopped-cache-task");
+			String taskId = task.getId().toHexString();
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(task);
+			when(taskClient.getCacheName()).thenReturn("share-cache");
+			when(taskClient.stop()).thenReturn(true);
+
+			@SuppressWarnings("unchecked")
+			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap =
+					(Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(taskScheduler, "internalStopTaskClientMap");
+			internalStopTaskClientMap.put(taskId, taskClient);
+			@SuppressWarnings("unchecked")
+			Map<String, CompletableFuture<Void>> cleanupFutures =
+					(Map<String, CompletableFuture<Void>>) ReflectionTestUtils.getField(taskScheduler, "cacheCleanupFutures");
+			SingleLockWithKey taskLock =
+					(SingleLockWithKey) ReflectionTestUtils.getField(TapdataTaskScheduler.class, "taskLock");
+
+			CountDownLatch lockHeld = new CountDownLatch(1);
+			CountDownLatch releaseLock = new CountDownLatch(1);
+			ExecutorService lockHolder = Executors.newSingleThreadExecutor();
+			try (MockedStatic<ObsLoggerFactory> obsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+				obsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+				lockHolder.submit(() -> {
+					taskLock.run(taskId, () -> {
+						lockHeld.countDown();
+						try {
+							releaseLock.await(10, TimeUnit.SECONDS);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+						}
+					});
+					return null;
+				});
+				assertTrue(lockHeld.await(2, TimeUnit.SECONDS));
+
+				ReflectionTestUtils.invokeMethod(taskScheduler, "internalStopTask");
+
+				assertFalse(cleanupFutures.containsKey(taskId),
+						"拿不到 taskLock 时不得登记清理，否则又能插进 startTask 的 defer 检查之后");
+				assertTrue(internalStopTaskClientMap.containsKey(taskId),
+						"拿不到 taskLock 时必须留到下一轮，不能当作已清理丢掉");
+				verify(messageDao, never()).destroyCache(any(TaskDto.class), anyString());
+			} finally {
+				releaseLock.countDown();
+				lockHolder.shutdown();
+				assertTrue(lockHolder.awaitTermination(5, TimeUnit.SECONDS));
 			}
 		}
 
