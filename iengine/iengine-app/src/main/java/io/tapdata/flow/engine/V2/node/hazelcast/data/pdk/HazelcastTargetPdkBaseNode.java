@@ -2081,6 +2081,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     public boolean saveToSnapshot() {
+        synchronized (this.saveSnapshotLock) {
+            return saveToSnapshotLocked();
+        }
+    }
+
+    private boolean saveToSnapshotLocked() {
         try {
             if (!flushOffset.get()) return true;
             if (MapUtils.isEmpty(syncProgressMap)) return true;
@@ -2311,6 +2317,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
+    private void stopFlushOffsetExecutorAndSaveSnapshot() {
+        try {
+            flushOffsetExecutor.shutdownNow();
+        } finally {
+            saveToSnapshot();
+        }
+    }
+
     @Override
     public void doClose() throws TapCodeException {
         try {
@@ -2329,8 +2343,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     l.notifyAll();
                 }
             }), TAG);
-            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
-            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+            CommonUtils.ignoreAnyError(this::stopFlushOffsetExecutorAndSaveSnapshot, TAG);
             CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
         } finally {
             super.doClose();

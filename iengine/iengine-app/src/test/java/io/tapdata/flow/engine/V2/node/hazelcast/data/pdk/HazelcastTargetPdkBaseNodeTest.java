@@ -1079,6 +1079,50 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	@DisplayName("Snapshot persistence on close test")
+	class SnapshotPersistenceOnCloseTest {
+		@Test
+		void saveToSnapshotUsesTheSnapshotLock() throws Exception {
+			Object snapshotLock = new Object();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "saveSnapshotLock", snapshotLock);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", new AtomicBoolean(false));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).saveToSnapshot();
+
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			CountDownLatch started = new CountDownLatch(1);
+			try {
+				Future<Boolean> future;
+				synchronized (snapshotLock) {
+					future = executor.submit(() -> {
+						started.countDown();
+						return hazelcastTargetPdkBaseNode.saveToSnapshot();
+					});
+					assertTrue(started.await(1, TimeUnit.SECONDS));
+					Thread.sleep(100);
+					assertFalse(future.isDone());
+				}
+				assertTrue(future.get(1, TimeUnit.SECONDS));
+			} finally {
+				executor.shutdownNow();
+			}
+		}
+
+		@Test
+		void closeStopsScheduledSnapshotsBeforeTheFinalSnapshot() {
+			ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffsetExecutor", executor);
+			doReturn(true).when(hazelcastTargetPdkBaseNode).saveToSnapshot();
+
+			ReflectionTestUtils.invokeMethod(
+					hazelcastTargetPdkBaseNode, "stopFlushOffsetExecutorAndSaveSnapshot");
+
+			org.mockito.InOrder inOrder = inOrder(executor, hazelcastTargetPdkBaseNode);
+			inOrder.verify(executor).shutdownNow();
+			inOrder.verify(hazelcastTargetPdkBaseNode).saveToSnapshot();
+		}
+	}
+
+	@Nested
 	@DisplayName("Method initTargetConcurrentProcessorIfNeed test")
 	class initTargetConcurrentProcessorIfNeedTest {
 		@BeforeEach
