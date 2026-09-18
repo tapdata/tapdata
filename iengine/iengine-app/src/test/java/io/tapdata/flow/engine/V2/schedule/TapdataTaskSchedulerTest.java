@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.schedule;
 
 import com.hazelcast.jet.core.JobStatus;
+import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -19,6 +20,7 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
@@ -33,12 +35,18 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -168,6 +176,283 @@ public class TapdataTaskSchedulerTest {
 	}
 
 	@Nested
+	class DestroyCacheTest {
+		@Test
+		@DisplayName("destroy cache does not update cache status")
+		void doesNotUpdateCacheStatus() throws Exception {
+			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+			MessageDao messageDao = mock(MessageDao.class);
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			String cacheName = "share-cache";
+			CountDownLatch destroyed = new CountDownLatch(1);
+			ExecutorService cleanupExecutor = Executors.newSingleThreadExecutor();
+
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupThreadPool", cleanupExecutor);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+			when(taskClient.getCacheName()).thenReturn(cacheName);
+			when(taskClient.getTask()).thenReturn(task);
+			doAnswer(invocation -> {
+				destroyed.countDown();
+				return null;
+			}).when(messageDao).destroyCache(task, cacheName);
+
+			try {
+				ReflectionTestUtils.invokeMethod(taskScheduler, "scheduleCacheDestroy", taskClient);
+				assertTrue(destroyed.await(2, TimeUnit.SECONDS));
+			} finally {
+				cleanupExecutor.shutdownNow();
+			}
+
+			verify(taskClient, never()).getStatus();
+			verify(messageDao, never()).updateCacheStatus(anyString(), anyString());
+			verify(messageDao).destroyCache(task, cacheName);
+		}
+
+		@Test
+		@DisplayName("a blocked cache cleanup does not stall another task's cleanup")
+		void blockedCleanupDoesNotStallOtherTasks() throws Exception {
+			// 真实实例：这里被测的正是生产的清理线程池配置，单线程池会让本用例失败
+			TapdataTaskScheduler taskScheduler = new TapdataTaskScheduler();
+			MessageDao messageDao = mock(MessageDao.class);
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+
+			TaskDto blockedTask = new TaskDto();
+			blockedTask.setId(new ObjectId());
+			blockedTask.setName("blocked-cache-task");
+			TaskDto otherTask = new TaskDto();
+			otherTask.setId(new ObjectId());
+			otherTask.setName("other-cache-task");
+			TaskClient<TaskDto> blockedClient = mock(TaskClient.class);
+			when(blockedClient.getTask()).thenReturn(blockedTask);
+			when(blockedClient.getCacheName()).thenReturn("blocked-cache");
+			TaskClient<TaskDto> otherClient = mock(TaskClient.class);
+			when(otherClient.getTask()).thenReturn(otherTask);
+			when(otherClient.getCacheName()).thenReturn("other-cache");
+
+			CountDownLatch blockedEntered = new CountDownLatch(1);
+			CountDownLatch releaseBlocked = new CountDownLatch(1);
+			CountDownLatch otherDestroyed = new CountDownLatch(1);
+			doAnswer(invocation -> {
+				blockedEntered.countDown();
+				releaseBlocked.await(10, TimeUnit.SECONDS);
+				return null;
+			}).when(messageDao).destroyCache(blockedTask, "blocked-cache");
+			doAnswer(invocation -> {
+				otherDestroyed.countDown();
+				return null;
+			}).when(messageDao).destroyCache(otherTask, "other-cache");
+
+			@SuppressWarnings("unchecked")
+			Map<String, CompletableFuture<Void>> cleanupFutures =
+					(Map<String, CompletableFuture<Void>>) ReflectionTestUtils.getField(taskScheduler, "cacheCleanupFutures");
+			ExecutorService cleanupPool = (ExecutorService) ReflectionTestUtils.getField(taskScheduler, "cacheCleanupThreadPool");
+			try {
+				ReflectionTestUtils.invokeMethod(taskScheduler, "scheduleCacheDestroy", blockedClient);
+				assertTrue(blockedEntered.await(2, TimeUnit.SECONDS));
+
+				ReflectionTestUtils.invokeMethod(taskScheduler, "scheduleCacheDestroy", otherClient);
+				assertTrue(otherDestroyed.await(2, TimeUnit.SECONDS),
+						"一个卡住的缓存清理不得挡住其它任务的清理");
+
+				// 另一个任务的清理登记必须已经摘掉，它的下一次启动才不会被永久 defer
+				String otherTaskId = otherTask.getId().toHexString();
+				long deadline = System.currentTimeMillis() + 2000L;
+				while (cleanupFutures.containsKey(otherTaskId) && System.currentTimeMillis() < deadline) {
+					TimeUnit.MILLISECONDS.sleep(10L);
+				}
+				assertFalse(cleanupFutures.containsKey(otherTaskId));
+				assertTrue(cleanupFutures.containsKey(blockedTask.getId().toHexString()));
+			} finally {
+				releaseBlocked.countDown();
+				cleanupPool.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("internal stop does not block the control scheduler on cache destroy")
+		void internalStopTaskDoesNotBlockOnCacheDestroy() throws Exception {
+			// internalStopTask 跑在单线程的 taskControlScheduler 上，同一条线程还驱动 wait_run 扫描，
+			// 在这里同步销毁缓存会让本引擎再也扫不到待启动任务
+			TapdataTaskScheduler taskScheduler = new TapdataTaskScheduler();
+			MessageDao messageDao = mock(MessageDao.class);
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("internal-stopped-cache-task");
+			String taskId = task.getId().toHexString();
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(task);
+			when(taskClient.getCacheName()).thenReturn("share-cache");
+			when(taskClient.stop()).thenReturn(true);
+
+			CountDownLatch cleanupEntered = new CountDownLatch(1);
+			CountDownLatch releaseCleanup = new CountDownLatch(1);
+			doAnswer(invocation -> {
+				cleanupEntered.countDown();
+				releaseCleanup.await(5, TimeUnit.SECONDS);
+				return null;
+			}).when(messageDao).destroyCache(task, "share-cache");
+
+			@SuppressWarnings("unchecked")
+			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap =
+					(Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(taskScheduler, "internalStopTaskClientMap");
+			internalStopTaskClientMap.put(taskId, taskClient);
+			ExecutorService cleanupPool = (ExecutorService) ReflectionTestUtils.getField(taskScheduler, "cacheCleanupThreadPool");
+
+			try (MockedStatic<ObsLoggerFactory> obsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+				obsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+				// 同线程断言：assertTimeoutPreemptively 会换线程执行，MockedStatic 是线程私有的
+				assertTimeout(Duration.ofSeconds(2),
+						() -> ReflectionTestUtils.invokeMethod(taskScheduler, "internalStopTask"));
+				assertTrue(cleanupEntered.await(2, TimeUnit.SECONDS));
+				assertTrue(internalStopTaskClientMap.isEmpty(),
+						"缓存清理已异步提交，内部停止的任务不应继续留在待处理表里");
+			} finally {
+				releaseCleanup.countDown();
+				cleanupPool.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("internal stop keeps the task for the next round when the task lock is held")
+		void internalStopTaskWaitsForTaskLockBeforeSchedulingCleanup() throws Exception {
+			// internalStopTask 不持 taskLock 时，清理登记可以插在 startTask 的 defer 检查与其后
+			// registerCache 之间，让那次启动撞上清理标记
+			TapdataTaskScheduler taskScheduler = new TapdataTaskScheduler();
+			MessageDao messageDao = mock(MessageDao.class);
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("internal-stopped-cache-task");
+			String taskId = task.getId().toHexString();
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(task);
+			when(taskClient.getCacheName()).thenReturn("share-cache");
+			when(taskClient.stop()).thenReturn(true);
+
+			@SuppressWarnings("unchecked")
+			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap =
+					(Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(taskScheduler, "internalStopTaskClientMap");
+			internalStopTaskClientMap.put(taskId, taskClient);
+			@SuppressWarnings("unchecked")
+			Map<String, CompletableFuture<Void>> cleanupFutures =
+					(Map<String, CompletableFuture<Void>>) ReflectionTestUtils.getField(taskScheduler, "cacheCleanupFutures");
+			SingleLockWithKey taskLock =
+					(SingleLockWithKey) ReflectionTestUtils.getField(TapdataTaskScheduler.class, "taskLock");
+
+			CountDownLatch lockHeld = new CountDownLatch(1);
+			CountDownLatch releaseLock = new CountDownLatch(1);
+			ExecutorService lockHolder = Executors.newSingleThreadExecutor();
+			try (MockedStatic<ObsLoggerFactory> obsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+				obsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+				lockHolder.submit(() -> {
+					taskLock.run(taskId, () -> {
+						lockHeld.countDown();
+						try {
+							releaseLock.await(10, TimeUnit.SECONDS);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+						}
+					});
+					return null;
+				});
+				assertTrue(lockHeld.await(2, TimeUnit.SECONDS));
+
+				ReflectionTestUtils.invokeMethod(taskScheduler, "internalStopTask");
+
+				assertFalse(cleanupFutures.containsKey(taskId),
+						"拿不到 taskLock 时不得登记清理，否则又能插进 startTask 的 defer 检查之后");
+				assertTrue(internalStopTaskClientMap.containsKey(taskId),
+						"拿不到 taskLock 时必须留到下一轮，不能当作已清理丢掉");
+				verify(messageDao, never()).destroyCache(any(TaskDto.class), anyString());
+			} finally {
+				releaseLock.countDown();
+				lockHolder.shutdown();
+				assertTrue(lockHolder.awaitTermination(5, TimeUnit.SECONDS));
+			}
+		}
+
+		@Test
+		@DisplayName("cache cleanup does not block the task stop path")
+		void cleanupRunsOutsideTheTaskStopPath() throws Exception {
+			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+			MessageDao messageDao = new MessageDao();
+			ICacheService cacheService = mock(ICacheService.class);
+			messageDao.setCacheService(cacheService);
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("share-cache-task");
+			String cacheName = "share-cache";
+			CountDownLatch cleanupEntered = new CountDownLatch(1);
+			CountDownLatch releaseCleanup = new CountDownLatch(1);
+			ExecutorService cleanupExecutor = Executors.newSingleThreadExecutor();
+
+			ReflectionTestUtils.setField(taskScheduler, "messageDao", messageDao);
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "startsWaitingForCacheCleanup", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupThreadPool", cleanupExecutor);
+			when(taskClient.getTask()).thenReturn(task);
+			when(taskClient.getCacheName()).thenReturn(cacheName);
+			doAnswer(invocation -> {
+				cleanupEntered.countDown();
+				assertTrue(releaseCleanup.await(5, TimeUnit.SECONDS));
+				return null;
+			}).when(cacheService).destroy(cacheName);
+
+			try {
+				assertTimeoutPreemptively(Duration.ofSeconds(1), () ->
+						ReflectionTestUtils.invokeMethod(taskScheduler, "clearTaskCacheAfterStopped", taskClient));
+				assertTrue(cleanupEntered.await(2, TimeUnit.SECONDS));
+			} finally {
+				releaseCleanup.countDown();
+				cleanupExecutor.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("task restart is resubmitted only after its cache cleanup generation")
+		void restartWaitsForCacheCleanupGeneration() {
+			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+			TaskDto task = new TaskDto();
+			task.setId(new ObjectId());
+			task.setName("task-waiting-for-cache-cleanup");
+			String taskId = task.getId().toHexString();
+			CompletableFuture<Void> cleanupFuture = new CompletableFuture<>();
+			Map<String, CompletableFuture<Void>> cleanupFutures = new ConcurrentHashMap<>();
+			cleanupFutures.put(taskId, cleanupFuture);
+			Map<String, TaskDto> waitingStarts = new ConcurrentHashMap<>();
+
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", cleanupFutures);
+			ReflectionTestUtils.setField(taskScheduler, "startsWaitingForCacheCleanup", waitingStarts);
+			ReflectionTestUtils.setField(taskScheduler, "logger", mock(Logger.class));
+
+			Boolean deferred = ReflectionTestUtils.invokeMethod(taskScheduler,
+					"deferStartUntilCacheCleanupCompletes", taskId, task);
+
+			assertTrue(Boolean.TRUE.equals(deferred));
+			verify(taskScheduler, never()).sendStartTask(any());
+
+			cleanupFutures.remove(taskId, cleanupFuture);
+			cleanupFuture.complete(null);
+
+			verify(taskScheduler).sendStartTask(task);
+			assertFalse(waitingStarts.containsKey(taskId));
+		}
+	}
+
+	@Nested
 	class startTaskTest {
 
 		private TapdataTaskScheduler taskScheduler;
@@ -176,6 +461,8 @@ public class TapdataTaskSchedulerTest {
 		void setUp() {
 			taskScheduler = mock(TapdataTaskScheduler.class);
 			ReflectionTestUtils.setField(taskScheduler, "startTaskLock", new Object());
+			ReflectionTestUtils.setField(taskScheduler, "cacheCleanupFutures", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskScheduler, "startsWaitingForCacheCleanup", new ConcurrentHashMap<>());
 		}
 
 		@Test
