@@ -52,12 +52,15 @@ public abstract class StreamReadBaseProxy<T extends TapFunction, V> extends Func
             TapTable tapTable = entry.getValue();
             String type = tapTable.getType();
             if (MetaType.isView(type)) {
+                remove(tables, tableName);
                 view.add(tableName);
             }
         }
         if (!view.isEmpty()) {
-            throw new IllegalArgumentException("View only supports polling incremental mode. Log CDC cannot be used for: "
-                    + view.stream().sorted().collect(Collectors.joining(", ")));
+            log.warn("The view does not support CDC mode. The following views will skip the CDC phase: {}", view.stream().sorted().collect(Collectors.joining(", ")));
+        }
+        if (tables.isEmpty() && !view.isEmpty()) {
+            return false;
         }
         return hasNext;
     }
@@ -71,12 +74,12 @@ public abstract class StreamReadBaseProxy<T extends TapFunction, V> extends Func
             TapTable tapTable = entry.getValue();
             String type = tapTable.getType();
             if (MetaType.isView(type)) {
+                tableMap.remove(tableName);
                 view.add(tableName);
             }
         }
         if (!view.isEmpty()) {
-            throw new IllegalArgumentException("View only supports polling incremental mode. Log CDC cannot be used for: "
-                    + view.stream().sorted().collect(Collectors.joining(", ")));
+            log.warn("The view does not support CDC mode. The following views will skip the CDC phase: {}", view.stream().sorted().collect(Collectors.joining(", ")));
         }
     }
 
