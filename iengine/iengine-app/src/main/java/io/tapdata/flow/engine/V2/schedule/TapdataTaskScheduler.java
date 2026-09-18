@@ -813,6 +813,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					iterator.remove();
 				}
 			}
+		} catch (InterruptedException e) {
+			// taskLock.tryRun 会抛：中断意味着引擎在关停，重置中断位后交回调度线程，不当成扫描失败
+			Thread.currentThread().interrupt();
+			logger.info("Scan internal stopping data flow interrupted, will not continue this round");
 		} catch (Exception e) {
 			logger.error("Scan internal stopping data flow failed {}", e.getMessage(), e);
 		}
