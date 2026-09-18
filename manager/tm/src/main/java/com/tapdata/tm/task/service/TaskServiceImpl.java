@@ -4468,7 +4468,7 @@ public class TaskServiceImpl extends TaskService{
 
     @NotNull
     private static Update resetUpdate() {
-        Update update = new Update()
+        return new Update()
                 .unset(START_TIME)
                 .unset("stopTime")
                 .unset(STOP_RETRY_TIMES)
@@ -4480,7 +4480,6 @@ public class TaskServiceImpl extends TaskService{
                 .unset("functionRetryEx")
                 .unset("taskRetryStatus")
                 .unset(FUNCTION_RETRY_STATUS);
-        return update;
     }
 
     protected boolean findProcessNodeListWithGroup(TaskDto taskDto, List<String> accessNodeProcessIdList, UserDetail user) {
