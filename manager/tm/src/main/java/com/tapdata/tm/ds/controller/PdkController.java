@@ -1,9 +1,11 @@
 package com.tapdata.tm.ds.controller;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
@@ -55,7 +57,10 @@ public class PdkController extends BaseController {
             pdkSourceDtos.add(pdkSourceDto);
         }
 
-        pkdSourceService.uploadPdk(file, pdkSourceDtos, latest, getLoginUser());
+        UserDetail user = getLoginUser();
+        boolean accessCodeRegistration = user != null
+                && AuthType.ACCESS_CODE.getValue().equals(user.getAuthType());
+        pkdSourceService.uploadPdk(file, pdkSourceDtos, latest, user, accessCodeRegistration);
         return success();
     }
 
