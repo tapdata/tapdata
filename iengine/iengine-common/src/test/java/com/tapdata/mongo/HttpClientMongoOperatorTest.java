@@ -85,7 +85,7 @@ public class HttpClientMongoOperatorTest {
         void shouldAppendIdBeforeQueryParameters() {
             httpClientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running?agentId=fe1&taskRecordId=record1", "task1", Object.class);
 
-            assertEquals(ConnectorConstant.TASK_COLLECTION + "/running/task1?agentId=fe1&taskRecordId=record1&access_token=token", restTemplateOperator.resource);
+            assertEquals(ConnectorConstant.TASK_COLLECTION + "/running/task1?agentId=fe1&taskRecordId=record1", restTemplateOperator.resource);
         }
 
         class CapturingRestTemplateOperator extends RestTemplateOperator {

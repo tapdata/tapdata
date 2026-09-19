@@ -50,7 +50,9 @@ public class SampleData {
 
         try {
             String response = sendPostRequest(
-                    String.format("http://localhost:%d/api/proxy/call?access_token=%s", serverPort, toolSupport.getAccessToken(context)), data);
+                    String.format("http://localhost:%d/api/proxy/call", serverPort),
+                    data,
+                    Map.of("Authorization", "Bearer " + toolSupport.getAccessToken(context)));
 
             ResponseMessage<Object> responseMessage = Utils.parseJson(response, new TypeReference<ResponseMessage<Object>>() {
             });
