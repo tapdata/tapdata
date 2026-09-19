@@ -2,6 +2,7 @@ package com.tapdata.entity.dataflow.batch;
 
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
@@ -10,9 +11,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public class BatchOffsetUtil {
-    @Deprecated
     protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
     public static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
     private BatchOffsetUtil(){
@@ -37,9 +39,20 @@ public class BatchOffsetUtil {
         if (offsetValue instanceof BatchOffset) {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return ((BatchOffset) offsetValue).getOffset();
-        } else if (offsetValue instanceof Map
-                && ((Map<?, ?>)offsetValue).containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
-            return ((Map<String, Object>)offsetValue).get(BATCH_READ_CONNECTOR_OFFSET);
+        } else if (offsetValue instanceof Map) {
+            Map<?, ?> offsetMap = (Map<?, ?>) offsetValue;
+            if (offsetMap.containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
+                return offsetMap.get(BATCH_READ_CONNECTOR_OFFSET);
+            }
+            if (offsetMap.containsKey(BATCH_READ_CONNECTOR_STATUS)) {
+                /**
+                 * Legacy breakpoint produced by an older engine only carried the batch read status
+                 * without a resumable offset. Returning the marker map itself (the previous behavior)
+                 * would hand it to the connector as the resume offset. There is nothing to resume, so
+                 * fall back to a full run from scratch.
+                 */
+                return null;
+            }
         }
 
         /** history data*/
@@ -54,6 +67,32 @@ public class BatchOffsetUtil {
                 return new HashMap<>((Map<?, ?>) tableBatchOffsetObj);
             }
             return tableBatchOffsetObj;
+        }
+        return batchOffsetObj;
+    }
+
+    /**
+     * The top level batch offset container (tableId -&gt; table offset) is mutated concurrently by the
+     * partition read worker threads, so it must always be a thread-safe map. A restored breakpoint
+     * must not downgrade it to a plain HashMap (decoding rebuilds maps and would otherwise lose the
+     * ConcurrentHashMap created on the first run).
+     *
+     * <p>{@link ConcurrentHashMap} rejects null keys/values, but a table offset marker written by
+     * {@link #updateBatchOffset(Map, Object, String)} may carry a null connector offset, and a restored
+     * breakpoint can even be a bare marker map ({@code {status, offset: null}}). Copy entry by entry and
+     * skip nulls so restoring such a breakpoint does not throw a NullPointerException and leave the task
+     * unable to start. A null entry is semantically equivalent to a missing one:
+     * {@link #getBatchOffsetOfTable} already returns null in that case.
+     */
+    public static Object asConcurrentBatchOffset(Object batchOffsetObj) {
+        if (batchOffsetObj instanceof Map && !(batchOffsetObj instanceof ConcurrentHashMap)) {
+            Map<Object, Object> concurrent = new ConcurrentHashMap<>();
+            ((Map<?, ?>) batchOffsetObj).forEach((key, value) -> {
+                if (null != key && null != value) {
+                    concurrent.put(key, value);
+                }
+            });
+            return concurrent;
         }
         return batchOffsetObj;
     }
@@ -82,7 +121,69 @@ public class BatchOffsetUtil {
             offsetMap = new HashMap<>();
         }
         offsetMap.put(BATCH_READ_CONNECTOR_STATUS, isOverTag);
+        offsetMap.put(BATCH_READ_CONNECTOR_OFFSET, offset);
         return offsetMap;
+    }
+
+    public static Object encodeConnectorOffset(Object batchOffsetObj, Function<Object, String> encoder) {
+        return transformConnectorOffset(batchOffsetObj, offset -> encodeOffsetIfNeed(offset, encoder));
+    }
+
+    public static Object decodeConnectorOffset(Object batchOffsetObj, Function<String, Object> decoder) {
+        return transformConnectorOffset(batchOffsetObj, offset -> decodeOffsetIfNeed(offset, decoder));
+    }
+
+    /**
+     * Rebuild the batch offset applying {@code offsetTransform} to the connector offset that is
+     * carried by a table offset marker ({@link #BATCH_READ_CONNECTOR_OFFSET}). The top level map is
+     * {@code tableId -&gt; tableOffset}, so we descend exactly one level and never walk into the
+     * connector offset payload. Rebuilding the payload would replace nested {@code LinkedHashMap}s
+     * (losing iteration order) and connector defined {@code Serializable} {@code Map} subclasses with
+     * plain {@code HashMap}s, which the connector would fail to cast back when resuming.
+     */
+    private static Object transformConnectorOffset(Object batchOffsetObj, Function<Object, Object> offsetTransform) {
+        if (!(batchOffsetObj instanceof Map)) {
+            return batchOffsetObj;
+        }
+        Map<?, ?> source = (Map<?, ?>) batchOffsetObj;
+        if (isTableOffsetMarker(source)) {
+            // the whole batch offset already is a single table offset
+            return transformTableOffset(source, offsetTransform);
+        }
+        Map<Object, Object> target = new HashMap<>(source);
+        source.forEach((key, value) -> {
+            if (value instanceof Map && isTableOffsetMarker((Map<?, ?>) value)) {
+                target.put(key, transformTableOffset((Map<?, ?>) value, offsetTransform));
+            }
+        });
+        return target;
+    }
+
+    private static boolean isTableOffsetMarker(Map<?, ?> offsetMap) {
+        return offsetMap.containsKey(BATCH_READ_CONNECTOR_OFFSET) || offsetMap.containsKey(BATCH_READ_CONNECTOR_STATUS);
+    }
+
+    private static Object transformTableOffset(Map<?, ?> tableOffset, Function<Object, Object> offsetTransform) {
+        Map<Object, Object> target = new HashMap<>(tableOffset);
+        target.put(BATCH_READ_CONNECTOR_OFFSET, offsetTransform.apply(target.get(BATCH_READ_CONNECTOR_OFFSET)));
+        return target;
+    }
+
+    private static Object encodeOffsetIfNeed(Object offset, Function<Object, String> encoder) {
+        if (offset == null) {
+            return null;
+        }
+        if (offset instanceof String && ((String) offset).startsWith(PdkUtil.ENCODE_PREFIX)) {
+            return offset;
+        }
+        return encoder.apply(offset);
+    }
+
+    private static Object decodeOffsetIfNeed(Object offset, Function<String, Object> decoder) {
+        if (offset instanceof String && ((String) offset).startsWith(PdkUtil.ENCODE_PREFIX)) {
+            return decoder.apply((String) offset);
+        }
+        return offset;
     }
 
     protected static void tableUpdateName(SyncProgress syncProgress, String oldName, String newName) {
