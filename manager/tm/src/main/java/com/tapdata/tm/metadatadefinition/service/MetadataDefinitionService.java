@@ -9,6 +9,9 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.batchtags.service.BatchListTagService;
+import com.tapdata.tm.batchtags.service.BatchListTagService.BatchListTagChanges;
+import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Tag;
@@ -25,6 +28,7 @@ import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.constant.LdpDirEnum;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.entity.User;
@@ -77,6 +81,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     MetadataInstancesService metadataInstancesService;
 
     @Autowired
+    BatchListTagService batchListTagService;
+
+    @Autowired
     private DiscoveryService discoveryService;
 
     @Autowired
@@ -117,12 +124,42 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         if (entityClass != null) {
             mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, entityClass);
         }
+        return idList;
+    }
 
-        // 更新成功后，需要将模型中的也跟着更新了
-        Criteria criteria = Criteria.where("source.id").in(idList).and("metaType").is("database").and("isDeleted").is(false);
-        Update classifications = Update.update("classifications", listTags);
-        metadataInstancesService.update(new Query(criteria), classifications, userDetail);
-        return null;
+    public List<String> batchApplyListTags(String tableName, BatchApplyListTagsParam batchApplyListTagsParam, UserDetail userDetail) {
+        if (batchApplyListTagsParam == null || CollectionUtils.isEmpty(batchApplyListTagsParam.getIds()) || CollectionUtils.isEmpty(batchApplyListTagsParam.getTags())) {
+            return Collections.emptyList();
+        }
+
+        BatchListTagChanges tagChanges = batchListTagService.resolveTagChanges(batchApplyListTagsParam.getTags());
+        if (tagChanges.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Class<?> entityClass = ENTITY_MAP.get(tableName);
+        if (entityClass == null) {
+            return Collections.emptyList();
+        }
+
+        List<String> idList = batchApplyListTagsParam.getIds();
+        if (DataSourceEntity.class.equals(entityClass)) {
+            return applyBatchListTags(idList, tagChanges, DataSourceEntity.class,
+                    entity -> batchListTagService.fromMapTags(entity.getListtags()),
+                    batchListTagService::toMapTags);
+        }
+        if (InspectEntity.class.equals(entityClass)) {
+            return applyBatchListTags(idList, tagChanges, InspectEntity.class,
+                    InspectEntity::getListtags,
+                    tags -> tags);
+        }
+        if (TaskEntity.class.equals(entityClass)) {
+            return applyBatchListTags(idList, tagChanges, TaskEntity.class,
+                    TaskEntity::getListtags,
+                    tags -> tags);
+        }
+
+        return Collections.emptyList();
     }
 
     /**
@@ -142,6 +179,35 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         }
 
         return idList;
+    }
+
+    private <T extends BaseEntity> List<String> applyBatchListTags(List<String> idList,
+                                                                   BatchListTagChanges tagChanges,
+                                                                   Class<T> entityClass,
+                                                                   Function<T, List<Tag>> currentTagsGetter,
+                                                                   Function<List<Tag>, Object> storedTagsConverter) {
+        Query query = Query.query(Criteria.where("id").in(idList));
+        query.fields().include("id", "listtags");
+        List<T> entities = mongoTemplate.find(query, entityClass);
+        List<String> updatedIds = new ArrayList<>();
+
+        for (T entity : entities) {
+            List<Tag> currentTags = Optional.ofNullable(currentTagsGetter.apply(entity)).orElse(Collections.emptyList());
+            List<Tag> nextTags = batchListTagService.applyDesiredTags(currentTags, tagChanges);
+            if (batchListTagService.isSameTags(currentTags, nextTags)) {
+                continue;
+            }
+
+            mongoTemplate.updateFirst(Query.query(Criteria.where("id").is(entity.getId())),
+                    Update.update("listtags", storedTagsConverter.apply(nextTags)),
+                    entityClass);
+
+            if (entity.getId() != null) {
+                updatedIds.add(entity.getId().toHexString());
+            }
+        }
+
+        return updatedIds;
     }
 
 

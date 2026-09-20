@@ -1,0 +1,20 @@
+[
+  {
+    "update": "Modules",
+    "updates": [
+      {
+        "q": {
+          "status": {
+            "$ne": "active"
+          }
+        },
+        "u": {
+          "$set": {
+            "publishStatus": ""
+          }
+        },
+        "upsert": false
+      }
+    ]
+  }
+]

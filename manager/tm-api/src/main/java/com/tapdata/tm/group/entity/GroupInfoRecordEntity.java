@@ -1,6 +1,7 @@
 package com.tapdata.tm.group.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.group.dto.GitOperationStep;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,7 +15,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("GroupInfoRecord")
-public class GroupInfoRecordEntity extends BaseEntity {
+public class GroupInfoRecordEntity extends BaseEntity implements IDataPermissionEntity {
     private String type;
     private Date operationTime;
     private String operator;

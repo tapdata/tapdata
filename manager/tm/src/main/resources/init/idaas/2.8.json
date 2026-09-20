@@ -84,14 +84,6 @@
         "key": {
           "_id": 1
         }
-      },
-      {
-        "name": "received_date_1",
-        "key": {
-          "received_date": 1
-        },
-        "expireAfterSeconds": 7776000,
-        "background": true
       }
     ]
   },

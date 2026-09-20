@@ -12,7 +12,7 @@ until curl -s http://localhost:3030/api/ > /dev/null; do
   echo "Waiting for TM..."
 done
 echo "Registering connectors..."
-java -jar lib/pdk-deploy.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://localhost:3030 connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar
+java -jar lib/pdk-deploy.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://localhost:3030 connectors/dist
 echo "Registration complete. Tailing TM logs..."
 tail -f logs/tm.log &
 wait $TM_PID

@@ -62,17 +62,18 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 		String userId = userDetail.getUserId();
 		dag.getSources().forEach(node -> {
 			String name = node.getName();
+			Object localizedName = MessageUtil.dagNodeName(node.getType(), name);
 			String nodeId = node.getId();
 
 			DataParentNode dataParentNode = (DataParentNode) node;
 
 			if (StringUtils.isEmpty(name)) {
-				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_EMPTY"), dataParentNode.getDatabaseType());
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_EMPTY"), dataParentNode.getDatabaseType());
 				result.add(log);
 			}
 
 			if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
-				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_DB"), name);
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_DB"), localizedName);
 				result.add(log);
 			}
 
@@ -91,17 +92,17 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 			if (CollectionUtils.isEmpty(tableNames)) {
 				if ("expression".equals(migrateSelectType)) {
 					if (StringUtils.isEmpty(tableExpression)) {
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_EXP_EMPTY"), name);
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_EXP_EMPTY"), localizedName);
 						result.add(log);
 					}
 				} else {
-					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_TB"), name);
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_TB"), localizedName);
 					result.add(log);
 				}
 			}
 
 			if (nameSet.contains(name)) {
-				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_REPEAT"), name);
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_REPEAT"), localizedName);
 				result.add(log);
 			}
 			nameSet.add(name);
@@ -123,7 +124,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 						return false;
 					}).orElse(false);
 					if (isPollingCDC) {
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_POLLINGCDC"),name);
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_POLLINGCDC"), localizedName);
 						result.add(log);
 					}
 					List<String> capList = dto.getCapabilities().stream().map(Capability::getId).filter(id -> {
@@ -157,7 +158,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 							syncType.add(MessageUtil.getDagCheckMsg(locale, "STREAM_READ_FUNCTION"));
 						}
 
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), localizedName, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
 						result.add(log);
 					}
 
@@ -167,11 +168,11 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 				}
 
 				if (CollectionUtils.isEmpty(tables)) {
-					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA"), name);
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA"), localizedName);
 					result.add(log);
 				} else {
 					if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA_LOAD"), name);
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA_LOAD"), localizedName);
 						result.add(log);
 					}
 
@@ -181,7 +182,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 						List<String> temp = new ArrayList<>(tableNames);
 						temp.removeAll(list);
 						if (CollectionUtils.isNotEmpty(temp)) {
-							TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(temp));
+							TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), localizedName, JSON.toJSONString(temp));
 							result.add(log);
 						}
 
@@ -193,27 +194,27 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 //                                fields.forEach(k -> {
 //                                    TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
 //                                    if (TapType.TYPE_RAW == tapType.getType()) {
-//                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
+//                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
 //                                        result.add(log);
 //                                    }
 //                                });
 //                            }
 //                        });
 					} else {
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames));
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), localizedName, JSON.toJSONString(tableNames));
 						result.add(log);
 					}
 				}
 
 				// check mariadb
 				if ("mariadb".equals(dto.getDefinitionPdkId()) && taskDto.getType().contains("cdc")) {
-					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_MARIADB"), node.getName());
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_MARIADB"), localizedName);
 					result.add(log);
 				}
 			});
 
 			if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.INFO, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"), node.getName());
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.INFO, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"), localizedName);
 				result.add(log);
 			}
 		});
@@ -223,7 +224,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 	protected void checkIsFilterOrCustomCommand(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, String name, DataParentNode node) {
 		String nodeId = node.getId();
 		if (node instanceof TableNode && (((TableNode) node).getIsFilter() || ((TableNode) node).isEnableCustomCommand())) {
-			TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISFILTER"), name);
+			TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISFILTER"), MessageUtil.dagNodeName(node.getType(), name));
 			result.add(log);
 		}
 	}
@@ -242,7 +243,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 							return Lists.of("alter_field_name_function", "drop_field_function", "new_field_function", "alter_field_attributes_function").contains(id);
 						}).collect(Collectors.toList());
 						if (collect.size() > 0 && enableDDL != null && enableDDL) {
-							TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISDDL"), name);
+							TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISDDL"), MessageUtil.dagNodeName(dataParentNode.getType(), name));
 							result.add(log);
 						}
 					});
@@ -260,7 +261,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 			// first check field polling cdc
 			if (node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode())) {
 				if (!capList.contains("query_by_advance_filter_function")) {
-					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), MessageUtil.dagNodeName(node.getType(), node.getName()));
 					result.add(log);
 				}
 			} else if (capList.contains("stream_read_function")) {
@@ -278,7 +279,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 					}
 
 					if (!cdcOk) {
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), MessageUtil.dagNodeName(node.getType(), node.getName()));
 						result.add(log);
 					}
 

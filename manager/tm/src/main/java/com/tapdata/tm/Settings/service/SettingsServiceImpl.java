@@ -300,6 +300,9 @@ public class SettingsServiceImpl implements SettingsService {
     private Update buildSettingsUpdate(SettingsDto dto) {
         Update update = new Update();
         update.set("value", dto.getValue());
+        if (dto.getOpen() != null) {
+            update.set("open", dto.getOpen());
+        }
         return update;
     }
 

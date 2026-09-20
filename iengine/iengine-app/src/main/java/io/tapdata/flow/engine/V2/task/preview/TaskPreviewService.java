@@ -247,11 +247,13 @@ public class TaskPreviewService {
 
 	protected Dag handlePreviewTargetNode(DAG dag) {
 		List<Node> allTypeTargetNodes = dag.getAllTypeTargetNodes();
+		List<Node> sourceNodes = dag.getSourceNodes();
 		for (Node targetNode : allTypeTargetNodes) {
 			PreviewTargetNode previewTargetNode = new PreviewTargetNode();
 			previewTargetNode.setName(PreviewTargetNode.class.getSimpleName());
 			previewTargetNode.setId(UUID.randomUUID().toString());
-			if (targetNode.isDataNode() || targetNode instanceof VirtualTargetNode) {
+			boolean isSourceNode = sourceNodes.stream().anyMatch(sourceNode -> Objects.equals(sourceNode.getId(), targetNode.getId()));
+			if ((targetNode.isDataNode() || targetNode instanceof VirtualTargetNode) && !isSourceNode) {
 				dag.replaceNode(targetNode, previewTargetNode);
 			} else {
 				dag.addTargetNode(targetNode, previewTargetNode);

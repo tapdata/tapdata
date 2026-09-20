@@ -75,6 +75,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -93,6 +94,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -1605,6 +1607,31 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapEvents.add(tapUpdateRecordEvent);
 			assertThrows(NodeException.class, () -> hazelcastSourcePdkDataNode.wrapTapdataEvent(tapEvents, null, null));
 		}
+
+		@DisplayName("test partition batch offset is an immutable event snapshot")
+		@Test
+		void testPartitionBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			PartitionTableOffset currentOffset = new PartitionTableOffset();
+			currentOffset.setTableCompleted(false);
+			currentOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			currentOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
+
+			SyncProgress progress = new SyncProgress();
+			Map<String, Object> offsets = new ConcurrentHashMap<>();
+			offsets.put(tableId, currentOffset);
+			progress.setBatchOffsetObj(offsets);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			PartitionTableOffset snapshot = (PartitionTableOffset) hazelcastSourcePdkDataNode.snapshotBatchOffset(tableId);
+			currentOffset.setTableCompleted(true);
+			currentOffset.getCompletedPartitions().put("partition-1", 100L);
+
+			assertNotSame(currentOffset, snapshot);
+			assertSame(currentOffset.getPartitions(), snapshot.getPartitions());
+			assertFalse(snapshot.getTableCompleted());
+			assertTrue(snapshot.getCompletedPartitions().isEmpty());
+		}
 	}
 
 	@Nested
@@ -2562,6 +2589,48 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			node.setTableExpression("*");
 			result = sourcePdkBaseNode.checkDDLFilterPredicate(event);
 			Assertions.assertTrue(result);
+		}
+	}
+
+	@Nested
+	class HandleTableMonitorResultTest {
+		@Test
+		void ensuresNewTablesOutsideSourceRunnerLockDuringSnapshot() {
+			HazelcastSourcePdkBaseNodeImp sourceNode = spy(new HazelcastSourcePdkBaseNodeImp(dataProcessorContext));
+			TableMonitor tableMonitor = mock(TableMonitor.class);
+			MonitorManager monitorManager = mock(MonitorManager.class);
+			TableMonitor.TableResult tableResult = TableMonitor.TableResult.create().add("new_table");
+			CopyOnWriteArrayList<String> newTables = new CopyOnWriteArrayList<>();
+
+			ReflectionTestUtils.setField(sourceNode, "monitorManager", monitorManager);
+			ReflectionTestUtils.setField(sourceNode, "newTables", newTables);
+			ReflectionTestUtils.setField(sourceNode, "removeTables", new CopyOnWriteArrayList<>());
+			ReflectionTestUtils.setField(sourceNode, "endSnapshotLoop", new AtomicBoolean(false));
+			doReturn(tableMonitor).when(monitorManager).getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			when(sourceNode.isRunning()).thenReturn(true);
+			doAnswer(invocation -> {
+				Consumer<TableMonitor.TableResult> consumer = invocation.getArgument(0);
+				consumer.accept(tableResult);
+				return null;
+			}).when(tableMonitor).consume(any());
+			doAnswer(invocation -> {
+				newTables.addAll(invocation.getArgument(0));
+				return false;
+			}).when(sourceNode).handleNewTables(anyList());
+
+			AtomicBoolean ensureCalled = new AtomicBoolean(false);
+			AtomicBoolean lockHeldDuringEnsure = new AtomicBoolean(true);
+			doAnswer(invocation -> {
+				ensureCalled.set(true);
+				lockHeldDuringEnsure.set(sourceNode.sourceRunnerLock.isHeldByCurrentThread());
+				return null;
+			}).when(sourceNode).ensureShareCdcForNewTables(anyList());
+
+			sourceNode.handleTableMonitorResult();
+
+			assertTrue(ensureCalled.get());
+			assertFalse(lockHeldDuringEnsure.get());
+			verify(sourceNode).ensureShareCdcForNewTables(Collections.singletonList("new_table"));
 		}
 	}
 

@@ -4,8 +4,10 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
@@ -38,6 +40,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
@@ -74,6 +77,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -105,17 +109,46 @@ public class TaskController extends BaseController {
     private TaskErrorEventService taskErrorEventService;
     private CpuMemoryService cpuMemoryService;
     private GroupInfoService groupInfoService;
+    private AlarmService alarmService;
 
-		private <T> T dataPermissionUnAuth() {
-			throw new RuntimeException("Un auth");
+		private <T> T dataPermissionUnAuth(DataPermissionActionEnums actionEnums, List<DataPermissionActionEnums> need) {
+			throw dataPermissionException(actionEnums, need);
+		}
+
+		private BizException dataPermissionException(
+			DataPermissionActionEnums actionEnums,
+			List<DataPermissionActionEnums> need
+		) {
+			return new BizException("insufficient.permissions",
+				needAction(DataPermissionDataTypeEnums.Task, Collections.singletonList(actionEnums)),
+				needAction(DataPermissionDataTypeEnums.Task, need));
 		}
 
 		private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, String syncType, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
 			DataPermissionMenuEnums menuEnums = DataPermissionMenuEnums.ofTaskSyncType(syncType);
-			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier, this::dataPermissionUnAuth);
+			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier,
+				() -> dataPermissionUnAuth(actionEnums, Collections.singletonList(actionEnums)));
 		}
 
 		private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+			return dataPermissionCheckOfId(
+				request,
+				userDetail,
+				id,
+				actionEnums,
+				supplier,
+				() -> dataPermissionUnAuth(actionEnums, Collections.singletonList(actionEnums))
+			);
+		}
+
+		private <T> T dataPermissionCheckOfId(
+			HttpServletRequest request,
+			UserDetail userDetail,
+			ObjectId id,
+			DataPermissionActionEnums actionEnums,
+			Supplier<T> supplier,
+			Supplier<T> unAuthSupplier
+		) {
 			id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
 			return DataPermissionHelper.checkOfQuery(
 				userDetail,
@@ -124,8 +157,40 @@ public class TaskController extends BaseController {
 				taskService.dataPermissionFindById(id, new Field()),
 				(dto) -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
 				supplier,
-				this::dataPermissionUnAuth
+				unAuthSupplier
 			);
+		}
+
+		private List<MutiResponseMessage> dataPermissionCheckOfIds(
+			HttpServletRequest request,
+			UserDetail userDetail,
+			List<ObjectId> ids,
+			DataPermissionActionEnums actionEnums,
+			Function<List<ObjectId>, List<MutiResponseMessage>> supplier
+		) {
+			List<MutiResponseMessage> responseMessages = new ArrayList<>();
+			for (ObjectId id : ids) {
+				responseMessages.addAll(dataPermissionCheckOfId(
+					request,
+					userDetail,
+					id,
+					actionEnums,
+					() -> supplier.apply(Collections.singletonList(id)),
+					() -> Collections.singletonList(batchError(
+						id,
+						dataPermissionException(actionEnums, Collections.singletonList(actionEnums))
+					))
+				));
+			}
+			return responseMessages;
+		}
+
+		private MutiResponseMessage batchError(ObjectId id, BizException e) {
+			MutiResponseMessage responseMessage = new MutiResponseMessage();
+			responseMessage.setId(id.toHexString());
+			responseMessage.setCode(e.getErrorCode());
+			responseMessage.setMessage(MessageUtil.getMessage(e.getErrorCode(), e.getArgs()));
+			return responseMessage;
 		}
 
 	@GetMapping("/{currentId}/parent-task-sign")
@@ -161,7 +226,8 @@ public class TaskController extends BaseController {
 			UserDetail user = getLoginUser();
 			TaskDto resultTask = dataPermissionCheckOfId(request, user, task.getId(), DataPermissionActionEnums.Edit, () -> {
 				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-				taskSaveService.supplementAlarm(task, user);
+                // patch 仅修改 DAG，无需再次补全 Alarm
+				// taskSaveService.supplementAlarm(task, user);
 				task.setStatus(null);
 
 				return taskService.updateById(task, user);
@@ -483,10 +549,14 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
+    public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        taskService.remove(MongoUtils.toObjectId(id), userDetail);
-        groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Delete, () -> {
+            taskService.remove(objectId, userDetail);
+            groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
+            return null;
+        });
         return success();
     }
 
@@ -708,7 +778,7 @@ public class TaskController extends BaseController {
 		) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Stop, () -> {
 				taskService.pause(objectId, userDetail, force);
 				return null;
 			});
@@ -720,7 +790,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> renew(HttpServletRequest request, @PathVariable("id") String id) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Reset, () -> {
 				taskService.renew(objectId, userDetail);
 				return null;
 			});
@@ -736,7 +806,7 @@ public class TaskController extends BaseController {
 		) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Stop, () -> {
 				taskService.pause(objectId, userDetail, force);
 				return null;
 			});
@@ -752,7 +822,7 @@ public class TaskController extends BaseController {
     ) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
-        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Stop, () -> {
             taskService.pause(objectId, userDetail, force);
             return null;
         });
@@ -864,7 +934,7 @@ public class TaskController extends BaseController {
 		) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Reset, () -> {
 				taskService.renew(objectId, userDetail);
 				return null;
 			});
@@ -937,13 +1007,18 @@ public class TaskController extends BaseController {
                                                                 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-            syncType = resolveSyncType(syncType, taskObjectIds);
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
-				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Stop,
+				ids -> taskService.batchStop(ids, userDetail, request, response)
 			);
 
 			//add message
-			List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
+			List<ObjectId> stoppedTaskIds = responseMessages.stream()
+				.filter(message -> ResponseMessage.OK.equals(message.getCode()))
+				.map(MutiResponseMessage::getId)
+				.filter(StringUtils::isNotBlank)
+				.map(MongoUtils::toObjectId)
+				.collect(Collectors.toList());
+			List<TaskEntity> taskEntityList = taskService.findByIds(stoppedTaskIds);
 			try {
 				if (CollectionUtils.isNotEmpty(taskEntityList)) {
 					for (TaskEntity task : taskEntityList) {
@@ -967,22 +1042,17 @@ public class TaskController extends BaseController {
 																																	HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-            syncType = resolveSyncType(syncType, taskObjectIds);
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
-				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Delete,
+				ids -> taskService.batchDelete(ids, userDetail, request, response)
 			);
-			List<String> removedTaskIds = taskIds;
-			if (CollectionUtils.isNotEmpty(responseMessages)) {
-				List<String> okIds = responseMessages.stream()
-					.filter(message -> ResponseMessage.OK.equals(message.getCode()))
-					.map(MutiResponseMessage::getId)
-					.filter(StringUtils::isNotBlank)
-					.collect(Collectors.toList());
-				if (CollectionUtils.isNotEmpty(okIds)) {
-					removedTaskIds = okIds;
-				}
+			List<String> removedTaskIds = responseMessages.stream()
+				.filter(message -> ResponseMessage.OK.equals(message.getCode()))
+				.map(MutiResponseMessage::getId)
+				.filter(StringUtils::isNotBlank)
+				.collect(Collectors.toList());
+			if (CollectionUtils.isNotEmpty(removedTaskIds)) {
+				groupInfoService.removeResourceReferences(removedTaskIds, userDetail);
 			}
-			groupInfoService.removeResourceReferences(removedTaskIds, userDetail);
 			return success(responseMessages);
 		}
 
@@ -994,9 +1064,8 @@ public class TaskController extends BaseController {
 																																 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-            syncType = resolveSyncType(syncType, taskObjectIds);
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
-					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Reset,
+					ids -> taskService.batchRenew(ids, userDetail, request, response)
 				);
 
 			return success(responseMessages);
@@ -1187,6 +1256,12 @@ public class TaskController extends BaseController {
     @PatchMapping("batchUpdateListtags")
     public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
         return success(metadataDefinitionService.batchUpdateListTags("Task", batchUpdateParam, getLoginUser()));
+    }
+
+    @Operation(summary = "批量增删任务标签")
+    @PatchMapping("batchApplyListtags")
+    public ResponseMessage<List<String>> batchApplyListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
+        return success(metadataDefinitionService.batchApplyListTags("Task", batchApplyListTagsParam, getLoginUser()));
     }
 
     @Operation(summary = "获取建表语句")
@@ -1579,6 +1654,58 @@ public class TaskController extends BaseController {
             throw new BizException("Task.NotFound");
         }
         return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
+    }
+
+    @Operation(summary = "Batch modify task alarm information")
+    @PostMapping("/alarm/batch-update")
+    public ResponseMessage<List<MutiResponseMessage>> batchUpdateTaskAlarm(@RequestBody BatchUpdateAlarmParam alarm){
+        UserDetail userDetail = getLoginUser();
+        List<String> taskIds = alarm.getTaskIds();
+        List<ObjectId> taskObjectIds = taskIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct().map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return success(batchUpdateTaskAlarmWithDataPermission(alarm, taskObjectIds, userDetail));
+    }
+
+    private List<MutiResponseMessage> batchUpdateTaskAlarmWithDataPermission(BatchUpdateAlarmParam alarm, List<ObjectId> taskObjectIds, UserDetail userDetail) {
+        List<String> taskIds = alarm.getTaskIds();
+        List<String> authorizedTaskIds = new ArrayList<>();
+        List<MutiResponseMessage> noAuthMessages = new ArrayList<>();
+        for (int i = 0; i < taskIds.size(); i++) {
+            String taskId = taskIds.get(i);
+            ObjectId taskObjectId = taskObjectIds.get(i);
+            Boolean hasEditPermission = DataPermissionHelper.checkOfQuery(
+                    userDetail,
+                    DataPermissionDataTypeEnums.Task,
+                    DataPermissionActionEnums.Edit,
+                    taskService.dataPermissionFindById(taskObjectId, new Field()),
+                    task -> DataPermissionMenuEnums.ofTaskSyncType(task.getSyncType()),
+                    () -> true,
+                    () -> false
+            );
+            if (Boolean.TRUE.equals(hasEditPermission)) {
+                authorizedTaskIds.add(taskId);
+            } else {
+                MutiResponseMessage responseMessage = new MutiResponseMessage();
+                responseMessage.setId(taskId);
+                responseMessage.setCode("insufficient.permissions");
+                String msg = String.format("%s.%s", DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.Edit);
+                responseMessage.setMessage(MessageUtil.getMessage("insufficient.permissions", msg, msg));
+                noAuthMessages.add(responseMessage);
+            }
+        }
+
+        if (CollectionUtils.isNotEmpty(authorizedTaskIds)) {
+            BatchUpdateAlarmParam target = new BatchUpdateAlarmParam();
+            target.setTaskIds(authorizedTaskIds);
+            target.setAlarmSettings(alarm.getAlarmSettings());
+            target.setAlarmRules(alarm.getAlarmRules());
+            target.setEmailReceivers(alarm.getEmailReceivers());
+            alarmService.batchUpdate(target);
+        }
+        return noAuthMessages;
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {

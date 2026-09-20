@@ -99,8 +99,12 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			return BLANK_LOGGER;
 		}
 		String taskId = task.getId().toHexString();
-		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId())
-					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task)));
+		taskLoggersMap.computeIfPresent(taskId, (k, v) -> {
+			TaskLogger taskLogger = v.withTask(taskId, task.getName(), task.getTaskRecordId())
+					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
+			taskLogger.resumeCache();
+			return taskLogger;
+		});
 		taskLoggersMap.computeIfAbsent(taskId, k -> {
 			loggerToBeRemoved.remove(taskId);
 			TaskLogger taskLogger = TaskLogger.create(task, this::closeDebugForTask)
@@ -171,6 +175,10 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	public void removeTaskLoggerMarkRemove(TaskDto task) {
 		String taskId = task.getId().toHexString();
 		logger.info("Add mark with call remove task logger, task id: {}", taskId);
+		TaskLogger taskLogger = taskLoggersMap.get(taskId);
+		if (taskLogger != null) {
+			taskLogger.pauseCache();
+		}
 		loggerToBeRemoved.putIfAbsent(taskId, System.currentTimeMillis());
 	}
 
@@ -181,6 +189,10 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 				logger.info("Clear mark with start task, task id: {}", taskId);
 				return null;
 			});
+			TaskLogger taskLogger = taskLoggersMap.get(taskId);
+			if (taskLogger != null) {
+				taskLogger.resumeCache();
+			}
 		}
 	}
 

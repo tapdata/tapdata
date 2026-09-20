@@ -17,6 +17,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.utils.ExcelUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -91,11 +92,18 @@ public interface ResourceHandler {
     /**
      * 构建资源的导出数据
      *
-     * @param resources 资源列表
-     * @param user      用户信息
+     * @param resources   资源列表
+     * @param user        用户信息
+     * @param maskSecrets 是否移除包内凭据（[ADR-0034] D1/D2）。任务导出会把 DAG 各节点的
+     *                    {@link MetadataInstancesDto} 一并塞进包，其 {@code source} 是连接的
+     *                    整份拷贝、带顶层凭据镜像 —— 这是继连接文档、database 级与 table 级
+     *                    metadata 之后的**第四处载体**，2026-08-06 实机在真实包里抓到
+     *                    （老包同样在漏，故非回归）。
+     *                    <p>刻意不留带默认值的重载：一个能被静默取到的默认，就是下一次把明文
+     *                    凭据推上 GitHub 的入口。
      * @return 导出数据 payload 列表
      */
-    List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user);
+    List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets);
 
     /**
      * 从导入的 payload 中收集资源和元数据
@@ -132,10 +140,14 @@ public interface ResourceHandler {
      */
     String resolveResourceName(String resourceId, Map<String, ?> resourceMap);
 
+    /**
+     * @param maskSecrets 是否抹掉连接凭据。**刻意不提供带默认值的重载**：调用方必须自己声明意图——
+     *                    一个能被静默取到的默认，就是将来把明文凭据推上 GitHub 的入口（[ADR-0034] D2）
+     */
     default void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
-            UserDetail user,Set<ObjectId> tagIds) {
+            UserDetail user,Set<ObjectId> tagIds, boolean maskSecrets) {
         List<DataSourceEntity> connections = loadConnections(resources);
-        List<TaskUpAndLoadDto> connectionPayload = buildConnectionPayload(connections, user);
+        List<TaskUpAndLoadDto> connectionPayload = buildConnectionPayload(connections, user, maskSecrets);
         if (CollectionUtils.isNotEmpty(connections)) {
             connections.forEach(c -> {
                 if (CollectionUtils.isNotEmpty(c.getListtags())) {
@@ -149,8 +161,12 @@ public interface ResourceHandler {
 
     /**
      * 构建连接的导出payload（只收集连接和元数据，不生成Excel）
+     *
+     * @param maskSecrets 是否抹掉 config 里的敏感字段。FILE 默认保真、GIT 强制脱敏，
+     *                    口径由 {@code GroupInfoService.resolveMaskSecrets} 单点解析（[ADR-0034] D1/D2）
      */
-    default List<TaskUpAndLoadDto> buildConnectionPayload(List<DataSourceEntity> connections, UserDetail user) {
+    default List<TaskUpAndLoadDto> buildConnectionPayload(List<DataSourceEntity> connections, UserDetail user,
+            boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(connections)) {
             return payload;
@@ -168,8 +184,12 @@ public interface ResourceHandler {
                     .getBean(DataSourceDefinitionService.class);
             DataSourceDefinitionDto definition = dataSourceDefinitionService
                     .findByPdkHash(entity.getPdkHash(), Integer.MAX_VALUE, user);
-            if (definition != null) {
-                maskSensitiveConfigFields(entity, definition);
+            if (maskSecrets) {
+                if (definition != null) {
+                    maskSensitiveConfigFields(entity, definition);
+                }
+                // config 之外还有一份顶层镜像，不抹等于没抹（[ADR-0034] D2）
+                maskMirroredSecretFields(entity);
             }
 
             // 收集元数据
@@ -187,6 +207,10 @@ public interface ResourceHandler {
                     Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)),
                     user);
             if (dataSourceMetadataInstance != null) {
+                if (maskSecrets) {
+                    // metadata 的 source 是连接的整份拷贝（DAGService 序列化而来），凭据的第三处存放点
+                    maskMirroredSecretFields(dataSourceMetadataInstance);
+                }
                 payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                         JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
             }
@@ -440,6 +464,51 @@ public interface ResourceHandler {
      * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceEntity.config
      * 里对应的路径并清空值。只处理 SENSITIVE_API_KEYS 中声明的标准化 apiServerKey。
      */
+    /**
+     * 顶层凭据镜像字段：{@link #SENSITIVE_API_KEYS} 那一批 secret 在 {@code config} **之外**的第二处存放点。
+     *
+     * 连接实体、以及 {@code MetadataInstances.source}（连接的整份拷贝）都各有一份，字段名完全相同。
+     * 这不是「扩敏感字段集合」（[ADR-0034] 明确不改 {@code SENSITIVE_API_KEYS} 的成员），
+     * 而是把**既有的那一组 secret** 应用到之前被漏掉的载体上 —— 只抹 config 的话，
+     * 导出包里照样躺着明文 uri/password。
+     *
+     * {@code plain_password} / {@code database_password_1} 是同一个口令的别名；
+     * {@code database_name} / {@code database_type} 等不是凭据，不动。证书材料（{@code sslPass} 等）
+     * 属 ADR 划出的「扩敏感字段集合是另一件事」，不在此列。
+     */
+    List<String> MIRRORED_SECRET_FIELDS = List.of(
+            "database_host", "database_username", "database_port",
+            "database_uri", "database_password", "plain_password", "database_password_1");
+
+    /** 抹掉连接实体上的顶层凭据镜像（导出侧）。 */
+    static void maskMirroredSecretFields(DataSourceEntity conn) {
+        if (conn == null) {
+            return;
+        }
+        conn.setDatabase_host(null);
+        conn.setDatabase_username(null);
+        conn.setDatabase_port(null);
+        conn.setDatabase_uri(null);
+        conn.setDatabase_password(null);
+        conn.setPlain_password(null);
+        conn.setDatabase_password_1(null);
+    }
+
+    /** 抹掉 metadata 里那份连接拷贝上的顶层凭据镜像（导出侧）。 */
+    static void maskMirroredSecretFields(MetadataInstancesDto metadata) {
+        if (metadata == null || metadata.getSource() == null) {
+            return;
+        }
+        SourceDto source = metadata.getSource();
+        source.setDatabase_host(null);
+        source.setDatabase_username(null);
+        source.setDatabase_port(null);
+        source.setDatabase_uri(null);
+        source.setDatabase_password(null);
+        source.setPlain_password(null);
+        source.setDatabase_password_1(null);
+    }
+
     private static void maskSensitiveConfigFields(DataSourceEntity conn,
             DataSourceDefinitionDto definition) {
         Map<String, Object> config = conn.getConfig();
@@ -734,6 +803,77 @@ public interface ResourceHandler {
     /**
      * 从 config map 中按点号分隔的路径读取值（支持嵌套路径，如 "ssl.password"）
      */
+    /**
+     * 导入侧：包内敏感字段缺失/为空时，保留目标环境已有的值（[ADR-0034] D5/D6）。
+     *
+     * 为什么需要它：导出会把敏感字段抹空，而 GROUP_IMPORT 的落库是整文档覆盖
+     * （{@code DataSourceServiceImpl.handleGroupImportConnection} → {@code importSave}），
+     * 于是「脱敏包 + 未提供 vault」会把目标环境已有的 uri/password 覆盖成空，导入还报成功。
+     * 包里那个空缺是脱敏流程的产物、不是用户配置的内容，因此**任何 importMode 下都不该覆盖**。
+     *
+     * @return 被保留（即包内缺值、改用目标既有值）的 config path，供调用方汇报——D7 要求绝不静默。
+     */
+    static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
+            DataSourceConnectionDto existing, DataSourceDefinitionDto definition) {
+        List<String> preserved = new ArrayList<>();
+        if (incoming == null || existing == null) {
+            return preserved;
+        }
+        // 顶层镜像与 config 同等对待：导出把两处一起抹了，导入就得把两处一起补回来，
+        // 否则 ES-2b 只是把「凭据被抹空」从 config 挪到了顶层
+        restoreMirroredField("database_host", incoming.getDatabase_host(), existing.getDatabase_host(),
+                incoming::setDatabase_host, preserved);
+        restoreMirroredField("database_username", incoming.getDatabase_username(), existing.getDatabase_username(),
+                incoming::setDatabase_username, preserved);
+        restoreMirroredField("database_port", incoming.getDatabase_port(), existing.getDatabase_port(),
+                incoming::setDatabase_port, preserved);
+        restoreMirroredField("database_uri", incoming.getDatabase_uri(), existing.getDatabase_uri(),
+                incoming::setDatabase_uri, preserved);
+        restoreMirroredField("database_password", incoming.getDatabase_password(), existing.getDatabase_password(),
+                incoming::setDatabase_password, preserved);
+        restoreMirroredField("plain_password", incoming.getPlain_password(), existing.getPlain_password(),
+                incoming::setPlain_password, preserved);
+        restoreMirroredField("database_password_1", incoming.getDatabase_password_1(),
+                existing.getDatabase_password_1(), incoming::setDatabase_password_1, preserved);
+
+        Map<String, Object> existingConfig = existing.getConfig();
+        if (MapUtils.isEmpty(existingConfig)) {
+            return preserved;
+        }
+        Map<String, Object> config = incoming.getConfig();
+        if (config == null) {
+            config = new LinkedHashMap<>();
+            incoming.setConfig(config);
+        }
+        for (String path : getMaskedConfigPaths(definition)) {
+            if (isPresent(getNestedValue(config, path))) {
+                continue;
+            }
+            Object existingValue = getNestedValue(existingConfig, path);
+            if (!isPresent(existingValue)) {
+                continue;
+            }
+            setNestedValue(config, path, existingValue);
+            preserved.add(path);
+        }
+        return preserved;
+    }
+
+    /** 空字符串与 null 同等对待：脱敏既可能删键，也可能留下空串。 */
+    private static boolean isPresent(Object value) {
+        return value != null && !(value instanceof CharSequence && ((CharSequence) value).length() == 0);
+    }
+
+    /** 顶层镜像字段的逐个补回：包里缺、目标有 ⇒ 用目标的，并记下字段名交给导入报告。 */
+    private static <V> void restoreMirroredField(String name, V incomingValue, V existingValue,
+            java.util.function.Consumer<V> setter, List<String> preserved) {
+        if (isPresent(incomingValue) || !isPresent(existingValue)) {
+            return;
+        }
+        setter.accept(existingValue);
+        preserved.add(name);
+    }
+
     static Object getNestedValue(Map<String, Object> config, String path) {
         if (config == null || path == null) return null;
         String[] parts = path.split("\\.");

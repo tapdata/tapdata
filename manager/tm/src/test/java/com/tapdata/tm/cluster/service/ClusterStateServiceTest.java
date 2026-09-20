@@ -26,7 +26,9 @@ import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -192,6 +194,18 @@ class ClusterStateServiceTest {
                     1, 2, 5,
                     1);
         }
+
+        @Test
+        void testSkipOrphanWorkerWithoutClusterState() {
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+            when(agentGroupService.filterGroupList(captor.capture(), any(UserDetail.class))).thenReturn(new ArrayList<>());
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("30");
+                clusterStateService.findAccessNodeInfo(userDetail);
+            }
+            Assertions.assertTrue(captor.getValue().isEmpty());
+        }
     }
     @Nested
     class deleteClusterTest{
@@ -224,6 +238,7 @@ class ClusterStateServiceTest {
             when(workerService.unbindByProcessId("123")).thenReturn(true);
             result = clusterStateService.deleteCluster(id, user);
             assertTrue(result);
+            verify(workerService).updateAll(any(Query.class), any(Update.class));
         }
 
         @Test

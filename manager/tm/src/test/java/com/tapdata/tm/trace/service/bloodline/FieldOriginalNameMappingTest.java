@@ -18,6 +18,7 @@ import com.tapdata.tm.trace.dto.boodline.FieldNameMapping;
 import com.tapdata.tm.trace.dto.boodline.TableProperties;
 import io.github.openlg.graphlib.Graph;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -157,12 +159,20 @@ class FieldOriginalNameMappingTest {
         tableNode.setConnectionId("c1");
         tableNode.setTableName("t1");
 
-        doReturn(List.of("nodePk")).when(spy).getPrimaryOrUniqueKeyFields("task", "n1");
+        doReturn(List.of("nodePk")).when(spy).getPrimaryOrUniqueKeyFields("task", "n1", "t1");
         assertEquals(List.of("nodePk"), spy.getPrimaryOrUniqueKeyFieldsForNodeOrSource("task", tableNode));
 
-        doReturn(new ArrayList<>()).when(spy).getPrimaryOrUniqueKeyFields("task", "n1");
+        doReturn(new ArrayList<>()).when(spy).getPrimaryOrUniqueKeyFields("task", "n1", "t1");
         doReturn(List.of("srcPk")).when(spy).getPrimaryOrUniqueKeyFieldsFromSource("c1", "t1");
         assertEquals(List.of("srcPk"), spy.getPrimaryOrUniqueKeyFieldsForNodeOrSource("task", "n1", "c1", "t1"));
+    }
+
+    @Test
+    void testGetPrimaryOrUniqueKeyFields() {
+        when(metadataInstancesRepository.findOne(any())).thenReturn(Optional.empty());
+        List<String> primaryOrUniqueKeyFields = service.getPrimaryOrUniqueKeyFields("n1", "c1", "t1");
+        Assertions.assertNotNull(primaryOrUniqueKeyFields);
+        Assertions.assertEquals(0, primaryOrUniqueKeyFields.size());
     }
 
     @Test

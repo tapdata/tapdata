@@ -424,11 +424,16 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                 status = "stopped";
             }
 
+            ClusterStateDto clusterStateDto = processIdClusterStateMap.get(worker.getProcessId());
+            // Cluster management delete only removes ClusterState; leftover Workers
+            // would otherwise still appear as unavailable preferred nodes.
+            if (clusterStateDto == null) {
+                return;
+            }
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
             accessNodeInfo.setAccessNodeName(worker.getProcessId());
             accessNodeInfo.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
-            ClusterStateDto clusterStateDto = processIdClusterStateMap.get(worker.getProcessId());
-            if (null != clusterStateDto && null != clusterStateDto.getAgentName()) {
+            if (null != clusterStateDto.getAgentName()) {
                 accessNodeInfo.setAgentName(clusterStateDto.getAgentName());
             }
             result.add(accessNodeInfo);
@@ -528,6 +533,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             }
         }
         if (unBind) {
+            if (null != clusterStateDto && null != clusterStateDto.getSystemInfo()
+                    && StringUtils.isNotBlank(clusterStateDto.getSystemInfo().getProcess_id())) {
+                String pid = clusterStateDto.getSystemInfo().getProcess_id();
+                workerService.updateAll(
+                        Query.query(Criteria.where("process_id").is(pid)),
+                        Update.update("isDeleted", true).set("ping_time", 0L));
+            }
             return deleteById(id);
         }
         return false;

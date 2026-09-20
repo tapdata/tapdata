@@ -33,6 +33,7 @@ public class ExternalStorageEntity extends BaseEntity {
 	private String sslPass;
 	private boolean sslValidate;
 	private boolean checkServerIdentity;
+	private String accessToken;
 	private String status;
 	/** 测试响应消息 */
 	private ResponseBody response_body;

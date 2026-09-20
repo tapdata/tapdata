@@ -1796,6 +1796,23 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 	@DisplayName("UpdateMemoryFromDDLInfoMap method test")
 	class UpdateMemoryFromDDLInfoMapTest {
 		@Test
+		@DisplayName("When target table update is disabled, expect DAG and node updated without resolving target table")
+		void testSkipTargetTableUpdate() {
+			HazelcastBaseNode spyNode = spy(hazelcastBaseNode);
+			TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(createTableEvent);
+			doNothing().when(spyNode).updateDAG(tapdataEvent);
+			doNothing().when(spyNode).updateNode(tapdataEvent);
+
+			spyNode.updateMemoryFromDDLInfoMap(tapdataEvent, false);
+
+			verify(spyNode).updateDAG(tapdataEvent);
+			verify(spyNode).updateNode(tapdataEvent);
+			verify(spyNode, never()).getTgtTableNameFromTapEvent(any(TapEvent.class));
+		}
+
+		@Test
 		@DisplayName("When tap event is TapDDLWarningEvent, expect skip and not throw NPE")
 		void testSkipTapDDLWarningEvent() {
 			HazelcastBaseNode spyNode = spy(hazelcastBaseNode);

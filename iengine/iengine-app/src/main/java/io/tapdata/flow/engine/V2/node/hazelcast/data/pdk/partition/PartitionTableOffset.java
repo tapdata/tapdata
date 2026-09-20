@@ -34,6 +34,15 @@ public class PartitionTableOffset implements Serializable {
 
 	private Boolean tableCompleted;
 
+	public PartitionTableOffset copy() {
+		PartitionTableOffset copy = new PartitionTableOffset();
+		copy.partitions = partitions;
+		copy.completedPartitions = completedPartitions == null ? null : new ConcurrentHashMap<>(completedPartitions);
+		copy.table = table;
+		copy.tableCompleted = tableCompleted;
+		return copy;
+	}
+
 	public PartitionTableOffset tableCompleted(boolean tableCompleted) {
 		this.tableCompleted = tableCompleted;
 		return this;

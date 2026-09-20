@@ -46,6 +46,7 @@ import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
+import com.tapdata.tm.task.utils.TaskDeletionState;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
 import io.github.openlg.graphlib.Graph;
@@ -258,7 +259,9 @@ public class TaskServiceImpl extends TaskService{
     public static final String COLLECTION_ID = "collectionId";
     public static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
             "mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
-            "rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
+            "rawLogServerHost", "databaseName", "username", "user", "password", "sslPass",
+            // Standardized connection keys used by group export/vault flows.
+            "database_host", "database_port", "database_username", "database_password", "database_uri");
     protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
@@ -817,12 +820,19 @@ public class TaskServiceImpl extends TaskService{
     }
 
 
-    public TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user) {
+    public TaskDto updateShareCacheTask(
+            String id,
+            SaveShareCacheParam saveShareCacheParam,
+            UserDetail user,
+            boolean canStart
+    ) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
 
         updateById(taskDto, user);
-        start(taskDto.getId(), user);
+        if (canStart) {
+            start(taskDto.getId(), user);
+        }
         return taskDto;
 
     }
@@ -2097,6 +2107,7 @@ public class TaskServiceImpl extends TaskService{
                 shareCacheVo.setSyncStatus(taskDto.getSyncStatus());
                 shareCacheVo.setStatuses(taskDto.getStatuses());
                 shareCacheVo.setId(taskDto.getId().toString());
+                shareCacheVo.setPermissionActions(taskDto.getPermissionActions());
                 shareCacheVos.add(shareCacheVo);
             }
         }
@@ -2127,6 +2138,7 @@ public class TaskServiceImpl extends TaskService{
         shareCacheDetailVo.setAutoCreateIndex(targetNode.getAutoCreateIndex());
         shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
         shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
+        shareCacheDetailVo.setPermissionActions(taskDto.getPermissionActions());
         if (null != sourceNode.getAttrs()) {
             shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get(FIELDS));
         }
@@ -3011,6 +3023,7 @@ public class TaskServiceImpl extends TaskService{
                                     metadataInstancesDto.setCustomId(null);
                                     metadataInstancesDto.setLastUpdBy(null);
                                     metadataInstancesDto.setUserId(null);
+                                    maskExportMetadata(metadataInstancesDto);
                                     jsonList.add(new TaskUpAndLoadDto(METADATA_INSTANCES, JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                                 }
                             }
@@ -3018,14 +3031,7 @@ public class TaskServiceImpl extends TaskService{
                             if (node instanceof DataParentNode) {
                                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
                                 DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
-                                Map<String, Object> config = dataSourceConnectionDto.getConfig();
-                                if (null != config) {
-                                    config.forEach((k, v) -> {
-                                        if (MASK_PROPERTIES.contains(k)) {
-                                            config.put(k, "");
-                                        }
-                                    });
-                                }
+                                maskExportConnection(dataSourceConnectionDto);
                                 dataSourceConnectionDto.setConnectionString(null);
                                 dataSourceConnectionDto.setCreateUser(null);
                                 dataSourceConnectionDto.setCustomId(null);
@@ -3037,6 +3043,7 @@ public class TaskServiceImpl extends TaskService{
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where(QUALIFIED_NAME).is(databaseQualifiedName).and(IS_DELETED).ne(true)), user);
+                                maskExportMetadata(dataSourceMetadataInstance);
                                 jsonList.add(new TaskUpAndLoadDto(METADATA_INSTANCES, JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
                                 jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
@@ -3054,6 +3061,37 @@ public class TaskServiceImpl extends TaskService{
             }
         }
         return JsonUtil.toJsonUseJackson(jsonList);
+    }
+
+    private void maskExportConnection(DataSourceConnectionDto connection) {
+        if (connection == null) {
+            return;
+        }
+        Map<String, Object> config = connection.getConfig();
+        if (config != null) {
+            config.forEach((k, v) -> {
+                if (MASK_PROPERTIES.contains(k)) {
+                    config.put(k, "");
+                }
+            });
+        }
+        connection.setDatabase_host("");
+        connection.setDatabase_port(null);
+        connection.setDatabase_username("");
+        connection.setDatabase_password("");
+        connection.setDatabase_uri("");
+        connection.setDatasourceInstanceTag("");
+    }
+
+    private void maskExportMetadata(MetadataInstancesDto metadata) {
+        if (metadata == null || metadata.getSource() == null) {
+            return;
+        }
+        metadata.getSource().setDatabase_host("");
+        metadata.getSource().setDatabase_port(null);
+        metadata.getSource().setDatabase_username("");
+        metadata.getSource().setDatabase_password("");
+        metadata.getSource().setDatabase_uri("");
     }
 
     private void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
@@ -3733,9 +3771,22 @@ public class TaskServiceImpl extends TaskService{
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-               if(ImportModeEnum.GROUP_IMPORT.equals(importMode) && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
+               // 目标环境该任务已被删除时，删除本身就是一种变更：必须导入并把记录从删除态拉回来，
+               // 否则误删的任务再导入也恢复不了。其余运行状态差异（如 stop → running）仍按无变化处理。
+               // 只在项目导入（GROUP_IMPORT）下恢复——REPLACE / IMPORT_AS_COPY 走按 name 查重，
+               // 复活后 DB 里的名字仍是删除时改过的「原名_随机6位」，查不到会另分配 _id 变成副本。
+               boolean restoreDeleted = ImportModeEnum.GROUP_IMPORT.equals(importMode)
+                       && isDeletedTask(taskDto.getId(), user);
+
+               if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
+                       && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
+               }
+
+               if (restoreDeleted) {
+                   // 先清掉删除标记，后面的查重才能命中这条记录，按「已存在 → 覆盖更新」正常走完
+                   reviveDeletedTask(taskDto.getId());
                }
 
                // 根据导入模式处理
@@ -3795,21 +3846,55 @@ public class TaskServiceImpl extends TaskService{
     }
 
     /**
+     * 目标环境该任务是否处于删除态：is_deleted 已置位，或仍停在 deleting / delete_failed。
+     * 两种状态下任务都已从列表消失（列表按 status $nin [deleting, delete_failed] 过滤），
+     * 对导入而言都必须算作「有变更、需要恢复」。
+     */
+    protected boolean isDeletedTask(ObjectId taskId, UserDetail user) {
+        if (taskId == null) {
+            return false;
+        }
+        return CollectionUtils.isNotEmpty(
+                findAll(TaskDeletionState.deletedQuery(Collections.singletonList(taskId)), user));
+    }
+
+    /**
+     * 把一条处于删除态的任务记录拉回可用状态。
+     *
+     * <p>只能走原生 update：{@code is_deleted} 与 {@code deleteName} 不在 TaskDto 上，
+     * {@code buildUpdateSet} 覆盖不到；{@code status} 又被 {@link com.tapdata.tm.task.repository.TaskRepository}
+     * 的 buildUpdateSet / filterStatus 显式拦掉。
+     */
+    protected void reviveDeletedTask(ObjectId taskId) {
+        Update update = new Update()
+                .set(IS_DELETED, false)
+                .set(STATUS, TaskDto.STATUS_EDIT)
+                .unset("deleteName");
+        repository.getMongoOperations().updateFirst(
+                new Query(Criteria.where("_id").is(taskId)), update, TaskEntity.class);
+        log.info("Restore deleted task on import, task id = {}", taskId);
+    }
+
+    /**
      * 校验任务配置是否一致
      * 如果配置一致则返回 true，不需要停止任务
      * 如果配置不一致则需要停止任务，返回 false
      *
-     * @param taskDto       导入的任务
-     * @param user          用户信息
-     * @param importMode    导入模式
-     * @param resetTaskList 需要重置的任务列表
+     * @param taskDto        导入的任务
+     * @param user           用户信息
+     * @param importMode     导入模式
+     * @param resetTaskList  需要重置的任务列表
+     * @param restoreDeleted 目标环境该任务已处于删除态，本次导入是一次恢复
      * @return true 表示配置一致，false 表示配置不一致
      */
-    protected boolean checkTaskConfig(TaskDto taskDto, UserDetail user, ImportModeEnum importMode, List<String> resetTaskList,Map<String,String> externalStorageMap){
+    protected boolean checkTaskConfig(TaskDto taskDto, UserDetail user, ImportModeEnum importMode, List<String> resetTaskList,Map<String,String> externalStorageMap, boolean restoreDeleted){
         boolean enableStatusPreserve = importMode == ImportModeEnum.GROUP_IMPORT && resetTaskList != null;
-        boolean shouldReset = enableStatusPreserve
+        // 恢复被删除的任务时必须重置状态：既不能因为「配置一致」跳过导入，
+        // 也不能把 deleting / delete_failed 抄回导入的任务上（抄回去列表里依然看不到）
+        boolean shouldReset = restoreDeleted
+                || (enableStatusPreserve
                 && taskDto.getId() != null
-                && resetTaskList.contains(taskDto.getId().toHexString());
+                && resetTaskList.contains(taskDto.getId().toHexString()));
 
         // GROUP_IMPORT 按 _id 查，其他模式按 name 查
         Query existingQuery;
@@ -4383,18 +4468,18 @@ public class TaskServiceImpl extends TaskService{
 
     @NotNull
     private static Update resetUpdate() {
-        Update update = new Update()
+        return new Update()
                 .unset(START_TIME)
                 .unset("stopTime")
                 .unset(STOP_RETRY_TIMES)
                 .unset(CURRENT_EVENT_TIMESTAMP)
+                .unset("nodeCurrentEventTimestamp")
                 .unset("snapshotDoneAt")
                 .unset(SCHEDULE_DATE)
                 .unset(STOPED_DATE)
                 .unset("functionRetryEx")
                 .unset("taskRetryStatus")
                 .unset(FUNCTION_RETRY_STATUS);
-        return update;
     }
 
     protected boolean findProcessNodeListWithGroup(TaskDto taskDto, List<String> accessNodeProcessIdList, UserDetail user) {

@@ -67,7 +67,7 @@ public class ModuleResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user) {
+    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(resources)) {
             return payload;
@@ -142,7 +142,12 @@ public class ModuleResourceHandler implements ResourceHandler {
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
-            String connectionId = modulesDto.getConnectionId();
+            // TAP-12425：datasource / connectionId 优先，connection 只作兜底——
+            // 历史导入可能把 connection 写成了一个不存在的 ObjectId，用它会导出错误的连接元数据。
+            String connectionId = modulesDto.getDataSource();
+            if (StringUtils.isBlank(connectionId)) {
+                connectionId = modulesDto.getConnectionId();
+            }
             if (StringUtils.isBlank(connectionId) && modulesDto.getConnection() != null) {
                 connectionId = modulesDto.getConnection().toHexString();
             }
@@ -197,8 +202,8 @@ public class ModuleResourceHandler implements ResourceHandler {
 
     @Override
     public void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
-            UserDetail user,Set<ObjectId> tagIds) {
-        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user,tagIds);
+            UserDetail user,Set<ObjectId> tagIds, boolean maskSecrets) {
+        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user,tagIds, maskSecrets);
 
         List<ModulesDto> modules = (List<ModulesDto>) resources;
         for (ModulesDto modulesDto : modules) {

@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class FieldOriginalNameMapping {
+    private static final String NAME = "name";
     private static final String TASK_ID = "taskId";
     private static final String NODE_ID = "nodeId";
     private static final String FIELDS = "fields";
@@ -329,19 +330,20 @@ public class FieldOriginalNameMapping {
     }
 
     public List<String> getPrimaryOrUniqueKeyFieldsForNodeOrSource(String taskId, String nodeId, String connectionId, String tableName) {
-        List<String> fields = getPrimaryOrUniqueKeyFields(taskId, nodeId);
+        List<String> fields = getPrimaryOrUniqueKeyFields(taskId, nodeId, tableName);
         if (CollectionUtils.isNotEmpty(fields)) {
             return fields;
         }
         return getPrimaryOrUniqueKeyFieldsFromSource(connectionId, tableName);
     }
 
-    protected List<String> getPrimaryOrUniqueKeyFields(String taskId, String nodeId) {
+    protected List<String> getPrimaryOrUniqueKeyFields(String taskId, String nodeId, String tableName) {
         if (StringUtils.isBlank(taskId) || StringUtils.isBlank(nodeId)) {
             return new ArrayList<>();
         }
         Query query = Query.query(Criteria.where(TASK_ID).is(taskId)
                 .and(NODE_ID).is(nodeId)
+                .and(NAME).is(tableName)
                 .and(IS_DELETED).ne(true));
         query.fields().include(FIELDS, INDICES);
         MetadataInstancesEntity entity = metadataInstancesRepository.findOne(query).orElse(null);

@@ -69,6 +69,10 @@ public class LogMongoConfig {
                             new BsonDocument("nodeId", new BsonInt32(1)),
                             new BsonDocument("level", new BsonInt32(1))));
 
+                    monitoringLogs.createIndex(Indexes.compoundIndex(new BsonDocument("taskId", new BsonInt32(1)),
+                            new BsonDocument("taskRecordId", new BsonInt32(1)),
+                            new BsonDocument("date", new BsonInt32(-1))));
+
                     monitoringLogs.createIndex(new BsonDocument("date", new BsonInt32(-1)), new IndexOptions().expireAfter(7L, TimeUnit.DAYS));
                 }
 

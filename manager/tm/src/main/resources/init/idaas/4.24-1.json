@@ -1,0 +1,49 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "observe.log.cache.maxFileSizeMB"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "100",
+            "documentation": "Maximum CacheObserveLogs file size in MB for each task",
+            "hot_reloading": false,
+            "key": "observe.log.cache.maxFileSizeMB",
+            "key_label": "CacheObserveLogs max file size MB",
+            "scope": "global",
+            "user_visible": true
+          },
+          "$setOnInsert": {
+            "value": "100"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "observe.log.cache.maxBackupIndex"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "5",
+            "documentation": "Maximum CacheObserveLogs backup files retained for each task",
+            "hot_reloading": false,
+            "key": "observe.log.cache.maxBackupIndex",
+            "key_label": "CacheObserveLogs max backup index",
+            "scope": "global",
+            "user_visible": true
+          },
+          "$setOnInsert": {
+            "value": "5"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

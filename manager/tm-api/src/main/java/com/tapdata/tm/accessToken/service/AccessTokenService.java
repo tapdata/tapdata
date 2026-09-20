@@ -26,6 +26,13 @@ public interface AccessTokenService {
 
     AccessTokenDto save(User user);
 
+    /**
+     * Issue a token for the given user tagged with the supplied auth type (e.g.
+     * {@code AuthType.SAML_LOGIN}) so SSO sessions can be targeted independently by
+     * single-session and Single Logout handling.
+     */
+    AccessTokenDto save(User user, String authType);
+
     long removeAccessToken(String accessToken, UserDetail userDetail);
 
     long removeAccessTokenByAuthType(ObjectId userId, String authType);

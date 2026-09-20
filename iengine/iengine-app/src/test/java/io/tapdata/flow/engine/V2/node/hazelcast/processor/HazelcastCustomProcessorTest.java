@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -509,9 +511,11 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         @DisplayName("test doClose with GraalJSScriptEngine should close engine")
         void testDoCloseWithGraalJSScriptEngine() {
             GraalJSScriptEngine mockEngine = mock(GraalJSScriptEngine.class);
+            SimpleConcurrentProcessorImpl<?, ?> concurrentProcessor = mock(SimpleConcurrentProcessorImpl.class);
             Map<Long, Invocable> engineMap = new java.util.concurrent.ConcurrentHashMap<>();
             engineMap.put(Thread.currentThread().getId(), mockEngine);
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "engineMap", engineMap);
+            ReflectionTestUtils.setField(hazelcastCustomProcessor, "simpleConcurrentProcessor", concurrentProcessor);
             ThreadLocal<Map<String, Object>> threadLocal = ThreadLocal.withInitial(HashMap::new);
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "processContextThreadLocal", threadLocal);
             ScriptExecutorsManager mockScriptMgr = mock(ScriptExecutorsManager.class);
@@ -523,8 +527,10 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
             doCallRealMethod().when(hazelcastCustomProcessor).doClose();
 
             assertDoesNotThrow(() -> hazelcastCustomProcessor.doClose());
-            verify(mockEngine).close();
-            verify(mockScriptMgr).close();
+            InOrder closeOrder = inOrder(concurrentProcessor, mockEngine, mockScriptMgr);
+            closeOrder.verify(concurrentProcessor).close();
+            closeOrder.verify(mockEngine).close();
+            closeOrder.verify(mockScriptMgr).close();
         }
 
         @Test

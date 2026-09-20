@@ -25,6 +25,7 @@ import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.lineage.analyzer.AnalyzerService;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
@@ -145,6 +146,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.URL;
 import java.time.LocalDate;
@@ -946,14 +948,30 @@ class TaskServiceImplTest {
             saveShareCacheParam = mock(SaveShareCacheParam.class);
         }
         @Test
-        void testUpdateShareCacheTask(){
+        void doesNotStartWhenStartPermissionIsMissing(){
             TaskDto dto = new TaskDto();
             when(taskService.findById(MongoUtils.toObjectId(id))).thenReturn(dto);
             when(saveShareCacheParam.getName()).thenReturn("cache_name");
-            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user);
-            TaskDto actual = taskService.updateShareCacheTask(id, saveShareCacheParam, user);
+            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user, false);
+            taskService.updateShareCacheTask(id, saveShareCacheParam, user, false);
             verify(taskService,new Times(1)).parseCacheToTaskDto(saveShareCacheParam,dto);
             verify(taskService,new Times(1)).updateById(any(TaskDto.class),any(UserDetail.class));
+            verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+        }
+
+        @Test
+        void restartsRunningTaskWhenStartPermissionIsGranted(){
+            ObjectId taskId = MongoUtils.toObjectId(id);
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setStatus(TaskDto.STATUS_RUNNING);
+            when(taskService.findById(taskId)).thenReturn(dto);
+            when(saveShareCacheParam.getName()).thenReturn("cache_name");
+            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user, true);
+
+            taskService.updateShareCacheTask(id, saveShareCacheParam, user, true);
+
+            verify(taskService).start(taskId, user);
         }
     }
 
@@ -2891,6 +2909,7 @@ class TaskServiceImplTest {
         private TaskRepository repository;
         private DataSourceServiceImpl dataSourceService;
         private ExternalStorageService externalStorageService;
+        private IDataPermissionHelper dataPermissionHelper;
         @BeforeEach
         void beforeEach(){
             repository = mock(TaskRepository.class);
@@ -2899,7 +2918,8 @@ class TaskServiceImplTest {
             filter = new Filter();
             dataSourceService = mock(DataSourceServiceImpl.class);
             ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
-            new DataPermissionHelper(mock(IDataPermissionHelper.class));
+            dataPermissionHelper = mock(IDataPermissionHelper.class);
+            new DataPermissionHelper(dataPermissionHelper);
             externalStorageService = mock(ExternalStorageService.class);
             ReflectionTestUtils.setField(taskService,"externalStorageService",externalStorageService);
         }
@@ -2926,9 +2946,15 @@ class TaskServiceImplTest {
             String externalStorageId = id.toHexString();
             when(cacheNode.getExternalStorageId()).thenReturn(externalStorageId);
             when(externalStorageService.findById(any())).thenReturn(mock(ExternalStorageDto.class));
+            Set<String> permissionActions = Set.of("View", "Edit", "Delete", "Start", "Stop", "Reset");
+            doAnswer(invocation -> {
+                ((TaskDto) invocation.getArgument(1)).setPermissionActions(permissionActions);
+                return null;
+            }).when(dataPermissionHelper).convert(any(), any());
             doCallRealMethod().when(taskService).findShareCache(filter,user);
             Page<ShareCacheVo> actual = taskService.findShareCache(filter, user);
             assertEquals("test",actual.getItems().get(0).getName());
+            assertEquals(permissionActions, actual.getItems().get(0).getPermissionActions());
         }
     }
     @Nested
@@ -2966,9 +2992,12 @@ class TaskServiceImplTest {
             when(connectionDto.getId()).thenReturn(objectId);
             when(dataNode.getAttrs()).thenReturn(new HashMap<>());
             when(dto.getCurrentEventTimestamp()).thenReturn(1713846744L);
+            Set<String> permissionActions = Set.of("View", "Edit");
+            when(dto.getPermissionActions()).thenReturn(permissionActions);
             doCallRealMethod().when(taskService).findShareCacheById(id);
             ShareCacheDetailVo actual = taskService.findShareCacheById(id);
             assertEquals(objectId.toString(),actual.getConnectionId());
+            assertEquals(permissionActions, actual.getPermissionActions());
         }
     }
     @Nested
@@ -5281,6 +5310,23 @@ class TaskServiceImplTest {
             taskService.renewNotSendMq(taskDto,mock(UserDetail.class));
         }
     }
+
+    @Nested
+    class ResetUpdateTest {
+        @Test
+        @DisplayName("reset should unset nodeCurrentEventTimestamp with snapshotDoneAt")
+        void testResetUpdateUnsetsNodeCurrentEventTimestamp() throws Exception {
+            Method method = TaskServiceImpl.class.getDeclaredMethod("resetUpdate");
+            method.setAccessible(true);
+            Update update = (Update) method.invoke(null);
+            Document unset = update.getUpdateObject().get("$unset", Document.class);
+            assertNotNull(unset);
+            assertTrue(unset.containsKey("nodeCurrentEventTimestamp"));
+            assertTrue(unset.containsKey("snapshotDoneAt"));
+            assertTrue(unset.containsKey("currentEventTimestamp"));
+        }
+    }
+
     @Nested
     class IncreaseClearTest{
         private ObjectId taskId;
@@ -6757,6 +6803,11 @@ class TaskServiceImplTest {
                 DataSourceDefinitionService dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
                 ReflectionTestUtils.setField(taskService, "metadataInstancesService", metadataInstancesService);
                 ReflectionTestUtils.setField(taskService, "dataSourceDefinitionService", dataSourceDefinitionService);
+                MetadataInstancesDto metadata = new MetadataInstancesDto();
+                SourceDto metadataSource = new SourceDto();
+                metadataSource.setDatabase_host("mongo-ssl.internal.tapdata.io");
+                metadata.setSource(metadataSource);
+                when(metadataInstancesService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(metadata);
                 TaskDto taskDto = new TaskDto();
                 taskDto.setId(new ObjectId("688b0acab0859c6b18d29e74"));
                 DAG dag = mock(DAG.class);
@@ -6764,8 +6815,8 @@ class TaskServiceImplTest {
                 Node node = new TableNode();
                 node.setId("2db68e41-5bd6-4786-b567-5b9a705a65ec");
                 ((DataParentNode<?>) node).setConnectionId("676e507d61c3b81dea2400f8");
-                DataSourceConnectionDto dataSourceConnectionDto = mock(DataSourceConnectionDto.class);
-                when(dataSourceConnectionDto.getId()).thenReturn(new ObjectId("678f0f788fe8a57f8a0c635d"));
+                DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+                dataSourceConnectionDto.setId(new ObjectId("678f0f788fe8a57f8a0c635d"));
                 doReturn(dataSourceConnectionDto).when(dataSourceService).findById(any(ObjectId.class), any(UserDetail.class));
                 DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
                 dataSourceConnectionDto.setDefinitionPdkAPIVersion("a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712");
@@ -6773,17 +6824,22 @@ class TaskServiceImplTest {
                 Map<String, Object> config = new HashMap<>();
                 String uri = "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true";
                 config.put("uri", uri);
+                config.put("database_host", "mongo-ssl.internal.tapdata.io");
                 config.put("ssl", true);
                 config.put("sslKey", "----test key----");
                 config.put("__connectionType", "source_and_target");
-                when(dataSourceConnectionDto.getConfig()).thenReturn(config);
-                when(dataSourceConnectionDto.getPdkHash()).thenReturn("a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712");
+                dataSourceConnectionDto.setConfig(config);
+                dataSourceConnectionDto.setDatabase_host("mongo-ssl.internal.tapdata.io");
+                dataSourceConnectionDto.setPdkHash("a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712");
                 nodes.add(node);
                 when(dag.getNodes()).thenReturn(nodes);
                 taskDto.setDag(dag);
                 when(taskService.findAllTasksByIds(taskIds)).thenReturn(Arrays.asList(taskDto));
                 doCallRealMethod().when(taskService).exportTask(taskIds, user);
                 taskService.exportTask(taskIds, user);
+                assertEquals("", config.get("database_host"));
+                assertEquals("", dataSourceConnectionDto.getDatabase_host());
+                assertEquals("", metadata.getSource().getDatabase_host());
                 mb.verify(() -> JsonUtil.toJsonUseJackson(any()),new Times(4));
             }
         }
@@ -7945,5 +8001,186 @@ class TaskServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("导入时恢复目标环境已删除的任务")
+    class RestoreDeletedTaskOnImportTest {
+
+        private TaskRepository repository;
+        private MongoTemplate mongoTemplate;
+        private ObjectId taskId;
+
+        @BeforeEach
+        void init() {
+            repository = mock(TaskRepository.class);
+            mongoTemplate = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(taskService, "repository", repository);
+            taskId = new ObjectId();
+        }
+
+        private TaskDto fileTask() {
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setName("task3");
+            // 故意不是 edit，这样断言「恢复后状态是 edit」才能证明重置真的发生了
+            dto.setStatus(TaskDto.STATUS_RUNNING);
+            return dto;
+        }
+
+        private TaskDto existingTask(String status) {
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setName("task3");
+            dto.setStatus(status);
+            return dto;
+        }
+
+        @Test
+        @DisplayName("checkTaskConfig：目标已删除时即使配置一致也算变更，且状态重置为 edit")
+        void testDeletedTargetIsAlwaysAChange() {
+            TaskDto taskDto = fileTask();
+            when(taskService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(existingTask(TaskDto.STATUS_DELETING));
+            doCallRealMethod().when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+
+            boolean skipImport = taskService.checkTaskConfig(taskDto, user, ImportModeEnum.GROUP_IMPORT,
+                    new ArrayList<>(), new HashMap<>(), true);
+
+            assertFalse(skipImport, "目标环境已删除的任务必须算作有变更，不能跳过导入");
+            assertEquals(TaskDto.STATUS_EDIT, taskDto.getStatus(), "恢复时不能把 deleting 状态抄回来");
+        }
+
+        @Test
+        @DisplayName("回归：目标未删除且配置一致时仍然跳过导入")
+        void testUnchangedTaskIsStillSkipped() {
+            TaskDto taskDto = fileTask();
+            when(taskService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(existingTask(TaskDto.STATUS_EDIT));
+            doCallRealMethod().when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+
+            boolean skipImport = taskService.checkTaskConfig(taskDto, user, ImportModeEnum.GROUP_IMPORT,
+                    new ArrayList<>(), new HashMap<>(), false);
+
+            assertTrue(skipImport, "配置一致的任务仍应跳过导入");
+        }
+
+        @Test
+        @DisplayName("回归：仅运行状态不同（导出时 running、目标是 stop）仍视为无变化")
+        void testRunningStatusDifferenceIsNotAChange() {
+            TaskDto taskDto = fileTask();
+            when(taskService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(existingTask(TaskDto.STATUS_STOP));
+            doCallRealMethod().when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+
+            boolean skipImport = taskService.checkTaskConfig(taskDto, user, ImportModeEnum.GROUP_IMPORT,
+                    new ArrayList<>(), new HashMap<>(), false);
+
+            assertTrue(skipImport, "运行状态差异不算配置变更");
+        }
+
+        @Test
+        @DisplayName("reviveDeletedTask：清除 is_deleted 与 deleteName，并把状态拉回 edit")
+        void testReviveClearsDeletionMarkers() {
+            when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+            doCallRealMethod().when(taskService).reviveDeletedTask(any(ObjectId.class));
+
+            taskService.reviveDeletedTask(taskId);
+
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(TaskEntity.class));
+            Document updateObject = updateCaptor.getValue().getUpdateObject();
+            Document set = (Document) updateObject.get("$set");
+            Document unset = (Document) updateObject.get("$unset");
+            assertEquals(false, set.get("is_deleted"), "必须显式清除删除标记");
+            assertEquals(TaskDto.STATUS_EDIT, set.get("status"), "必须把状态从 deleting 拉回 edit");
+            assertNotNull(unset, "必须清掉删除时写入的 deleteName");
+            assertTrue(unset.containsKey("deleteName"), "必须清掉删除时写入的 deleteName");
+        }
+
+        @Test
+        @DisplayName("isDeletedTask：is_deleted 已置位或停在 deleting/delete_failed 的记录都算删除态")
+        void testIsDeletedTaskQueriesBothDeletionStates() {
+            doCallRealMethod().when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(new TaskEntity()));
+
+            assertTrue(taskService.isDeletedTask(taskId, user));
+
+            org.mockito.ArgumentCaptor<Query> queryCaptor = org.mockito.ArgumentCaptor.forClass(Query.class);
+            verify(taskService).findAll(queryCaptor.capture(), any(UserDetail.class));
+            String queryJson = queryCaptor.getValue().getQueryObject().toJson();
+            assertTrue(queryJson.contains("is_deleted"), "查询要覆盖 is_deleted 已置位的记录");
+            assertTrue(queryJson.contains(TaskDto.STATUS_DELETING), "查询要覆盖仍停在 deleting 的记录");
+            assertTrue(queryJson.contains(TaskDto.STATUS_DELETE_FAILED), "查询要覆盖 delete_failed 的记录");
+        }
+
+        @Test
+        @DisplayName("isDeletedTask：查不到删除态记录时返回 false")
+        void testIsDeletedTaskReturnsFalseForLivingTask() {
+            doCallRealMethod().when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            assertFalse(taskService.isDeletedTask(taskId, user));
+        }
+
+        @Test
+        @DisplayName("batchImport：目标已删除时先复活再走覆盖导入")
+        void testBatchImportRevivesDeletedTaskBeforeImport() {
+            TaskDto taskDto = fileTask();
+            doReturn(true).when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            doReturn(false).when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+            doNothing().when(taskService).reviveDeletedTask(any(ObjectId.class));
+            doNothing().when(taskService).handleGroupImportTaskMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(anyList(), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyMap(), anyMap(), anyList());
+
+            taskService.batchImport(new ArrayList<>(Collections.singletonList(taskDto)), user,
+                    ImportModeEnum.GROUP_IMPORT, new ArrayList<>(), new HashMap<>(),
+                    new HashMap<>(), new HashMap<>(), new ArrayList<>());
+
+            verify(taskService, times(1)).reviveDeletedTask(taskId);
+            verify(taskService, times(1)).checkTaskConfig(eq(taskDto), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), eq(true));
+        }
+
+        @Test
+        @DisplayName("回归：导入副本 / 冲突即取消模式不做恢复，语义保持不变")
+        void testCopyAndCancelModesDoNotRestore() {
+            TaskDto taskDto = fileTask();
+            doReturn(false).when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+            doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(anyList(), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyMap(), anyMap(), anyList());
+
+            taskService.batchImport(new ArrayList<>(Collections.singletonList(taskDto)), user,
+                    ImportModeEnum.IMPORT_AS_COPY, new ArrayList<>(), new HashMap<>(),
+                    new HashMap<>(), new HashMap<>(), new ArrayList<>());
+
+            verify(taskService, never()).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            verify(taskService, never()).reviveDeletedTask(any(ObjectId.class));
+        }
+
+        @Test
+        @DisplayName("回归：目标未删除时不触发复活")
+        void testBatchImportDoesNotReviveLivingTask() {
+            TaskDto taskDto = fileTask();
+            doReturn(false).when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            doReturn(false).when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+            doNothing().when(taskService).handleGroupImportTaskMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(anyList(), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyMap(), anyMap(), anyList());
+
+            taskService.batchImport(new ArrayList<>(Collections.singletonList(taskDto)), user,
+                    ImportModeEnum.GROUP_IMPORT, new ArrayList<>(), new HashMap<>(),
+                    new HashMap<>(), new HashMap<>(), new ArrayList<>());
+
+            verify(taskService, never()).reviveDeletedTask(any(ObjectId.class));
+        }
+    }
 
 }

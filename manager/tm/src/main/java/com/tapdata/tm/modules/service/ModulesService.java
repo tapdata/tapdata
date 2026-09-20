@@ -88,6 +88,7 @@ import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
@@ -123,6 +124,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -202,9 +204,14 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
 		parseTapType(modulesDto);
 		modulesDto.withPathSettingIfNeed();
+		transformStatusMsg(modulesDto);
 		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
-		final String connectionId = modulesDto.getConnection().toString();
-		Optional.ofNullable(dataSourceService.findById(MongoUtils.toObjectId(connectionId)))
+		// TAP-12425：与 activeApis 保持同一套解析口径，datasource 优先、connection 兜底，
+		// 这样历史导入写坏 connection 的 API 详情页仍能展示正确的连接。
+		final ObjectId connection = resolveApiConnectionId(modulesDto);
+		final String connectionId = connection == null ? null : connection.toHexString();
+		Optional.ofNullable(connection)
+				.map(connectionObjectId -> dataSourceService.findById(connectionObjectId))
 				.ifPresent(dataSourceConnectionDto -> {
 					dataSourceConnectionDto.setDatabase_password(null);
 					dataSourceConnectionDto.setPlain_password(null);
@@ -270,8 +277,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         Optional.ofNullable(page.getItems())
                 .ifPresent(items -> items.stream()
                         .filter(e -> e instanceof ModulesDto)
-                        .forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
-		parseTapType((List<ModulesDto>) page.getItems());
+                        .forEach(e -> {
+							transformStatusMsg((ModulesDto) e);
+							((ModulesDto) e).withPathSettingIfNeed();
+						}));
+        parseTapType((List<ModulesDto>) page.getItems());
         String createUser = "";
         List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
         if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -337,6 +347,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
 		}
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
+        removeStatusInfo(modulesDto);
 		return super.save(modulesDto, userDetail);
 
 	}
@@ -392,6 +403,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 		checkModule(checkItem);
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
+        removeStatusInfo(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
@@ -452,6 +464,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 		existedModulesDto.setName(copyName);
 		existedModulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+		removeStatusInfo(existedModulesDto);
 		save(existedModulesDto, userDetail);
 		return existedModulesDto;
 	}
@@ -537,11 +550,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				}
 				newDto.setIsDeleted(false);
 				FieldTypeUtil.validCustomWhereIfNeed(newDto);
+				removeStatusInfo(newDto);
 				super.upsert(query, newDto, userDetail);
 			}
 		}
 	}
 
+	protected void removeStatusInfo(ModulesDto newDto) {
+		newDto.setPublishStatus("");
+	}
+
+	protected void transformStatusMsg(ModulesDto modulesDto) {
+		if (null == modulesDto) {
+			return;
+		}
+		String key = modulesDto.getPublishStatus();
+		if (StringUtils.isBlank(key)) {
+			return;
+		}
+		modulesDto.setPublishStatus(MessageUtil.getMessage(key));
+	}
 
 	/**
 	 * 查找已经发布的api
@@ -580,6 +608,25 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return infoVo;
 	}
 
+	void readSslPasswordIfNeed(DataSourceConnectionDto dataSourceConnectionDto) {
+		Boolean ssl = dataSourceConnectionDto.getSsl();
+		if (null == ssl || !ssl) {
+			return;
+		}
+		Map<String, Object> config = dataSourceConnectionDto.getConfig();
+		if (null == config || config.isEmpty()) {
+			return;
+		}
+		Object sslPassObj = config.get("sslPass");
+		if (null == sslPassObj) {
+			return;
+		}
+		String sslPass = String.valueOf(sslPassObj);
+		if (StringUtils.isNotBlank(sslPass)) {
+			dataSourceConnectionDto.setSslPass(sslPass);
+		}
+	}
+
 	protected List<ModulesDto> activeApis(ApiDefinitionVo apiDefinitionVo, UserDetail userDetail) {
 		//find active api
 		List<ModulesDto> apis = findAllActiveApi(ModuleStatusEnum.ACTIVE);
@@ -587,9 +634,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			return new ArrayList<>();
 		}
 		List<ConnectionVo> connectionVos = new ArrayList<>();
-		Map<ObjectId, List<ModulesDto>> connectionMap = apis.stream().collect(Collectors.groupingBy(ModulesDto::getConnection));
-		Set<ObjectId> connections = connectionMap.keySet();
-		assert !connections.isEmpty();
+		// TAP-12425：优先按 datasource 解析连接——API Server 也是按 datasource 匹配数据源的
+		// （见 apiserver generators/tapDataCodeGenerator.js），而 connection 可能被历史导入写坏。
+		// 两者都解析不出连接的 API 直接跳过，避免 groupingBy/toHexString 在 null 上抛 NPE 拖垮整个发布。
+		Set<ObjectId> connections = new LinkedHashSet<>();
+		List<ModulesDto> resolvableApis = new ArrayList<>();
+		for (ModulesDto api : apis) {
+			ObjectId connectionId = resolveApiConnectionId(api);
+			if (connectionId == null) {
+				log.warn("Api {}({}) has no resolvable connection, skip publishing it",
+						api.getName(), api.getId());
+				continue;
+			}
+			api.setConnection(connectionId);
+			connections.add(connectionId);
+			resolvableApis.add(api);
+		}
+		if (connections.isEmpty()) {
+			return new ArrayList<>();
+		}
+		apis = resolvableApis;
 		Query query = Query.query(Criteria.where("id").in(connections));
 		List<DataSourceConnectionDto> dataSourceConnectionDtoList = dataSourceService.findAll(query);
 		List<String> databaseTypes = dataSourceConnectionDtoList.stream()
@@ -610,49 +674,68 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						DataSourceDefinitionDto::getType,
 						DataSourceDefinitionDto::getProperties, (e1, e2) -> e1
 				));
-		Map<String, String> fialedApi = new HashMap<>();
 		//set API server key in api
 		for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
 			String connectionId = dataSourceConnectionDto.getId().toHexString();
 			String databaseType = dataSourceConnectionDto.getDatabase_type();
 			Map<String, Object> connectionConfig = dataSourceConnectionDto.getConfig();
-			try {
-				if (databaseType.toLowerCase(Locale.ROOT).contains("mongo")) {
+			if (databaseType.toLowerCase(Locale.ROOT).contains("mongo")) {
+				try {
 					connectionConfig.put(URI, parseUri(connectionConfig));
+				} catch (Exception e) {
+					log.warn("Failed to parse mongo connection config: {}, connection id: {}", e.getMessage(), connectionId);
 				}
-				Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
+			}
+			readSslPasswordIfNeed(dataSourceConnectionDto);
+			Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
+			if (properties != null) {
 				LinkedHashMap<String, Object> connection = (LinkedHashMap<String, Object>) properties.get("connection");
 				analyzeApiServerKey(dataSourceConnectionDto, connection, null);
-				ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
-				if (null != connectionVo) {
-					String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
-					connectionVo.setDatabase_password(plainPassword);
-					if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
-						Optional.ofNullable(connectionConfig.get("sid"))
-								.map(Object::toString)
-								.ifPresent(connectionVo::setDatabase_name);
-					}
-				}
-				connectionVos.add(connectionVo);
-			} catch (Exception e) {
-				fialedApi.put(connectionId, e.getMessage());
 			}
+			ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
+			if (null != connectionVo) {
+				String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
+				connectionVo.setDatabase_password(plainPassword);
+				if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
+					Optional.ofNullable(connectionConfig.get("sid"))
+							.map(Object::toString)
+							.ifPresent(connectionVo::setDatabase_name);
+				}
+				if (null == connectionVo.getDatabase_password()) {
+					Optional.ofNullable(connectionConfig)
+							.map(m -> m.get("password"))
+							.map(String::valueOf)
+							.ifPresent(connectionVo::setDatabase_password);
+				}
+			}
+			connectionVos.add(connectionVo);
 		}
-		apis = updatePublishMsg(apis, fialedApi);
 		apiDefinitionVo.setConnections(connectionVos);
 		apiDefinitionVo.setApis(apis);
 		withEncryptionRule(apis);
 		return apis;
 	}
 
-	protected String parseUri(Map<String, Object> connectionConfig) {
-		String uri = (String) connectionConfig.get(URI);
-		if (uri == null) {
-			uri = MongoUriUtil.uriByParam(connectionConfig);
-		} else {
-			uri = MongoUriUtil.uriByConnectionString(uri);
+	/**
+	 * TAP-12425：解析 API 实际指向的连接 _id，datasource 优先、connection 兜底。
+	 *
+	 * @return 解析不出时返回 null
+	 */
+	protected ObjectId resolveApiConnectionId(ModulesDto api) {
+		if (null == api) {
+			return null;
 		}
-		return uri;
+		ObjectId fromDataSource = MongoUtils.toObjectId(api.getDataSource());
+		return fromDataSource != null ? fromDataSource : api.getConnection();
+	}
+
+	protected String parseUri(Map<String, Object> connectionConfig) {
+		Object isUri = connectionConfig.get("isUri");
+		if (isUri instanceof Boolean uri && uri) {
+			String uriChar = (String) connectionConfig.get(URI);
+			return MongoUriUtil.uriByConnectionString(uriChar);
+		}
+		return MongoUriUtil.uriByParam(connectionConfig);
 	}
 
 	public List<ModulesDto> updatePublishMsg(List<ModulesDto> apis, Map<String, String> connectionIdAndStatusMsg) {
@@ -1849,7 +1932,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			try {
 				modulesDto.setIsDeleted(false);
 				modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
-
+				alignConnectionWithDataSource(modulesDto);
+				removeStatusInfo(modulesDto);
 				// 根据导入模式处理
 				switch (importMode) {
 					case REPLACE,REUSE_EXISTING: {
@@ -1892,6 +1976,27 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			}
 		}
 		return importResult;
+	}
+
+	/**
+	 * TAP-12425：以 datasource（回退 connectionId）为准重建 connection。
+	 *
+	 * <p>导入包里的 connection 不可信：老包把 ObjectId 序列化成了 {@code {"timestamp":..,"date":..}}，
+	 * 回读时会得到一个随机 ObjectId 或 null。datasource / connectionId 是字符串，能原样往返，
+	 * 且 API Server 本身就是按 datasource 去匹配数据源的，因此它们才是权威来源。</p>
+	 *
+	 * <p>两者都不可用时保持原值不动，交由后续 {@link #updateConnectionIds} 的 conMap 映射处理。</p>
+	 */
+	protected void alignConnectionWithDataSource(ModulesDto modulesDto) {
+		String connectionId = StringUtils.isNotBlank(modulesDto.getDataSource())
+				? modulesDto.getDataSource() : modulesDto.getConnectionId();
+		ObjectId connection = MongoUtils.toObjectId(connectionId);
+		if (connection == null) {
+			return;
+		}
+		modulesDto.setConnection(connection);
+		modulesDto.setConnectionId(connectionId);
+		modulesDto.setDataSource(connectionId);
 	}
 
 	/**

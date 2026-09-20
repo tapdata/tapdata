@@ -1,6 +1,7 @@
 package com.tapdata.tm.group.dto;
 
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -11,7 +12,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @ToString
-public class GroupInfoDto extends BaseDto {
+public class GroupInfoDto extends BaseDto implements IDataPermissionDto {
     private String name;
     private String description;
     private List<ResourceItem> resourceItemList = new ArrayList<>();

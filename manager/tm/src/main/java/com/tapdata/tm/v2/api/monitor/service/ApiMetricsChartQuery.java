@@ -333,11 +333,9 @@ public class ApiMetricsChartQuery {
         UsageBase first = items.get(0);
         Worker worker = serverMap.get(first.getProcessId());
         assert worker != null;
-        ApiServerStatus workerStatus = worker.getWorkerStatus();
-        Integer cpuCores = workerStatus.getCpuCores();
-        if (null == cpuCores) {
-            cpuCores = 1;
-        }
+        int cpuCores = Optional.ofNullable(worker.getWorkerStatus())
+                .map(ApiServerStatus::getCpuCores)
+                .orElse(1);
         for (T t : items) {
             t.setCurrentCpuUsage(active ? cpuCores : 1);
         }

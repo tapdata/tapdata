@@ -61,6 +61,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -125,6 +126,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@BeforeEach
 	void setUp() {
 		hazelcastTargetPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "fromConcurrentProcessor", ThreadLocal.withInitial(() -> false));
 		when(hazelcastTargetPdkBaseNode.getDataProcessorContext()).thenReturn(dataProcessorContext);
 	}
 
@@ -1351,6 +1353,27 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	class HandleTapdataEventsTest {
+		@Test
+		void concurrentCallbackNeverFlushesPartitionOffsetAndRestoresContext() {
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			for (SyncStage stage : new SyncStage[]{SyncStage.INITIAL_SYNC, SyncStage.CDC}) {
+				TapdataEvent event = new TapdataEvent();
+				event.setSyncStage(stage);
+				event.setBatchOffset(new Object());
+				event.setStreamOffset(new Object());
+				doAnswer(invocation -> {
+					((AtomicReference<TapdataEvent>) invocation.getArgument(2)).set(event);
+					return null;
+				}).when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(), any(), any(), any(), any(), any());
+				// Both processor fields are absent: their live state must not permit a partition flush.
+				ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode, "handleTapdataEvents",
+						Collections.singletonList(event), true);
+				verify(hazelcastTargetPdkBaseNode, never()).flushSyncProgressMap(event);
+				hazelcastTargetPdkBaseNode.handleTapdataEvents(Collections.singletonList(event));
+				verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(event);
+			}
+		}
+
 		List<TapdataEvent> tapdataEvents;
 		JetJobStatusMonitor jobStatusMonitor = mock(JetJobStatusMonitor.class);
 		DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
@@ -1828,6 +1851,20 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	@DisplayName("Method processTargetEvents test")
 	class processTargetEventsTest {
+		private long countUpdateMemoryInvocations(TapdataEvent tapdataEvent) {
+			return countUpdateMemoryInvocations(tapdataEvent, true)
+					+ countUpdateMemoryInvocations(tapdataEvent, false);
+		}
+
+		private long countUpdateMemoryInvocations(TapdataEvent tapdataEvent, boolean updateTapTable) {
+			return mockingDetails(hazelcastTargetPdkBaseNode).getInvocations().stream()
+					.filter(invocation -> "updateMemoryFromDDLInfoMap".equals(invocation.getMethod().getName()))
+					.filter(invocation -> invocation.getMethod().getParameterCount() == 2)
+					.filter(invocation -> tapdataEvent.equals(invocation.getArgument(0)))
+					.filter(invocation -> Boolean.valueOf(updateTapTable).equals(invocation.getArgument(1)))
+					.count();
+		}
+
 		@BeforeEach
 		void setUp() {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).processTargetEvents(any(List.class));
@@ -1923,7 +1960,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			})).start();
 			hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents);
 			verify(hazelcastTargetPdkBaseNode, never()).fromTapValueMergeInfo(any(TapdataEvent.class));
-			verify(hazelcastTargetPdkBaseNode).updateMemoryFromDDLInfoMap(tapdataEvent);
+			assertEquals(1L, countUpdateMemoryInvocations(tapdataEvent, true));
 		}
 
 		@Test
@@ -1940,7 +1977,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			thread.start();
 			assertDoesNotThrow(() -> TimeUnit.MILLISECONDS.sleep(300L));
 			thread.interrupt();
-			verify(hazelcastTargetPdkBaseNode, never()).updateMemoryFromDDLInfoMap(tapdataEvent);
+			assertEquals(0L, countUpdateMemoryInvocations(tapdataEvent));
 		}
 	}
 
@@ -2071,6 +2108,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataAdjustMemoryEvent(any());
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initQueueConsumerThreadPool();
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initTargetQueueConsumer();
+			UnitTestUtils.injectField(HazelcastTargetPdkBaseNode.class, hazelcastTargetPdkBaseNode,
+					"dynamicAdjustQueueLock", new int[0]);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"originalWriteQueueCapacity", 100);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeQueueCapacity", 200);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"tapEventQueue", new LinkedBlockingQueue<>(100));
@@ -2112,6 +2151,49 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(queueExecutorEx.isShutdown()).thenReturn(false);
 			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(tapdataEvent);
 			verify(queueExecutorEx,times(1)).shutdownNow();
+		}
+
+		@Test
+		void testDecreaseStopsCdcConcurrentProcessorDuringCdc() {
+			PartitionConcurrentProcessor cdcProcessor = mock(PartitionConcurrentProcessor.class);
+			when(cdcProcessor.isRunning()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "inCdc", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcPartitionConcurrentProcessor", cdcProcessor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "writeQueueCapacity", 25);
+
+			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(
+					new TapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent.DECREASE, 2.0));
+
+			verify(cdcProcessor).stop();
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode,
+					"cdcPartitionConcurrentProcessor"));
+		}
+
+		@Test
+		void testDecreaseBeforeCdcStopsBothConcurrentProcessors() {
+			PartitionConcurrentProcessor initialProcessor = mock(PartitionConcurrentProcessor.class);
+			PartitionConcurrentProcessor cdcProcessor = mock(PartitionConcurrentProcessor.class);
+			when(initialProcessor.isRunning()).thenReturn(true);
+			when(cdcProcessor.isRunning()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "inCdc", false);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "initialConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,
+					"initialPartitionConcurrentProcessor", initialProcessor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,
+					"cdcPartitionConcurrentProcessor", cdcProcessor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "writeQueueCapacity", 25);
+
+			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(
+					new TapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent.DECREASE, 2.0));
+
+			verify(initialProcessor).stop();
+			verify(cdcProcessor).stop();
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode,
+					"initialPartitionConcurrentProcessor"));
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode,
+					"cdcPartitionConcurrentProcessor"));
 		}
 
 		@DisplayName("test timestamp is null")
@@ -3309,6 +3391,63 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	class FlushSyncProgressMapTest {
 		@Test
+		void testInitialOffsetFlushesWhenConfiguredConcurrentProcessorIsUnavailable() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+			tapdataEvent.setBatchOffset(new Object());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "initialConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "initialPartitionConcurrentProcessor", null);
+			ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode,
+					"flushOffsetByTapdataEventForNoConcurrent", new AtomicReference<>(tapdataEvent));
+
+			verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+		}
+
+		@Test
+		void testCdcOffsetFlushesWhenConfiguredConcurrentProcessorIsUnavailable() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setSyncStage(SyncStage.CDC);
+			tapdataEvent.setStreamOffset(new Object());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcPartitionConcurrentProcessor", null);
+			ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode,
+					"flushOffsetByTapdataEventForNoConcurrent", new AtomicReference<>(tapdataEvent));
+
+			verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+		}
+
+		@Test
+		void testCompleteTableSnapshotInitializesAndFlushesBatchOffset() {
+			String sourceNodeId = "sourceNodeId";
+			String targetNodeId = "targetNodeId";
+			String tableId = "testTableId";
+			PartitionTableOffset completedOffset = new PartitionTableOffset().tableCompleted(true);
+			TapdataCompleteTableSnapshotEvent tapdataEvent = new TapdataCompleteTableSnapshotEvent(tableId);
+			tapdataEvent.setBatchOffset(completedOffset);
+			tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+			tapdataEvent.setNodeIds(List.of(sourceNodeId));
+
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(targetNodeId);
+			processorBaseContext = mock(ProcessorBaseContext.class);
+			when(processorBaseContext.getNode()).thenReturn(node);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
+			AtomicBoolean flushOffset = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+
+			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
+
+			SyncProgress syncProgress = syncProgressMap.get(sourceNodeId + "," + targetNodeId);
+			assertNotNull(syncProgress);
+			assertTrue(syncProgress.getBatchOffsetObj() instanceof Map);
+			assertSame(completedOffset, ((Map<?, ?>) syncProgress.getBatchOffsetObj()).get(tableId));
+			assertTrue(flushOffset.get());
+		}
+
+		@Test
 		void testForTapdataHeartbeatEvent() {
 			TapdataEvent tapdataEvent = new TapdataHeartbeatEvent();
 			tapdataEvent.setSyncStage(mock(SyncStage.class));
@@ -3329,6 +3468,33 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
 			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
 			assertTrue(flushOffset.get());
+		}
+	}
+
+	@Nested
+	class SplitCompleteTableSnapshotEvent2NewBatchTest {
+		@Test
+		void testCompleteEventIsProcessedAfterPrecedingDmlBatch() {
+			TapdataEvent firstDml = new TapdataEvent();
+			firstDml.setTapEvent(new TapInsertRecordEvent());
+			TapdataEvent secondDml = new TapdataEvent();
+			secondDml.setTapEvent(new TapInsertRecordEvent());
+			TapdataCompleteTableSnapshotEvent completeEvent = new TapdataCompleteTableSnapshotEvent("table1");
+			TapdataEvent nextTableDml = new TapdataEvent();
+			nextTableDml.setTapEvent(new TapInsertRecordEvent());
+
+			Consumer<List<TapdataEvent>> consumer = mock(Consumer.class);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode)
+					.splitCompleteTableSnapshotEvent2NewBatch(anyList(), any());
+
+			hazelcastTargetPdkBaseNode.splitCompleteTableSnapshotEvent2NewBatch(
+					List.of(firstDml, secondDml, completeEvent, nextTableDml), consumer);
+
+			ArgumentCaptor<List<TapdataEvent>> batches = ArgumentCaptor.forClass(List.class);
+			verify(consumer, times(3)).accept(batches.capture());
+			assertEquals(List.of(firstDml, secondDml), batches.getAllValues().get(0));
+			assertEquals(List.of(completeEvent), batches.getAllValues().get(1));
+			assertEquals(List.of(nextTableDml), batches.getAllValues().get(2));
 		}
 	}
 

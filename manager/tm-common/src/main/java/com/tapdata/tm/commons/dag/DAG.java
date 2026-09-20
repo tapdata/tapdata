@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 public class DAG implements Serializable, Cloneable {
 
     private static Logger logger = LoggerFactory.getLogger(DAG.class);
-    public static Map<String, Class<? extends Node>> nodeMapping = new HashMap<>();
+    public static Map<String, Class<? extends Node>> nodeMapping = new ConcurrentHashMap<>();
 
     private final transient Graph<Node, Edge> graph;
 
@@ -82,52 +82,33 @@ public class DAG implements Serializable, Cloneable {
     private String ownerId;
 
     static {
+        goInit();
+    }
 
-        ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
-                new ClassPathScanningCandidateComponentProvider(true);
-        classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
-        Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
-        result.forEach(beanDefinition -> {
-            try {
-                Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
-                if (!Loader.isExtends(nodeClass, Node.class)) {
-                    logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
-                    return;
-                }
-                NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
-            }
-        });
-        /*try {
-
-            List<String> list = Loader.getResourceFiles(DAG.class.getPackage().getName());
-
-            list.forEach(url -> {
+    public static void goInit() {
+        try {
+            ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
+                    new ClassPathScanningCandidateComponentProvider(true);
+            classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
+            Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
+            result.forEach(beanDefinition -> {
                 try {
-                    Class<?> nodeClass = Class.forName(url);
+                    String className = beanDefinition.getBeanClassName();
+                    Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
                     if (!Loader.isExtends(nodeClass, Node.class)) {
-                        logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
                         return;
                     }
                     NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                    if (nodeType == null) {
-                        logger.debug("Class {} no have NodeType annotation , skip.", nodeClass.getName());
-                        return;
+                    if (nodeType != null) {
+                        nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
                     }
-                    nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-                } catch (ClassNotFoundException e) {
-                    logger.error("Load node type failed.", e);
-                    e.printStackTrace();
+                } catch (Exception e) {
+                    logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
                 }
             });
-
-        } catch (IOException e) {
-            logger.error("Load node type failed.", e);
-            e.printStackTrace();
-        }*/
-
+        } catch (Throwable t) {
+            logger.error("DAG node type scan failed during goInit, will be retried on first getClassByType access: {}", t.getMessage(), t);
+        }
     }
 
     public DAG(Graph<Node, Edge> graph) {

@@ -13,14 +13,12 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.*;
 
 @Component("customNodeStrategy")
@@ -56,13 +54,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
 
                     CustomNodeDto customNodeDto = customNodeService.findById(new ObjectId(customNodeId));
                     if (Objects.isNull(customNodeDto)) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_NOT_EXISTS"))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "CUSTOM_NODE_NOT_EXISTS"));
                     } else {
                         List<String> formRequired = Lists.newArrayList();
                         Map<String, Object> formSchema = customNodeDto.getFormSchema();
@@ -91,25 +83,13 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                             }
 
                             if (requiredFlag) {
-                                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                        .grade(Level.ERROR).nodeId(nodeId)
-                                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY"), name, formName))
-                                        .build();
-                                log.setCreateAt(now);
-                                log.setCreateUser(userId);
-                                result.add(log);
+                                result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.ERROR, templateEnum, locale, "CUSTOM_NODE_SET_EMPTY", DagCheckLogs.nodeName(node), formName));
                             }
                         }
                     }
 
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY"), name))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        result.add(DagCheckLogs.of(taskId, nodeId, userId, now, Level.INFO, templateEnum, locale, "CUSTOM_NODE_SET_EMPTY", DagCheckLogs.nodeName(node)));
                     }
                 });
 

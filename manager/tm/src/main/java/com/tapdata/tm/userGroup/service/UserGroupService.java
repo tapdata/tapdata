@@ -1,9 +1,11 @@
 package com.tapdata.tm.userGroup.service;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userGroup.dto.UserGroupDto;
 import com.tapdata.tm.userGroup.entity.UserGroupEntity;
@@ -11,6 +13,7 @@ import com.tapdata.tm.userGroup.repository.UserGroupRepository;
 import com.tapdata.tm.config.security.UserDetail;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -37,6 +40,14 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 	public UserGroupService(@NonNull UserGroupRepository repository, UserService userService) {
         super(repository, UserGroupDto.class, UserGroupEntity.class);
 		this.userService = userService;
+	}
+
+	public Supplier<UserGroupDto> dataPermissionFindById(ObjectId id, Field fields) {
+		return () -> {
+			fields.put(BaseDto.FIELD_USER_ID, true);
+			fields.put(DataPermissionHelper.FIELD_NAME, true);
+			return findById(id, fields);
+		};
 	}
 
     protected void beforeSave(UserGroupDto userGroup, UserDetail user) {

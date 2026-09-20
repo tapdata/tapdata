@@ -174,8 +174,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         });
         List<String> currentTableList = tableNames.stream().map(s -> convertTableNameMap.getOrDefault(s, s)).collect(Collectors.toList());
         if (StringUtils.isNotBlank(searchTableName)) {
-            currentTableList.add(searchTableName);
+            // Do not add searchTableName itself into the list: it always matches the filter and
+            // duplicates an existing table when the keyword equals a real table name (TAP-12572).
             currentTableList = currentTableList.stream().filter(s -> s.toUpperCase().contains(searchTableName.toUpperCase())).collect(Collectors.toList());
+        }
+        // Without TableRename, tableNames is not cleared after an empty search filter; partition would NPE/IOOBE.
+        if (CollectionUtils.isEmpty(currentTableList)) {
+            return result;
         }
         if (MapUtils.isNotEmpty(reverseConvertTableNameMap)) {
             tableNames.clear();

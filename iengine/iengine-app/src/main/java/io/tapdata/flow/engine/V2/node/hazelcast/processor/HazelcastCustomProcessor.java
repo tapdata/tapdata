@@ -334,31 +334,34 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void doClose() throws TapCodeException {
-		CommonUtils.ignoreAnyError(() -> {
-			engineMap.values().forEach(engine -> {
-				if (engine instanceof GraalJSScriptEngine) {
-					try {
-						((GraalJSScriptEngine) engine).close();
-					} catch (Exception e) {
-						logger.warn("Error closing GraalJS engine: {}", e.getMessage());
+		try {
+			super.doClose();
+		} finally {
+			CommonUtils.ignoreAnyError(() -> {
+				engineMap.values().forEach(engine -> {
+					if (engine instanceof GraalJSScriptEngine) {
+						try {
+							((GraalJSScriptEngine) engine).close();
+						} catch (Exception e) {
+							logger.warn("Error closing GraalJS engine: {}", e.getMessage());
+						}
 					}
-				}
-			});
-			engineMap.clear();
-		}, TAG);
-		if (null != processContextThreadLocal) {
-			processContextThreadLocal.remove();
-		}
-		// Close script executors manager
-		CommonUtils.ignoreAnyError(() -> {
-			if (this.scriptExecutorsManager != null) {
-				this.scriptExecutorsManager.close();
-				this.scriptExecutorsManager = null;
+				});
+				engineMap.clear();
+			}, TAG);
+			if (null != processContextThreadLocal) {
+				processContextThreadLocal.remove();
 			}
-		}, TAG);
-		this.customNodeTempDto = null;
-		this.javaScriptFunctions = null;
-		super.doClose();
+			// Close script executors manager
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.scriptExecutorsManager != null) {
+					this.scriptExecutorsManager.close();
+					this.scriptExecutorsManager = null;
+				}
+			}, TAG);
+			this.customNodeTempDto = null;
+			this.javaScriptFunctions = null;
+		}
 	}
 
 	private static class StateMap implements KVMap<Object> {

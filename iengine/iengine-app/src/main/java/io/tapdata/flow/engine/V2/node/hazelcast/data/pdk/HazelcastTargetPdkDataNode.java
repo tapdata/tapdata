@@ -993,6 +993,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
+		if (Boolean.TRUE.equals(tapCreateTableEvent.getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY))) {
+			obsLogger.info("Skip physical table creation while retaining model updates, tableName: {}", tapCreateTableEvent.getTableId());
+			return true;
+		}
 		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
 		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		return createTable(tgtTapTable, new AtomicBoolean(),false);

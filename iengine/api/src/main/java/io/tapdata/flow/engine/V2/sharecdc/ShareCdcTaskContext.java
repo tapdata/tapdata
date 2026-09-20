@@ -6,6 +6,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author samuel
@@ -19,12 +22,21 @@ public class ShareCdcTaskContext extends ShareCdcContext implements Serializable
 	private TaskDto taskDto;
 	private Node node;
 	private Connections connections;
+	private List<String> tableNames;
 
 	public ShareCdcTaskContext(Long cdcStartTs, ConfigurationCenter configurationCenter, TaskDto taskDto, Node node, Connections connections) {
+		this(cdcStartTs, configurationCenter, taskDto, node, connections, Collections.emptyList());
+	}
+
+	public ShareCdcTaskContext(Long cdcStartTs, ConfigurationCenter configurationCenter, TaskDto taskDto, Node node,
+							   Connections connections, List<String> tableNames) {
 		super(cdcStartTs, configurationCenter);
 		this.taskDto = taskDto;
 		this.node = node;
 		this.connections = connections;
+		this.tableNames = tableNames == null
+				? Collections.emptyList()
+				: Collections.unmodifiableList(new ArrayList<>(tableNames));
 	}
 
 	public TaskDto getTaskDto() {
@@ -37,5 +49,9 @@ public class ShareCdcTaskContext extends ShareCdcContext implements Serializable
 
 	public Node getNode() {
 		return node;
+	}
+
+	public List<String> getTableNames() {
+		return tableNames;
 	}
 }

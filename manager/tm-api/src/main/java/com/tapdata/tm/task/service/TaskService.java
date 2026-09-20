@@ -81,7 +81,12 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract TaskDto updateAfter(TaskDto taskDto, UserDetail user);
 
-    public abstract TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user);
+    public abstract TaskDto updateShareCacheTask(
+            String id,
+            SaveShareCacheParam saveShareCacheParam,
+            UserDetail user,
+            boolean canStart
+    );
 
     public abstract void checkTaskName(String newName, UserDetail user, ObjectId id);
 

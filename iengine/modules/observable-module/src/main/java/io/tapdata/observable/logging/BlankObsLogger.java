@@ -1,7 +1,6 @@
 package io.tapdata.observable.logging;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-
 import java.util.concurrent.Callable;
 
 /**
@@ -42,6 +41,11 @@ public class BlankObsLogger extends ObsLogger {
 
 	@Override
 	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
+
+	}
+
+	@Override
+	public void alert(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
 
 	}
 

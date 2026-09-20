@@ -1,0 +1,16 @@
+[
+  {
+    "createIndexes": "monitoringLogs",
+    "indexes": [
+      {
+        "name": "taskId_1_taskRecordId_1_date_-1",
+        "key": {
+          "taskId": 1,
+          "taskRecordId": 1,
+          "date": -1
+        },
+        "background": true
+      }
+    ]
+  }
+]
