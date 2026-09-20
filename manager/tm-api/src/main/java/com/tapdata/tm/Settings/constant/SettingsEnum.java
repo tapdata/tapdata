@@ -15,6 +15,10 @@ public enum SettingsEnum {
     INSPECT_SETTING("Inspect","InspectSetting"),
     /** 任务心跳超时时长 单位毫秒 */
     JOB_HEART_TIMEOUT("Job","jobHeartTimeout"),
+    JOB_INCREMENT_STUCK_TIMEOUT("Job", "incrementStuckTimeout"),
+    JOB_INCREMENT_STUCK_RESTART_COOLDOWN("Job", "incrementStuckRestartCooldown"),
+    JOB_INCREMENT_STUCK_MAX_RESTART("Job", "incrementStuckMaxRestart"),
+    JOB_INCREMENT_STUCK_START_GRACE("Job", "incrementStuckStartGrace"),
     /** 任务时差 */
     JOB_LAG_TIME("Job","lagTime"),
     /**  共享增量存储模式 */
@@ -80,6 +84,18 @@ public enum SettingsEnum {
         }
     }
 
+    public long getLongValue(long defualt) {
+        String value = SettingUtil.getValue(this.category, this.key);
+        if (StringUtils.isBlank(value)) {
+            return defualt;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (Exception e) {
+            return defualt;
+        }
+    }
+
 
     public boolean getBoolValue() {
         return Boolean.parseBoolean(SettingUtil.getValue(this.category, this.key));
@@ -105,5 +121,4 @@ public enum SettingsEnum {
         return Double.parseDouble(value.trim());
     }
 }
-
 

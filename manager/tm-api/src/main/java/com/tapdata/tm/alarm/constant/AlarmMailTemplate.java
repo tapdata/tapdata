@@ -100,4 +100,13 @@ public class AlarmMailTemplate {
             "    Occurrence count: {2}\n" +
             "    Occurred time: {3}\n" +
             "    Details: {4}";
+
+    public static final String TASK_INCREMENT_STUCK_TITLE = "【Tapdata Notification: Increment progress stuck】{0}";
+    public static final String TASK_INCREMENT_STUCK_CONTENT = "Your task incremental progress has been stuck and a fallback restart was triggered.\n" +
+            "    Task name: 【{0}】\n" +
+            "    Task type: {1}\n" +
+            "    Stuck duration: {2}\n" +
+            "    Monitored units: {3}\n" +
+            "    Last progress time: {4}\n" +
+            "    Alarm time: {5}";
 }
