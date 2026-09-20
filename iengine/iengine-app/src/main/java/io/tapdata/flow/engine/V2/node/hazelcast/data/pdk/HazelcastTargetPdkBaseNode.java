@@ -181,6 +181,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
     private LinkedBlockingQueue<TapdataEvent> tapEventProcessQueue;
     private final Object saveSnapshotLock = new Object();
+    private final Object uploadDagLock = new Object();
     private ThreadPoolExecutorEx queueConsumerThreadPool;
     private boolean inCdc = false;
     protected int targetBatch;
@@ -358,19 +359,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     syncProgressKey = nodeIdList.get(0) + "," + node.getId();
 				}
 
-				SyncProgress syncProgress = null;
-				if (syncProgressKey != null) {
-					syncProgress = syncProgressMap.get(syncProgressKey);
+				synchronized (saveSnapshotLock) {
+					SyncProgress syncProgress = syncProgressKey == null
+							? new SyncProgress()
+							: syncProgressMap.computeIfAbsent(syncProgressKey, key -> new SyncProgress());
+					flushOffsetCallback(tapdataEvent, syncProgress);
 				}
-
-				if (syncProgress == null) {
-					syncProgress = new SyncProgress();
-					if (syncProgressKey != null) {
-						syncProgressMap.put(syncProgressKey, syncProgress);
-					}
-				}
-
-				flushOffsetCallback(tapdataEvent, syncProgress);
 				saveToSnapshot();
 			}
 		});
@@ -1956,68 +1950,76 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         Node<?> node = processorBaseContext.getNode();
         if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
         String progressKey = tapdataEvent.getNodeIds().get(0) + "," + node.getId();
-        SyncProgress syncProgress = this.syncProgressMap.computeIfAbsent(progressKey, k -> new SyncProgress());
-        if (tapdataEvent instanceof TapdataStartingCdcEvent) {
-            if (null == tapdataEvent.getSyncStage()) return;
-            syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
-        } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-			if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) {
-				try {
-					ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
-					if (null == processControlFunction) {
-						return;
-					}
-					HeartbeatEvent event;
-					if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
-						event = (HeartbeatEvent) tapdataEvent.getTapEvent();
-					} else {
-						event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
-					}
-					event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
-					event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
-					event.addInfo("syncStage", tapdataEvent.getSyncStage());
-					event.addInfo("sourceTime", tapdataEvent.getSourceTime());
-					event.addInfo("nodeIds", tapdataEvent.getNodeIds());
-					processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+        if (tapdataEvent instanceof TapdataHeartbeatEvent && (null == tapdataEvent.getSyncStage() || offsetCallbackEnable)) {
+			try {
+				ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
+				if (null == processControlFunction) {
 					return;
-				} catch (Throwable throwable) {
-					errorHandle(throwable);
 				}
-			}
-            syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
-            if (null != tapdataEvent.getStreamOffset()) {
-                syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
-            }
-            if (null != tapdataEvent.getBatchOffset()) {
-                syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
-            }
-            if (tapdataEvent.getSourceTime() != null)
-				syncProgress.setSourceTime(tapdataEvent.getSourceTime());
-			if (tapdataEvent.getSourceTime() != null)
-				syncProgress.setEventTime(tapdataEvent.getSourceTime());
-			flushOffset.set(true);
-		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
-			if (null != tapdataEvent.getBatchOffset()) {
-				Object batchOffsetObj = syncProgress.getBatchOffsetObj();
-				Map<String, Object> batchOffsetMap;
-				if (batchOffsetObj instanceof Map) {
-					batchOffsetMap = (Map<String, Object>) batchOffsetObj;
+				HeartbeatEvent event;
+				if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
+					event = (HeartbeatEvent) tapdataEvent.getTapEvent();
 				} else {
-					batchOffsetMap = new ConcurrentHashMap<>();
-					syncProgress.setBatchOffsetObj(batchOffsetMap);
+					event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
 				}
-				batchOffsetMap.put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
-				flushOffset.set(true);
-			}
-		} else {
-			if (!offsetCallbackEnable) {
-				flushOffsetCallback(tapdataEvent, syncProgress);
+				event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
+				event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
+				event.addInfo("syncStage", tapdataEvent.getSyncStage());
+				event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+				event.addInfo("nodeIds", tapdataEvent.getNodeIds());
+				processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+				return;
+			} catch (Throwable throwable) {
+				errorHandle(throwable);
 			}
 		}
-		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+        synchronized (saveSnapshotLock) {
+            SyncProgress syncProgress = this.syncProgressMap.computeIfAbsent(progressKey, k -> new SyncProgress());
+            if (tapdataEvent instanceof TapdataStartingCdcEvent) {
+                if (null == tapdataEvent.getSyncStage()) return;
+                syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
+            } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+				syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
+				if (null != tapdataEvent.getStreamOffset()) {
+					syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
+				}
+				if (null != tapdataEvent.getBatchOffset()) {
+					syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+				}
+				if (tapdataEvent.getSourceTime() != null) {
+					syncProgress.setSourceTime(tapdataEvent.getSourceTime());
+					syncProgress.setEventTime(tapdataEvent.getSourceTime());
+				}
+				flushOffset.set(true);
+			} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
+				if (null != tapdataEvent.getBatchOffset()) {
+					Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+					Map<String, Object> batchOffsetMap;
+					if (batchOffsetObj instanceof Map) {
+						batchOffsetMap = (Map<String, Object>) batchOffsetObj;
+					} else {
+						batchOffsetMap = new ConcurrentHashMap<>();
+						syncProgress.setBatchOffsetObj(batchOffsetMap);
+					}
+					batchOffsetMap.put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+					flushOffset.set(true);
+				}
+			} else {
+				if (!offsetCallbackEnable) {
+					flushOffsetCallback(tapdataEvent, syncProgress);
+				}
+			}
+			syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+        }
 	}
 
 	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
+		synchronized (saveSnapshotLock) {
+			return flushOffsetCallbackLocked(tapdataEvent, syncProgress);
+		}
+	}
+
+	private boolean flushOffsetCallbackLocked(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
 		if (null == tapdataEvent.getSyncStage()) return false;
 		if (null == tapdataEvent.getBatchOffset() && null == tapdataEvent.getStreamOffset()) return false;
 		if (SyncStage.CDC == tapdataEvent.getSyncStage() && null == tapdataEvent.getSourceTime()) return false;
@@ -2082,58 +2084,31 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     @Override
     public boolean saveToSnapshot() {
         try {
-            if (!flushOffset.get()) return true;
-            if (MapUtils.isEmpty(syncProgressMap)) return true;
-            Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			SnapshotPayload snapshotPayload = createSnapshotPayload();
+			if (snapshotPayload == null) return true;
 			AtomicBoolean needSave = new AtomicBoolean(true);
-            for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
-                String key = entry.getKey();
-                SyncProgress syncProgress = entry.getValue();
-                List<String> list = Arrays.asList(key.split(","));
-                if (null != syncProgress.getBatchOffsetObj()) {
-                    syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
-                }
-                if (null != syncProgress.getStreamOffsetObj()) {
-                    if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
-                            && !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
-                        syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
-                        if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
-                            String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
-                            syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
-                        }
-						sourceConnectorNodeMap.forEach((nodeId, node) -> {
-							if (list.contains(nodeId)) {
-								FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
-								if (null == flushOffsetFunction) {
-									return;
-								}
-								try {
-									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
-								} catch (Exception e) {
-									needSave.set(false);
-								}
-							}
-						});
-                    }
-                }
+			snapshotPayload.flushOffsetRequests.forEach(request -> sourceConnectorNodeMap.forEach((nodeId, node) -> {
+				if (!request.nodeIds.contains(nodeId)) return;
+				FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
+				if (null == flushOffsetFunction) return;
 				try {
-					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
-				} catch (JsonProcessingException e) {
-					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+					flushOffsetFunction.flushOffset(node.getConnectorContext(), request.streamOffset);
+				} catch (Exception e) {
+					needSave.set(false);
 				}
-			}
+			}));
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 			try {
 				if (needSave.get()){
-					clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
 				}
 			} catch (Exception e) {
-				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
+				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, snapshotPayload.syncProgressJsonMap, e.getMessage());
 				return false;
 			}
 			if (uploadDagService.get()) {
-				synchronized (this.saveSnapshotLock) {
+				synchronized (this.uploadDagLock) {
                     if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
                         // Upload Metadata
                         TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
@@ -2175,6 +2150,75 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
         return true;
     }
+
+	private SnapshotPayload createSnapshotPayload() throws IOException {
+		synchronized (saveSnapshotLock) {
+			if (!flushOffset.get() || MapUtils.isEmpty(syncProgressMap)) return null;
+			Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			List<FlushOffsetRequest> flushOffsetRequests = new ArrayList<>();
+			for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
+				List<String> nodeIds = Arrays.asList(entry.getKey().split(","));
+				SyncProgress syncProgress = copySyncProgress(entry.getValue());
+				if (null != syncProgress.getBatchOffsetObj()) {
+					syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+				}
+				Object streamOffsetObj = syncProgress.getStreamOffsetObj();
+				if (null != streamOffsetObj && (!(streamOffsetObj instanceof String)
+						|| (!StringUtils.startsWith((String) streamOffsetObj, STREAM_OFFSET_COMPRESS_PREFIX_V2)
+						&& !StringUtils.startsWith((String) streamOffsetObj, ENCODE_PREFIX)))) {
+					syncProgress.setStreamOffset(PdkUtil.encodeOffset(streamOffsetObj));
+					if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
+						String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
+						syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
+					}
+					flushOffsetRequests.add(new FlushOffsetRequest(nodeIds, streamOffsetObj));
+				}
+				try {
+					syncProgressJsonMap.put(JSONUtil.obj2Json(nodeIds), JSONUtil.obj2Json(syncProgress));
+				} catch (JsonProcessingException e) {
+					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+				}
+			}
+			return new SnapshotPayload(syncProgressJsonMap, flushOffsetRequests);
+		}
+	}
+
+	private SyncProgress copySyncProgress(SyncProgress source) {
+		SyncProgress copy = new SyncProgress();
+		copy.setOffset(source.getOffset());
+		copy.setEventTime(source.getEventTime());
+		copy.setEventSerialNo(source.getEventSerialNo());
+		copy.setSourceTime(source.getSourceTime());
+		copy.setOffsetStartTime(source.getOffsetStartTime());
+		copy.setSyncStage(source.getSyncStage());
+		copy.setOffsetObj(source.getOffsetObj());
+		copy.setBatchOffset(source.getBatchOffset());
+		copy.setStreamOffset(source.getStreamOffset());
+		copy.setBatchOffsetObj(source.getBatchOffsetObj());
+		copy.setStreamOffsetObj(source.getStreamOffsetObj());
+		copy.setType(source.getType());
+		return copy;
+	}
+
+	private static class SnapshotPayload {
+		private final Map<String, String> syncProgressJsonMap;
+		private final List<FlushOffsetRequest> flushOffsetRequests;
+
+		private SnapshotPayload(Map<String, String> syncProgressJsonMap, List<FlushOffsetRequest> flushOffsetRequests) {
+			this.syncProgressJsonMap = syncProgressJsonMap;
+			this.flushOffsetRequests = flushOffsetRequests;
+		}
+	}
+
+	private static class FlushOffsetRequest {
+		private final List<String> nodeIds;
+		private final Object streamOffset;
+
+		private FlushOffsetRequest(List<String> nodeIds, Object streamOffset) {
+			this.nodeIds = nodeIds;
+			this.streamOffset = streamOffset;
+		}
+	}
 
     private class DeleteConditionFieldFilter implements TargetTapEventFilter.TapEventPredicate {
         private String tableName;
@@ -2311,6 +2355,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
+    private void stopFlushOffsetExecutorAndSaveSnapshot() {
+        try {
+            flushOffsetExecutor.shutdownNow();
+        } finally {
+            saveToSnapshot();
+        }
+    }
+
     @Override
     public void doClose() throws TapCodeException {
         try {
@@ -2329,8 +2381,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     l.notifyAll();
                 }
             }), TAG);
-            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
-            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+            CommonUtils.ignoreAnyError(this::stopFlushOffsetExecutorAndSaveSnapshot, TAG);
             CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
         } finally {
             super.doClose();
