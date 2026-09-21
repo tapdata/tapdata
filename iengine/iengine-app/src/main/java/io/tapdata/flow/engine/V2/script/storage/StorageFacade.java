@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
@@ -139,7 +140,8 @@ public final class StorageFacade {
             if (targetExists && "skip".equals(overwriteMode)) {
                 return result("reused", targetStorage.getFile(resolvedTargetPath), resolvedTargetPath);
             }
-            if (sourceStorage.getFile(resolvedSourcePath) == null) {
+            TapFile sourceFile = sourceStorage.getFile(resolvedSourcePath);
+            if (sourceFile == null || sourceFile.getType() == null || sourceFile.getType() != TapFile.TYPE_FILE) {
                 throw new StorageOperationException("Source file does not exist: " + resolvedSourcePath);
             }
 
@@ -148,13 +150,18 @@ public final class StorageFacade {
             }
 
             final TapFile[] saved = new TapFile[1];
+            AtomicBoolean readCallbackInvoked = new AtomicBoolean();
             sourceStorage.readFile(resolvedSourcePath, input -> {
+                readCallbackInvoked.set(true);
                 try (InputStream sourceInput = input) {
                     saved[0] = targetStorage.saveFile(resolvedTargetPath, sourceInput, true);
                 } catch (Exception e) {
                     throw new StorageOperationException("Copy file failed: " + resolvedSourcePath, e);
                 }
             });
+            if (!readCallbackInvoked.get()) {
+                throw new StorageOperationException("Source file could not be read: " + resolvedSourcePath);
+            }
             return result("copied", saved[0], resolvedTargetPath);
         } catch (Throwable throwable) {
             invalidateOnRemoteFailure(sourceConnectionName, throwable);
@@ -170,13 +177,18 @@ public final class StorageFacade {
                                                      String targetPath) throws Exception {
         Path tempFile = Files.createTempFile("tapdata-js-storage-", UUID.randomUUID().toString());
         try {
+            AtomicBoolean readCallbackInvoked = new AtomicBoolean();
             storage.readFile(sourcePath, input -> {
+                readCallbackInvoked.set(true);
                 try (InputStream sourceInput = input) {
                     Files.copy(sourceInput, tempFile, REPLACE_EXISTING);
                 } catch (Exception e) {
                     throw new StorageOperationException("Read source file failed: " + sourcePath, e);
                 }
             });
+            if (!readCallbackInvoked.get()) {
+                throw new StorageOperationException("Source file could not be read: " + sourcePath);
+            }
             TapFile saved;
             try (InputStream targetInput = Files.newInputStream(tempFile)) {
                 saved = storage.saveFile(targetPath, targetInput, true);
@@ -251,6 +263,9 @@ public final class StorageFacade {
     }
 
     private Map<String, Object> result(String status, TapFile file, String targetPath) {
+        if (("written".equals(status) || "copied".equals(status)) && file == null) {
+            throw new StorageOperationException("File storage did not save target path: " + targetPath);
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", status);
         result.put("targetPath", targetPath);
@@ -269,8 +284,8 @@ public final class StorageFacade {
     private boolean isRemoteFailure(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
-            if (current instanceof StorageOperationException) {
-                return false;
+            if (!(current instanceof StorageOperationException)) {
+                return true;
             }
             current = current.getCause();
         }

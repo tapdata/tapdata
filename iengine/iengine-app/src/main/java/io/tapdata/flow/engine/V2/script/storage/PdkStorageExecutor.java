@@ -21,6 +21,8 @@ import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 
 import java.io.InputStream;
+import java.io.FilterInputStream;
+import java.io.FilterOutputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
 final class PdkStorageExecutor implements StorageExecutor {
@@ -35,6 +38,9 @@ final class PdkStorageExecutor implements StorageExecutor {
     private static final Map<String, String> STORAGE_CLASSES;
 
     static {
+        // Keep this list synchronized with io.tapdata.common.FileProtocolEnum in
+        // file-connector-core. iengine cannot compile against that PDK-loaded
+        // enum, so this boundary must be checked whenever a protocol is added.
         Map<String, String> classes = new HashMap<>();
         classes.put("local", "io.tapdata.storage.local.LocalFileStorage");
         classes.put("ftp", "io.tapdata.storage.ftp.FtpFileStorage");
@@ -59,8 +65,7 @@ final class PdkStorageExecutor implements StorageExecutor {
                        String nodeId) {
         this.connectionName = connectionName;
         String protocol = protocol(connections);
-        this.rootPath = value(connections.getConfig(), "rootPath",
-                value(connections.getConfig(), "filePathString", ""));
+        this.rootPath = resolveRootPath(connections.getConfig());
         this.storage = createStorage(connectionName, connections, protocol, clientMongoOperator,
                 hazelcastInstance, scriptLogger, taskId, nodeId);
     }
@@ -165,6 +170,29 @@ final class PdkStorageExecutor implements StorageExecutor {
         return String.valueOf(config.get(key));
     }
 
+    static String resolveRootPath(Map<String, Object> config) {
+        String writeFilePath = value(config, "writeFilePath", "").trim();
+        if (!writeFilePath.isEmpty()) {
+            return writeFilePath;
+        }
+        String configuredRootPath = value(config, "rootPath", "").trim();
+        if (!configuredRootPath.isEmpty()) {
+            return configuredRootPath;
+        }
+        String readRoots = value(config, "filePathString", "");
+        String[] roots = readRoots.split(",");
+        String singleRoot = null;
+        int rootCount = 0;
+        for (String root : roots) {
+            String trimmedRoot = root.trim();
+            if (!trimmedRoot.isEmpty()) {
+                singleRoot = trimmedRoot;
+                rootCount++;
+            }
+        }
+        return rootCount == 1 ? singleRoot : "";
+    }
+
     private static boolean containsParentSegment(String path) {
         for (String segment : path.split("/")) {
             if ("..".equals(segment)) {
@@ -217,6 +245,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         private final TapTableMap<String, TapTable> tapTableMap;
         private final Log logger;
         private final AtomicBoolean destroyed = new AtomicBoolean();
+        private final Semaphore operationLock = new Semaphore(1, true);
 
         private PdkManagedFileStorage(TapFileStorage delegate,
                                       String associateId,
@@ -230,7 +259,10 @@ final class PdkStorageExecutor implements StorageExecutor {
             this.logger = logger;
         }
 
-        @Override public void init(Map<String, Object> params) { }
+        @Override
+        public void init(Map<String, Object> params) {
+            // The builder initializes the delegate before it is wrapped.
+        }
 
         @Override
         public void destroy() throws Exception {
@@ -238,11 +270,13 @@ final class PdkStorageExecutor implements StorageExecutor {
                 return;
             }
             Throwable failure = null;
+            operationLock.acquireUninterruptibly();
             try {
                 delegate.destroy();
             } catch (Throwable throwable) {
                 failure = throwable;
             } finally {
+                operationLock.release();
                 releaseResources(associateId, stateMap, tapTableMap, logger);
             }
             if (failure instanceof Exception) {
@@ -253,21 +287,170 @@ final class PdkStorageExecutor implements StorageExecutor {
             }
         }
 
-        @Override public TapFile getFile(String path) throws Exception { return delegate.getFile(path); }
-        @Override public void readFile(String path, Consumer<InputStream> consumer) throws Exception { delegate.readFile(path, consumer); }
-        @Override public InputStream readFile(String path) throws Exception { return delegate.readFile(path); }
-        @Override public boolean isFileExist(String path) throws Exception { return delegate.isFileExist(path); }
-        @Override public boolean move(String sourcePath, String destPath) throws Exception { return delegate.move(sourcePath, destPath); }
-        @Override public boolean delete(String path) throws Exception { return delegate.delete(path); }
-        @Override public TapFile saveFile(String path, InputStream is, boolean canReplace) throws Exception { return delegate.saveFile(path, is, canReplace); }
-        @Override public OutputStream openFileOutputStream(String path, boolean append) throws Exception { return delegate.openFileOutputStream(path, append); }
-        @Override public boolean supportAppendData() { return delegate.supportAppendData(); }
-        @Override public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
-                                                   Collection<String> excludeRegs, boolean recursive, int batchSize,
-                                                   Consumer<List<TapFile>> consumer) throws Exception {
-            delegate.getFilesInDirectory(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer);
+        @Override
+        public TapFile getFile(String path) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.getFile(path);
+            } finally {
+                operationLock.release();
+            }
         }
-        @Override public boolean isDirectoryExist(String path) throws Exception { return delegate.isDirectoryExist(path); }
-        @Override public String getConnectInfo() { return delegate.getConnectInfo(); }
+
+        @Override
+        public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                delegate.readFile(path, consumer);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public InputStream readFile(String path) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return lockInputStream(delegate.readFile(path));
+            } catch (Throwable throwable) {
+                operationLock.release();
+                throw throwable;
+            }
+        }
+
+        @Override
+        public boolean isFileExist(String path) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.isFileExist(path);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public boolean move(String sourcePath, String destPath) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.move(sourcePath, destPath);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public boolean delete(String path) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.delete(path);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public TapFile saveFile(String path, InputStream is, boolean canReplace) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.saveFile(path, is, canReplace);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public OutputStream openFileOutputStream(String path, boolean append) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return lockOutputStream(delegate.openFileOutputStream(path, append));
+            } catch (Throwable throwable) {
+                operationLock.release();
+                throw throwable;
+            }
+        }
+
+        @Override
+        public boolean supportAppendData() {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.supportAppendData();
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
+                                        Collection<String> excludeRegs, boolean recursive, int batchSize,
+                                        Consumer<List<TapFile>> consumer) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                delegate.getFilesInDirectory(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public boolean isDirectoryExist(String path) throws Exception {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.isDirectoryExist(path);
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        @Override
+        public String getConnectInfo() {
+            operationLock.acquireUninterruptibly();
+            try {
+                return delegate.getConnectInfo();
+            } finally {
+                operationLock.release();
+            }
+        }
+
+        private InputStream lockInputStream(InputStream input) {
+            if (input == null) {
+                operationLock.release();
+                return null;
+            }
+            AtomicBoolean released = new AtomicBoolean();
+            return new FilterInputStream(input) {
+                @Override
+                public void close() throws java.io.IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        releaseStreamLock(released);
+                    }
+                }
+            };
+        }
+
+        private OutputStream lockOutputStream(OutputStream output) {
+            if (output == null) {
+                operationLock.release();
+                return null;
+            }
+            AtomicBoolean released = new AtomicBoolean();
+            return new FilterOutputStream(output) {
+                @Override
+                public void close() throws java.io.IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        releaseStreamLock(released);
+                    }
+                }
+            };
+        }
+
+        private void releaseStreamLock(AtomicBoolean released) {
+            if (released.compareAndSet(false, true)) {
+                operationLock.release();
+            }
+        }
     }
 }

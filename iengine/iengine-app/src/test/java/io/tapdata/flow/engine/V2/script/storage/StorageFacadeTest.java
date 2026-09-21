@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -15,9 +16,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -67,6 +70,79 @@ class StorageFacadeTest {
 
         assertEquals("copied", result.get("status"));
         assertEquals("source", new String(storage.files.get("/out/1.txt"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void updateCopyRejectsDirectorySourceWithoutOverwritingTarget() {
+        RecordingStorage storage = new RecordingStorage();
+        storage.directories.add("/in");
+        storage.files.put("/out/1.txt", bytes("existing"));
+        StorageFacade facade = facadeForSameStorage(storage);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite")));
+
+        assertEquals("existing", new String(storage.files.get("/out/1.txt"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void updateCopyRejectsWhenSourceReadDoesNotInvokeConsumer() {
+        RecordingStorage sourceStorage = new RecordingStorage();
+        sourceStorage.files.put("/in/1.txt", bytes("source"));
+        sourceStorage.readWithoutCallback.add("/in/1.txt");
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, sourceStorage);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite")));
+
+        assertFalse(targetStorage.files.containsKey("/out/1.txt"));
+    }
+
+    @Test
+    void updateWriteRejectsNullSaveResult() {
+        RecordingStorage targetStorage = new RecordingStorage();
+        targetStorage.returnNullOnSave = true;
+        StorageFacade facade = facade(targetStorage, null);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write", "target", map("path", "/out/1.json"), "content", "hello"),
+                map("overwrite", "overwrite")));
+    }
+
+    @Test
+    void wrappedRemoteCopyFailureInvalidatesCachedExecutors() throws Throwable {
+        RecordingStorage sourceStorage = new RecordingStorage();
+        sourceStorage.files.put("/in/1.txt", bytes("source"));
+        AtomicInteger targetCreated = new AtomicInteger();
+        RecordingStorage recoveredTarget = new RecordingStorage();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> {
+                    if ("source-ftp".equals(name)) {
+                        return new FakeExecutor(name, sourceStorage);
+                    }
+                    return new FakeExecutor(name,
+                            targetCreated.getAndIncrement() == 0 ? new FailingSaveStorage() : recoveredTarget);
+                },
+                0L);
+        StorageFacade facade = new StorageFacade(manager);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite")));
+
+        assertFalse(facade.exists("target-ftp", "/out/1.txt"));
+        assertEquals(2, targetCreated.get());
+        manager.close();
     }
 
     @Test
@@ -156,8 +232,11 @@ class StorageFacadeTest {
         }
     }
 
-    private static final class RecordingStorage implements TapFileStorage {
+    private static class RecordingStorage implements TapFileStorage {
         private final Map<String, byte[]> files = new LinkedHashMap<>();
+        private final java.util.Set<String> directories = new java.util.HashSet<>();
+        private final java.util.Set<String> readWithoutCallback = new java.util.HashSet<>();
+        private boolean returnNullOnSave;
 
         @Override
         public void init(Map<String, Object> params) {
@@ -169,6 +248,9 @@ class StorageFacadeTest {
 
         @Override
         public TapFile getFile(String path) {
+            if (directories.contains(path)) {
+                return new TapFile().type(TapFile.TYPE_DIRECTORY).path(path).length(0L).lastModified(0L);
+            }
             byte[] content = files.get(path);
             if (content == null) return null;
             return new TapFile().type(TapFile.TYPE_FILE).path(path).length((long) content.length).lastModified(0L);
@@ -176,6 +258,7 @@ class StorageFacadeTest {
 
         @Override
         public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
+            if (readWithoutCallback.contains(path)) return;
             byte[] content = files.get(path);
             if (content != null) consumer.accept(new ByteArrayInputStream(content));
         }
@@ -214,7 +297,7 @@ class StorageFacadeTest {
                 if (length > 0) output.write(buffer, 0, length);
             }
             files.put(path, output.toByteArray());
-            return getFile(path);
+            return returnNullOnSave ? null : getFile(path);
         }
 
         @Override
@@ -237,6 +320,13 @@ class StorageFacadeTest {
         @Override
         public String getConnectInfo() {
             return "recording";
+        }
+    }
+
+    private static final class FailingSaveStorage extends RecordingStorage {
+        @Override
+        public TapFile saveFile(String path, InputStream inputStream, boolean canReplace) throws IOException {
+            throw new IOException("remote write failed");
         }
     }
 }
