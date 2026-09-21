@@ -54,7 +54,36 @@ public class LoggingInterceptor implements ClientHttpRequestInterceptor {
 		log.debug(requestId + " < Status text  : {}", response.getStatusText());
 		log.debug(requestId + " < TTL          : {}ms", ttl);
 		log.debug(requestId + " < Headers      : {}", redactHeaders(response.getHeaders()));
-		log.debug(requestId + " < Response body: {}", StreamUtils.copyToString(response.getBody(), Charset.defaultCharset()));
+		String bodyText = StreamUtils.copyToString(response.getBody(), Charset.defaultCharset());
+		log.debug(requestId + " < Response body: {}", formatResponseBody(request.getURI(), bodyText));
+	}
+
+	/**
+	 * Token-issuing TM paths put the credential in {@code data.id}, which
+	 * {@link #redactBody(String)} cannot cover. Omit the body the same way
+	 * TM {@code RequestFilter} does.
+	 */
+	static boolean isCredentialIssuingPath(java.net.URI uri) {
+		if (uri == null) {
+			return false;
+		}
+		return isCredentialIssuingPath(uri.getPath());
+	}
+
+	static boolean isCredentialIssuingPath(String path) {
+		if (path == null || path.isEmpty()) {
+			return false;
+		}
+		return path.contains("/users/login")
+				|| path.contains("/users/generatetoken")
+				|| path.contains("/users/refreshToken");
+	}
+
+	static String formatResponseBody(java.net.URI uri, String body) {
+		if (isCredentialIssuingPath(uri)) {
+			return "[omitted credential response body]";
+		}
+		return redactBody(body);
 	}
 
 	private static String redactUri(java.net.URI uri) {
@@ -82,7 +111,13 @@ public class LoggingInterceptor implements ClientHttpRequestInterceptor {
 		if (body == null) {
 			return "";
 		}
-		String raw = new String(body, Charset.defaultCharset());
+		return redactBody(new String(body, Charset.defaultCharset()));
+	}
+
+	private static String redactBody(String raw) {
+		if (raw == null) {
+			return "";
+		}
 		return raw.replaceAll("(?i)(\"(access_token|authorization|refresh_token|client_secret)\"\\s*:\\s*\")[^\"]*", "$1[REDACTED]");
 	}
 
