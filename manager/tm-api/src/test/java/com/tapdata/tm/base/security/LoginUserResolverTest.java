@@ -74,6 +74,7 @@ class LoginUserResolverTest {
 			UserDetail actual = loginUserResolver.resolve(request, "external-user");
 
 			assertSame(specifiedUser, actual);
+			assertEquals(AuthType.USERNAME_LOGIN.getValue(), actual.getAuthType());
 			assertSame(cachedUser, request.getAttribute(LoginUserResolver.LOGIN_USER_ATTRIBUTE));
 		}
 
@@ -87,6 +88,7 @@ class LoginUserResolverTest {
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
+			assertEquals(AuthType.USERNAME_LOGIN.getValue(), actual.getAuthType());
 			assertSame(userDetail, request.getAttribute(LoginUserResolver.LOGIN_USER_ATTRIBUTE));
 		}
 
@@ -117,6 +119,7 @@ class LoginUserResolverTest {
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
+			assertEquals(AuthType.USERNAME_LOGIN.getValue(), actual.getAuthType());
 		}
 
 		@Test

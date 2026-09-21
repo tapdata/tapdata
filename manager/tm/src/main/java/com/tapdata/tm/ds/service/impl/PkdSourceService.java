@@ -27,6 +27,7 @@ import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.*;
+import jakarta.annotation.PostConstruct;
 import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -88,6 +89,15 @@ public class PkdSourceService {
 	private SettingsService settingsService;
 	private PdkSourceRepository repository;
 
+	@PostConstruct
+	private void validateRegistrationLockConfiguration() {
+		if (registrationLockRenewIntervalMillis <= 0
+				|| registrationLockRenewIntervalMillis >= CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS) {
+			throw new IllegalStateException("pdk.registration.lock-renew-interval-millis must be greater than 0 and less than "
+					+ CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS + " milliseconds");
+		}
+	}
+
 	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user,
 			boolean accessCodeRegistration) {
@@ -112,22 +122,26 @@ public class PkdSourceService {
 		}
 
 		String lockOwner = dbLockConfiguration.getOwner() + ":" + UUID.randomUUID();
-		if (accessCodeRegistration) {
-			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
-			log.debug("Upload pdk done.");
-			return;
-		}
-		List<ILock> registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
-		RegistrationLockRenewal lockRenewal = scheduleRegistrationLockRenewal(registrationLocks, lockOwner);
+		List<ILock> registrationLocks = new CopyOnWriteArrayList<>();
+		RegistrationLockRenewal lockRenewal = null;
 		List<TaskDto> stoppedTasks = new ArrayList<>();
 		List<InspectDto> stoppedInspects = new ArrayList<>();
 		List<String> restartFailures = new ArrayList<>();
 		RuntimeException registrationFailure = null;
 		try {
+			registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
+			lockRenewal = scheduleRegistrationLockRenewal(registrationLocks, lockOwner);
+			if (accessCodeRegistration) {
+				lockRenewal.ensureHealthy();
+				uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+				lockRenewal.ensureHealthy();
+				return;
+			}
 			Set<String> connectionIds = findAffectedConnectionIds(pdkSourceDtos, user);
 			// Query all matching tasks before deciding which ones to pause. A concurrent registration may
 			// already have moved a task to STOP; filtering STOP here would let the second registration
 			// skip the task lock and upload while the first registration still owns that task.
+			lockRenewal.ensureHealthy();
 			List<TaskDto> taskCandidates = findAffectedTasks(connectionIds, user);
 			// Besides the per-connector locks acquired above, serialise registrations that touch the same
 			// tasks. Two different connectors may be referenced by one task, so connector level locks alone
@@ -142,8 +156,10 @@ public class PkdSourceService {
 			acquireAffectedInspectLocks(inspectCandidates, lockOwner, registrationLocks);
 			List<InspectDto> affectedInspects = findCurrentAffectedInspects(inspectCandidates, user);
 			stopAffectedInspects(affectedInspects, stoppedInspects, user);
-			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user);
+			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user, lockRenewal);
+			lockRenewal.ensureHealthy();
 			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+			lockRenewal.ensureHealthy();
 		} catch (RuntimeException e) {
 			registrationFailure = e;
 		} finally {
@@ -241,6 +257,7 @@ public class PkdSourceService {
 	}
 
 	private RegistrationLockRenewal scheduleRegistrationLockRenewal(List<ILock> registrationLocks, String lockOwner) {
+		validateRegistrationLockConfiguration();
 		return new RegistrationLockRenewal(registrationLocks, lockOwner, registrationLockRenewIntervalMillis);
 	}
 
@@ -256,6 +273,7 @@ public class PkdSourceService {
 		private final Object monitor = new Object();
 		private final ScheduledFuture<?> future;
 		private volatile boolean renewing = true;
+		private volatile RuntimeException renewalFailure;
 
 		private RegistrationLockRenewal(List<ILock> locks, String owner, long renewIntervalMillis) {
 			this.locks = locks;
@@ -273,13 +291,31 @@ public class PkdSourceService {
 					try {
 						LockStateEnums state = lock.acquire(owner, CONNECTOR_REGISTRATION_LOCK_TIMEOUT_MILLIS);
 						if (!state.isYes()) {
-							log.warn("Connector registration lock '{}' for owner '{}' could not be renewed;"
-									+ " it may have been taken over by another instance", lock.getKey(), owner);
+							fail(new IllegalStateException("Lost connector registration lock '" + lock.getKey()
+									+ "' for owner '" + owner + "'"));
+							return;
 						}
 					} catch (Exception e) {
-						log.warn("Failed to renew connector registration lock '{}' for owner '{}'", lock.getKey(), owner, e);
+						fail(new IllegalStateException("Failed to renew connector registration lock '" + lock.getKey()
+								+ "' for owner '" + owner + "'", e));
+						return;
 					}
 				}
+			}
+		}
+
+		private void fail(RuntimeException failure) {
+			if (renewalFailure == null) {
+				renewalFailure = failure;
+				log.error(failure.getMessage(), failure);
+			}
+			renewing = false;
+		}
+
+		private void ensureHealthy() {
+			RuntimeException failure = renewalFailure;
+			if (failure != null) {
+				throw failure;
 			}
 		}
 
@@ -573,12 +609,14 @@ public class PkdSourceService {
 		}
 	}
 
-	private void waitForAffectedResourcesStopped(List<TaskDto> stoppedTasks, List<InspectDto> stoppedInspects, UserDetail user) {
+	private void waitForAffectedResourcesStopped(List<TaskDto> stoppedTasks, List<InspectDto> stoppedInspects,
+			UserDetail user, RegistrationLockRenewal lockRenewal) {
 		if (CollectionUtils.isEmpty(stoppedTasks) && CollectionUtils.isEmpty(stoppedInspects)) {
 			return;
 		}
 		long deadline = System.currentTimeMillis() + taskStopTimeoutMillis;
 		while (true) {
+			lockRenewal.ensureHealthy();
 			List<String> pendingResources = new ArrayList<>();
 			for (TaskDto stoppedTask : stoppedTasks) {
 				TaskDto task = taskService.findOne(Query.query(Criteria.where("_id").is(stoppedTask.getId())), user);
@@ -705,7 +743,18 @@ public class PkdSourceService {
 			ObjectId inspectId = stoppedInspect.getId();
 			try {
 				InspectDto inspect = inspectService.findById(inspectId);
-				if (inspect == null || !isInspectStopped(inspect.getStatus())) {
+				if (inspect == null) {
+					String failure = "inspect task " + inspectId + " (" + stoppedInspect.getName()
+							+ ") disappeared before it could be restarted";
+					restartFailures.add(failure);
+					log.error(failure);
+					continue;
+				}
+				if (!isInspectStopped(inspect.getStatus())) {
+					String failure = "inspect task " + inspectId + " (" + stoppedInspect.getName()
+							+ ") remained in status '" + inspect.getStatus() + "' and was not restarted";
+					restartFailures.add(failure);
+					log.error(failure);
 					continue;
 				}
 				Where where = new Where();

@@ -186,7 +186,9 @@ public class PkdSourceServiceTest {
 			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
 			verify(taskService, never()).start(any(TaskDto.class), any(UserDetail.class), anyString());
 			verify(inspectService, never()).findAllDto(any(Query.class), eq(user));
-			verify(dbLockRepository, never()).renew(anyString(), anyString(), any(Date.class));
+			// Access-code registrations still take the connector lock so they cannot race with ordinary
+			// registrations or with another access-code registration while uploading definitions.
+			verify(dbLockRepository, atLeastOnce()).renew(anyString(), anyString(), any(Date.class));
 			verify(fileService).storeFile(any(), anyString(), isNull(), anyMap());
 		}
 

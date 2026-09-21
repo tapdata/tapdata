@@ -58,8 +58,11 @@ public class PdkController extends BaseController {
         }
 
         UserDetail user = getLoginUser();
+        // Treat missing/unknown auth types as access-code registrations. This is the safe default for
+        // legacy tokens: an uncertain authentication source must not stop every running task/inspect.
         boolean accessCodeRegistration = user != null
-                && AuthType.ACCESS_CODE.getValue().equals(user.getAuthType());
+                && !AuthType.USERNAME_LOGIN.getValue().equals(user.getAuthType())
+                && !AuthType.SAML_LOGIN.getValue().equals(user.getAuthType());
         pkdSourceService.uploadPdk(file, pdkSourceDtos, latest, user, accessCodeRegistration);
         return success();
     }

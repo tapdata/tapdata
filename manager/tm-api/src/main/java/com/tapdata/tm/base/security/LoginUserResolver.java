@@ -1,6 +1,7 @@
 package com.tapdata.tm.base.security;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.accessToken.entity.AccessTokenEntity;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.exception.BizException;
@@ -76,6 +77,7 @@ public class LoginUserResolver {
 			log.debug("Load user by specifiedUserId({})", specifiedUserId);
 			UserDetail userDetail = userService.loadUserByExternalId(specifiedUserId);
 			if (userDetail != null) {
+				userDetail.setAuthType(AuthType.USERNAME_LOGIN.getValue());
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
@@ -87,6 +89,7 @@ public class LoginUserResolver {
 			log.debug("Load user by request header user_id({})", userIdFromHeader);
 			UserDetail userDetail = userService.loadUserByExternalId(userIdFromHeader);
 			if (userDetail != null) {
+				userDetail.setAuthType(AuthType.USERNAME_LOGIN.getValue());
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
@@ -136,6 +139,7 @@ public class LoginUserResolver {
 				}
 			}
 			if (userDetail != null) {
+				userDetail.setAuthType(AuthType.USERNAME_LOGIN.getValue());
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
