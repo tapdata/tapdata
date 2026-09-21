@@ -2103,6 +2103,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				if (needSave.get()){
 					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
+					io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry.persisted(taskDto, snapshotPayload.syncProgressJsonMap);
 				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, snapshotPayload.syncProgressJsonMap, e.getMessage());
