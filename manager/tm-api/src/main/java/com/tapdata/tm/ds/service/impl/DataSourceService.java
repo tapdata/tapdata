@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public abstract class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
     public DataSourceService(@NonNull DataSourceRepository repository) {
@@ -141,6 +142,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
     public abstract DataSourceConnectionDto findByIdByCheck(ObjectId id);
 
     public abstract DataSourceConnectionDto findById(ObjectId id, String... fields);
+
+    public abstract Supplier<DataSourceConnectionDto> dataPermissionFindById(ObjectId id, com.tapdata.tm.base.dto.Field fields);
 
     public abstract void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus,String connectionId,Long lastUpdate,UserDetail user);
 

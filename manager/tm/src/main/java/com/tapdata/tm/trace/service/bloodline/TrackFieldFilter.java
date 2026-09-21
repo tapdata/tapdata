@@ -95,7 +95,7 @@ public class TrackFieldFilter {
                     continue;
                 }
                 for (String targetField : targetFields) {
-                    String originName = targetNodeFieldToOrigin.get(targetField);
+                    String originName = originNameOrTargetField(targetNodeFieldToOrigin, targetField);
                     if (StringUtils.isBlank(originName)) {
                         continue;
                     }
@@ -166,10 +166,16 @@ public class TrackFieldFilter {
 
         if (targetNodeId.equals(nodeId)) {
             Map<String, String> mapping = new HashMap<>();
+            Map<String, String> nodeFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(nodeId, new HashMap<>());
             for (String targetField : targetFields) {
-                mapping.put(targetField, targetField);
+                String originName = originNameOrTargetField(nodeFieldToOrigin, targetField);
+                if (StringUtils.isNotBlank(originName)) {
+                    mapping.put(targetField, originName);
+                }
             }
-            result.put(nodeId, mapping);
+            if (MapUtils.isNotEmpty(mapping)) {
+                result.put(nodeId, mapping);
+            }
             return;
         }
 
@@ -197,7 +203,7 @@ public class TrackFieldFilter {
         }
         String best = eachNodeFieldToOriginToFindBestName(originName, nodeFieldToOrigin, targetField);
         if (StringUtils.isNotBlank(best)) {
-            mapping.put(targetField, best);
+            mapping.put(best, originName);
         }
     }
 
@@ -205,8 +211,7 @@ public class TrackFieldFilter {
         String best = null;
         for (Map.Entry<String, String> e : nodeFieldToOrigin.entrySet()) {
             if (StringUtils.isBlank(e.getKey())
-                    || StringUtils.isBlank(e.getValue())
-                    || !originName.equals(e.getValue())) {
+                    || !originName.equals(originNameOrTargetField(nodeFieldToOrigin, e.getKey()))) {
                 continue;
             }
             if (targetField.equals(e.getKey())) {
@@ -217,6 +222,17 @@ public class TrackFieldFilter {
             }
         }
         return best;
+    }
+
+    private String originNameOrTargetField(Map<String, String> nodeFieldToOrigin, String targetField) {
+        if (StringUtils.isBlank(targetField)) {
+            return null;
+        }
+        if (null == nodeFieldToOrigin || !nodeFieldToOrigin.containsKey(targetField)) {
+            return null;
+        }
+        String originName = nodeFieldToOrigin.get(targetField);
+        return StringUtils.defaultIfBlank(originName, targetField);
     }
 
     protected void removeUselessFields(Node<?> node) {

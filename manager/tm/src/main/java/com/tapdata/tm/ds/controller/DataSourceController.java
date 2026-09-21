@@ -10,6 +10,7 @@ import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -27,7 +28,9 @@ import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
@@ -56,6 +59,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -350,8 +354,13 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "删除数据源连接")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        dataSourceService.delete(getLoginUser(), id);
+    public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Delete, () -> {
+            dataSourceService.delete(userDetail, id);
+            return null;
+        });
         return success();
     }
 
@@ -455,7 +464,33 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "复制数据源")
     @PostMapping("{id}/copy")
     public ResponseMessage<DataSourceConnectionDto> copy(@PathVariable("id") String id, HttpServletRequest request) {
-        return success(dataSourceService.copy(getLoginUser(), id, request.getRequestURI()));
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        DataSourceConnectionDto connectionDto = dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.View, () -> {
+            return dataSourceService.copy(userDetail, id, request.getRequestURI());
+        });
+        return success(connectionDto);
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action) {
+        throw new BizException(
+                "insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Connections, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Connections, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+        id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.Connections,
+                actionEnums,
+                dataSourceService.dataPermissionFindById(id, new Field()),
+                (dto) -> DataPermissionMenuEnums.Connections,
+                supplier,
+                () -> dataPermissionUnAuth(actionEnums)
+        );
     }
 
     /**

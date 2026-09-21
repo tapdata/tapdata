@@ -64,18 +64,19 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
         String userId = userDetail.getUserId();
         dag.getTargets().forEach(node -> {
             String name = node.getName();
+            Object localizedName = MessageUtil.dagNodeName(node.getType(), name);
             String nodeId = node.getId();
 
             DataParentNode dataParentNode = (DataParentNode) node;
             String connectionId = dataParentNode.getConnectionId();
 
             if (StringUtils.isEmpty(name)) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_EMPTY"), dataParentNode.getDatabaseType());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_EMPTY"), dataParentNode.getDatabaseType());
                 result.add(log);
             }
 
             if (StringUtils.isEmpty(connectionId)) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_NOT_SELECT_DB"), name);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_NOT_SELECT_DB"), localizedName);
                 result.add(log);
             }
 
@@ -89,7 +90,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 if ("updateOrInsert".equals(tableNode.getWriteStrategy())) {
                     List<String> updateConditionFields = tableNode.getUpdateConditionFields();
                     if (CollectionUtils.isEmpty(updateConditionFields)) {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), localizedName);
                         result.add(log);
                     }/* else {
                     //根据#139501 缺陷转需求，去掉模型中是否包含更新字段的校验。
@@ -98,7 +99,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                             List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
                             List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
                             if (CollectionUtils.isNotEmpty(noExistsFields)) {
-                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields));
+                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields));
                                 result.add(log);
                             }
                         });
@@ -109,7 +110,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             checkNodeSyncIndex(locale, taskId, result, userId, node, name);
             checkTargetUpdateField(locale, taskId ,result , userId ,node , name ,connectionId);
             if (CollectionUtils.isEmpty(tableNames.get())) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NOT_SELECT_TB"), name);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_NOT_SELECT_TB"), localizedName);
                 result.add(log);
             }
 
@@ -122,7 +123,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                             switch (databaseType) {
                                 case "Oracle":
                                     if (Objects.nonNull(field.getIsNullable()) && !(Boolean) field.getIsNullable()) {
-                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_ORACLE_FIELD_EMPTY_TIP"), metadata.getName(), field.getFieldName());
+                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_ORACLE_FIELD_EMPTY_TIP"), metadata.getName(), field.getFieldName());
                                         result.add(log);
                                     }
                                     break;
@@ -131,7 +132,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                             (field.getDataType().contains("Float32") ||
                                                     field.getDataType().contains("Float64") ||
                                                     field.getDataType().contains("Decimal"))) {
-                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_CK_FIELD_FLOAT_TIP"), metadata.getName());
+                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_CK_FIELD_FLOAT_TIP"), metadata.getName());
                                         result.add(log);
                                     }
                                     break;
@@ -145,7 +146,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                         findPossibleDataTypes.forEach((k, v) -> {
                             Field field = fieldMap.get(k);
                             if (CollectionUtils.isEmpty(v.getDataTypes()) && field.getDataTypeTemp()!= null && Objects.equals(field.getDataType(), field.getDataTypeTemp())) {
-                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), node.getName(), metadata.getName(), k);
+                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), localizedName, metadata.getName(), k);
                                 result.add(log);
                             }
                         });
@@ -163,7 +164,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
                 boolean canCreateIndex = dto.getCapabilities().stream().map(Capability::getId).anyMatch("create_index_function"::equals);
                 if(canCreateIndex){
-                    TaskDagCheckLog updateFieldLog = taskDagCheckLogService.createLog(taskId, node.getId(), userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_WRAN_UPDATEFIELD"), name);
+                    TaskDagCheckLog updateFieldLog = taskDagCheckLogService.createLog(taskId, node.getId(), userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_WRAN_UPDATEFIELD"), MessageUtil.dagNodeName(node.getType(), name));
                     result.add(updateFieldLog);
                 }
             }
@@ -175,13 +176,13 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
         if(node instanceof DatabaseNode){
             Map<String, Object> nodeConfig = ((DatabaseNode) node).getNodeConfig();
             if (nodeConfig != null && Boolean.TRUE.equals(nodeConfig.get(FINAL_SYNC_INDEX))) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), MessageUtil.dagNodeName(node.getType(), name));
                 result.add(log);
             }
         } else if (node instanceof TableNode) {
             Map<String, Object> nodeConfig = ((TableNode) node).getNodeConfig();
             if (nodeConfig != null && Boolean.TRUE.equals(nodeConfig.get(FINAL_SYNC_INDEX))) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), MessageUtil.dagNodeName(node.getType(), name));
                 result.add(log);
             }
         }
@@ -191,12 +192,12 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
         String nodeId = node.getId();
         if (node instanceof DatabaseNode) {
             if (FINAL_STRING_DROPTABLE.equals(((DatabaseNode) node).getExistDataProcessMode())) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), name);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), MessageUtil.dagNodeName(node.getType(), name));
                 result.add(log);
             }
         } else if (node instanceof TableNode) {
             if (FINAL_STRING_DROPTABLE.equals(((TableNode) node).getExistDataProcessMode())) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), name);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, locale, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), MessageUtil.dagNodeName(node.getType(), name));
                 result.add(log);
             }
         }
