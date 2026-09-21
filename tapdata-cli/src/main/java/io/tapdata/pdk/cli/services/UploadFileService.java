@@ -67,7 +67,7 @@ public class UploadFileService {
               ? generateAccessCodeToken(hostAndPort, accessCode, printUtil)
               : login(hostAndPort, username, password);
       if (StringUtils.isBlank(token)) {
-        return;
+        throw new IllegalStateException("TM server not found or authentication failed");
       }
     }
 
@@ -245,7 +245,7 @@ public class UploadFileService {
 
     if (StringUtils.isBlank(response)) {
       printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
-      return null;
+      throw new IllegalStateException("TM server not found or generate token failed");
     }
 
     JSONObject result = JSON.parseObject(response);
@@ -253,7 +253,7 @@ public class UploadFileService {
     String token = data == null ? null : data.getString("id");
     if (StringUtils.isBlank(token)) {
       printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
-      return null;
+      throw new IllegalStateException("TM server not found or generate token failed");
     }
     return token;
   }

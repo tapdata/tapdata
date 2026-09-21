@@ -47,6 +47,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -124,11 +125,17 @@ public class PkdSourceService {
 		RuntimeException registrationFailure = null;
 		try {
 			Set<String> connectionIds = findAffectedConnectionIds(pdkSourceDtos, user);
-			List<TaskDto> affectedTasks = findAffectedTasks(connectionIds, user);
+			// Query all matching tasks before deciding which ones to pause. A concurrent registration may
+			// already have moved a task to STOP; filtering STOP here would let the second registration
+			// skip the task lock and upload while the first registration still owns that task.
+			List<TaskDto> taskCandidates = findAffectedTasks(connectionIds, user);
 			// Besides the per-connector locks acquired above, serialise registrations that touch the same
 			// tasks. Two different connectors may be referenced by one task, so connector level locks alone
 			// do not stop two registrations from stopping/restarting the same task concurrently.
-			acquireAffectedTaskLocks(affectedTasks, lockOwner, registrationLocks);
+			acquireAffectedTaskLocks(taskCandidates, lockOwner, registrationLocks);
+			List<TaskDto> affectedTasks = taskCandidates.stream()
+					.filter(task -> isTaskActive(task.getStatus()))
+					.collect(Collectors.toList());
 			pauseAffectedTasks(affectedTasks, stoppedTasks, user);
 			stopAffectedInspects(connectionIds, stoppedInspects, user);
 			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user);
@@ -176,7 +183,7 @@ public class PkdSourceService {
 				.distinct()
 				.sorted()
 				.collect(Collectors.toList());
-		List<ILock> acquiredLocks = new ArrayList<>();
+		List<ILock> acquiredLocks = new CopyOnWriteArrayList<>();
 		try {
 			for (String lockKey : lockKeys) {
 				acquireRegistrationLock(lockKey, lockOwner, acquiredLocks);
@@ -216,9 +223,6 @@ public class PkdSourceService {
 	}
 
 	private RegistrationLockRenewal scheduleRegistrationLockRenewal(List<ILock> registrationLocks, String lockOwner) {
-		if (CollectionUtils.isEmpty(registrationLocks)) {
-			return null;
-		}
 		return new RegistrationLockRenewal(registrationLocks, lockOwner, registrationLockRenewIntervalMillis);
 	}
 
@@ -443,8 +447,8 @@ public class PkdSourceService {
 		Criteria criteria = new Criteria().andOperator(
 				Criteria.where("is_deleted").ne(true),
 				Criteria.where("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE,
-						TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT),
-				Criteria.where("status").in(TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_RUNNING),
+						TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT,
+						TaskDto.SYNC_TYPE_MEM_CACHE),
 				new Criteria().orOperator(connectionCriteria)
 		);
 		Query query = Query.query(criteria);
@@ -456,6 +460,12 @@ public class PkdSourceService {
 
 		tasks.sort(Comparator.comparingInt(this::taskStopOrder));
 		return tasks;
+	}
+
+	private boolean isTaskActive(String status) {
+		return TaskDto.STATUS_SCHEDULING.equals(status)
+				|| TaskDto.STATUS_WAIT_RUN.equals(status)
+				|| TaskDto.STATUS_RUNNING.equals(status);
 	}
 
 	private void pauseAffectedTasks(List<TaskDto> affectedTasks, List<TaskDto> stoppedTasks, UserDetail user) {
