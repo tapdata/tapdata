@@ -702,6 +702,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					taskLock.tryRun(taskId, () -> {
 						StopTaskResource stopTaskResource = null;
 						TerminalMode terminalMode = taskClient.getTerminalMode();
+						if (heartbeatRecoveryOwnsRetry(taskClient, terminalMode)) return;
 						if (TerminalMode.STOP_GRACEFUL == terminalMode) {
 							stopTaskResource = StopTaskResource.STOPPED;
 						} else if (TerminalMode.COMPLETE == terminalMode) {
@@ -1103,6 +1104,61 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return null;
 		}
 		return taskClientMap.get(taskId);
+	}
+
+	/** Shares the normal start/stop lock. Never replace a task whose stop is unconfirmed. */
+	public boolean recoverHeartbeatTask(TaskClient<TaskDto> expected,
+			java.util.function.BooleanSupplier claim,
+			java.util.function.BooleanSupplier allowRestart) throws InterruptedException {
+		String taskId = expected.getTask().getId().toHexString();
+		java.util.concurrent.atomic.AtomicBoolean started = new java.util.concurrent.atomic.AtomicBoolean();
+		taskLock.tryRun(taskId, () -> {
+			if (taskClientMap.get(taskId) != expected || expected.getTerminalMode() != null) return;
+			TaskDto fresh = findHeartbeatRecoveryTask(taskId);
+			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !claim.getAsBoolean()) return;
+			if (!stopHeartbeatTask(expected)) return;
+			clearTaskCacheAfterStopped(expected);
+			fresh = findHeartbeatRecoveryTask(taskId);
+			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !allowRestart.getAsBoolean()) return;
+			// startTask rechecks the server state through the normal running transition.
+			startTask(fresh);
+			started.set(taskClientMap.get(taskId) != null);
+		}, 1L, TimeUnit.SECONDS);
+		return started.get();
+	}
+
+	protected TaskDto findHeartbeatRecoveryTask(String taskId) {
+		return clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+	}
+
+	protected boolean stopHeartbeatTask(TaskClient<TaskDto> client) {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+		do {
+			if (client.stop()) return true;
+			try { TimeUnit.MILLISECONDS.sleep(250); }
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return false;
+			}
+		} while (System.nanoTime() < deadline);
+		return false;
+	}
+
+	protected boolean heartbeatRecoveryOwnsRetry(TaskClient<TaskDto> client, TerminalMode terminalMode) {
+		if (terminalMode == TerminalMode.STOP_GRACEFUL || terminalMode == TerminalMode.INTERNAL_STOP
+				|| !com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.enabled(client.getTask())) return false;
+		TaskDto fresh = findHeartbeatRecoveryTask(client.getTask().getId().toHexString());
+		return fresh == null || com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.pending(
+				com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.attr(fresh,
+						com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.RECOVERY));
+	}
+
+	private boolean heartbeatOwnerMatches(TaskDto previous, TaskDto current) {
+		return current != null && TaskDto.STATUS_RUNNING.equals(current.getStatus())
+				&& java.util.Objects.equals(previous.getAgentId(), current.getAgentId())
+				&& java.util.Objects.equals(previous.getTaskRecordId(), current.getTaskRecordId())
+				&& java.util.Objects.equals(previous.getLastStartDate(), current.getLastStartDate())
+				&& com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.enabled(current);
 	}
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {

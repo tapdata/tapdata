@@ -1531,6 +1531,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.GENERATE_HASH_KEY_FAILED, e).dynamicDescriptionParameters(recordEvent);
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
+            io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry.sourceHeartbeat(dataProcessorContext.getTaskDto(), getNode().getId());
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
         } else if (tapEvent instanceof TapDDLWarningEvent) {
             TapDDLWarningEvent warningEvent = (TapDDLWarningEvent) tapEvent;

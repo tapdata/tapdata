@@ -17,6 +17,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -60,6 +61,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private ClientMongoOperator pingClientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
+	private final HeartbeatProgressRegistry.State heartbeatProgress;
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;
@@ -84,6 +86,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 							   ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
 		this.taskDto = taskDto;
+		this.heartbeatProgress = HeartbeatProgressRegistry.open(taskDto);
 		this.clientMongoOperator = clientMongoOperator;
 		this.pingClientMongoOperator = pingClientMongoOperator;
 		this.configurationCenter = configurationCenter;
@@ -206,6 +209,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public void close() {
+		HeartbeatProgressRegistry.close(taskDto, heartbeatProgress);
 		CommonUtils.handleAnyError(
 				() -> AdjustBatchSizeFactory.unregister(taskDto.getId().toHexString()),
 				err -> logger.warn("Unregister 'Adjust batch size' task failed, error: {}", err.getMessage())
