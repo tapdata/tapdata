@@ -133,11 +133,15 @@ public class PkdSourceService {
 			// tasks. Two different connectors may be referenced by one task, so connector level locks alone
 			// do not stop two registrations from stopping/restarting the same task concurrently.
 			acquireAffectedTaskLocks(taskCandidates, lockOwner, registrationLocks);
-			List<TaskDto> affectedTasks = taskCandidates.stream()
-					.filter(task -> isTaskActive(task.getStatus()))
-					.collect(Collectors.toList());
+			// The candidate status was read before the task locks were acquired. Read it again while
+			// holding those locks so a task stopped and then restarted by a concurrent registration is
+			// paused again before this registration uploads the new connector.
+			List<TaskDto> affectedTasks = findCurrentAffectedTasks(taskCandidates, user);
 			pauseAffectedTasks(affectedTasks, stoppedTasks, user);
-			stopAffectedInspects(connectionIds, stoppedInspects, user);
+			List<InspectDto> inspectCandidates = findAffectedInspects(connectionIds, user);
+			acquireAffectedInspectLocks(inspectCandidates, lockOwner, registrationLocks);
+			List<InspectDto> affectedInspects = findCurrentAffectedInspects(inspectCandidates, user);
+			stopAffectedInspects(affectedInspects, stoppedInspects, user);
 			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user);
 			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
 		} catch (RuntimeException e) {
@@ -215,6 +219,20 @@ public class PkdSourceService {
 				.filter(Objects::nonNull)
 				.distinct()
 				.map(taskId -> CONNECTOR_REGISTRATION_LOCK_PREFIX + "task." + taskId.toHexString())
+				.sorted()
+				.collect(Collectors.toList());
+		for (String lockKey : lockKeys) {
+			acquireRegistrationLock(lockKey, lockOwner, acquiredLocks);
+		}
+	}
+
+	private void acquireAffectedInspectLocks(List<InspectDto> affectedInspects, String lockOwner,
+			List<ILock> acquiredLocks) {
+		List<String> lockKeys = affectedInspects.stream()
+				.map(InspectDto::getId)
+				.filter(Objects::nonNull)
+				.distinct()
+				.map(inspectId -> CONNECTOR_REGISTRATION_LOCK_PREFIX + "inspect." + inspectId.toHexString())
 				.sorted()
 				.collect(Collectors.toList());
 		for (String lockKey : lockKeys) {
@@ -462,18 +480,35 @@ public class PkdSourceService {
 		return tasks;
 	}
 
-	private boolean isTaskActive(String status) {
-		return TaskDto.STATUS_SCHEDULING.equals(status)
-				|| TaskDto.STATUS_WAIT_RUN.equals(status)
-				|| TaskDto.STATUS_RUNNING.equals(status);
+	private List<TaskDto> findCurrentAffectedTasks(List<TaskDto> taskCandidates, UserDetail user) {
+		Set<ObjectId> taskIds = taskCandidates.stream()
+				.map(TaskDto::getId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		if (CollectionUtils.isEmpty(taskIds)) {
+			return Collections.emptyList();
+		}
+		Criteria criteria = new Criteria().andOperator(
+				Criteria.where("_id").in(taskIds),
+				Criteria.where("is_deleted").ne(true),
+				Criteria.where("status").in(TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_RUNNING)
+		);
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "name", "status", "syncType");
+		List<TaskDto> tasks = taskService.findAllDto(query, user);
+		if (CollectionUtils.isEmpty(tasks)) {
+			return Collections.emptyList();
+		}
+		tasks.sort(Comparator.comparingInt(this::taskStopOrder));
+		return tasks;
 	}
 
 	private void pauseAffectedTasks(List<TaskDto> affectedTasks, List<TaskDto> stoppedTasks, UserDetail user) {
 		for (TaskDto task : affectedTasks) {
 			log.info("Stopping task '{}' (id={}, syncType={}) before connector registration",
 					task.getName(), task.getId(), task.getSyncType());
-			taskService.pause(task.getId(), user, false);
 			stoppedTasks.add(task);
+			taskService.pause(task.getId(), user, false);
 		}
 	}
 
@@ -487,13 +522,12 @@ public class PkdSourceService {
 		return 0;
 	}
 
-	private void stopAffectedInspects(Set<String> connectionIds, List<InspectDto> stoppedInspects, UserDetail user) {
+	private List<InspectDto> findAffectedInspects(Set<String> connectionIds, UserDetail user) {
 		if (CollectionUtils.isEmpty(connectionIds)) {
-			return;
+			return Collections.emptyList();
 		}
 		Criteria criteria = new Criteria().andOperator(
 				Criteria.where("is_deleted").ne(true),
-				Criteria.where("status").in(InspectStatusEnum.RUNNING.getValue(), InspectStatusEnum.SCHEDULING.getValue()),
 				new Criteria().orOperator(
 						Criteria.where("tasks.source.connectionId").in(connectionIds),
 						Criteria.where("tasks.target.connectionId").in(connectionIds))
@@ -502,9 +536,31 @@ public class PkdSourceService {
 		query.fields().include("_id", "name", "status");
 		List<InspectDto> inspectTasks = inspectService.findAllDto(query, user);
 		if (CollectionUtils.isEmpty(inspectTasks)) {
-			return;
+			return Collections.emptyList();
 		}
+		return inspectTasks;
+	}
 
+	private List<InspectDto> findCurrentAffectedInspects(List<InspectDto> inspectCandidates, UserDetail user) {
+		Set<ObjectId> inspectIds = inspectCandidates.stream()
+				.map(InspectDto::getId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		if (CollectionUtils.isEmpty(inspectIds)) {
+			return Collections.emptyList();
+		}
+		Criteria criteria = new Criteria().andOperator(
+				Criteria.where("_id").in(inspectIds),
+				Criteria.where("is_deleted").ne(true),
+				Criteria.where("status").in(InspectStatusEnum.RUNNING.getValue(), InspectStatusEnum.SCHEDULING.getValue())
+		);
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "name", "status");
+		List<InspectDto> inspectTasks = inspectService.findAllDto(query, user);
+		return CollectionUtils.isEmpty(inspectTasks) ? Collections.emptyList() : inspectTasks;
+	}
+
+	private void stopAffectedInspects(List<InspectDto> inspectTasks, List<InspectDto> stoppedInspects, UserDetail user) {
 		for (InspectDto inspectTask : inspectTasks) {
 			Where where = new Where();
 			where.put("id", inspectTask.getId().toHexString());
@@ -512,8 +568,8 @@ public class PkdSourceService {
 			stopDto.setStatus(InspectStatusEnum.STOPPING.getValue());
 			log.info("Stopping inspect task '{}' (id={}) before connector registration",
 					inspectTask.getName(), inspectTask.getId());
-			inspectService.doExecuteInspect(where, stopDto, user);
 			stoppedInspects.add(inspectTask);
+			inspectService.doExecuteInspect(where, stopDto, user);
 		}
 	}
 

@@ -210,7 +210,8 @@ public class UploadFileService {
 
     String msg = "success";
     String result = "success";
-    if (!"ok".equals(map.get("code"))) {
+    boolean uploadSucceeded = "ok".equals(map.get("code"));
+    if (!uploadSucceeded) {
         msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
         result = "fail";
       printUtil.print(PrintUtil.TYPE.ERROR, String.format("* Register Connector: %s Failed, message: %s", file.getName(), msg));
@@ -218,6 +219,9 @@ public class UploadFileService {
       printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s Completed", file.getName()));
     }
     printUtil.print(PrintUtil.TYPE.WARN, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
+    if (!uploadSucceeded) {
+      throw new IllegalStateException("Connector registration failed: " + msg);
+    }
     JarEncryptor.encryptJar(file.getPath());
   }
 
