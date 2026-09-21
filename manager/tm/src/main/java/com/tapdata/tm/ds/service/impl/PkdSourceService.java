@@ -51,6 +51,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -273,7 +274,7 @@ public class PkdSourceService {
 		private final Object monitor = new Object();
 		private final ScheduledFuture<?> future;
 		private volatile boolean renewing = true;
-		private volatile RuntimeException renewalFailure;
+		private final AtomicReference<RuntimeException> renewalFailure = new AtomicReference<>();
 
 		private RegistrationLockRenewal(List<ILock> locks, String owner, long renewIntervalMillis) {
 			this.locks = locks;
@@ -305,15 +306,14 @@ public class PkdSourceService {
 		}
 
 		private void fail(RuntimeException failure) {
-			if (renewalFailure == null) {
-				renewalFailure = failure;
+			if (renewalFailure.compareAndSet(null, failure)) {
 				log.error(failure.getMessage(), failure);
 			}
 			renewing = false;
 		}
 
 		private void ensureHealthy() {
-			RuntimeException failure = renewalFailure;
+			RuntimeException failure = renewalFailure.get();
 			if (failure != null) {
 				throw failure;
 			}
