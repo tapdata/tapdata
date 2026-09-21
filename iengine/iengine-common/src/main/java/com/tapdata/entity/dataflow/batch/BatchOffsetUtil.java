@@ -160,6 +160,7 @@ public class BatchOffsetUtil {
     }
 
     private static boolean isTableOffsetMarker(Map<?, ?> offsetMap) {
+        // These keys are reserved for table markers; normal table IDs are not expected to use them.
         return offsetMap.containsKey(BATCH_READ_CONNECTOR_OFFSET) || offsetMap.containsKey(BATCH_READ_CONNECTOR_STATUS);
     }
 

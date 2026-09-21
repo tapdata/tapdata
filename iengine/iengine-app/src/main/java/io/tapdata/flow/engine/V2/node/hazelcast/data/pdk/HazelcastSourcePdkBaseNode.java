@@ -253,7 +253,23 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     protected boolean decodeConnectorOffsetInBatchOffset() {
+        // Source nodes pass the restored connector offset back to batchRead; target nodes only persist it.
         return true;
+    }
+
+    @Override
+    protected void readBatchOffset(SyncProgress syncProgress) {
+        try {
+            super.readBatchOffset(syncProgress);
+        } catch (CoreException e) {
+            if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+                obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+                // The connector offset cannot be safely restored without its class; restart the full sync.
+                syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
+            } else {
+                throw new TapCodeException(e.getMessage(), e);
+            }
+        }
     }
 
     private boolean needCdcDelay() {

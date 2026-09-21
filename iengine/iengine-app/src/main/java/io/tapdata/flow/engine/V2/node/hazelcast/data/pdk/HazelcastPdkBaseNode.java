@@ -599,6 +599,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 	}
 
+	/**
+	 * Target nodes intentionally keep connector offsets encoded because they only persist the
+	 * breakpoint; source nodes override this to decode the connector offset before handing it back
+	 * to batchRead.
+	 */
 	protected boolean decodeConnectorOffsetInBatchOffset() {
 		return false;
 	}

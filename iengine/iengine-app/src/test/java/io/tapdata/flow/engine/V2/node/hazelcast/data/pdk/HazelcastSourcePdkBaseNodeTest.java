@@ -835,6 +835,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			instance = spy(instance);
 			syncProgress = new SyncProgress();
 			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
+			ReflectionTestUtils.setField(instance, "obsLogger", log);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			doReturn(connectorNode).when(instance).getConnectorNode();
 			TapTableMap tapTableMap = mock(TapTableMap.class);
@@ -854,6 +855,20 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertNotNull(syncProgress.getBatchOffsetObj());
 			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
+		}
+
+		@Test
+		@DisplayName("test missing connector offset class falls back to a full sync")
+		void testMissingConnectorOffsetClassFallsBackToFullSync() {
+			syncProgress.setBatchOffset("encoded-batch-offset");
+			try (MockedStatic<PdkUtil> pdkUtil = mockStatic(PdkUtil.class)) {
+				pdkUtil.when(() -> PdkUtil.decodeOffset(anyString(), any(ConnectorNode.class)))
+						.thenThrow(new CoreException("ClassNotFoundException: missing connector offset class"));
+
+				assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
+				assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
+				assertTrue(((Map<?, ?>) syncProgress.getBatchOffsetObj()).isEmpty());
+			}
 		}
 
 		@Test
