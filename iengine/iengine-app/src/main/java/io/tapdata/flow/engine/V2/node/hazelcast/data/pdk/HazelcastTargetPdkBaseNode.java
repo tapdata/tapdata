@@ -1957,15 +1957,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					return;
 				}
 				HeartbeatEvent event;
+				long now = null == tapdataEvent.getSourceTime() ? System.currentTimeMillis() : tapdataEvent.getSourceTime();
 				if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
 					event = (HeartbeatEvent) tapdataEvent.getTapEvent();
 				} else {
-					event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
+					event = new HeartbeatEvent().init().referenceTime(now);
 				}
 				event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
 				event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
 				event.addInfo("syncStage", tapdataEvent.getSyncStage());
-				event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+				event.addInfo("sourceTime", now);
 				event.addInfo("nodeIds", tapdataEvent.getNodeIds());
 				processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
 				return;
