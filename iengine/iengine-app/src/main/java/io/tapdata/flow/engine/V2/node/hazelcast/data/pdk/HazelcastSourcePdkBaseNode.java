@@ -1618,7 +1618,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
      * whole container instead of a single table.
      */
     protected Object snapshotEntireBatchOffset() {
-        return BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset);
+        Object snapshot = BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset);
+        if (snapshot instanceof Map) {
+            Map<Object, Object> snapshotMap = (Map<Object, Object>) snapshot;
+            for (Map.Entry<Object, Object> entry : snapshotMap.entrySet()) {
+                if (entry.getValue() instanceof PartitionTableOffset) {
+                    entry.setValue(((PartitionTableOffset) entry.getValue()).copy());
+                }
+            }
+        }
+        return snapshot;
     }
 
     protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {

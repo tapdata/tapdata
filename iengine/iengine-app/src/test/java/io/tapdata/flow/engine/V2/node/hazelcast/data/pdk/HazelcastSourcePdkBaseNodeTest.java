@@ -1716,6 +1716,31 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
 			assertEquals(100, decoded.get("position"));
 		}
+
+		@DisplayName("test whole batch offset snapshot copies a PartitionTableOffset instead of aliasing it")
+		@Test
+		void testEntireBatchOffsetSnapshotCopiesPartitionTableOffset() {
+			String tableId = "testTableId";
+			PartitionTableOffset liveOffset = new PartitionTableOffset();
+			liveOffset.setTableCompleted(false);
+			liveOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			liveOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
+
+			SyncProgress progress = new SyncProgress();
+			Map<String, Object> offsets = new ConcurrentHashMap<>();
+			offsets.put(tableId, liveOffset);
+			progress.setBatchOffsetObj(offsets);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotEntireBatchOffset();
+			PartitionTableOffset snapshotOffset = (PartitionTableOffset) ((Map<?, ?>) snapshot).get(tableId);
+
+			assertNotSame(liveOffset, snapshotOffset);
+			assertNotSame(progress.getBatchOffsetObj(), snapshot);
+
+			liveOffset.partitionCompleted("partition-1", 100L);
+			assertTrue(snapshotOffset.getCompletedPartitions().isEmpty());
+		}
 	}
 
 	@Nested

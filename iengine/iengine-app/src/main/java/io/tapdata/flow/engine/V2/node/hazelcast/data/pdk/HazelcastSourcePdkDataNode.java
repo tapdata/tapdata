@@ -614,6 +614,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                     PDKMethod.SOURCE_BATCH_READ,
                     pdkMethodInvoker.runnable(() -> {
                             try {
+                                Object currentTableOffset = BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId);
                                 BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
                                     if (events != null && !events.isEmpty()) {
 										CpuMemoryCollector.listening(getNode().getId(), events);
@@ -694,10 +695,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             handleCustomCommandResult(result, tableName, consumer);
                                         });
                                     } else {
-                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
+                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, currentTableOffset, readBatchSize, consumer);
                                     }
                                 } else {
-                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
+                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, currentTableOffset, readBatchSize, consumer);
                                 }
                             } catch (SkipErrorTableException e) {
                                 logger.warn("skip error table '{}'", e.getTableName());
