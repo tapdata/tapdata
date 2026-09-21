@@ -277,7 +277,7 @@ public class RegisterCli extends CommonCli {
     }
 
     static void validateAuthentication(String authToken, String username, String password, String ak) {
-        if (StringUtils.isNotBlank(ak) || StringUtils.isNotBlank(authToken)) {
+        if (StringUtils.isNotBlank(authToken) || StringUtils.isNotBlank(ak)) {
             return;
         }
         validateAdministrator(username, password);

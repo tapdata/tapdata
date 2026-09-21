@@ -221,6 +221,20 @@ public class UploadFileService {
     JarEncryptor.encryptJar(file.getPath());
   }
 
+  /**
+   * Compatibility overload for callers using the administrator-password flow.
+   */
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String username, String password, String ak, String sk, PrintUtil printUtil) throws Exception {
+    upload(inputStreamMap, file, jsons, latest, hostAndPort, null, username, password, ak, sk, printUtil);
+  }
+
+  /**
+   * Compatibility overload for the original accessCode-based registration API.
+   */
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk, PrintUtil printUtil) throws Exception {
+    upload(inputStreamMap, file, jsons, latest, hostAndPort, accessCode, null, null, ak, sk, printUtil);
+  }
+
   static String generateAccessCodeToken(String hostAndPort, String accessCode, PrintUtil printUtil) {
     String tokenUrl = hostAndPort + "/api/users/generatetoken";
     Map<String, String> param = new HashMap<>();
