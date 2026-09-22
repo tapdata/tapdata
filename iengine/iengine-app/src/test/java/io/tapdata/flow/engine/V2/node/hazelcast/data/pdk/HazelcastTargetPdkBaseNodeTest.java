@@ -2902,6 +2902,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
 			hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e);
 			assertNotEquals("test batch offset", syncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertEquals(new HashMap<>(), syncProgress.getBatchOffsetObj());
 		}
 
