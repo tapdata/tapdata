@@ -19,8 +19,9 @@
       "reason": "IEEE 754 binary64 or a source type whose official definition is exactly 64-bit double precision"
     },
     "parameterized_floating": {
-      "mapping": "TapFloatingPoint",
-      "reason": "The source precision parameter is binary precision; the resolver must preserve the source range and split at the vendor-defined single/double boundary"
+      "to": "TapCoefficientFloat",
+      "mapping": "TapCoefficientFloatMapping",
+      "reason": "The existing source type parameter is the field's effective-digit coefficient; the mapping must preserve its source range and split at the vendor-defined single/double boundary"
     },
     "out_of_scope": {
       "requirement": "A source-file/type-specific allowlist entry with officialUrl and reason is mandatory"
@@ -36,7 +37,7 @@
     },
     "mysql_compatible": {
       "officialUrls": ["https://dev.mysql.com/doc/refman/8.4/en/floating-point-types.html"],
-      "rule": "FLOAT is binary32 and DOUBLE is binary64; FLOAT(p) uses the vendor binary-precision boundary; M,D is display/scale semantics and is not copied to TapFloat/TapDouble"
+      "rule": "FLOAT is binary32 and DOUBLE is binary64; FLOAT(p) uses the vendor-defined effective-digit coefficient boundary; M,D is display/scale semantics and is not copied to TapFloat/TapDouble"
     },
     "postgres_compatible": {
       "officialUrls": ["https://www.postgresql.org/docs/17/datatype-numeric.html"],
@@ -88,7 +89,7 @@
     },
     "db2i": {
       "officialUrls": ["https://www.ibm.com/docs/en/i/7.4.0?topic=types-data-types"],
-      "rule": "Db2 for i FLOAT(p) preserves IBM binary precision semantics and DOUBLE is binary64"
+      "rule": "Db2 for i FLOAT(p) preserves the source effective-digit coefficient semantics and promotion boundary, and DOUBLE is binary64"
     },
     "gbase8s": {
       "officialUrls": ["https://www.gbase.cn/document"],

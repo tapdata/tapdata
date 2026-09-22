@@ -2,9 +2,11 @@
 """Validate floating-point declarations in connector specification files.
 
 The checker is intentionally independent from Maven and connector runtime code.
-It validates the JSON contract described by 详细设计.md and fails closed for
-candidate source types that are still mapped to TapNumber unless they have a
-documented, source-file-specific allowlist entry.
+It validates the JSON contract described by 详细设计.md: concrete binary
+floating-point entries use TapFloat/TapDouble, effective-digit parameterized
+entries use TapCoefficientFloat with coefficient ranges, and only documented
+out-of-scope entries may remain TapNumber.  Source metadata is validated for
+shape, not against framework defaults such as bit=32 or bit=64.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -100,60 +102,80 @@ def format_location(source_path: str, source_type: str) -> str:
     return f"{source_path} :: {source_type}"
 
 
+def is_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_integer_range(value: Any) -> bool:
+    return isinstance(value, list) and len(value) == 2 and all(is_integer(item) for item in value)
+
+
+def validate_source_metadata(value: Mapping[str, Any]) -> List[str]:
+    """Validate metadata shapes without prescribing source-specific values."""
+    errors: List[str] = []
+    for key in ("bit", "storageBytes", "effectivePrecision", "binaryPrecision"):
+        if key in value and value[key] is not None and not is_integer(value[key]):
+            errors.append(f"{key} must be an integer when present")
+    for key in ("precision", "scale"):
+        if key in value and value[key] is not None and not (
+                is_integer(value[key]) or is_integer_range(value[key])
+                or (key == "scale" and isinstance(value[key], bool))):
+            errors.append(f"{key} must be an integer or a two-item integer range when present")
+    for key in ("defaultPrecision", "defaultScale", "preferPrecision", "preferScale"):
+        if key in value and value[key] is not None and not is_integer(value[key]):
+            errors.append(f"{key} must be an integer when present")
+    if "fixed" in value and value["fixed"] is not None and not isinstance(value["fixed"], bool):
+        errors.append("fixed must be a boolean when present")
+    return errors
+
+
+def validate_coefficient_mapping(source_type: str, value: Mapping[str, Any]) -> List[str]:
+    errors: List[str] = []
+    if "$precision" not in source_type:
+        errors.append("TapCoefficientFloat requires an existing $precision source parameter")
+    if "precision" not in value:
+        errors.append("TapCoefficientFloat requires a precision descriptor for $precision")
+    elif not (is_integer(value["precision"]) or is_integer_range(value["precision"])):
+        errors.append("TapCoefficientFloat precision descriptor must be an integer or a two-item integer range")
+
+    coefficient = value.get("coefficient")
+    if not isinstance(coefficient, Mapping) or not coefficient:
+        errors.append("TapCoefficientFloat requires non-empty coefficient ranges")
+        return errors
+
+    ranges: List[Tuple[str, List[int]]] = []
+    for target_type, raw_range in coefficient.items():
+        if target_type not in {"TapFloat", "TapDouble"}:
+            errors.append(f"unsupported TapCoefficientFloat target type: {target_type}")
+            continue
+        if not is_integer_range(raw_range) or raw_range[0] > raw_range[1]:
+            errors.append(f"invalid TapCoefficientFloat range for {target_type}")
+            continue
+        ranges.append((target_type, raw_range))
+    for index, (left_type, left_range) in enumerate(ranges):
+        for right_type, right_range in ranges[index + 1:]:
+            if left_range[0] <= right_range[1] and right_range[0] <= left_range[1]:
+                errors.append(f"overlapping TapCoefficientFloat ranges for {left_type} and {right_type}")
+    return errors
+
+
 def validate_entry(source_path: str, source_type: str, value: Mapping[str, Any], allowlist: Mapping[str, Mapping[str, Any]]) -> List[str]:
     errors: List[str] = []
     target = value.get("to")
     allowed = allowlist.get(source_type)
-    resolver = value.get("mapping") == "TapFloatingPoint"
+    errors.extend(validate_source_metadata(value))
 
-    if target == "TapFloat":
-        if not resolver:
-            if value.get("bit") != 32:
-                errors.append("TapFloat requires bit=32")
-            if value.get("storageBytes") != 4:
-                errors.append("TapFloat requires storageBytes=4")
-            if value.get("effectivePrecision") != 7:
-                errors.append("TapFloat requires effectivePrecision=7")
-        if value.get("fixed") is True:
-            errors.append("TapFloat cannot have fixed=true")
-    elif target == "TapDouble":
-        if not resolver:
-            if value.get("bit") != 64:
-                errors.append("TapDouble requires bit=64")
-            if value.get("storageBytes") != 8:
-                errors.append("TapDouble requires storageBytes=8")
-            if value.get("effectivePrecision") != 15:
-                errors.append("TapDouble requires effectivePrecision=15")
-        if value.get("fixed") is True:
-            errors.append("TapDouble cannot have fixed=true")
-    elif target == "TapNumber" and not allowed:
-        errors.append("floating-point candidate cannot remain TapNumber without an explicit allowlist entry")
-
-    if target in {"TapFloat", "TapDouble"}:
-        forbidden = ("scale", "defaultScale", "preferScale", "precision", "defaultPrecision", "preferPrecision")
-        present = [key for key in forbidden if key in value]
-        if present:
-            errors.append("binary floating-point entry must not use decimal attributes: " + ", ".join(present))
-        if "mapping" in value and target == "TapFloat" and value.get("mapping") != "TapFloatingPoint":
-            errors.append("parameterized floating-point entry must use mapping=TapFloatingPoint")
-        if "mapping" in value and target == "TapDouble" and value.get("mapping") != "TapFloatingPoint":
-            errors.append("parameterized floating-point entry must use mapping=TapFloatingPoint")
-        if resolver:
-            binary_range = value.get("binaryPrecision")
-            default_precision = value.get("defaultBinaryPrecision")
-            single_range = value.get("singlePrecision", {}).get("range")
-            double_range = value.get("doublePrecision", {}).get("range")
-            if not (isinstance(binary_range, list) and len(binary_range) == 2 and all(isinstance(item, int) for item in binary_range)):
-                errors.append("TapFloatingPoint resolver requires an integer binaryPrecision range")
-            if not isinstance(default_precision, int) or not isinstance(binary_range, list) or not (binary_range[0] <= default_precision <= binary_range[1]):
-                errors.append("TapFloatingPoint resolver defaultBinaryPrecision must be inside binaryPrecision range")
-            if not (isinstance(single_range, list) and len(single_range) == 2 and all(isinstance(item, int) for item in single_range)):
-                errors.append("TapFloatingPoint resolver requires an integer singlePrecision.range")
-            if not (isinstance(double_range, list) and len(double_range) == 2 and all(isinstance(item, int) for item in double_range)):
-                errors.append("TapFloatingPoint resolver requires an integer doublePrecision.range")
-            if isinstance(binary_range, list) and isinstance(single_range, list) and isinstance(double_range, list):
-                if single_range[0] != binary_range[0] or double_range[1] != binary_range[1] or single_range[1] + 1 != double_range[0]:
-                    errors.append("TapFloatingPoint resolver precision ranges must be contiguous and cover binaryPrecision")
+    if target == "TapCoefficientFloat":
+        errors.extend(validate_coefficient_mapping(source_type, value))
+    elif target in {"TapFloat", "TapDouble"}:
+        # bit/storageBytes/effectivePrecision/fixed are source metadata.  The
+        # concrete TapType supplies defaults only when these values are absent.
+        pass
+    elif target == "TapNumber":
+        if not allowed:
+            errors.append("floating-point candidate cannot remain TapNumber without an explicit allowlist entry")
+    elif target not in {"TapFloat", "TapDouble", "TapCoefficientFloat"}:
+        errors.append(f"unsupported floating-point target type: {target}")
 
     if target == "TapNumber" and allowed:
         if allowed.get("type") != source_type:

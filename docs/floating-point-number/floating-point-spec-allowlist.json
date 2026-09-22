@@ -37,6 +37,12 @@
       "officialUrl": "https://coding.net/help/docs/api/"
     },
     {
+      "path": "tapdata-connectors/connectors-javascript/shein-connector/src/main/resources/spec.json",
+      "type": "Float",
+      "reason": "The connector exposes a logical Float label but does not establish a Java Float/binary32 payload contract; keep the existing TapNumber mapping until an official payload-width contract is available.",
+      "officialUrl": "https://open.sheincorp.com/"
+    },
+    {
       "path": "tapdata-connectors/connectors/hbase-connector/src/main/resources/spec.json",
       "type": "float",
       "reason": "The connector reads HBase cell bytes as strings and does not decode a source float binary format.",
