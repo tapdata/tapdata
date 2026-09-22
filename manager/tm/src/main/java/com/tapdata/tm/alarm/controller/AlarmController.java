@@ -143,7 +143,7 @@ public class AlarmController extends BaseController {
             throw new BizException("IllegalArgument", "taskId");
         }
         return success(checkTask(request, user, id, DataPermissionActionEnums.View,
-                () -> alarmService.previewReceivers(taskId)));
+                () -> alarmService.previewReceivers(taskId, user == null ? null : user.getUserId())));
     }
 
     @GetMapping("/receiverCandidates")

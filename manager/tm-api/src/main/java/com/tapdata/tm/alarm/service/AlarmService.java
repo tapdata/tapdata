@@ -105,6 +105,10 @@ public interface AlarmService {
         throw new BizException("TapOssNonSupportFunctionException");
     }
 
+    default AlarmReceiverPreview previewReceivers(String taskId, String userId) {
+        return previewReceivers(taskId);
+    }
+
     default AlarmReceiverCandidates receiverCandidates() {
         throw new BizException("TapOssNonSupportFunctionException");
     }
