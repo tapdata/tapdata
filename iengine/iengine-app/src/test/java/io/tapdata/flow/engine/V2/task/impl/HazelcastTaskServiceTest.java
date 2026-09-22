@@ -4,6 +4,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.config.JobConfig;
+import com.hazelcast.jet.core.ProcessorMetaSupplier;
+import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.mongodb.ConnectionString;
@@ -57,8 +59,10 @@ import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.utils.StopWatch;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
@@ -122,6 +126,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -164,6 +171,39 @@ import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 
 public class HazelcastTaskServiceTest {
+    @Nested
+    class DqlRecoveryDagSerializationTest {
+        @Test
+        void replaySourceSupplierCanBeSerializedByHazelcast() {
+            Vertex replaySource = HazelcastTaskService.createDqlRecoveryReplayVertex(
+                    "dql-recovery-replay-source", "dql-recovery-queue");
+            ProcessorMetaSupplier metaSupplier = replaySource.getMetaSupplier();
+
+            assertDoesNotThrow(() -> serialize(metaSupplier));
+        }
+
+        @Test
+        void recoveryJobMustStartItsOwnAspectSession() {
+            TaskDto recoveryTask = new TaskDto();
+            recoveryTask.setId(new ObjectId());
+            recoveryTask.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            recoveryTask.setAttrs(Map.of(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, true));
+
+            TaskStartAspect startAspect = HazelcastTaskService.dqlRecoveryTaskStartAspect(recoveryTask);
+            assertSame(recoveryTask, startAspect.getTask());
+            assertTrue(Boolean.TRUE.equals(startAspect.getTask().getAttrs()
+                    .get(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME)));
+        }
+
+        private byte[] serialize(Object value) throws IOException {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (ObjectOutputStream output = new ObjectOutputStream(bytes)) {
+                output.writeObject(value);
+            }
+            return bytes.toByteArray();
+        }
+    }
+
     @Nested
     class InitCacheInvalidationServiceTest {
         @Test
@@ -758,6 +798,7 @@ public class HazelcastTaskServiceTest {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
                 doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, true);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, true, null);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -787,6 +828,7 @@ public class HazelcastTaskServiceTest {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
                 doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false, false);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false, false, null);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();

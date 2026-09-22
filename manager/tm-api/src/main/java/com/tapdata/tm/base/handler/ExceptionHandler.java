@@ -61,6 +61,9 @@ public class ExceptionHandler extends BaseController {
 
 		if (e instanceof BizException){
 			return handlerException((BizException) e, request, response);
+		} else if (isDqlRequest(request) && isNoPermission(e)) {
+			errorCode = "NoPermission";
+			message = null;
 		} else if (e instanceof IllegalArgumentException) {
 			errorCode = "IllegalArgument";
 			message = e.getMessage();
@@ -77,7 +80,13 @@ public class ExceptionHandler extends BaseController {
 			message = collectValidResult(locale, error.getBindingResult(), error);
 		}
 
-		String msg = MessageUtil.getMessage(locale, errorCode, message);
+		if ("NoPermission".equals(errorCode)) {
+			message = null;
+		}
+		String msg = "NoPermission".equals(errorCode)
+			? MessageUtil.getMessage(locale, errorCode)
+			: MessageUtil.getMessage(locale, errorCode, message);
+		applyHttpStatus(errorCode, request, response);
 
 		return failed(errorCode, msg);
 	}
@@ -140,6 +149,7 @@ public class ExceptionHandler extends BaseController {
 		if ("NotAuthorized".equals(e.getErrorCode()) || "NotLogin".equals(e.getErrorCode())) {
 			response.setStatus(HttpStatus.SC_UNAUTHORIZED);
 		}
+		applyHttpStatus(e.getErrorCode(), request, response);
 
 		//对于一些需要返回多个节点的多个错误信息的约定返回异常码
 		if ("Task.ListWarnMessage".equals(e.getErrorCode())) {
@@ -172,6 +182,46 @@ public class ExceptionHandler extends BaseController {
 		}
 
 		return failed;
+	}
+
+	private void applyHttpStatus(String errorCode, HttpServletRequest request, HttpServletResponse response) {
+		if (response == null) {
+			return;
+		}
+		int status = httpStatusFor(errorCode, request);
+		if (status > 0) {
+			response.setStatus(status);
+		}
+	}
+
+	private int httpStatusFor(String errorCode, HttpServletRequest request) {
+		boolean dqlRequest = isDqlRequest(request);
+		if ("NoPermission".equals(errorCode)) {
+			return dqlRequest ? HttpStatus.SC_FORBIDDEN : 0;
+		}
+		if (!dqlRequest) {
+			return 0;
+		}
+		return switch (errorCode) {
+			case "IllegalArgument", "DqlEvent.InvalidPayload", "DqlEvent.InvalidRouteDecision",
+				"DqlRecovery.CrossTaskNotAllowed" -> HttpStatus.SC_BAD_REQUEST;
+			case "Task.NotFound", "DqlEvent.NotFound", "DqlRecovery.BatchNotFound" -> HttpStatus.SC_NOT_FOUND;
+			case "DqlRecovery.EventNotReprocessable", "DqlRecovery.EventLockFailed" -> HttpStatus.SC_CONFLICT;
+			case "SystemError" -> HttpStatus.SC_INTERNAL_SERVER_ERROR;
+			default -> 0;
+		};
+	}
+
+	private boolean isDqlRequest(HttpServletRequest request) {
+		if (request == null) {
+			return false;
+		}
+		String requestUri = request.getRequestURI();
+		return requestUri != null && requestUri.contains("/dql-events");
+	}
+
+	private boolean isNoPermission(Throwable e) {
+		return e != null && "NoPermission".equals(e.getMessage());
 	}
 
 	public ResponseMessage<Map<String, List<Message>>> listWarnMessage(BizException e, HttpServletRequest request) {

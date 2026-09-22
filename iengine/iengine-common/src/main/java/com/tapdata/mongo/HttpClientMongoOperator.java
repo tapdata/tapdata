@@ -835,7 +835,6 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		}
 		return restTemplateOperator.postOne(obj, addToken(resource), className);
 	}
-
 	private void appendProperty(Document doc, String[] keys, Object value, int length, int count) {
 		if (count >= length - 1) {
 			doc.append(keys[count], value);

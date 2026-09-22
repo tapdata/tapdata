@@ -37,6 +37,7 @@ import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.entity.PdkStateMemoryHashMap;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
@@ -277,7 +278,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (taskDto.isPreviewTask()) {
 			pdkStateMap = new PdkStateMemoryHashMap();
 		} else {
-			pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
+			String stateMapNamespace = DqlRecoveryCaptureGuard.isRecoveryTask(taskDto)
+					? DqlRecoveryCaptureGuard.stateMapNamespace(taskDto)
+					: null;
+			pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode(), stateMapNamespace);
 		}
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();

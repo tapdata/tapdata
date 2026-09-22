@@ -3,6 +3,7 @@ package com.tapdata.tm.base.aop;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
+import com.tapdata.tm.base.annotation.IgnoreRequestBodyLog;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
@@ -10,6 +11,7 @@ import org.aspectj.lang.annotation.*;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
 
 import jakarta.servlet.ServletRequest;
@@ -52,9 +54,15 @@ public class LogAOP {
 		Logger logger = getLogger(joinPoint.getTarget().getClass());
 		Signature signature = joinPoint.getSignature();
 		if (signature instanceof MethodSignature) {
+			MethodSignature methodSignature = (MethodSignature) signature;
+			if (ignoreRequestBodyLog(methodSignature, joinPoint.getTarget().getClass())) {
+				if (logger.isDebugEnabled()) {
+					logger.debug("{}, params:[omitted]", joinPoint.getSignature().getName());
+				}
+				return;
+			}
 			Map<String, Object> params = new HashMap<>();
 
-			MethodSignature methodSignature = (MethodSignature) signature;
 			String[] parameterNames = methodSignature.getParameterNames();
 			//Class[] parameterTypes = methodSignature.getParameterTypes();
 			Object[] args = joinPoint.getArgs();
@@ -85,6 +93,11 @@ public class LogAOP {
 						new Gson().toJson(params));
 			}
 		}
+	}
+
+	private boolean ignoreRequestBodyLog(MethodSignature methodSignature, Class<?> targetClass) {
+		return AnnotatedElementUtils.hasAnnotation(methodSignature.getMethod(), IgnoreRequestBodyLog.class)
+				|| AnnotatedElementUtils.hasAnnotation(targetClass, IgnoreRequestBodyLog.class);
 	}
 	/*@After("restApiLog()")
 	public void after(JoinPoint joinPoint){

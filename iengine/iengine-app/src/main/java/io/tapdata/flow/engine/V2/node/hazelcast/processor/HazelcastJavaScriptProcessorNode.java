@@ -269,7 +269,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
 				}
 			} catch (Exception e) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, e.getCause()).dynamicDescriptionParameters(e.getMessage());
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, e).dynamicDescriptionParameters(e.getMessage());
 			}
 		}
 

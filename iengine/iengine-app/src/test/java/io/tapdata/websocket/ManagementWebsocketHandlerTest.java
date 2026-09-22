@@ -15,6 +15,7 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -304,6 +305,32 @@ class ManagementWebsocketHandlerTest {
 
             when(message.getPayload()).thenReturn(JSONUtil.obj2Json(messageBody));
             handler.handleMessage(null, message);
+        }
+
+        @Test
+        public void initDiscoversDqlRecoveryEventHandler() {
+            ManagementWebsocketHandler handler = new ManagementWebsocketHandler();
+            ConfigurationCenter configurationCenter = new ConfigurationCenter();
+            configurationCenter.putConfig(ConfigurationCenter.BASR_URLS, List.of("http://tm/api/"));
+            configurationCenter.putConfig(ConfigurationCenter.AGENT_ID, "agent-1");
+            configurationCenter.putConfig(ConfigurationCenter.RETRY_TIME, 1);
+            ReflectionTestUtils.setField(handler, "configCenter", configurationCenter);
+
+            try {
+                handler.init();
+
+                Set<BeanDefinition> definitions = (Set<BeanDefinition>) ReflectionTestUtils.getField(handler, "fileDetectorDefinition");
+                Assertions.assertTrue(definitions.stream()
+                                .anyMatch(definition -> "io.tapdata.dql.recovery.DqlRecoveryEventHandler"
+                                        .equals(definition.getBeanClassName())),
+                        "Engine startup must discover the dqlRecovery websocket handler");
+            } finally {
+                ScheduledExecutorService healthThreadPool = (ScheduledExecutorService) ReflectionTestUtils.getField(handler, "healthThreadPool");
+                if (healthThreadPool != null) {
+                    healthThreadPool.shutdownNow();
+                }
+                handler.destroy();
+            }
         }
     }
 

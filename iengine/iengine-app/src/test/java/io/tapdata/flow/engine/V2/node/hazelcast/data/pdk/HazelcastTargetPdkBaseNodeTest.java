@@ -31,6 +31,7 @@ import io.tapdata.aspect.DropTableFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapCallbackOffset;
@@ -87,6 +88,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
@@ -1074,6 +1076,34 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				verify(hazelcastTargetPdkBaseNode).initCodecsFilterManager();
 			}
 		}
+
+		@Test
+		void recoveryRuntimeSkipsNormalTargetSideEffects() {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isDqlRecoveryRuntime();
+			dataProcessorContext.getTaskDto().setAttrs(Map.of(
+					DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, true
+			));
+			try (
+					MockedStatic<ISyncMetricCollector> iSyncMetricCollectorMockedStatic = mockStatic(ISyncMetricCollector.class)
+			) {
+				hazelcastTargetPdkBaseNode.doInit(mock(Processor.Context.class));
+
+				verify(hazelcastTargetPdkBaseNode).createPdkAndInit(any(Processor.Context.class));
+				verify(hazelcastTargetPdkBaseNode).initTargetVariable();
+				verify(hazelcastTargetPdkBaseNode).initTargetQueueConsumer();
+				verify(hazelcastTargetPdkBaseNode).initTapEventFilter();
+				verify(hazelcastTargetPdkBaseNode).initIllegalDateAcceptable();
+				verify(hazelcastTargetPdkBaseNode).initCodecsFilterManager();
+
+				verify(hazelcastTargetPdkBaseNode, never()).initShareCdcCollectorIfNeed();
+				verify(hazelcastTargetPdkBaseNode, never()).initOffsetCallbackEnable();
+				verify(hazelcastTargetPdkBaseNode, never()).initExactlyOnceWriteIfNeed();
+				verify(hazelcastTargetPdkBaseNode, never()).initTargetConcurrentProcessorIfNeed();
+				verify(hazelcastTargetPdkBaseNode, never()).initSyncProgressMap();
+				verify(hazelcastTargetPdkBaseNode, never()).findReplicationSourceConnection();
+				verify(flushOffsetExecutor, never()).scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+			}
+		}
 	}
 
 	@Nested
@@ -1114,6 +1144,47 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertTrue((Boolean) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "initialConcurrent"));
 			assertTrue((Boolean) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "cdcConcurrent"));
 		}
+
+		@Test
+		void recoveryRuntimeDoesNotStartConcurrentProcessors() {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isDqlRecoveryRuntime();
+			TaskDto recoveryTask = new TaskDto();
+			recoveryTask.setAttrs(Map.of(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, true));
+			DataProcessorContext recoveryContext = mock(DataProcessorContext.class);
+			when(recoveryContext.getTaskDto()).thenReturn(recoveryTask);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", recoveryContext);
+
+			hazelcastTargetPdkBaseNode.initTargetConcurrentProcessorIfNeed();
+
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "initialPartitionConcurrentProcessor"));
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "cdcPartitionConcurrentProcessor"));
+			assertFalse((Boolean) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "initialConcurrent"));
+			assertFalse((Boolean) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "cdcConcurrent"));
+			verify(hazelcastTargetPdkBaseNode, never()).initInitialConcurrentProcessor(anyInt(), any(Partitioner.class));
+			verify(hazelcastTargetPdkBaseNode, never()).initCDCConcurrentProcessor(anyInt(), any(Function.class));
+		}
+	}
+
+	@Test
+	void recoveryRuntimeProcessesCdcSynchronouslyBeforeBarrier() {
+		doCallRealMethod().when(hazelcastTargetPdkBaseNode).isDqlRecoveryRuntime();
+		TaskDto recoveryTask = new TaskDto();
+		recoveryTask.setAttrs(Map.of(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, true));
+		DataProcessorContext recoveryContext = mock(DataProcessorContext.class);
+		when(recoveryContext.getTaskDto()).thenReturn(recoveryTask);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", recoveryContext);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "skipErrorTable", mock(ISkipErrorTable.class));
+
+		PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class);
+		when(processor.isRunning()).thenReturn(true);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcPartitionConcurrentProcessor", processor);
+
+		TapdataEvent event = new TapdataEvent();
+		event.setTapEvent(TapInsertRecordEvent.create().table("orders").after(Map.of("id", 1)));
+		ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode, "cdcProcessEvents", List.of(event));
+
+		verify(processor).process(anyList(), eq(false));
 	}
 
 	@Nested
@@ -1439,6 +1510,26 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents);
 
 			assertEquals(0, tapdataCountDownLatchEvent.getCountDownLatch().getCount());
+		}
+
+		@Test
+		void recoveryBarrierIsReleasedAfterTargetBatchProcessing() {
+			TaskDto recoveryTask = new TaskDto();
+			recoveryTask.setAttrs(Map.of(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, true));
+			when(dataProcessorContext.getTaskDto()).thenReturn(recoveryTask);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isDqlRecoveryRuntime();
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+
+			TapdataCountDownLatchEvent barrier = TapdataCountDownLatchEvent.create(1);
+			doAnswer(invocation -> {
+				assertEquals(1, barrier.getCountDownLatch().getCount(),
+						"target write processing must finish before the recovery barrier is released");
+				return null;
+			}).when(hazelcastTargetPdkBaseNode).processTapEvents(any(), any(), any());
+
+			hazelcastTargetPdkBaseNode.handleTapdataEvents(List.of(new TapdataEvent(), barrier));
+
+			assertEquals(0, barrier.getCountDownLatch().getCount());
 		}
 
 		@Test

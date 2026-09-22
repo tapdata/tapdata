@@ -46,6 +46,7 @@ import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.TransactionOperator;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
@@ -77,6 +78,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -123,7 +125,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (getNode() instanceof DataParentNode) {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
-			initTargetDB();
+			if (shouldInitializeTargetDatabase()) {
+				initTargetDB();
+			}
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 			this.writePolicyService.setStartTransactionMap(startTransactionMap);
 			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
@@ -187,6 +191,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
     }
 
 	protected void initTargetDB() {
+		if (!shouldInitializeTargetDatabase()) {
+			return;
+		}
 		obsLogger.info("Apply table structure to target database");
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		Set<String> tableIds = filterSubPartitionTableTableMap();
@@ -251,6 +258,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				}
 			}
 		}));
+	}
+
+	protected boolean shouldInitializeTargetDatabase() {
+		return !isDqlRecoveryRuntime();
 	}
 
 	protected boolean createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId,boolean init) {
@@ -1123,8 +1134,15 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				}, writeRecordFuncAspect -> {
 						CommonUtils.AnyError writeRunnable = () -> {
 											if (!assertConnectorNodeActive(connectorNode, pdkMethodInvoker)) return;
-											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
-												if (obsLogger.isDebugEnabled()) {
+							BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer = (writtenRecordEvents, writeListResult) -> {
+									if (writeListResult != null && MapUtils.isNotEmpty(writeListResult.getErrorMap())) {
+										for (Map.Entry<TapRecordEvent, Throwable> error : writeListResult.getErrorMap().entrySet()) {
+											if (DqlRecoveryCaptureGuard.isRecoveryRecord(error.getKey())) {
+												DqlRecoveryCaptureGuard.notifyFailure(error.getKey(), error.getValue());
+											}
+										}
+									}
+																				if (obsLogger.isDebugEnabled()) {
 													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
 													if (MapUtils.isNotEmpty(errorMap)) {
 														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
@@ -1136,7 +1154,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 												}
 
 												if (writeRecordFuncAspect != null)
-													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+															AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), writtenRecordEvents, writeListResult);
 												if (logger.isDebugEnabled()) {
 													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(connectorNode));
 												}
@@ -1154,7 +1172,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 																tapTable.getId(),
 																subTapRecordEvents,
 																writeRecords -> {
-																	writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), writeRecords, tapTable, resultConsumer);
+																writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), writeRecords, tapTable,
+																		writeListResult -> resultConsumer.accept(writeRecords, writeListResult));
 																	return null;
 																}
 														);
@@ -1168,7 +1187,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 															tapTable.getId(),
 															tapRecordEvents,
 															writeRecords -> {
-																writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+																	writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable,
+																		writeListResult -> resultConsumer.accept(tapRecordEvents, writeListResult));
 																return null;
 															}
 													);
