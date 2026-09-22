@@ -788,15 +788,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			if (systemTables.contains(collection)) {
 				continue;
 			}
-			Document document = database.runCommand(new Document("collStats", collection));
-			Object count = document.get("count");
-			long collCount = 0L;
-			if (count instanceof Integer) {
-				collCount += new BigDecimal((Integer) count).longValue();
-			} else if (count instanceof Double) {
-				collCount += new BigDecimal((Double) count).longValue();
-			}
-			dbCount += collCount;
+			dbCount += database.getCollection(collection).estimatedDocumentCount();
 		}
 
 		return dbCount;
@@ -1418,15 +1410,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			String relationship = mapping.getRelationship();
 
 			if (ConnectorConstant.RELATIONSHIP_ONE_ONE.equals(relationship) && !statedTables.contains(collectionName)) {
-				Document document = database.runCommand(new Document("collStats", collectionName));
-				Object count = document.get("count");
-				long collCount = 0L;
-				if (count instanceof Integer) {
-					collCount += new BigDecimal((Integer) count).longValue();
-				} else if (count instanceof Double) {
-					collCount += new BigDecimal((Double) count).longValue();
-				}
-				dbCount += collCount;
+				dbCount += database.getCollection(collectionName).estimatedDocumentCount();
 				statedTables.add(collectionName);
 			}
 		}
@@ -1510,20 +1494,10 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	}
 
 	public static long getCollectionNotAggregateCountByTableName(MongoClient mongoClient, String db, String collectionName, Document filter) {
-		long dbCount = 0L;
-		MongoDatabase database = mongoClient.getDatabase(db);
-		Document countDocument = database.runCommand(
-				new Document("count", collectionName)
-						.append("query", filter == null ? new Document() : filter)
-		);
-
-		if (countDocument.containsKey("ok") && countDocument.containsKey("n")) {
-			if (countDocument.get("ok").equals(1d)) {
-				dbCount = Long.valueOf(countDocument.get("n") + "");
-			}
-		}
-
-		return dbCount;
+		MongoCollection<Document> collection = mongoClient.getDatabase(db).getCollection(collectionName);
+		return filter == null
+				? collection.estimatedDocumentCount()
+				: collection.countDocuments(filter);
 	}
 
 	public static Long count(String objectName, Connections connections) {
