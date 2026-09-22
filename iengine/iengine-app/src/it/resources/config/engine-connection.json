@@ -12,5 +12,13 @@
     "user": "",
     "password": "",
     "database": "it_smoke_db"
+  },
+  "postgresql": {
+    "host": "127.0.0.1",
+    "port": "5432",
+    "user": "postgres",
+    "password": "postgres",
+    "database": "TAPDATA",
+    "schema": "public"
   }
 }

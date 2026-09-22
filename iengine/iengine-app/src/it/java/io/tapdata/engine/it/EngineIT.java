@@ -63,11 +63,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public abstract class EngineIT {
 
-	/** 源/目标连接 id（全部 IT 任务共用；连接规格内容由子类动态提供）。
-	 *  必须为 24 位十六进制：引擎侧 generateQualifiedName 用 ObjectId.toHexString() 拼 qualifiedName，
-	 *  TaskFixture 预置时 new ObjectId(id) 校验。 */
-	protected static final String SOURCE_CONN_ID = "00000000000000000000000a";
-	protected static final String TARGET_CONN_ID = "00000000000000000000000b";
+	// 连接 id 由各组合子类的 sourceSpec()/targetSpec() 自带（TaskDtoBuilder 取 sourceSpec().id / targetSpec().id）。
+	// **每个组合必须用互不相同的 24 位十六进制 id**（引擎侧 generateQualifiedName 用 ObjectId.toHexString() 拼
+	// qualifiedName，TaskFixture 预置时 new ObjectId(id) 校验）：引擎是 JVM 级单例，其连接/连接器缓存按连接 id
+	// 键控——若两个组合复用同一 id 却指向不同库类型（如 …0b 在 MySqlMongoIT 是 mongodb、在 MySql2PostgresIT
+	// 是 postgres），后跑的组合会命中前一个组合缓存的连接器，表现为目标端把数据写进错误的库、或反射验证器
+	// 拿到错误的 connector（跨组合串扰，单类独占跑不复现，连跑才暴露）。
 	/** 等待任务节点连接器验证器可用的超时（覆盖调度认领 + jar 下载 + connector init） */
 	private static final long VERIFIER_AWAIT_SECONDS = 180;
 
@@ -91,15 +92,18 @@ public abstract class EngineIT {
 	}
 	
 	/**
-	 * 全部测试前触发引擎启动。首次执行时经 {@link TestInfo} 拿到真实测试类并实例化，
-	 * 并用子类提供的源/目标连接规格初始化 {@link #taskService}。
+	 * 全部测试前触发引擎启动。引擎运行时（MockTM + Spring 上下文）是 JVM 级单例、只启动一次；
+	 * 但 {@link #engineIT}/{@link #taskService} 必须按【当前测试类】绑定——否则同一 JVM 内第二个
+	 * 组合子类会沿用第一个类的源/目标连接规格（{@code taskService} 用第一个类的 targetSpec，
+	 * 目标任务被建到错误的目标库，表现为跨组合串扰）。首次执行时经 {@link TestInfo} 拿到真实测试类并实例化。
 	 */
 	@BeforeAll
 	static void initEngine(TestInfo testInfo) {
-		if (engineIT == null) {
-			engine();
-			Class<?> testClass = testInfo.getTestClass()
-					.orElseThrow(() -> new IllegalStateException("Cannot resolve test class from TestInfo"));
+		engine();
+		Class<?> testClass = testInfo.getTestClass()
+				.orElseThrow(() -> new IllegalStateException("Cannot resolve test class from TestInfo"));
+		// 当前类尚未绑定（首个类）或已由别的类绑定（同 JVM 内的后续组合）→ 按当前类重建
+		if (engineIT == null || !engineIT.getClass().equals(testClass)) {
 			try {
 				engineIT = (EngineIT) testClass.getDeclaredConstructor().newInstance();
 			} catch (ReflectiveOperationException e) {
@@ -407,7 +411,7 @@ public abstract class EngineIT {
 		// 1. 构造任务 + 预置 TM 侧数据（Connections/DatabaseTypes/transformAllParam 模型）
 		String table = randomTableName();
 		TaskDto taskDto = TaskDtoBuilder.buildMigrateTask(null, "it-flow-smoke",
-				SOURCE_CONN_ID, TARGET_CONN_ID, List.of(table));
+				sourceSpec().id, targetSpec().id, List.of(table));
 		TaskFixture.prepare(engine(), taskDto, sourceSpec(), targetSpec(), List.of(table));
 
 		// 2. 源表经直连验证器在下发前准备（快照读必能读到完整数据），然后下发任务
@@ -444,7 +448,7 @@ public abstract class EngineIT {
 	void should_idempotent_start() throws Exception {
 		String table = randomTableName();
 		prepareSourceTable(table, 3);
-		TaskDto taskDto = TaskDtoBuilder.buildMigrateTask(null, "d1-2-idempotent", SOURCE_CONN_ID, TARGET_CONN_ID, List.of(table));
+		TaskDto taskDto = TaskDtoBuilder.buildMigrateTask(null, "d1-2-idempotent", sourceSpec().id, targetSpec().id, List.of(table));
 		String taskId = taskService.startTask(taskDto, List.of(table));
 		taskService.awaitRunning(taskId, 120);
 		taskService.awaitSyncStage(taskId, "CDC", 180);
@@ -640,7 +644,7 @@ public abstract class EngineIT {
 		// 第一阶段：migrate 任务全量写完进入 CDC，基线一致
 		String table = randomTableName();
 		prepareSourceTable(table, 5);
-		TaskDto taskDto = TaskDtoBuilder.buildMigrateTask(null, "bp-1-restart", SOURCE_CONN_ID, TARGET_CONN_ID, List.of(table));
+		TaskDto taskDto = TaskDtoBuilder.buildMigrateTask(null, "bp-1-restart", sourceSpec().id, targetSpec().id, List.of(table));
 		String taskId = taskService.startTask(taskDto, List.of(table));
 		taskService.awaitRunning(taskId, 120);
 		taskService.awaitSyncStage(taskId, "CDC", 180);

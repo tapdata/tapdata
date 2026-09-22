@@ -4,6 +4,7 @@ import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClients;
 import com.tapdata.constant.StringUtil;
+import io.tapdata.dbforge.sdk.model.DbType;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.it.config.ConnectionConfigLoader;
 import io.tapdata.it.schema.TestDataType;
@@ -29,18 +30,31 @@ import java.util.List;
  * 数据库环境支持环境变量覆盖，便于指向不同环境。全部通用集成用例（引擎冒烟/
  * 生命周期/全量读/增量/目标写/断点续跑，声明在 {@link EngineIT}）经 JUnit 继承在本类自动执行。
  * <p>
+ * <b>数据库来源（二选一）</b>：默认经 {@link DbForgeProvisioner} 从 DBForge 控制面<b>动态申请</b>
+ * MySQL/MongoDB 租约，并直连租约返回的 {@code external_host:nodePort}（连接器/验证器按普通 host/port
+ * 直连，要求运行测试的 JVM 能路由到该地址；公网外运行设 {@code DBF_IT_HOST_MAPPING} 把内网 host 映射为
+ * 公网 host，详见 {@link DbForgeProvisioner}）；仅当设置了 {@code DBF_IT_ENDPOINT} 时启用。未启用时回退到
+ * 静态 {@code config/engine-connection.json}（可用 {@code IT_MYSQL_*}/{@code IT_MONGO_*} 环境变量覆盖）。
+ * <p>
  * 扩展新连接器组合（如 PostgreSQL → Doris）：仿照本类新增配置具体类即可，
  * {@link EngineIT} 通用用例直接生效；本组合特有的用例（如仅 MySQL 源或仅 MongoDB 目标
  * 才成立的场景）在继承本类的单独类中编写。
  */
 public class MySqlMongoIT extends EngineIT {
 
+	/** 本组合专用连接 id（24 位 hex）。每个组合用互不相同的 id，避免 JVM 单例引擎的连接/连接器
+	 *  缓存跨组合串扰（见 {@link EngineIT} 注释）；此对值为本组合历史值，保持不变。 */
+	private static final String SOURCE_CONN_ID = "00000000000000000000000a";
+	private static final String TARGET_CONN_ID = "00000000000000000000000b";
+
 	// ===================== 数据库环境（统一 JSON 配置） =====================
 
 	/**
-	 * 统一连接配置：读取 src/it/resources/config/engine-connection.json（classpath 优先，其次文件系统），
-	 * 按数据源分组（mysql/mongodb/...）。后续可由外部服务自动创建数据库并返回同构 JSON 注入
-	 * （ConnectionConfigLoader 支持 CONNECTOR_IT_CONFIG_URL 外部接口、环境变量/系统属性逐项覆盖）。
+	 * 统一连接配置：按数据源分组（mysql/mongodb/...），来源见 {@link #loadConnection()}——
+	 * 设置 {@code DBF_IT_ENDPOINT} 时经 {@link DbForgeProvisioner} 从 DBForge 控制面动态申请、直连
+	 * 租约返回的 {@code external_host:nodePort}；否则读取 src/it/resources/config/engine-connection.json（classpath 优先，
+	 * 其次文件系统）。两条路径产出同构 JSON，故下方 {@link #cfg} 的取值逻辑完全一致
+	 * （{@code IT_MYSQL_*}/{@code IT_MONGO_*} 兼容旧版的高优先级覆盖仍生效）。
 	 */
 	private static final DataMap CONNECTION = loadConnection();
 
@@ -63,9 +77,15 @@ public class MySqlMongoIT extends EngineIT {
 	/**
 	 * 源库必须存在：mysql connector 连接 URL 含库名，库不存在时连接器 init 直接失败。
 	 * 环境预创建仅限本 MySQL 组合层（用例层仍不直连特定数据源）。
+	 * <p>
+	 * 经 DBForge 动态申请时，源库由 dbforge 建好并随租约返回（且供应账号通常无全局建库权限），
+	 * 故直接跳过建库；仅在回退到静态配置（预置 MySQL 实例）时才 {@code CREATE DATABASE IF NOT EXISTS}。
 	 */
 	@Override
 	protected void prepareEnvironment() throws Exception {
+		if (DbForgeProvisioner.enabled()) {
+			return;
+		}
 		String url = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT
 				+ "/?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
 		try (Connection conn = DriverManager.getConnection(url, MYSQL_USER, MYSQL_PASSWORD);
@@ -116,16 +136,27 @@ public class MySqlMongoIT extends EngineIT {
 	@Override
 	protected synchronized ConnectorVerifier directTargetVerifier() {
 		if (directTarget == null) {
+			// 统一走 TaskFixture.mongoUri：带账号时内嵌凭证 + authSource + directConnection（与连接器建连一致）
 			directTarget = new MongoVerifier(
-					(StringUtils.isNotBlank(MONGO_USER) && StringUtils.isNotBlank(MONGO_PASSWORD)) ?
-							MongoClients.create("mongodb://" + MONGO_USER + ":" + MONGO_PASSWORD + "@" + MONGO_HOST + ":" + MONGO_PORT)
-							: MongoClients.create("mongodb://" + MONGO_HOST + ":" + MONGO_PORT), MONGO_DB);
+					MongoClients.create(TaskFixture.mongoUri(MONGO_HOST, MONGO_PORT, MONGO_USER, MONGO_PASSWORD, MONGO_DB)),
+					MONGO_DB);
 		}
 		return directTarget;
 	}
 
-	/** 加载统一连接配置（失败时抛 IllegalStateException，避免静默使用默认值掩盖配置问题） */
+	/**
+	 * 加载统一连接配置（失败时抛 IllegalStateException，避免静默使用默认值掩盖配置问题）。
+	 * <p>
+	 * 设置 {@code DBF_IT_ENDPOINT} 时走 {@link DbForgeProvisioner}：申请 MySQL/MongoDB 租约、
+	 * 直连租约返回的 {@code external_host:nodePort}，返回与静态 JSON 同构的连接配置；
+	 * 否则读取 classpath/文件系统的 {@code config/engine-connection.json}（含外部接口与环境变量覆盖）。
+	 */
 	private static DataMap loadConnection() {
+		if (DbForgeProvisioner.enabled()) {
+			// 声明本组合依赖的库：MySQL 源 + MongoDB 目标（组名即 mysql/mongodb，与静态 JSON 同构）。
+			// 换成其它组合只需改这里，如 provision(DbType.MYSQL, DbType.ORACLE)、provision(DbType.SQLSERVER, DbType.ORACLE)。
+			return DbForgeProvisioner.provision(DbType.MYSQL, DbType.MONGODB);
+		}
 		try {
 			return ConnectionConfigLoader.load("config/engine-connection.json");
 		} catch (IOException e) {

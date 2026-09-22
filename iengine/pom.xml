@@ -41,8 +41,13 @@
         <!-- align with Spring Boot 4 BOM-managed mongodb-driver-core (5.6.5); a mismatched sync/core
              caused NoClassDefFoundError com/mongodb/internal/operation/SyncOperations at runtime -->
         <version.mongo.driver>5.6.5</version.mongo.driver>
-        <!-- 引擎集成测试（iengine-app src/it）使用的 MockTM 端口，可用 -Dengine.it.tm.port 覆盖 -->
+        <!-- 引擎集成测试（iengine-app src/it）MockTM 端口基准值（仅非 fork 手工运行参考用；
+             fork 并行时端口由 failsafe 按 ${surefire.forkNumber} 逐 fork 派生，见 iengine-app/pom.xml） -->
         <engine.it.tm.port>18080</engine.it.tm.port>
+        <!-- 引擎 IT 类级别多进程 fork 并行度：每个 *IT 类独占一个 JVM（reuseForks=false），
+             最多 forkCount 个并行；默认 2（当前 MySqlMongoIT / MySql2PostgresIT 两组合同时跑），
+             可 -Dengine.it.forkCount=N 调整（受单实例引擎 Hazelcast/RocksDB/端口逐 fork 隔离约束，勿过大） -->
+        <engine.it.forkCount>2</engine.it.forkCount>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>

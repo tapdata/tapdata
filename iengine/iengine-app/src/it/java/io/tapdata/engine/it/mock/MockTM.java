@@ -4,8 +4,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
+import io.undertow.Undertow;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Headers;
+import io.undertow.websockets.WebSocketConnectionCallback;
+import io.undertow.websockets.WebSocketProtocolHandshakeHandler;
+import io.undertow.websockets.core.AbstractReceiveListener;
+import io.undertow.websockets.core.BufferedTextMessage;
+import io.undertow.websockets.core.CloseMessage;
+import io.undertow.websockets.core.WebSocketChannel;
+import io.undertow.websockets.core.WebSockets;
+import io.undertow.websockets.spi.WebSocketHttpExchange;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -15,7 +25,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
-import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,8 +35,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -45,7 +54,12 @@ import java.util.zip.GZIPInputStream;
  * 测试可通过 {@link #put(String, Map)} 预置数据（Settings/User/Workers/Connections/Task 等），
  * 通过 {@link #find(String)} 读取引擎上报的状态（任务状态/心跳/指标），用于断言。
  * <p>
- * 依赖：JDK 内置 HttpServer（jdk.httpserver）+ Jackson，无其他第三方依赖。
+ * 除 REST 代理外，同一端口还提供 WebSocket 端点 {@code /ws/agent}：引擎 ManagementWebsocketHandler
+ * 启动后自动连接（懒连接，首个心跳触发），MockTM 对心跳 ping 回 pong，保持连接健康；引擎经 WS
+ * 上报的消息全部记录，测试可经 {@link #getWsMessages(int)} 断言，也可用 {@link #sendToAgent(String, String)}
+ * 模拟 TM 主动推送（如 dataSync START/STOP 任务下发消息）。
+ * <p>
+ * 依赖：Undertow（io.undertow:undertow-core，iengine-app test scope）+ Jackson，无其他第三方依赖。
  */
 public class MockTM {
 
@@ -55,9 +69,9 @@ public class MockTM {
 	private static final boolean LOG_REQUESTS = true;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
-	private final HttpServer server;
-	private final int port;
-	private final ExecutorService executor = Executors.newCachedThreadPool();
+	private final Undertow server;
+	/** 监听端口：构造时传入（0 表示自动分配），bind 后更新为实际端口 */
+	private volatile int port;
 	/** 集合名 -> 文档列表（文档为扁平 Map，主键 _id） */
 	private final ConcurrentHashMap<String, List<Map<String, Object>>> collections = new ConcurrentHashMap<>();
 	/** taskId -> transformAllParam 文档（Task/transformAllParam/{taskId} 独立存储，避免与 Task 文档互相覆盖） */
@@ -66,26 +80,24 @@ public class MockTM {
 	private final java.util.Set<String> failedTransformAllParams = ConcurrentHashMap.newKeySet();
 	/** taskId -> 最近一次下发（{@link #markTaskDispatched}）时间，用于丢弃停机流程尾部的过期状态回调 */
 	private final ConcurrentHashMap<String, Long> taskDispatchedAt = new ConcurrentHashMap<>();
+	/** WebSocket 会话：agentId -> 连接（引擎 ManagementWebsocketHandler 经 /ws/agent 建立；同一 agent 重连时替换旧连接） */
+	private final ConcurrentHashMap<String, WebSocketChannel> wsChannels = new ConcurrentHashMap<>();
+	/** 引擎经 WebSocket 上报的消息原文（按接收顺序，含心跳 ping），供测试等待/断言 */
+	private final ConcurrentLinkedQueue<String> wsReceivedMessages = new ConcurrentLinkedQueue<>();
 
 	private volatile String accessCode = "it-access-code";
 	private volatile File connectorJarDir;
 
-	public MockTM() throws IOException {
+	public MockTM() {
 		this(0);
 	}
 
-	public MockTM(int port) throws IOException {
-		try {
-			this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-		} catch (java.net.BindException e) {
-			// 常见于上次 failsafe fork JVM 残留（引擎为 JVM 级单例 + shutdown hook，
-			// SIGTERM 可能被挂起的 hook 阻塞）：kill -9 占用进程后重跑，或换 -Dengine.it.tm.port
-			throw new IllegalStateException("MockTM 端口 " + port + " 已被占用（可能有残留的 IT fork JVM，"
-					+ "lsof -nP -iTCP:" + port + " 定位后 kill -9，或换 -Dengine.it.tm.port）", e);
-		}
-		this.port = server.getAddress().getPort();
-		server.createContext("/", this::handle);
-		server.setExecutor(executor);
+	public MockTM(int port) {
+		this.port = port;
+		this.server = Undertow.builder()
+				.addHttpListener(port, "127.0.0.1")
+				.setHandler(rootHandler())
+				.build();
 	}
 
 	/** baseURL，形如 http://127.0.0.1:port/api/ */
@@ -97,13 +109,36 @@ public class MockTM {
 		return port;
 	}
 
+	/**
+	 * 绑定并开始服务。Undertow 的 bind 发生在 start()（构造 build 时不监听端口），
+	 * 端口 0（自动分配）时实际端口在 bind 后才能确定，故在此回写 {@link #port}。
+	 */
 	public void start() {
-		server.start();
+		try {
+			server.start();
+		} catch (RuntimeException e) {
+			// 端口占用在 start() 才暴露（原 JDK HttpServer 在构造时 bind）：包装为与原一致的提示
+			if (isBindException(e)) {
+				throw new IllegalStateException("MockTM 端口 " + port + " 已被占用（可能有残留的 IT fork JVM，"
+						+ "lsof -nP -iTCP:" + port + " 定位后 kill -9，或换 -Dengine.it.tm.port）", e);
+			}
+			throw e;
+		}
+		this.port = ((InetSocketAddress) server.getListenerInfo().get(0).getAddress()).getPort();
+	}
+
+	/** 沿 cause 链查找 BindException（Undertow 对 bind 失败的包装层级不固定） */
+	private static boolean isBindException(Throwable t) {
+		for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+			if (cur instanceof java.net.BindException) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public void stop() {
-		server.stop(0);
-		executor.shutdownNow();
+		server.stop();
 	}
 
 	public void setAccessCode(String accessCode) {
@@ -222,10 +257,41 @@ public class MockTM {
 
 	// ==================== HTTP 处理 ====================
 
-	private void handle(HttpExchange exchange) throws IOException {
+	/** 根 handler：WebSocket 升级请求（引擎 ManagementWebsocketHandler 连 /ws/agent）交给 WS 握手，
+	 *  其余（/api/ 开头的 REST 代理）走 HTTP 处理 */
+	private HttpHandler rootHandler() {
+		HttpHandler webSocketHandler = new WebSocketProtocolHandshakeHandler(this::onWsConnect);
+		return exchange -> {
+			if (isWebSocketUpgrade(exchange)) {
+				webSocketHandler.handleRequest(exchange);
+			} else {
+				handleHttp(exchange);
+			}
+		};
+	}
+
+	private boolean isWebSocketUpgrade(HttpServerExchange exchange) {
+		io.undertow.util.HeaderValues upgrade = exchange.getRequestHeaders().get(Headers.UPGRADE);
+		if (upgrade == null) {
+			return false;
+		}
+		for (String value : upgrade) {
+			if ("websocket".equalsIgnoreCase(value)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void handleHttp(HttpServerExchange exchange) {
+		// 阻塞式读写（读请求体）不能在 Undertow IO 线程执行：先派发到 worker 线程
+		if (exchange.isInIoThread()) {
+			exchange.dispatch(this::handleHttp);
+			return;
+		}
+		exchange.startBlocking();
 		try {
-			URI uri = exchange.getRequestURI();
-			String path = uri.getPath();
+			String path = exchange.getRequestPath();
 			// 去掉 /api/ 前缀
 			String resource = path;
 			if (resource.startsWith("/api/")) {
@@ -233,46 +299,167 @@ public class MockTM {
 			} else if (resource.startsWith("/api")) {
 				resource = resource.substring("/api".length());
 			}
-			Map<String, String> query = parseQuery(uri.getRawQuery());
+			Map<String, String> query = parseQuery(exchange.getQueryString());
 			byte[] body = readBody(exchange);
 
 			byte[] response;
-			if ("GET".equals(exchange.getRequestMethod())) {
+			String method = exchange.getRequestMethod().toString();
+			if ("GET".equals(method)) {
 				response = handleGet(resource, query);
-			} else if ("POST".equals(exchange.getRequestMethod())) {
+			} else if ("POST".equals(method)) {
 				response = handlePost(resource, query, body);
-			} else if ("DELETE".equals(exchange.getRequestMethod())) {
+			} else if ("DELETE".equals(method)) {
 				response = handleDelete(resource, query);
 			} else {
-				response = error(405, "Method not supported: " + exchange.getRequestMethod());
+				response = error(405, "Method not supported: " + method);
 			}
 			if (LOG_REQUESTS) {
 				if (resource.startsWith("pdk/jar")) {
 					// 二进制响应不打印内容，只打长度
-					System.out.println("[MockTM] " + exchange.getRequestMethod() + " " + resource + " -> " + response.length + " bytes");
+					System.out.println("[MockTM] " + method + " " + resource + " -> " + response.length + " bytes");
 				} else {
 					String respStr = new String(response, StandardCharsets.UTF_8);
 					// transformAllParam 响应含完整模型，放大截断长度便于排查模型加载
 					int maxLen = resource.contains("transformAllParam") ? 6000 : 300;
-					System.out.println("[MockTM] " + exchange.getRequestMethod() + " " + resource + (query.isEmpty() ? "" : " ?" + exchange.getRequestURI().getRawQuery())
+					System.out.println("[MockTM] " + method + " " + resource + (query.isEmpty() ? "" : " ?" + exchange.getQueryString())
 							+ " -> " + respStr.replaceAll("\\s+", " ").substring(0, Math.min(maxLen, respStr.length())));
 				}
 			}
 			// pdk/jar 下载返回 jar 二进制流，其余统一 JSON（引擎按 Content-Type 选择响应转换器）
-			exchange.getResponseHeaders().set("Content-Type", resource.startsWith("pdk/jar") ? "application/octet-stream" : "application/json");
-			exchange.sendResponseHeaders(200, response.length);
-			exchange.getResponseBody().write(response);
+			exchange.getResponseHeaders().put(Headers.CONTENT_TYPE,
+					resource.startsWith("pdk/jar") ? "application/octet-stream" : "application/json");
+			exchange.setStatusCode(200);
+			exchange.getResponseSender().send(ByteBuffer.wrap(response));
 		} catch (Exception e) {
 			byte[] response = error(500, "MockTM internal error: " + e.getMessage());
 			try {
-				exchange.getResponseHeaders().set("Content-Type", "application/json");
-				exchange.sendResponseHeaders(500, response.length);
-				exchange.getResponseBody().write(response);
-			} catch (IOException ignore) {
+				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+				exchange.setStatusCode(500);
+				exchange.getResponseSender().send(ByteBuffer.wrap(response));
+			} catch (Exception ignore) {
 			}
-		} finally {
-			exchange.close();
 		}
+	}
+
+	// ==================== WebSocket（引擎 ManagementWebsocketHandler 经 /ws/agent 连接） ====================
+
+	/**
+	 * WS 握手完成回调：按握手 query 的 agentId 登记会话。此后引擎的心跳 ping 与事件上报都从该连接到达，
+	 * MockTM 对心跳 ping 回 pong（与真实 TM PingHandler 语义一致，见 {@link #sendPong}），
+	 * 其余消息仅记录供测试断言（引擎上报不依赖 TM 回执，保持安静不干扰任务流程）。
+	 */
+	private void onWsConnect(WebSocketHttpExchange exchange, WebSocketChannel channel) {
+		Map<String, String> params = parseQuery(exchange.getQueryString());
+		String agentId = params.getOrDefault("agentId", "unknown");
+		WebSocketChannel previous = wsChannels.put(agentId, channel);
+		if (previous != null && previous != channel) {
+			// 同一 agent 重连（引擎触发 reconnect 时会先释放旧连接）：关闭旧连接避免双会话
+			WebSockets.sendClose(new CloseMessage(CloseMessage.NORMAL_CLOSURE, "replaced by new connection"), previous, null);
+		}
+		System.out.println("[MockTM] WebSocket connected: agentId=" + agentId
+				+ ("unknown".equals(agentId) ? "?" + exchange.getQueryString() : ""));
+		channel.getReceiveSetter().set(new AbstractReceiveListener() {
+			@Override
+			protected void onFullTextMessage(WebSocketChannel ch, BufferedTextMessage message) {
+				handleWsText(agentId, ch, message.getData());
+			}
+
+			@Override
+			protected void onCloseMessage(CloseMessage closeMessage, WebSocketChannel ch) {
+				wsChannels.remove(agentId, ch);
+				System.out.println("[MockTM] WebSocket closed: agentId=" + agentId + ", code=" + closeMessage.getCode());
+			}
+
+			@Override
+			protected void onError(WebSocketChannel ch, Throwable error) {
+				wsChannels.remove(agentId, ch);
+				System.out.println("[MockTM] WebSocket error from agent " + agentId + ": " + error);
+			}
+		});
+		channel.resumeReceives();
+	}
+
+	/** 处理引擎经 WS 发来的文本消息：ping 回 pong（保持心跳健康），其余仅记录 */
+	private void handleWsText(String agentId, WebSocketChannel channel, String text) {
+		wsReceivedMessages.add(text);
+		String logText = text.length() > 300 ? text.substring(0, 300) + "..." : text;
+		System.out.println("[MockTM][ws] from " + agentId + ": " + logText);
+		try {
+			JsonNode event = objectMapper.readTree(text);
+			if ("ping".equals(event.path("type").asText())) {
+				sendPong(channel, event);
+			}
+		} catch (JsonProcessingException ignore) {
+			// 非 JSON 文本仅记录
+		}
+	}
+
+	/**
+	 * 回 pong：信封与真实 TM 一致（{@code {code:ok, data:pingDto, type:pong}}），data 回显 ping 的
+	 * pingId/pingType 并置 pingResult=OK（枚举序列化值）。引擎 PongHandler.handleResponse 按
+	 * data.pingId 匹配、data.pingResult 判定，不回 pong 会让引擎连续 2 次心跳失败触发断线重连。
+	 */
+	private void sendPong(WebSocketChannel channel, JsonNode pingEvent) {
+		JsonNode data = pingEvent.path("data");
+		Map<String, Object> pongData = new LinkedHashMap<>();
+		pongData.put("pingId", data.path("pingId").asText(null));
+		pongData.put("pingType", data.path("pingType").asText("WEBSOCKET_HEALTH"));
+		pongData.put("pingResult", "OK");
+		try {
+			String json = objectMapper.writeValueAsString(okWs("pong", pongData));
+			WebSockets.sendText(json, channel, null);
+		} catch (JsonProcessingException e) {
+			System.out.println("[MockTM][ws] serialize pong failed: " + e.getMessage());
+		}
+	}
+
+	/** 与 TM WebSocketResult 相同的回执信封：{code: ok, data, type} */
+	private Map<String, Object> okWs(String type, Object data) {
+		Map<String, Object> resp = new LinkedHashMap<>();
+		resp.put("code", SUCCESS_CODE);
+		if (data != null) {
+			resp.put("data", data);
+		}
+		resp.put("type", type);
+		return resp;
+	}
+
+	// ---- WebSocket 测试辅助 API ----
+
+	/**
+	 * 向指定 agent 的 WebSocket 连接推送文本消息（模拟 TM 主动下发，如 dataSync START/STOP 消息，
+	 * 格式见 {@code {type:"pipe", data:{type:"dataSync", taskId, opType:"START|STOP"}}}）。
+	 *
+	 * @return 是否已发送（该 agent 无活动连接时返回 false，调用方应回退 HTTP 轮询路径）
+	 */
+	public boolean sendToAgent(String agentId, String jsonText) {
+		WebSocketChannel channel = wsChannels.get(agentId);
+		if (channel == null || !channel.isOpen()) {
+			System.out.println("[MockTM][ws] no open session for agent " + agentId + ", drop message: " + jsonText);
+			return false;
+		}
+		WebSockets.sendText(jsonText, channel, null);
+		System.out.println("[MockTM][ws] to " + agentId + ": " + jsonText);
+		return true;
+	}
+
+	/** 当前已建立 WebSocket 连接的 agentId 集合（引擎心跳正常时包含 EngineRuntime 的 instanceNo） */
+	public Set<String> getWsConnectedAgentIds() {
+		return new HashSet<>(wsChannels.keySet());
+	}
+
+	/** 引擎经 WebSocket 上报的消息数（含心跳 ping），供测试等待/断言 */
+	public int getWsMessageCount() {
+		return wsReceivedMessages.size();
+	}
+
+	/** 取最近 count 条引擎上报的 WS 消息原文（最早的在前面；count<=0 返回全部） */
+	public List<String> getWsMessages(int count) {
+		List<String> all = new ArrayList<>(wsReceivedMessages);
+		if (count <= 0 || count >= all.size()) {
+			return all;
+		}
+		return new ArrayList<>(all.subList(all.size() - count, all.size()));
 	}
 
 	// ==================== GET ====================
@@ -597,6 +784,9 @@ public class MockTM {
 		}
 		if (bodyNode != null && bodyNode.isArray()) {
 			for (JsonNode item : bodyNode) {
+				if (!item.isObject()) {
+					continue; // 容忍标量数组（如表名列表），不做 Map 反序列化
+				}
 				insert(collection, objectMapper.convertValue(item, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
 				}));
 			}
@@ -1264,12 +1454,12 @@ public class MockTM {
 		}
 	}
 
-	private byte[] readBody(HttpExchange exchange) throws IOException {
+	private byte[] readBody(HttpServerExchange exchange) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		try (InputStream in = exchange.getRequestBody()) {
+		try (InputStream in = exchange.getInputStream()) {
 			// 引擎 RestTemplateOperator 对 >1024B 的请求体会 gzip 压缩
 			InputStream source = in;
-			String encoding = exchange.getRequestHeaders().getFirst("Content-Encoding");
+			String encoding = exchange.getRequestHeaders().getFirst(Headers.CONTENT_ENCODING);
 			if (encoding != null && encoding.toLowerCase().contains("gzip")) {
 				source = new GZIPInputStream(in);
 			}

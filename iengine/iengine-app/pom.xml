@@ -27,6 +27,8 @@
         <!-- 引擎 IT 默认不启用 JVM 断言（与生产引擎 JVM 一致）；
              -Dengine.it.enableAssertions=true 可复现 -ea 下 mysql connector CDC 启动报错的场景 -->
         <engine.it.enableAssertions>false</engine.it.enableAssertions>
+        <!-- DBForge 控制面 Java SDK 版本（MySqlMongoIT 动态申请数据库用；-Ddbforge.sdk.version= 可覆盖） -->
+        <dbforge.sdk.version>0.6.13-SNAPSHOT</dbforge.sdk.version>
     </properties>
     <dependencies>
         <dependency>
@@ -371,10 +373,37 @@
             <version>1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
+        <!-- DBForge 控制面 Java SDK：MySqlMongoIT 经 DbForgeProvisioner 按需申请 MySQL/MongoDB 租约，
+             再用 ssh -L 把租约动态 NodePort 转发到本地供引擎连接器与旁路验证器使用。
+             仅 test 作用域（不进生产构件）；需先安装/部署 dbforge-sdk 到本地仓库或 Nexus
+             （cd dbforge/sdk/java && mvn -o install）。仅当 DBF_IT_ENDPOINT 设置时才真正调用。 -->
+        <dependency>
+            <groupId>io.tapdata.dbforge</groupId>
+            <artifactId>dbforge-sdk</artifactId>
+            <version>${dbforge.sdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- PostgreSQL JDBC 驱动：MySql2PostgresIT 等以 Postgres 为目标/源的组合，其直连旁路验证器
+             JdbcVerifier 在测试 JVM 内 DriverManager 建 jdbc:postgresql 连接需要它（连接器 jar 走独立
+             PDK classloader，不进测试 classpath）。版本对齐 postgres-connector（42.7.5），仅 test 作用域。 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.5</version>
+            <scope>test</scope>
+        </dependency>
         <!-- 被测连接器不进入 classpath（避免 connector 内嵌 netty/blockhound SPI 污染 ClassScanner 的 io.tapdata 扫描）；
              引擎运行任务时按任务配置经 MockTM pdk/jar/v2 下载 connector jar，TapConnectorManager 独立 classloader 加载 -->
         <!-- MongoDB 直连（MongoFixture 预置/清理）：依赖经 iengine 传递链提供（compile→test classpath），
              此处不显式声明，避免覆盖传递 scope 导致 main 编译缺 mongodb-driver-sync -->
+        <!-- MockTM 的 HTTP/WebSocket 服务端：替代 JDK 内置 HttpServer，同一端口同时处理 REST 代理
+             与引擎 ManagementWebsocketHandler 的 /ws/agent 连接（握手/心跳 ping→pong） -->
+        <dependency>
+            <groupId>io.undertow</groupId>
+            <artifactId>undertow-core</artifactId>
+            <version>2.4.3.Final</version>
+            <scope>test</scope>
+        </dependency>
         <!-- Test Dependencies -->
     </dependencies>
 
@@ -463,6 +492,14 @@
                 <version>3.0.0</version>
                 <configuration>
                     <skipITs>${skipITs}</skipITs>
+                    <!-- 类级别多进程 fork 并行：reuseForks=false 使每个 *IT 类独占一个全新 JVM，
+                         从根上隔离引擎 JVM 级静态单例（EngineIT.engineIT/taskService、Hazelcast 静态注册表），
+                         避免同 JVM 内跨组合串扰；forkCount 个 JVM 并行。端口/工作目录按 ${surefire.forkNumber} 逐 fork 隔离。 -->
+                    <forkCount>${engine.it.forkCount}</forkCount>
+                    <reuseForks>false</reuseForks>
+                    <!-- 每个 fork 独占工作目录：既是进程 cwd（决定 PdkUtil 下载目录 {user.dir}/dist，
+                         避免并行 fork 互删/并发写同名 connector jar），又用作 RocksDB/Chronicle 落盘根 -->
+                    <workingDirectory>${project.build.directory}/engine-it-work/fork${surefire.forkNumber}</workingDirectory>
                     <!-- 引擎 IT 依赖真实数据库：MongoDB 27017 + MySQL（-Dengine.it.* 可覆盖连接配置） -->
                     <includes>
                         <include>**/*IT.java</include>
@@ -492,20 +529,30 @@
                         --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED
                     </argLine>
                     <!-- 引擎 IT：mock TM 交互，引擎以 DAAS 形态运行（isCloud=false）；集合读写仍全走 MockTM REST 代理，
-                         任务状态存储（PdkStateMap）按 DAAS 形态落 TAPDATA_MONGO_URI 指向的 MongoDB；
+                         任务状态存储（PdkStateMap external storage）用嵌入式 RocksDB（落 TAPDATA_WORK_DIR），不再硬性依赖 MongoDB；
                          环境变量为引擎启动必需（System.getenv 在 JVM 内只读，须由 failsafe 注入） -->
                     <environmentVariables>
                         <app_type>DAAS</app_type>
                         <isCloud>false</isCloud>
-                        <TAPDATA_MONGO_URI>mongodb://127.0.0.1:27017/tapdata</TAPDATA_MONGO_URI>
+                        <!-- TAPDATA_MONGO_URI 仅为 DAAS 形态下引擎“尽力而为”的 MongoDB 服务（如 CacheInvalidationService
+                             建索引、ConnectorManager mongoURI 回退目标）提供地址：指向本地端口并把超时压到 150ms，
+                             有本地 mongod 就用、没有则秒失败，绝不阻塞 IT。任务状态存储已走 RocksDB，此地址非硬依赖。 -->
+                        <TAPDATA_MONGO_URI>mongodb://127.0.0.1:27017/tapdata?serverSelectionTimeoutMS=150&amp;connectTimeoutMS=150</TAPDATA_MONGO_URI>
                         <process_id>engine-it-agent</process_id>
+                        <!-- 下面 backend_url / TAPDATA_WORK_DIR 是静态占位：failsafe 的 environmentVariables 不解析
+                             ${surefire.forkNumber}（仅 workingDirectory / systemPropertyVariables 逐 fork 替换），
+                             故这两个需逐 fork 变化的值由 EngineRuntime 在启动 Spring 上下文前用反射改写进程 env 实现：
+                             backend_url 取自下方逐 fork 的 engine.it.tm.port 系统属性，TAPDATA_WORK_DIR 取自逐 fork 的 user.dir -->
                         <TAPDATA_WORK_DIR>${project.build.directory}/engine-it-work</TAPDATA_WORK_DIR>
                         <mode>singleton</mode>
                         <cloud_accessCode>it-access-code</cloud_accessCode>
                         <backend_url>http://127.0.0.1:${engine.it.tm.port}/api/</backend_url>
                     </environmentVariables>
                     <systemPropertyVariables>
-                        <engine.it.tm.port>${engine.it.tm.port}</engine.it.tm.port>
+                        <!-- MockTM 绑定端口逐 fork 唯一（18{forkNumber}80：fork1=18180、fork2=18280…）；
+                             ${surefire.forkNumber} 在 systemPropertyVariables 中会被逐 fork 替换，
+                             EngineRuntime 读此属性绑定 MockTM 并把同名端口反射写回 backend_url env -->
+                        <engine.it.tm.port>18${surefire.forkNumber}80</engine.it.tm.port>
                     </systemPropertyVariables>
                 </configuration>
                 <executions>

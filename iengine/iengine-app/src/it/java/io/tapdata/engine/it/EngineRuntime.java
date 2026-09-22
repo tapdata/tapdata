@@ -3,7 +3,6 @@ package io.tapdata.engine.it;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hazelcast.core.Hazelcast;
-import com.sun.net.httpserver.HttpServer;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -116,6 +115,14 @@ public class EngineRuntime implements AutoCloseable {
 		System.setProperty("pdk_update_jar_when_idle_at_runtime", "false");
 		System.setProperty("tap_verbose", "true");
 
+		// 2.5 逐 fork 对齐进程 env：failsafe 的 environmentVariables 不解析 ${surefire.forkNumber}，
+		//     而并行时每个 fork 的 MockTM 端口（取自已逐 fork 替换的 engine.it.tm.port 系统属性）与工作
+		//     目录（cwd=user.dir，已逐 fork 隔离）都不同，故在启动 Spring 上下文前反射改写 backend_url /
+		//     TAPDATA_WORK_DIR，使引擎（System.getenv 读取）连到本 fork 自己的 MockTM、且 RocksDB/Chronicle
+		//     落在本 fork 独占目录，避免并行 fork 互相串扰。
+		overrideProcessEnv("backend_url", "http://127.0.0.1:" + port + "/api/");
+		overrideProcessEnv("TAPDATA_WORK_DIR", System.getProperty("user.dir"));
+
 		// 3. 启动引擎 Spring 上下文（与 Application.main 相同配置，但不 System.exit）
 		ConfigurableApplicationContext context = new SpringApplicationBuilder(Application.class)
 				.allowCircularReferences(true)
@@ -129,7 +136,11 @@ public class EngineRuntime implements AutoCloseable {
 		configurationCenter.putConfig("gitCommitId", "-");
 
 		// 4. 引擎就绪后，显式启动 HTTP 轮询调度（模拟真实部署中 WS 断连后的 fallback），
-		//    使 wait_run 任务可被引擎轮询认领
+		//    使 wait_run 任务可被引擎轮询认领。
+		//    注：MockTM 已支持 WebSocket（/ws/agent + 心跳 pong），引擎 ManagementWebsocketHandler
+		//    会保持长连接；其 handleWhenPingSucceed 用 DebounceUtil(10s) 停这两个调度——只要心跳
+		//    持续成功（每 5s 一次），防抖定时器被不断重置，stop 永远不会执行，故这里的轮询
+		//    在 WS 健康期间也稳定运行，任务下发/停止路径与 WS 未接入前完全一致。
 		TapdataTaskScheduler taskScheduler = context.getBean(TapdataTaskScheduler.class);
 		taskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
 		taskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
@@ -150,6 +161,43 @@ public class EngineRuntime implements AutoCloseable {
 			if (!jar.delete()) {
 				logger.warn("Engine IT: clean downloaded connector jar failed: {}", jar);
 			}
+		}
+	}
+
+	/**
+	 * 反射改写当前 JVM 进程的环境变量（仅测试侧 fork 隔离用）。
+	 * <p>
+	 * JDK17 下 {@code ProcessEnvironment.theEnvironment} 的 key 类型是私有类 {@code ProcessEnvironment$Variable}，
+	 * 往其塞 String key 会让 Spring 枚举 {@code System.getenv().keySet()} 时抛
+	 * {@code ClassCastException: String cannot be cast to Variable}（引擎 Spring 上下文启动即失败）。
+	 * 正确目标是 {@code theUnmodifiableEnvironment}（即 {@code System.getenv()} 的返回值）背后的
+	 * {@code StringEnvironment}（String→String）：{@code getenv(name)}、{@code getenv().get} 与遍历都走它。
+	 * Windows 另有 {@code theCaseInsensitiveEnvironment}（String key）供 {@code getenv(name)} 使用，一并兜底。
+	 * <p>
+	 * 依赖 {@code --add-opens=java.base/java.lang} 与 {@code java.base/java.util}（failsafe argLine 已开启）。
+	 */
+	@SuppressWarnings("unchecked")
+	private static void overrideProcessEnv(String key, String value) {
+		try {
+			Class<?> processEnvironment = Class.forName("java.lang.ProcessEnvironment");
+			// 主目标：theUnmodifiableEnvironment -> backing StringEnvironment（String keys），Unix/Win 通用
+			Field unmodField = processEnvironment.getDeclaredField("theUnmodifiableEnvironment");
+			unmodField.setAccessible(true);
+			Object unmodifiable = unmodField.get(null);
+			Field backing = Class.forName("java.util.Collections$UnmodifiableMap").getDeclaredField("m");
+			backing.setAccessible(true);
+			((Map<String, String>) backing.get(unmodifiable)).put(key, value);
+			// Windows 兜底：System.getenv(name) 读 theCaseInsensitiveEnvironment（String key）
+			try {
+				Field caseInsensitive = processEnvironment.getDeclaredField("theCaseInsensitiveEnvironment");
+				caseInsensitive.setAccessible(true);
+				((Map<String, String>) caseInsensitive.get(null)).put(key, value);
+			} catch (NoSuchFieldException ignore) {
+				// Unix 无此字段
+			}
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			throw new IllegalStateException("改写进程环境变量失败：" + key
+					+ "（需 --add-opens=java.base/java.lang=ALL-UNNAMED 与 java.base/java.util=ALL-UNNAMED）", e);
 		}
 	}
 
@@ -191,11 +239,8 @@ public class EngineRuntime implements AutoCloseable {
 		if (StringUtils.isBlank(backendUrl)) {
 			throw new IllegalStateException("backend_url env is blank (set via failsafe environmentVariables)");
 		}
-		String mongoUri = System.getenv("TAPDATA_MONGO_URI");
-		if (StringUtils.isBlank(mongoUri)) {
-			throw new IllegalStateException("TAPDATA_MONGO_URI env is blank (set via failsafe environmentVariables):"
-					+ " DAAS 形态下任务状态存储（PdkStateMap）走 external storage 而非 TM HTTP 代理，需提供 MongoDB URI");
-		}
+		// 任务状态存储（PdkStateMap external storage）已改用嵌入式 RocksDB（见 seedBaseData），
+		// 不再依赖 TAPDATA_MONGO_URI / 本地 MongoDB。
 	}
 
 	/** 预置引擎启动必需数据：Settings（buildProfile 等）/User（登录）/Workers（注册 worker 信息） */
@@ -232,11 +277,13 @@ public class EngineRuntime implements AutoCloseable {
 		worker.put("stopping", false);
 		mockTM.put("Workers", Collections.singletonList(worker));
 
-		// ExternalStorage：DAAS 形态的任务状态存储（PdkStateMap.initConstructMap 非 cloud 分支），
-		// 按生产 DAAS 的 "Tapdata MongoDB External Storage" 配 type=mongodb，uri 取 failsafe 注入的 TAPDATA_MONGO_URI。
-		// 不能配 type=httptm：HttpTMIMap 未实现 PersistenceStorageStore.isEmpty()（基类直接抛
-		// UnsupportedOperationException），而 DAAS 分支 initNodeStateMap 必调 isEmpty() 探测 V1/V2，
-		// 节点 init 即失败→任务 runError（mongodb/rocksdb 存储已实现 isEmpty）。
+		// ExternalStorage：DAAS 形态的任务状态存储（PdkStateMap.initConstructMap 非 cloud 分支）。
+		// 用 type=rocksdb（嵌入式、落 TAPDATA_WORK_DIR 下的本地目录）：与 mongodb 一样实现了
+		// PersistenceStorageStore.isEmpty()（DAAS 分支 initNodeStateMap 必调 isEmpty() 探测 V1/V2，
+		// httptm 未实现会抛 UnsupportedOperationException → 节点 init 失败），但零外部依赖：
+		// 不需跑本地 mongod，也不受副本集 / createIndexes commitQuorum 约束。
+		// uri 是相对 TAPDATA_WORK_DIR 的子路径（ExternalStorageUtil.getRocksDBConfig 会 workDir+uri 并递归 mkdirs）。
+		// 若要改回验证生产同款 MongoDB 持久化路径：type=mongodb + uri=TAPDATA_MONGO_URI（须为副本集）。
 		// 注意：_id/id 必须是 24 位 hex（ExternalStorageDto.id 为 ObjectId，
 		// 引擎反序列化用 ObjectIdDeserialize 校验 ^[0-9a-fA-F]{24}$，非 hex 会反序列化为 null
 		// 导致 ExternalStorageUtil.getExternalStorageMap 的 getId().toHexString() NPE）
@@ -244,10 +291,10 @@ public class EngineRuntime implements AutoCloseable {
 		Map<String, Object> externalStorage = new LinkedHashMap<>();
 		externalStorage.put("_id", externalStorageId);
 		externalStorage.put("id", externalStorageId);
-		externalStorage.put("name", "Tapdata MongoDB External Storage");
-		externalStorage.put("type", "mongodb");
+		externalStorage.put("name", "Tapdata RocksDB External Storage");
+		externalStorage.put("type", "rocksdb");
 		externalStorage.put("defaultStorage", true);
-		externalStorage.put("uri", System.getenv("TAPDATA_MONGO_URI"));
+		externalStorage.put("uri", "/engine-it-persistence/state");
 		externalStorage.put("canEdit", false);
 		externalStorage.put("canDelete", false);
 		mockTM.put("ExternalStorage", Collections.singletonList(externalStorage));

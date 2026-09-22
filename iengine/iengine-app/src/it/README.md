@@ -1,6 +1,6 @@
 # 引擎集成测试（Engine IT）
 
-引擎（iengine-app）集成测试：**不依赖 MongoDB，只依赖管理端 TM**。引擎以 DAAS 形态
+引擎（iengine-app）集成测试：**引擎运行时不依赖任何外部数据库，只依赖管理端 TM**（任务状态存储走嵌入式 RocksDB）。引擎以 DAAS 形态
 （`isCloud=false`）启动，与 TM 的全部交互（下载 connector、获取任务配置、加载模型、上报心跳、更新任务
 状态/指标等）由本目录的 `MockTM` 模拟；任务真实运行（真实 connector 读写真实数据库），
 用于验证引擎调度、全量/增量流转、生命周期、断点续跑等行为。
@@ -27,8 +27,9 @@ connector 时，只需新增一个配置具体类实现 `EngineIT` 的扩展点�
 │    ├── 扩展点：sourceSpec()/targetSpec()/testTableFields()/prepareEnvironment()  │
 │    │           directSourceVerifier()/directTargetVerifier()                     │
 │    ├── EngineRuntime ── 启动 MockTM + 预置数据 + Spring 上下文（引擎本体）       │
-│    │     ├── MockTM（JDK HttpServer）── login / singleton-lock / health /        │
-│    │     │    Task CRUD / transformAllParam / syncProgress / pdk jar 下载等端点   │
+│    │     ├── MockTM（Undertow：HTTP + WebSocket）── login / singleton-lock /   │
+│    │     │    health / Task CRUD / transformAllParam / syncProgress /          │
+│    │     │    pdk jar 下载等端点 + /ws/agent（心跳 ping→pong）                 │
 │    │     └── 引擎启动后经 Spring Boot 启动流程向 MockTM 注册、轮询任务            │
 │    ├── TaskFixture ── Connection 预置（连接规格由扩展点提供）                    │
 │    ├── TaskDtoBuilder ── 任务 DTO 构造（migrate / fullSync）                     │
@@ -42,7 +43,7 @@ connector 时，只需新增一个配置具体类实现 `EngineIT` 的扩展点�
 
 | 组件 | 职责 |
 | --- | --- |
-| [MockTM](java/io/tapdata/engine/it/mock/MockTM.java) | 模拟管理端 TM：`login`、`agent/singleton-lock`、`health`、`Task` 集合 REST 代理（find/findById/updateById/updateField）、`Task/transformAllParam/{taskId}`（任务配置下发）、`Task/syncProgress/{taskId}`（进度上报）、`pdk/jar/v2`（connector jar 下载）+ `pdk/checkMd5/v3`（jar md5 校验）。内存集合 + 简易查询匹配（支持顶层 `_id`+`$or`/`$and` 混合） |
+| [MockTM](java/io/tapdata/engine/it/mock/MockTM.java) | 模拟管理端 TM（**Undertow 同一端口同时提供 HTTP 与 WebSocket**）：`login`、`agent/singleton-lock`、`health`、`Task` 集合 REST 代理（find/findById/updateById/updateField）、`Task/transformAllParam/{taskId}`（任务配置下发）、`Task/syncProgress/{taskId}`（进度上报）、`pdk/jar/v2`（connector jar 下载）+ `pdk/checkMd5/v3`（jar md5 校验）、`/ws/agent`（引擎 WS 长连接，心跳 ping 回 pong，上报消息可经 `getWsMessages` 断言、`sendToAgent` 模拟 TM 推送）。内存集合 + 简易查询匹配（支持顶层 `_id`+`$or`/`$and` 混合） |
 | [EngineRuntime](java/io/tapdata/engine/it/EngineRuntime.java) | 公共运行时：启动 MockTM（端口 `engine.it.tm.port`，默认 18080）、预置 Agent/Connection 基础数据、启动 Spring 上下文（真实引擎）、提供下发任务/查询状态/请求停止等 API。`close()` 关闭引擎与 MockTM |
 | [TaskFixture](java/io/tapdata/engine/it/TaskFixture.java) | Connection 等预置数据定义（连接规格由基类扩展点提供，连接 ID 固定为 24 位十六进制，引擎侧需转 ObjectId） |
 | [TaskDtoBuilder](java/io/tapdata/engine/it/TaskDtoBuilder.java) | 任务 DTO 构造：`buildMigrateTask`（迁移：全量+增量）、`buildFullSyncTask`（全量同步）。节点 id、边、转换参数按引擎运行契约拼装 |
@@ -63,13 +64,14 @@ connector 时，只需新增一个配置具体类实现 `EngineIT` 的扩展点�
 | `POST /api/Task/syncProgress/{taskId}` | 引擎上报各节点同步进度（`syncStage`：`INIT` → `CDC`/`FULL` → `DONE`） |
 | `GET /api/pdk/jar/v2?pdkHash=&pdkBuildNumber=` | connector jar 下载（按任务配置的 pdkHash/fileName 定位 jar，返回二进制流） |
 | `GET /api/pdk/checkMd5/v3?pdkHash=&fileName=` | jar md5 校验（返回与 `PdkSourceUtils.getFileMD5` 相同格式的 md5，避免引擎反复重下） |
+| `ws://…/ws/agent?agentId=&access_token=` | WebSocket 端点（引擎 ManagementWebsocketHandler 懒连接，首个心跳触发）：握手后引擎每 5s 发 `{type:"ping", data:{pingType:"WEBSOCKET_HEALTH"}}`，MockTM 回 `{type:"pong", data:{pingId, pingResult:"OK"}}` 保持连接健康（与 TM PingHandler 语义一致）；连接失败/心跳不回会导致引擎进入重连与 HTTP 轮询启停抖动 |
 
 ## 环境依赖（当前组合：MySQL → MongoDB，由 `MySqlMongoIT` 定义）
 
 | 依赖 | 位置 | 说明 |
 | --- | --- | --- |
 | MySQL | `127.0.0.1:13306`，root/root（`IT_MYSQL_*` 环境变量可覆盖） | 源库 `it_smoke_db` 由 `MySqlMongoIT.prepareEnvironment()` 预创建（连接器连接 URL 含库名，库必须存在）；测试表随机名 `it_tbl_*`，任务下发前经直连验证器创建 |
-| MongoDB | `127.0.0.1:27017`（`IT_MONGO_*` 环境变量可覆盖） | 目标库 `it_smoke_db`（集合由引擎写入时隐式创建）；另作引擎任务状态存储库 `tapdata`（failsafe 注入的 `TAPDATA_MONGO_URI`，DAAS 形态下 PdkStateMap 落此库） |
+| MongoDB（仅目标库） | `127.0.0.1:27017`（`IT_MONGO_*` 可覆盖；场景 1/2/3 由 dbforge 动态供应，无本地实例） | 仅作为本组合 MySQL→MongoDB 的**数据目标** `it_smoke_db`（集合由引擎写入时隐式创建）。引擎任务状态存储已改走嵌入式 RocksDB，**不再把 MongoDB 当状态库** |
 | connector jar | `~/.m2/repository/io/tapdata` 下的 `{mysql|mongodb}-connector/1.0-SNAPSHOT/*.jar`（递归扫描） | 该目录作为 MockTM `pdk/jar/v2` 的下载源（模拟 TM 侧连接器包库）；引擎侧无本地预置，运行任务时按任务配置（DatabaseType 的 pdkHash/jarFile/jarRid）自动下载并加载 |
 | **JDK 17** | 本机（**不能是 18+**） | 与引擎生产镜像 `eclipse-temurin:17-jdk` 一致；JDK 18+ 上 chronicle-core 2.21.91 初始化即抛 AssertionError（详见「关键实现要点」）。`EngineRuntime.checkEnv()` 会先拦住并提示原因 |
 
@@ -83,8 +85,14 @@ cd tapdata/iengine/iengine-app
 # 必须用 JDK 17（与引擎生产镜像一致），否则 chronicle-core 初始化失败→所有任务 runError
 # 注：JAVA_HOME 要指向 JDK 17 的**真实路径**；本机 JDK 17 装在 /Users/lg/app/java 下、
 # 未注册到系统，`/usr/libexec/java_home -v 17` 会回退返 JDK 21（由 checkEnv 拦住）
+# 执行模型：类级别多进程 fork 并行——每个 *IT 类独占一个全新 JVM（reuseForks=false），
+# 最多 ${engine.it.forkCount}（默认 2）个 JVM 并行；端口/工作目录/dist 逐 fork 隔离（见下）
 JAVA_HOME=/Users/lg/app/java/jdk-17.0.12.jdk/Contents/Home /Users/lg/app/maven/maven/bin/mvn -o test-compile \
   failsafe:integration-test failsafe:verify -DskipITs=false
+
+# 调整并行度（如资源受限时降为 1 个 fork 顺序跑，仍是每类独立 JVM）
+JAVA_HOME=/Users/lg/app/java/jdk-17.0.12.jdk/Contents/Home /Users/lg/app/maven/maven/bin/mvn -o test-compile \
+  failsafe:integration-test failsafe:verify -DskipITs=false -Dengine.it.forkCount=1
 
 # 指定用例（通用用例均在组合类中执行，-Dit.test 按组合类 + 方法名过滤）
 JAVA_HOME=/Users/lg/app/java/jdk-17.0.12.jdk/Contents/Home /Users/lg/app/maven/maven/bin/mvn -o test-compile \
@@ -96,34 +104,40 @@ JAVA_HOME=/Users/lg/app/java/jdk-17.0.12.jdk/Contents/Home /Users/lg/app/maven/m
   failsafe:integration-test failsafe:verify -DskipITs=false \
   -Dit.test=MySqlMongoIT#should_incremental_insert
 
-# 自定义 MockTM 端口（默认 18080，冲突时换端口）
+# MockTM 端口逐 fork 自动派生为 18<forkNumber>80（fork1=18180、fork2=18280…），无需手工指定；
+# 单类调试（forkNumber=1）若 18180 被占用，释放即可：lsof -nP -iTCP:18180 -sTCP:LISTEN 后 kill -9
 JAVA_HOME=/Users/lg/app/java/jdk-17.0.12.jdk/Contents/Home /Users/lg/app/maven/maven/bin/mvn -o test-compile \
   failsafe:integration-test failsafe:verify -DskipITs=false \
-  -Dit.test=MySqlMongoIT -Dengine.it.tm.port=18081
+  -Dit.test=MySqlMongoIT
 ```
 
 > 在 IDEA 中直接跑 `MySqlMongoIT`：必须把运行配置的 **Enable assertions（`-ea`）去掉**，
 > 并手工补上 pom 里 failsafe `environmentVariables` 的那几个环境变量（`app_type` /
-> `isCloud` / `TAPDATA_MONGO_URI` / `process_id` / `mode` / `cloud_accessCode` /
-> `TAPDATA_WORK_DIR` / `backend_url`，`backend_url` 指向 `http://127.0.0.1:18080/api/`）；
+> `isCloud` / `process_id` / `mode` / `cloud_accessCode` / `TAPDATA_WORK_DIR` /
+> `backend_url`，`backend_url` 指向 `http://127.0.0.1:18080/api/`；`TAPDATA_MONGO_URI` 可选，
+> 仅供引擎“尽力而为”的 MongoDB 服务用，缺省即秒失败不影响用例，状态存储走 RocksDB）；
 > 未满足时 `EngineRuntime.checkEnv()` 会快速失败并提示缺失项（不建议用 IDEA 跑回归，
 > 以 maven failsafe 为基准）。
 
-> 残留进程清理：引擎为 JVM 级单例 + shutdown hook 关闭，failsafe 结束后 fork JVM
-> 可能不退出（SIGTERM 会被挂起的 hook 阻塞）。报 `MockTM 端口已被占用` /
-> Hazelcast 5701 冲突时：`lsof -nP -iTCP:18080 -iTCP:5701` 定位后 `kill -9 {pid}` 重跑。
+> 残留进程清理：每类一个 fork JVM，引擎靠 shutdown hook 关闭，failsafe 结束后 fork JVM
+> 可能不退出（SIGTERM 会被挂起的 hook 阻塞）。报 `MockTM 端口已被占用` / Hazelcast 5701
+> 冲突时：`lsof -nP -iTCP:18180 -iTCP:18280 -iTCP:5701 -iTCP:5702` 定位后 `kill -9 {pid}` 重跑。
 
-引擎运行环境（`app_type=DAAS`、`isCloud=false`、`TAPDATA_MONGO_URI`、`backend_url`、`TAPDATA_WORK_DIR` 等）
+引擎运行环境（`app_type=DAAS`、`isCloud=false`、`backend_url`、`TAPDATA_WORK_DIR` 等）
 由 pom 中 failsafe 的 `environmentVariables` 注入（引擎通过 `System.getenv` 读取，测试
 JVM 内不可改，故必须由 failsafe 注入）。DAAS 形态下集合读写仍全走 MockTM REST 代理，
-而任务状态存储（`PdkStateMap`）按非 cloud 分支落 `TAPDATA_MONGO_URI` 指向的 MongoDB。
+而任务状态存储（`PdkStateMap` external storage）配 `type=rocksdb`，落 `TAPDATA_WORK_DIR`
+下的本地目录（嵌入式、零外部依赖）。pom 里保留的 `TAPDATA_MONGO_URI` 只服务引擎少数
+“尽力而为”的 MongoDB 组件（如 `CacheInvalidationService` 建索引），已把超时压到 150ms，
+本地无 mongod 时秒失败、不阻塞用例。
 
 **运行产物**：
 
-- 任务日志：`target/engine-it-work/logs/jobs/{taskId}.log`
-- 引擎日志：`target/engine-it-work/logs/` 下各模块日志
+- 任务日志：`target/engine-it-work/fork{N}/logs/jobs/{taskId}.log`
+- 引擎日志：`target/engine-it-work/fork{N}/logs/` 下各模块日志（`TAPDATA_WORK_DIR` 逐 fork = 该 fork 的 cwd）
 - connector 下载源：`~/.m2/repository/io/tapdata`（MockTM 侧，模拟 TM 连接器包库）
-- connector 下载落盘：`dist/{jarFile}__{jarRid}__.jar`（引擎侧，`PdkUtil` 固定目录，每次运行前清理）
+- connector 下载落盘：`target/engine-it-work/fork{N}/dist/{jarFile}__{jarRid}__.jar`（引擎侧 `PdkUtil` 固定用
+  `{user.dir}/dist`，故随逐 fork 的 cwd 天然隔离；并行 fork 不会互删/并发写同名 jar）
 
 ## 用例清单
 
@@ -168,9 +182,20 @@ JVM 内不可改，故必须由 failsafe 注入）。DAAS 形态下集合读写�
   → `engineTransformSchema` 拿到 null → NPE → `TASK_FAILED_TO_LOAD_TABLE_STRUCTURE` → runError。
 - **tapType 必须是 JSON 字符串**（`{"type":8}`=TapNumber / `{"type":10}`=TapString）：
   裸字符串抛 JsonParseException 字段被跳过，导致 nameFieldMap 为空、SQL 生成语法错误。
-- **JVM 级引擎单例**：failsafe 同 JVM 顺序执行多个 IT 类，`@AfterAll` 反复启停引擎会因
-  Hazelcast 5701 / MockTM 端口未释放而 BindException——引擎启动后注册 shutdown hook 统一关闭。
-  所有 IT 类（含冒烟）统一继承 `EngineIT` 复用单例，不再各自 try-with-resources 启停。
+- **类级别多进程 fork 隔离**：failsafe `reuseForks=false` + `forkCount=${engine.it.forkCount}`（默认 2），
+  每个 `*IT` 类独占一个全新 JVM、并行跑。这从根本上隔离了引擎 JVM 级静态单例（`EngineIT.engineIT`/`taskService`、
+  Hazelcast 静态注册表），避免同 JVM 内跨组合串扰（第二个组合沿用第一个类的 target 而把任务建到错库）。
+  并行三靠隔离：① `workingDirectory=…/fork${surefire.forkNumber}`（决定 cwd→dist 逐 fork）；② MockTM 端口
+  逐 fork `18${forkNumber}80`（经 `systemPropertyVariables`，failsafe 会逐 fork 替换 `${surefire.forkNumber}`）；
+  ③ RocksDB/Chronicle 落 `TAPDATA_WORK_DIR`。因 failsafe `environmentVariables` **不**替换 `${surefire.forkNumber}`，
+  `backend_url`/`TAPDATA_WORK_DIR` 由 `EngineRuntime` 启动 Spring 前反射改写进程 env 逐 fork 对齐（见下条）。
+- **反射改写进程 env 的正确目标（JDK17）**：只能写 `System.getenv()` 返回的 `theUnmodifiableEnvironment`
+  背后的 `StringEnvironment`（String→String）；**不能**写 `theEnvironment`——JDK17 下其 key 是私有类
+  `ProcessEnvironment$Variable`，塞 String key 会让 Spring 枚举 env keySet 时抛
+  `ClassCastException: String cannot be cast to Variable`，引擎 Spring 上下文启动即失败。需
+  `--add-opens=java.base/java.lang` 与 `java.base/java.util`（argLine 已开）。
+- **`ExternalJarManager Copy encrypted jar … to …/connectors/tap-running/… failed` 是噪声**：紧随其后的
+  StateMachine 会 `load successfully` 并注册 connector（各用例全绿），不影响结果，无需处理。
 - **Hazelcast 实例不随 Spring context 关闭**：`HazelcastTaskService` @PostConstruct 创建具名实例，
   但 @PreDestroy 只关缓存失效服务不关实例——`EngineRuntime.close()` 必须显式
   `Hazelcast.shutdownAll()`，否则同 JVM 内下一次引擎启动抛实例已存在 / 端口占用。
@@ -214,9 +239,11 @@ JVM 内不可改，故必须由 failsafe 注入）。DAAS 形态下集合读写�
   `initNodeStateMap`，开头就要 `documentIMapV2.isEmpty()` 探测 V1/V2，而
   `HttpTMIMap` 未实现 `PersistenceStorageStore.isEmpty()`（基类直接抛
   `UnsupportedOperationException`，`MongoDBIMap`/`RocksDBIMap` 都实现了），于是连接器节点
-  init 必失败。因此 MockTM 预置的 ExternalStorage 按生产 DAAS 配 `type=mongodb`
-  （`uri` 取 failsafe 注入的 `TAPDATA_MONGO_URI`）；若需回到 cloud/DRS 形态验证，
-  需同时改 `app_type`/`isCloud` 并将存储改回 httptm。
+  init 必失败。IT 因此把 MockTM 预置的 ExternalStorage 配 `type=rocksdb`
+  （`uri` 给 `TAPDATA_WORK_DIR` 下的相对目录，嵌入式零外部依赖）——不再需要跑本地 mongod，
+  也不受 MongoDB 副本集 `createIndexes` 的 `commitQuorum` 约束（standalone mongod 会拒）。
+  若要验证生产同款 MongoDB 持久化路径，改回 `type=mongodb` + `uri=TAPDATA_MONGO_URI`
+  （须为副本集）；回到 cloud/DRS 形态则需同时改 `app_type`/`isCloud` 并将存储改回 httptm。
 - **IDEA 里跑 IT 必须去掉 `-ea`**：pom 已显式 `enableAssertions=false`，而 IDEA 的 JUnit
   运行配置模板默认加 `-ea`。mysql connector（debezium fork）
   `MySqlChangeEventSourceFactory.getStreamingChangeEventSource` 只调

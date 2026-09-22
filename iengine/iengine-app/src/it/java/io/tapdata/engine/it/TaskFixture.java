@@ -15,13 +15,17 @@ import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * 任务运行所需 TM 侧数据的预置器，与 {@link TaskDtoBuilder} 配合：
@@ -40,6 +44,10 @@ import java.util.Map;
  * 读取与写入数据。冒烟级字段规格由 {@link #field(String, String, TapType, boolean)} 提供。
  */
 public class TaskFixture {
+
+	/** 解析 connector jar 内 spec json 的轻量 Jackson mapper（仅用于抽取 dataTypes 表达式） */
+	private static final com.fasterxml.jackson.databind.ObjectMapper CONNECTOR_SPEC_MAPPER =
+			new com.fasterxml.jackson.databind.ObjectMapper();
 
 	private TaskFixture() {
 	}
@@ -120,9 +128,9 @@ public class TaskFixture {
 		/** MongoDB 连接（config key 与 mongodb connector 的 MongodbConfig 一致） */
 		public static ConnSpec mongodb(String id, String host, int port, String user, String password, String database) {
 			Map<String, Object> config = new LinkedHashMap<>();
-			// MongodbConfig.isUri 默认 true：getUri() 直接返回 uri 字段，空串会报 uri is blank，
-			// 因此必须给完整连接串（与真实 TM 保存的 uri 一致）
-			config.put("uri", "mongodb://" + host + ":" + port + "/" + database);
+			// MongodbConfig.isUri 默认 true：连接器只用 uri 建连（忽略 user/password），
+			// 故带鉴权时必须把凭证内嵌进 uri（含 authSource=租户库 + directConnection，兼容单节点副本集）。
+			config.put("uri", TaskFixture.mongoUri(host, port, user, password, database));
 			config.put("host", host);
 			config.put("port", port);
 			config.put("database", database);
@@ -138,6 +146,48 @@ public class TaskFixture {
 					.pdkType("pdk")
 					.config(config);
 		}
+	
+		/**
+		 * PostgreSQL 连接（config key 与 postgres connector 的 CommonDbConfig/PostgresConfig 一致：
+		 * {@code host/port/database/schema/user/password}，其中账号字段是 {@code user} 而非 username）。
+		 * <p>{@code databaseType} 取 {@code "postgres"}（= postgres-connector 注册 id、
+		 * {@code spec_postgres.json} 的 {@code "id"} 与构件名 {@code postgres-connector}），
+		 * <b>不是</b> dbforge 配置组名 {@code "postgresql"}（后者仅作连接配置分组，见 {@code cfg} 取值）；
+		 * jarFile = {@code databaseType + "-connector-1.0-SNAPSHOT.jar"} 因此恰为 {@code postgres-connector-1.0-SNAPSHOT.jar}。
+		 * <p>Postgres 的 schema 与 database 分离（不像 MySQL 库即命名空间），连接器读/写、建表
+		 * 均落在 {@code schema}（缺省 {@code public}），故本工厂必须显式下发 schema。
+		 */
+		public static ConnSpec postgresql(String id, String host, int port, String user, String password, String database, String schema) {
+			Map<String, Object> config = new LinkedHashMap<>();
+			config.put("deploymentMode", "standalone");
+			config.put("host", host);
+			config.put("port", port);
+			config.put("database", database);
+			config.put("schema", StringUtils.isNotBlank(schema) ? schema : "public");
+			config.put("user", user);
+			config.put("password", password);
+			return new ConnSpec()
+					.id(id)
+					.name(id)
+					.databaseType("postgres")
+					.pdkHash("postgres-pdk-hash")
+					.pdkType("pdk")
+					.config(config);
+		}
+	}
+
+	/**
+	 * 组装 MongoDB 连接串。有账号时把凭证内嵌进 uri，并带 {@code authSource=<database>}
+	 * （dbforge 专属实例的租户账号建在该库、非 admin）与 {@code directConnection=true}
+	 * （单节点副本集成员登记为集群内 localhost，直连可跳过拓扑发现）；无账号时返回裸串（本地免密）。
+	 * <p>凭证字母表为 {@code [A-Za-z0-9]}（dbforge GeneratePassword），无需百分号转义。
+	 */
+	public static String mongoUri(String host, int port, String user, String password, String database) {
+		if (StringUtils.isNotBlank(user)) {
+			return "mongodb://" + user + ":" + password + "@" + host + ":" + port + "/" + database
+					+ "?authSource=" + database + "&directConnection=true";
+		}
+		return "mongodb://" + host + ":" + port + "/" + database;
 	}
 
 	// ==================== 预置入口 ====================
@@ -230,13 +280,16 @@ public class TaskFixture {
 
 	private static List<MetadataInstancesDto> buildMetadataInstances(TaskDto taskDto, ConnSpec source, ConnSpec target, List<String> tables,
 			Map<String, DataSourceConnectionDto> dataSourceMap) {
-		// 源节点 id：DAGDataEngineServiceImpl.initializeModel 按 metadataInstances.nodeId 分组
-		// 把模型放入 tapTableMapHashMap（key=节点 id），HazelcastTaskService.getTapTableMap 按 node.getId() 取
-		String sourceNodeId = taskDto.getDag().getNodes().stream()
+		List<String> dataNodeIds = taskDto.getDag().getNodes().stream()
 				.filter(n -> n instanceof DatabaseNode || n instanceof TableNode)
 				.map(com.tapdata.tm.commons.dag.Element::getId)
-				.findFirst()
-				.orElseThrow(() -> new IllegalStateException("Not found source node in task dag"));
+				.collect(java.util.stream.Collectors.toList());
+		if (dataNodeIds.isEmpty()) {
+			throw new IllegalStateException("Not found source node in task dag");
+		}
+		// 源节点 id：DAGDataEngineServiceImpl.initializeModel 按 metadataInstances.nodeId 分组
+		// 把模型放入 tapTableMapHashMap（key=节点 id），HazelcastTaskService.getTapTableMap 按 node.getId() 取
+		String sourceNodeId = dataNodeIds.get(0);
 		List<MetadataInstancesDto> result = new ArrayList<>();
 		// database 类型模型：createOrUpdateSchemaForDataNode 按 generateQualifiedName("database",
 		// dataSource, null)="CONN_"+connId 从 metadataMap 查找，缺了会直接返回空模型列表
@@ -261,24 +314,34 @@ public class TaskFixture {
 			result.add(databaseDto);
 		}
 		for (String table : tables) {
-			MetadataInstancesDto dto = new MetadataInstancesDto();
-			dto.setMetaType("table");
-			dto.setName(table);
-			dto.setOriginalName(table);
-			dto.setQualifiedName(source.id + "." + table);
-			dto.setConnectionId(source.id);
-			// 引擎侧 initializeModel 只处理 sourceType=VIRTUAL 的模型（deriveSchema 引擎推导链路）
-			dto.setSourceType(SourceTypeEnum.VIRTUAL.name());
-			dto.setNodeId(sourceNodeId);
-			dto.setHasPrimaryKey(true);
-			dto.setFields(defaultTableFields());
-			SourceDto sourceDto = new SourceDto();
-			sourceDto.set_id(source.id);
-			sourceDto.setName(source.id);
-			dto.setSource(sourceDto);
-			result.add(dto);
+			// 只需源侧模型：目标侧字段类型由引擎在模型推演阶段（DAGDataServiceImpl.processFieldToDB）
+			// 依据目标库 DataSourceDefinitionDto.expression（connector spec 的 dataTypes 类型映射规则）
+			// 从源的 TapType 推导得出——见 buildDefinitionDtoMap。缺 expression 会导致目标字段 dataType
+			// 为空、JDBC 目标自动建表生成空列 DDL（Mongo 目标 schemaless 不建表，故不触发）。
+			result.add(buildTableModel(table, source.id, sourceNodeId, defaultTableFields()));
 		}
 		return result;
+	}
+
+	/** 构造一个表级模型（sourceType=VIRTUAL，按 nodeId 分组，字段由入参提供） */
+	private static MetadataInstancesDto buildTableModel(String table, String connId, String nodeId, List<Field> fields) {
+		MetadataInstancesDto dto = new MetadataInstancesDto();
+		dto.setId(new ObjectId());
+		dto.setMetaType("table");
+		dto.setName(table);
+		dto.setOriginalName(table);
+		dto.setQualifiedName(connId + "." + table);
+		dto.setConnectionId(connId);
+		// 引擎侧 initializeModel 只处理 sourceType=VIRTUAL 的模型（deriveSchema 引擎推导链路）
+		dto.setSourceType(SourceTypeEnum.VIRTUAL.name());
+		dto.setNodeId(nodeId);
+		dto.setHasPrimaryKey(true);
+		dto.setFields(fields);
+		SourceDto sourceDto = new SourceDto();
+		sourceDto.set_id(connId);
+		sourceDto.setName(connId);
+		dto.setSource(sourceDto);
+		return dto;
 	}
 
 	/** 冒烟级表结构：id INT 主键自增 + name VARCHAR */
@@ -351,9 +414,70 @@ public class TaskFixture {
 			dto.setGroup("io.tapdata");
 			dto.setBuildNumber(1);
 			dto.setTags(new ArrayList<>());
+			// JDBC 目标（如 postgres）自动建表时，引擎 DAGDataServiceImpl.processFieldToDB 依赖
+			// definitionDto.expression（connector spec 的 dataTypes：TapType → 目标库原生类型映射规则）
+			// 把源字段 TapType 映射为目标原生 dataType；缺 expression 时 convert 产出 null dataType
+			// → 建表空列 DDL。从本地仓库的 connector jar 里读取 spec json 的 dataTypes 作为表达式，
+			// 与生产 TM 从 connector 注册时写入 DatabaseTypes.expression 保持一致。
+			// schemaless 连接器（mongodb）spec 无 dataTypes，返回 null 保持原有行为不受影响。
+			String expression = loadConnectorTypeMappingExpression(spec.databaseType);
+			if (StringUtils.isNotBlank(expression)) {
+				dto.setExpression(expression);
+			}
 			// getDataSource 按 database_type 取 definitionDto（非 pdkHash）
 			map.put(spec.databaseType, dto);
 		}
 		return map;
+	}
+
+	/** 读 connector jar 里 spec json 的 dataTypes（类型映射表达式），供 JDBC 目标建表类型推导使用 */
+	@SuppressWarnings("unchecked")
+	private static String loadConnectorTypeMappingExpression(String databaseType) {
+		File jar = resolveConnectorJarFile(databaseType);
+		if (jar == null || !jar.isFile()) {
+			return null;
+		}
+		try (ZipFile zip = new ZipFile(jar)) {
+			Enumeration<? extends ZipEntry> entries = zip.entries();
+			while (entries.hasMoreElements()) {
+				ZipEntry entry = entries.nextElement();
+				String name = entry.getName();
+				// 只认 jar 根目录下的 spec json（命名不一：postgres 为 spec_postgres.json、mysql 为 mysql-spec.json）
+				if (entry.isDirectory() || name.contains("/") || !name.toLowerCase().endsWith(".json") || !name.toLowerCase().contains("spec")) {
+					continue;
+				}
+				Map<String, Object> spec;
+				try (java.io.InputStream in = zip.getInputStream(entry)) {
+					spec = CONNECTOR_SPEC_MAPPER.readValue(in, Map.class);
+				}
+				Object dataTypes = spec == null ? null : spec.get("dataTypes");
+				if (dataTypes instanceof Map && !((Map<?, ?>) dataTypes).isEmpty()) {
+					return CONNECTOR_SPEC_MAPPER.writeValueAsString(dataTypes);
+				}
+			}
+		} catch (Exception e) {
+			// 读不到就返回 null（不阻断预置，保持无 expression 的原有行为）
+		}
+		return null;
+	}
+
+	/** 在本地 maven 仓库（~/.m2/repository/io/tapdata，与 MockTM pdk/jar/v2 下载源一致）定位 connector jar */
+	private static File resolveConnectorJarFile(String databaseType) {
+		String m2Home = System.getenv("M2_HOME");
+		String m2Repo = (m2Home != null && !m2Home.isEmpty()) ? m2Home + "/repository"
+				: System.getProperty("user.home") + "/.m2/repository";
+		File typeDir = new File(m2Repo, "io/tapdata/" + databaseType + "-connector");
+		File[] versions = typeDir.listFiles(File::isDirectory);
+		if (versions == null) {
+			return null;
+		}
+		String jarName = databaseType + "-connector-1.0-SNAPSHOT.jar";
+		for (File version : versions) {
+			File jar = new File(version, jarName);
+			if (jar.isFile()) {
+				return jar;
+			}
+		}
+		return null;
 	}
 }
