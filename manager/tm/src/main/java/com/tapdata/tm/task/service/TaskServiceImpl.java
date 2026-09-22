@@ -774,7 +774,38 @@ public class TaskServiceImpl extends TaskService{
         if(CollectionUtils.isEmpty(taskDto.getLdpNewTables())){
             taskDto.setLdpNewTables(null);
         }
+        if (!Boolean.TRUE.equals(importTask) && oldTaskDto != null) {
+            taskDto.setAlarmReceivers(oldTaskDto.getAlarmReceivers());
+            taskDto.setEmailReceivers(oldTaskDto.getEmailReceivers());
+        }
         return null;
+    }
+
+    /**
+     * 项目导入其余配置一致时仍写入告警字段，不改变任务状态。
+     */
+    public void patchImportedAlarm(TaskDto imported) {
+        if (imported == null || imported.getId() == null) {
+            return;
+        }
+        TaskDto existing = findById(imported.getId());
+        if (existing == null || TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing)) {
+            return;
+        }
+        Update update = new Update();
+        copyAlarmField(update, "alarmSettings", imported.getAlarmSettings());
+        copyAlarmField(update, "alarmRules", imported.getAlarmRules());
+        copyAlarmField(update, "emailReceivers", imported.getEmailReceivers());
+        copyAlarmField(update, "alarmReceivers", imported.getAlarmReceivers());
+        update(Query.query(Criteria.where("_id").is(imported.getId())), update);
+    }
+
+    private void copyAlarmField(Update update, String field, Object value) {
+        if (value == null) {
+            update.unset(field);
+        } else {
+            update.set(field, value);
+        }
     }
 
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
@@ -3780,6 +3811,7 @@ public class TaskServiceImpl extends TaskService{
 
                if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
                        && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
+                   patchImportedAlarm(taskDto);
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
                }

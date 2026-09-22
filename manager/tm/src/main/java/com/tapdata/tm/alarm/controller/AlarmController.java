@@ -8,12 +8,24 @@ import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.MongoUtils;
+import org.bson.types.ObjectId;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +55,7 @@ import java.util.Locale;
 @Slf4j
 public class AlarmController extends BaseController {
     private AlarmService alarmService;
+    private TaskService taskService;
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -109,9 +122,84 @@ public class AlarmController extends BaseController {
     }
 
     @PostMapping("/updateTaskAlarm")
-    public ResponseMessage<Void> updateTaskAlarm(@RequestBody AlarmVO alarm){
-        alarmService.updateTaskAlarm(alarm);
+    public ResponseMessage<Void> updateTaskAlarm(HttpServletRequest request, @RequestBody AlarmVO alarm){
+        UserDetail user = getLoginUser();
+        ObjectId taskId = MongoUtils.toObjectId(alarm.getTaskId());
+        if (taskId == null) {
+            throw new BizException("IllegalArgument", "taskId");
+        }
+        checkTask(request, user, taskId, DataPermissionActionEnums.Edit, () -> {
+            alarmService.updateTaskAlarm(alarm, user);
+            return null;
+        });
         return success();
+    }
+
+    @GetMapping("/receiverPreview")
+    public ResponseMessage<AlarmReceiverPreview> receiverPreview(HttpServletRequest request, @RequestParam String taskId) {
+        UserDetail user = getLoginUser();
+        ObjectId id = MongoUtils.toObjectId(taskId);
+        if (id == null) {
+            throw new BizException("IllegalArgument", "taskId");
+        }
+        return success(checkTask(request, user, id, DataPermissionActionEnums.View,
+                () -> alarmService.previewReceivers(taskId)));
+    }
+
+    @GetMapping("/receiverCandidates")
+    public ResponseMessage<AlarmReceiverCandidates> receiverCandidates(HttpServletRequest request,
+                                                                        @RequestParam(required = false) String taskId,
+                                                                        @RequestParam(required = false) List<String> taskIds) {
+        UserDetail user = getLoginUser();
+        List<String> ids = new java.util.ArrayList<>();
+        if (taskId != null && !taskId.isBlank()) {
+            ids.add(taskId);
+        }
+        if (taskIds != null) {
+            ids.addAll(taskIds);
+        }
+        boolean allowed = false;
+        for (String id : ids) {
+            ObjectId objectId = MongoUtils.toObjectId(id);
+            if (objectId == null) {
+                continue;
+            }
+            Boolean editable = DataPermissionHelper.checkOfQuery(
+                    user,
+                    DataPermissionDataTypeEnums.Task,
+                    DataPermissionActionEnums.Edit,
+                    taskService.dataPermissionFindById(objectId, new Field()),
+                    dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
+                    () -> true,
+                    () -> false);
+            if (Boolean.TRUE.equals(editable)) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed) {
+            throw new BizException("insufficient.permissions",
+                    needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(DataPermissionActionEnums.Edit)),
+                    needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(DataPermissionActionEnums.Edit)));
+        }
+        return success(alarmService.receiverCandidates());
+    }
+
+    private <T> T checkTask(HttpServletRequest request, UserDetail user, ObjectId id, DataPermissionActionEnums action, java.util.function.Supplier<T> supplier) {
+        ObjectId decoded = java.util.Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
+                .map(MongoUtils::toObjectId).orElse(id);
+        return DataPermissionHelper.checkOfQuery(
+                user,
+                DataPermissionDataTypeEnums.Task,
+                action,
+                taskService.dataPermissionFindById(decoded, new Field()),
+                dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
+                supplier,
+                () -> {
+                    throw new BizException("insufficient.permissions",
+                            needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)),
+                            needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)));
+                });
     }
 
     @Operation(summary = "add Task Retry Message")

@@ -6,7 +6,13 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tapdata.tm.userGroup.dto.UserGroupDto;
 import com.tapdata.tm.userGroup.entity.UserGroupEntity;
 import com.tapdata.tm.userGroup.repository.UserGroupRepository;
@@ -36,6 +42,12 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 	private static final String[] GID_KEYS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 	private final UserService userService;
+
+	@Autowired(required = false)
+	private UserLogService userLogService;
+
+	@Autowired(required = false)
+	private AlarmService alarmService;
 
 	public UserGroupService(@NonNull UserGroupRepository repository, UserService userService) {
         super(repository, UserGroupDto.class, UserGroupEntity.class);
@@ -78,14 +90,53 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 
 		UserGroupDto userGroupDto = findById(id);
 		if (userGroupDto != null){
-			long count = userService.count(Query.query(Criteria.where("listtags.gid").regex(userGroupDto.getGid())));
+			String gid = userGroupDto.getGid();
+			java.util.Set<String> groupIds = new java.util.HashSet<>();
+			groupIds.add(id.toHexString());
+			if (org.apache.commons.lang3.StringUtils.isNotBlank(gid)) {
+				List<UserGroupDto> descendants = findAll(Query.query(Criteria.where("gid").regex(com.tapdata.tm.commons.alarm.GidPrefix.regex(gid))));
+				if (descendants != null) {
+					for (UserGroupDto descendant : descendants) {
+						if (descendant.getId() != null) {
+							groupIds.add(descendant.getId().toHexString());
+						}
+					}
+				}
+			}
+			java.util.List<Criteria> parts = new java.util.ArrayList<>();
+			parts.add(Criteria.where("listtags.id").in(groupIds));
+			if (org.apache.commons.lang3.StringUtils.isNotBlank(gid)) {
+				parts.add(Criteria.where("listtags.gid").regex(com.tapdata.tm.commons.alarm.GidPrefix.regex(gid)));
+			}
+			long count = userService.count(Query.query(new Criteria().orOperator(parts.toArray(Criteria[]::new)).and("isDeleted").ne(true)));
 			if (count > 0){
 				throw new BizException("UserGroup.Exists.User");
 			}
-			return super.deleteAll(Query.query(Criteria.where("gid").regex("^" + userGroupDto.getGid() + ".*"))) > 0;
+			String deleteRegex = org.apache.commons.lang3.StringUtils.isBlank(gid) ? "^$" : com.tapdata.tm.commons.alarm.GidPrefix.regex(gid);
+			boolean removed = super.deleteAll(Query.query(Criteria.where("gid").regex(deleteRegex))) > 0;
+			if (removed) {
+				writeDeleteLog(userGroupDto, userDetail);
+			}
+			return removed;
 		}
 
 		return false;
+	}
+
+	private void writeDeleteLog(UserGroupDto group, UserDetail userDetail) {
+		if (userLogService == null || userDetail == null || group.getId() == null) {
+			return;
+		}
+		try {
+			String snapshot = null;
+			if (alarmService != null) {
+				snapshot = JSON.toJSONString(alarmService.groupAlarmImpact(group.getId().toHexString()));
+			}
+			userLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, group.getId().toHexString(),
+					group.getName(), null, snapshot);
+		} catch (Exception ex) {
+			log.warn("failed to write user group delete log, groupId={}", group.getId(), ex);
+		}
 	}
 
 	private String getGid(UserGroupDto groupDto){

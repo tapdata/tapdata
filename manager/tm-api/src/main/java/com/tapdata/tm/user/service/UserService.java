@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
@@ -26,6 +27,9 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public UserService(@NonNull UserRepository repository) {
         super(repository, UserDto.class, User.class);
     }
+    public void fillTagGids(List<Tag> tags) {
+    }
+
     public abstract UserDetail loadUserByUsername(String username);
 
     public abstract List<UserDetail> loadAllUser();
