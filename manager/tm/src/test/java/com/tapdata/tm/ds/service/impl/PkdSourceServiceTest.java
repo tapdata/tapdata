@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dblock.DBLockConfiguration;
 import com.tapdata.tm.dblock.DBLockRepository;
+import com.tapdata.tm.dblock.ILock;
 import com.tapdata.tm.dblock.LockStateEnums;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
@@ -44,7 +45,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Constructor;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -340,6 +343,25 @@ public class PkdSourceServiceTest {
 		}
 
 		@Test
+		void testLostRegistrationLockStopsFurtherRegistration() throws Exception {
+			ILock lock = mock(ILock.class);
+			when(lock.getKey()).thenReturn("connector.mysql");
+			when(lock.acquire(anyString(), anyLong())).thenReturn(LockStateEnums.NO);
+			Class<?> renewalClass = Class.forName(PkdSourceService.class.getName() + "$RegistrationLockRenewal");
+			Constructor<?> constructor = renewalClass.getDeclaredConstructor(List.class, String.class, long.class);
+			constructor.setAccessible(true);
+			Object renewal = constructor.newInstance(Collections.singletonList(lock), "owner", TimeUnit.HOURS.toMillis(1));
+			try {
+				ReflectionTestUtils.invokeMethod(renewal, "renewAll");
+				IllegalStateException failure = assertThrows(IllegalStateException.class,
+						() -> ReflectionTestUtils.invokeMethod(renewal, "ensureHealthy"));
+				assertTrue(failure.getMessage().contains("Lost connector registration lock"));
+			} finally {
+				ReflectionTestUtils.invokeMethod(renewal, "stop");
+			}
+		}
+
+		@Test
 		@SneakyThrows
 		void testAbortRegistrationWhenPauseDoesNotTakeEffect() {
 			ObjectId connectionId = new ObjectId();
@@ -370,6 +392,75 @@ public class PkdSourceServiceTest {
 			verifyNoInteractions(fileService);
 			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
 			verify(dbLockRepository, atLeastOnce()).release(anyString(), anyString());
+		}
+
+		@Test
+		@SneakyThrows
+		void testAbortRegistrationWhenInspectDoesNotStop() {
+			ObjectId connectionId = new ObjectId();
+			ObjectId inspectId = new ObjectId();
+			UserDetail user = mock(UserDetail.class);
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(connectionId);
+			InspectDto inspect = new InspectDto();
+			inspect.setId(inspectId);
+			inspect.setName("still-running-inspect");
+			inspect.setStatus(InspectStatusEnum.RUNNING.getValue());
+
+			ReflectionTestUtils.setField(pkdSourceService, "taskStopTimeoutMillis", 0L);
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(inspectService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(inspect));
+			when(inspectService.findById(inspectId)).thenReturn(inspect);
+
+			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{mockJarFile()}, Collections.singletonList(mockPdkSourceDto()), false, user, false));
+
+			assertTrue(exception.getMessage().contains("Affected resources did not stop"));
+			verify(inspectService, times(1)).doExecuteInspect(any(), any(InspectDto.class), eq(user));
+			verifyNoInteractions(fileService);
+		}
+
+		@Test
+		@SneakyThrows
+		void testAffectedTaskQueryIncludesMemCache() {
+			UserDetail user = mock(UserDetail.class);
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(new ObjectId());
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+
+			pkdSourceService.uploadPdk(new MultipartFile[]{mockJarFile()},
+					Collections.singletonList(mockPdkSourceDto()), false, user, false);
+
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(taskService).findAllDto(queryCaptor.capture(), eq(user));
+			assertTrue(queryCaptor.getValue().getQueryObject().toJson().contains(TaskDto.SYNC_TYPE_MEM_CACHE));
+		}
+
+		@Test
+		@SneakyThrows
+		void testRechecksTaskStatusAfterAcquiringItsLock() {
+			UserDetail user = mock(UserDetail.class);
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(new ObjectId());
+			TaskDto candidate = new TaskDto();
+			candidate.setId(new ObjectId());
+			candidate.setStatus(TaskDto.STATUS_RUNNING);
+			candidate.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(taskService.findAllDto(any(Query.class), eq(user)))
+					.thenReturn(Collections.singletonList(candidate), Collections.emptyList());
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+
+			pkdSourceService.uploadPdk(new MultipartFile[]{mockJarFile()},
+					Collections.singletonList(mockPdkSourceDto()), false, user, false);
+
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(taskService, times(2)).findAllDto(queryCaptor.capture(), eq(user));
+			String currentQuery = queryCaptor.getAllValues().get(1).getQueryObject().toJson();
+			assertTrue(currentQuery.contains(candidate.getId().toHexString()));
+			assertTrue(currentQuery.contains(TaskDto.STATUS_RUNNING));
+			verify(taskService, never()).pause(eq(candidate.getId()), eq(user), anyBoolean());
 		}
 
 		@Test

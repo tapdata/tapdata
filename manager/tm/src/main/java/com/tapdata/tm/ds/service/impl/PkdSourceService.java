@@ -101,7 +101,7 @@ public class PkdSourceService {
 
 	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user,
-			boolean accessCodeRegistration) {
+			boolean uploadOnlyRegistration) {
 		Map<String, MultipartFile> iconMap = new HashMap<>();
 		Map<String, MultipartFile> docMap = new HashMap<>();
 		MultipartFile jarFile = null;
@@ -132,7 +132,7 @@ public class PkdSourceService {
 		try {
 			registrationLocks = acquireRegistrationLocks(pdkSourceDtos, lockOwner);
 			lockRenewal = scheduleRegistrationLockRenewal(registrationLocks, lockOwner);
-			if (accessCodeRegistration) {
+			if (uploadOnlyRegistration) {
 				lockRenewal.ensureHealthy();
 				uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
 				lockRenewal.ensureHealthy();
