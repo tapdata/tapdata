@@ -144,7 +144,7 @@ function process(record) {
 }
 ```
 
-`data.contentType` 固定支持 `text`、`bytes`、`stream`，默认 `text`，类型值忽略大小写。`bytes` 支持 Java `byte[]` 和 GraalJS 转换后的数字 List；`stream` 要求 Java `InputStream`。本次实现不把大文件 Java stream 构造能力暴露给普通 JS。
+`data.contentType` 固定支持 `text`、`bytes`、`stream`，默认 `text`，类型值忽略大小写。`bytes` 支持 Java `byte[]` 和 GraalJS 转换后的数字 List；`stream` 要求 Java `InputStream`，可通过 `httpUtil.openStream(url)` 获取，使用后由 JS 脚本负责关闭。
 
 ### 5.2 FTP 到另一个 FTP 复制
 
@@ -214,7 +214,7 @@ var removed = storage.delete("target-ftp", { path: "out/a.json" }, null);
 - 不把幂等、业务重试、任务发布、跨重启恢复落到本功能；
 - 不通过 `ScriptExecutorsManager.getScriptExecutor("target-ftp")` 暴露 FTP 文件操作；
 - 不新增 `tapdata-common-lib` 公共 API；
-- 不把 PDK/FTPClient/凭据/原始 Java stream 暴露给 JS。
+- 不把 PDK/FTPClient/凭据暴露给 JS；`InputStream` 仅由受控 helper（如 `httpUtil.openStream`）返回。
 
 本功能中的“缓存、失效、资源释放”是连接运行时管理，不是业务幂等。一次事件失败后是否跳过、重试业务逻辑或记录结果，由用户脚本和任务错误处理机制决定。
 

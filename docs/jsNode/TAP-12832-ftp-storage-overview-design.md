@@ -40,7 +40,7 @@ ScriptExecutorsManager.getScriptExecutor("mongo-test").aggregate(query)
 
 `overwrite` 支持 `skip`、`overwrite`、`fail`，默认 `skip`。返回值是普通 Map，写入/复制会返回 `status`、`targetPath`，若底层返回元数据则包含 `bytes`。
 
-`storage.update` 的 `write` 支持 `data.contentType`：`text`、`bytes`、`stream`，默认值为 `text`，类型值忽略大小写。HTTP 二进制内容应先通过 `httpUtil.downloadBytes` 获取，再使用 `contentType: "bytes"` 写入；不能将 MIME 类型（如 `image/png`）作为 `contentType`。
+`storage.update` 的 `write` 支持 `data.contentType`：`text`、`bytes`、`stream`，默认值为 `text`，类型值忽略大小写。HTTP 二进制内容可通过 `httpUtil.downloadBytes` 获取后使用 `contentType: "bytes"` 写入，也可通过 `httpUtil.openStream` 获取流后使用 `contentType: "stream"` 写入；`stream` 输入流由 JS 脚本负责关闭。不能将 MIME 类型（如 `image/png`）作为 `contentType`。
 
 示例：
 
@@ -130,7 +130,7 @@ TAP-12832 首先验收 FTP。其他协议是否可用还取决于对应 PDK 是�
 - 不通过 `ScriptExecutorsManager.getScriptExecutor("target-ftp")` 执行文件 API。
 - 不在 JS 节点为每条 Tapdata 事件写 `file_operation_ledger`。
 - 不自动实现业务幂等、业务重试、跨重启恢复或“临时文件后发布”的原子语义。
-- 不把 PDK 节点、FTP client、凭据或 Java stream 暴露给 JS。
+- 不把 PDK 节点、FTP client 或凭据暴露给 JS；`InputStream` 仅由受控 helper（如 `httpUtil.openStream`）返回。
 - 不为本需求新增公共 DTO、能力枚举、错误码或 `FileStorageFunction`。
 
 缓存、失效和资源释放属于连接运行时管理，不是业务幂等。是否重复调用、失败后如何处理由用户 JS 或上层任务错误策略决定。

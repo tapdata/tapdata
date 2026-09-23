@@ -87,17 +87,21 @@ class StorageFacadeTest {
     void updateWriteUsesInputStreamWhenContentTypeIsStream() throws Throwable {
         RecordingStorage targetStorage = new RecordingStorage();
         StorageFacade facade = facade(targetStorage, null);
+        CloseTrackingInputStream input = new CloseTrackingInputStream(bytes("stream-content"));
 
         Map<String, Object> result = facade.update("target-ftp",
                 map("action", "write",
                         "target", map("path", "/out/1.bin"),
                         "contentType", "sTrEaM",
-                        "content", new ByteArrayInputStream(bytes("stream-content"))),
+                        "content", input),
                 map("overwrite", "overwrite"));
 
         assertEquals("written", result.get("status"));
         assertEquals("stream-content",
                 new String(targetStorage.files.get("/out/1.bin"), StandardCharsets.UTF_8));
+        assertFalse(input.closed);
+        input.close();
+        assertTrue(input.closed);
     }
 
     @Test
@@ -266,6 +270,20 @@ class StorageFacadeTest {
 
     private static byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static final class CloseTrackingInputStream extends ByteArrayInputStream {
+        private boolean closed;
+
+        private CloseTrackingInputStream(byte[] content) {
+            super(content);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
     }
 
     private static Map<String, Object> map(Object... values) {

@@ -227,10 +227,12 @@ Map<String, Object> update(String connectionName,
 4. 查询目标是否存在；
 5. 按 `overwrite` 处理：skip/fail/overwrite；
 6. 用 `ByteArrayInputStream` 或用户提供的输入流调用 `saveFile`；
-7. 关闭输入流；
+7. 仅关闭引擎为 `TEXT`/`BYTES` 创建的输入流；`STREAM` 输入流由 JS 脚本负责关闭；
 8. 返回 `status`、`targetPath`、文件大小（若 storage 返回元数据）。
 
 `contentType` 由引擎侧 `StorageContentType` 枚举解析，固定支持 `text`、`bytes`、`stream` 三种值；未知值直接抛出 `StorageOperationException`，不会回退为字符串写入。
+
+`STREAM` 的 `content` 必须是 Java `InputStream`。引擎不接管该流的关闭责任，脚本应使用 `try/finally` 调用 `close()`。HTTP 场景通过 `httpUtil.openStream(url)` 获取该输入流。
 
 #### copy
 

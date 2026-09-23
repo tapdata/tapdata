@@ -114,7 +114,12 @@ public final class StorageFacade {
             return result("reused", null, path);
         }
 
-        try (InputStream input = contentStream(content, contentType)) {
+        InputStream input = contentStream(content, contentType);
+        if (contentType.isCallerOwned()) {
+            TapFile saved = storage.saveFile(path, input, true);
+            return result("written", saved, path);
+        }
+        try (input) {
             TapFile saved = storage.saveFile(path, input, true);
             return result("written", saved, path);
         }

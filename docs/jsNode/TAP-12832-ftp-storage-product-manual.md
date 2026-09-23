@@ -64,9 +64,35 @@ storage.update("target-ftp", {
 | --- | --- | --- |
 | `text` | 任意可转字符串的值 | 使用 UTF-8 写入；默认值 |
 | `bytes` | Java `byte[]` 或 JS 数字数组/List | 按原始字节写入；数组元素必须是整数，范围为 `-128` 到 `255` |
-| `stream` | Java `InputStream` | 以输入流方式写入 |
+| `stream` | Java `InputStream` | 以输入流方式写入；由 JS 脚本负责关闭 |
 
 类型名称忽略大小写，例如 `BYTES`、`Bytes` 和 `bytes` 等价。未知类型会抛出异常。
+
+`stream` 示例：
+
+```javascript
+function process(record) {
+  var input = httpUtil.openStream(record.url);
+  try {
+    storage.update("target-ftp", {
+      action: "write",
+      contentType: "stream",
+      target: {
+        path: "save_" + record.id + ".png"
+      },
+      content: input
+    }, {
+      overwrite: "overwrite"
+    });
+  } finally {
+    input.close();
+  }
+
+  return record;
+}
+```
+
+`httpUtil.openStream(url)` 返回 Java `InputStream`。`storage.update` 不会自动关闭 `stream` 内容，脚本必须在 `finally` 中关闭。
 
 HTTP 二进制文件示例：
 
@@ -217,6 +243,7 @@ var deleted = storage.delete("Source-ftp", {
 - 按事件逻辑决定是否执行文件操作。
 - `skip`、`overwrite`、`fail` 三种目标文件处理方式。
 - 使用 `httpUtil.downloadBytes` 获取 HTTP 二进制内容后，通过 `contentType: "bytes"` 写入文件连接。
+- 使用 `httpUtil.openStream` 获取 HTTP 输入流后，通过 `contentType: "stream"` 写入文件连接；输入流由脚本关闭。
 
 当前首要验证协议为 FTP。引擎已包含 `local`、`ftp`、`sftp`、`smb`、`s3fs`、`nfs`、`oss` 的现有 storage 映射；其他协议是否可用取决于对应连接器、PDK 和连接配置，需要单独验证。
 
@@ -226,7 +253,7 @@ var deleted = storage.delete("Source-ftp", {
 - 通过 `ScriptExecutorsManager.getScriptExecutor("target-ftp")` 执行 FTP 文件操作。
 - 目录列表、递归扫描、批量复制、文件移动/重命名、创建目录和追加写入 API。
 - checksum 校验、自动重试、`dryRun`、原子发布和跨重启业务幂等。
-- 将 FTP client、PDK 对象、连接凭据或 Java Stream 暴露给 JS。
-- 将 URL、HTTP 响应对象或普通字符串自动识别为文件二进制内容；HTTP 内容必须由脚本先获取，并以 `bytes` 或 `stream` 类型传入。
+- 将 FTP client、PDK 对象或连接凭据暴露给 JS；`InputStream` 只能由受控 helper（如 `httpUtil.openStream`）返回。
+- 将 URL、HTTP 响应对象或普通字符串自动识别为文件二进制内容；HTTP 内容必须由脚本先通过 `httpUtil.downloadBytes` 或 `httpUtil.openStream` 获取，再以 `bytes` 或 `stream` 类型传入。
 - 将 MIME 类型（例如 `image/png`）作为 `contentType`；`contentType` 表示内容处理方式，不表示文件 MIME 类型。
 - FTP 操作与下游数据库写入之间的跨系统事务回滚。FTP 成功后下游数据库仍可能因自身原因写入失败。

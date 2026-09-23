@@ -248,3 +248,43 @@ function process(record) {
 - 文件可以正常打开，文件内容为 HTTP URL 返回的 PNG 二进制内容。
 - 文件不是 `[-119, 80, 78, ...]` 形式的文本。
 - HTTP 下载失败或 FTP 写入失败时，JS 节点报错，当前事件不继续下游处理。
+
+## 八、场景 7：通过 HTTP 流写入目标 FTP
+
+### 用户故事
+
+增强 JS 以流方式下载 HTTP 文件并写入 `target-ftp`，写入结束后由脚本关闭 HTTP 流。
+
+### JS 代码
+
+```javascript
+function process(record) {
+  var input = httpUtil.openStream(record.url);
+  try {
+    var result = storage.update("target-ftp", {
+      action: "write",
+      contentType: "stream",
+      target: {
+        path: "save_" + record.id + ".png"
+      },
+      content: input
+    }, {
+      overwrite: "overwrite"
+    });
+
+    if (!result || result.status !== "written") {
+      throw new Error("HTTP stream FTP write was not completed");
+    }
+  } finally {
+    input.close();
+  }
+
+  return record;
+}
+```
+
+### 预期结果
+
+- `target-ftp/save_4.png` 创建成功且文件可以正常打开。
+- 文件内容与 HTTP 响应内容一致。
+- `input.close()` 被执行；HTTP 下载或 FTP 写入失败时，当前事件报错，不继续下游处理。
