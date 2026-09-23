@@ -676,6 +676,13 @@ public class PkdSourceService {
 				}
 				if (TaskDto.STATUS_STOPPING.equals(task.getStatus())) {
 					taskService.pause(taskId, user, false, true);
+				} else if (isTaskActive(task.getStatus())) {
+					// Starting a task may start its shared CDC/log-collector/heartbeat dependencies as
+					// part of the normal orchestration. Those dependencies can therefore already be active
+					// when their own entry is reached in this restore pass; starting them again produces a
+					// misleading Task.StartStatusInvalid error even though the resource was restored.
+					log.info("Task '{}' (id={}) is already active after connector registration; skip duplicate restart",
+							task.getName(), taskId);
 				} else if (shouldRestartAfterRegistration(stoppedTask.getStatus(), task.getStatus())) {
 					// Restore the task exactly as a normal start would ("11"), so the shared-mining /
 					// heartbeat orchestration gated by startFlag bits 0 and 1 is not skipped. Passing "00"
@@ -684,16 +691,11 @@ public class PkdSourceService {
 					// miner or heartbeat task that was already in stop is never restored separately. The
 					// orchestration is idempotent (it checks the dependency's status before starting it), so it
 					// is also safe when that dependency is restarted separately in this same pass.
-					taskService.start(task, user, "11");
-				} else if (shouldReportRestartFailure(stoppedTask.getStatus(), task.getStatus())) {
-					// The task was running before we paused it but is now in ERROR instead of being restored.
-					// Surface it through restartFailures so the registration does not report success while a
-					// live task silently stayed down.
-					restartFailures.add("task " + taskId + " (" + stoppedTask.getName() + "): status changed from '"
-							+ stoppedTask.getStatus() + "' to '" + task.getStatus() + "' and was not restarted");
-					log.error("Task '{}' (id={}) was not restarted after connector registration because its status"
-									+ " changed from '{}' to '{}'",
-							stoppedTask.getName(), taskId, stoppedTask.getStatus(), task.getStatus());
+					// Reload by id inside TaskService as well. The DTO read above is only a status snapshot;
+					// using it directly can race with the asynchronous stop callback and make start validate
+					// a stale task state. The id overload performs the normal full-task reload and uses the
+					// same "11" orchestration flags.
+					restartTaskById(taskId, user);
 				} else {
 					// The task did not stop the way our pause should have left it (e.g. it completed normally).
 					// Do not blindly restart it and mask that; log it for the operator to investigate.
@@ -708,7 +710,76 @@ public class PkdSourceService {
 		}
 	}
 
+	private void restartTaskById(ObjectId taskId, UserDetail user) {
+		try {
+			taskService.start(taskId, user);
+		} catch (BizException e) {
+			if (!"Task.StartStatusInvalid".equals(e.getErrorCode())) {
+				throw e;
+			}
+			// A concurrent scheduler/engine callback may have restarted the task between the status
+			// snapshot and this call. Do not report that harmless race as a registration failure.
+			TaskDto currentTask = taskService.findOne(Query.query(Criteria.where("_id").is(taskId)), user);
+			if (currentTask != null && isTaskActive(currentTask.getStatus())) {
+				log.info("Task '{}' was already restarted concurrently after connector registration", taskId);
+				return;
+			}
+			// pause() and the engine callback are asynchronous. The first start can therefore observe
+			// STOPPING even though the task was STOP when the restore pass began. Wait for the stop
+			// callback, then retry the normal start instead of surfacing a transient StartStatusInvalid.
+			if (currentTask != null && TaskDto.STATUS_STOPPING.equals(currentTask.getStatus())) {
+				currentTask = waitForTaskReadyToRestart(taskId, user);
+				if (currentTask != null && isTaskActive(currentTask.getStatus())) {
+					log.info("Task '{}' was restarted concurrently while waiting for stop to complete", taskId);
+					return;
+				}
+			}
+			if (currentTask != null && isTaskStartable(currentTask.getStatus())) {
+				taskService.start(taskId, user);
+				return;
+			}
+			throw e;
+		}
+	}
+
+	private TaskDto waitForTaskReadyToRestart(ObjectId taskId, UserDetail user) {
+		long deadline = System.currentTimeMillis() + taskStopTimeoutMillis;
+		TaskDto currentTask;
+		do {
+			currentTask = taskService.findOne(Query.query(Criteria.where("_id").is(taskId)), user);
+			if (currentTask == null || !TaskDto.STATUS_STOPPING.equals(currentTask.getStatus())) {
+				return currentTask;
+			}
+			if (System.currentTimeMillis() >= deadline) {
+				return currentTask;
+			}
+			sleepBeforeNextStatusCheck("task", taskId.toHexString());
+		} while (true);
+	}
+
+	private boolean isTaskStartable(String status) {
+		return TaskDto.STATUS_EDIT.equals(status)
+				|| TaskDto.STATUS_STOP.equals(status)
+				|| TaskDto.STATUS_COMPLETE.equals(status)
+				|| TaskDto.STATUS_ERROR.equals(status)
+				|| TaskDto.STATUS_SCHEDULE_FAILED.equals(status)
+				|| TaskDto.STATUS_WAIT_START.equals(status);
+	}
+
+	private boolean isTaskActive(String status) {
+		return TaskDto.STATUS_SCHEDULING.equals(status)
+				|| TaskDto.STATUS_WAIT_RUN.equals(status)
+				|| TaskDto.STATUS_RUNNING.equals(status);
+	}
+
 	private boolean shouldRestartAfterRegistration(String statusBeforeStop, String statusNow) {
+		boolean wasActiveBeforeStop = isTaskActive(statusBeforeStop);
+		if (wasActiveBeforeStop && TaskDto.STATUS_ERROR.equals(statusNow)) {
+			// A running task can receive a late engine error callback while its asynchronous pause is
+			// completing. It still needs the normal restart attempt; only a failed restart should be
+			// reported as a registration failure.
+			return true;
+		}
 		if (TaskDto.STATUS_STOP.equals(statusNow)) {
 			// A task captured as SCHEDULING can end up in STOP rather than SCHEDULE_FAILED: the status is
 			// snapshotted when the affected tasks are selected, but pause() runs later, and by then the
@@ -724,16 +795,6 @@ public class PkdSourceService {
 			return TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
 		}
 		return false;
-	}
-
-	private boolean shouldReportRestartFailure(String statusBeforeStop, String statusNow) {
-		// A task that was running (or about to run) when we paused it but ended up in ERROR never came
-		// back: report it instead of swallowing the failure. A clean COMPLETE is a normal finish and is
-		// intentionally not reported.
-		boolean wasActiveBeforeStop = TaskDto.STATUS_RUNNING.equals(statusBeforeStop)
-				|| TaskDto.STATUS_WAIT_RUN.equals(statusBeforeStop)
-				|| TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
-		return wasActiveBeforeStop && TaskDto.STATUS_ERROR.equals(statusNow);
 	}
 
 	private void restartAffectedInspects(List<InspectDto> stoppedInspects, UserDetail user, List<String> restartFailures) {

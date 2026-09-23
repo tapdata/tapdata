@@ -240,6 +240,7 @@ public class PdkUtil {
 					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(),
 					needRetryDownload);
 			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
+					.withJarFile(databaseType.getJarFile(), databaseType.getJarRid())
 					.withLog(log)
 					.withDagId(dagId)
 					.withAssociateId(associateId)

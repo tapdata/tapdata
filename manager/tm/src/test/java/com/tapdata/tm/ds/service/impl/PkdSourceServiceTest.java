@@ -166,8 +166,8 @@ public class PkdSourceServiceTest {
 
 			verify(taskService).pause(taskId, user, false);
 			// Restore uses the normal start flag ("11") so shared-mining / heartbeat orchestration is not skipped.
-			verify(taskService).start(stoppedTask, user, "11");
-			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+			verify(taskService).start(taskId, user);
+			verify(taskService, never()).start(any(TaskDto.class), any(UserDetail.class), anyString());
 		}
 
 		@Test
@@ -221,7 +221,7 @@ public class PkdSourceServiceTest {
 					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
 			verify(taskService).pause(taskId, user, false);
-			verify(taskService).start(stoppedTask, user, "11");
+			verify(taskService).start(taskId, user);
 		}
 
 		@Test
@@ -257,7 +257,7 @@ public class PkdSourceServiceTest {
 
 		@Test
 		@SneakyThrows
-		void testReportRestartFailureWhenTaskEntersErrorWhileStopping() {
+		void testRestartTaskWhenTaskEntersErrorWhileStopping() {
 			ObjectId connectionId = new ObjectId();
 			ObjectId taskId = new ObjectId();
 			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
@@ -277,13 +277,13 @@ public class PkdSourceServiceTest {
 
 			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
 			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
-			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(errorTask);
+			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(errorTask, errorTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
 
-			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
+			assertDoesNotThrow(() -> pkdSourceService.uploadPdk(
 					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
-			assertTrue(exception.getMessage().contains("could not be restarted"));
+			verify(taskService).start(taskId, user);
 			verify(taskService, never()).start(any(TaskDto.class), any(UserDetail.class), anyString());
 		}
 
@@ -436,7 +436,7 @@ public class PkdSourceServiceTest {
 
 			verify(taskService).pause(taskId, user, false);
 			// Must be restored, not silently left stopped while the registration reports success.
-			verify(taskService).start(stoppedTask, user, "11");
+			verify(taskService).start(taskId, user);
 		}
 
 		@Test
@@ -491,7 +491,7 @@ public class PkdSourceServiceTest {
 			pkdSourceService.uploadPdk(new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false);
 
 			verify(taskService).pause(taskId, user, false);
-			verify(taskService).start(stoppedTask, user, "11");
+			verify(taskService).start(taskId, user);
 			ArgumentCaptor<InspectDto> inspectStatusCaptor = ArgumentCaptor.forClass(InspectDto.class);
 			verify(inspectService, times(2)).doExecuteInspect(any(), inspectStatusCaptor.capture(), eq(user));
 			assertEquals(InspectStatusEnum.STOPPING.getValue(), inspectStatusCaptor.getAllValues().get(0).getStatus());
@@ -540,9 +540,9 @@ public class PkdSourceServiceTest {
 			stopOrder.verify(taskService).pause(logCollectorId, user, false);
 			stopOrder.verify(taskService).pause(heartbeatId, user, false);
 			InOrder restartOrder = inOrder(taskService);
-			restartOrder.verify(taskService).start(stoppedHeartbeatTask, user, "11");
-			restartOrder.verify(taskService).start(stoppedLogCollectorTask, user, "11");
-			verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+			restartOrder.verify(taskService).start(heartbeatId, user);
+			restartOrder.verify(taskService).start(logCollectorId, user);
+			verify(taskService, never()).start(any(TaskDto.class), any(UserDetail.class), anyString());
 		}
 
 		@Test
@@ -598,14 +598,125 @@ public class PkdSourceServiceTest {
 			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
 			when(taskService.findOne(any(Query.class), eq(user))).thenReturn(stoppedTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
-			doThrow(new BizException("engine unavailable")).when(taskService).start(stoppedTask, user, "11");
+			doThrow(new BizException("engine unavailable")).when(taskService).start(taskId, user);
 
 			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
 					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
 			assertTrue(exception.getMessage().contains("could not be restarted"));
 			verify(taskService).pause(taskId, user, false);
-			verify(taskService).start(stoppedTask, user, "11");
+			verify(taskService).start(taskId, user);
+		}
+
+		@Test
+		@SneakyThrows
+		void testIgnoreRestartFailureWhenTaskWasRestartedConcurrently() {
+			ObjectId connectionId = new ObjectId();
+			ObjectId taskId = new ObjectId();
+			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
+			MultipartFile jarFile = mockJarFile();
+			UserDetail user = mock(UserDetail.class);
+
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(connectionId);
+			TaskDto affectedTask = new TaskDto();
+			affectedTask.setId(taskId);
+			affectedTask.setName("restart-race");
+			affectedTask.setStatus(TaskDto.STATUS_RUNNING);
+			affectedTask.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			TaskDto stoppedTask = new TaskDto();
+			stoppedTask.setId(taskId);
+			stoppedTask.setStatus(TaskDto.STATUS_STOP);
+			TaskDto alreadyRunningTask = new TaskDto();
+			alreadyRunningTask.setId(taskId);
+			alreadyRunningTask.setStatus(TaskDto.STATUS_RUNNING);
+
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
+			when(taskService.findOne(any(Query.class), eq(user)))
+					.thenReturn(stoppedTask, stoppedTask, alreadyRunningTask);
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+			doThrow(new BizException("Task.StartStatusInvalid")).when(taskService).start(taskId, user);
+
+			assertDoesNotThrow(() -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
+
+			verify(taskService).pause(taskId, user, false);
+			verify(taskService).start(taskId, user);
+		}
+
+		@Test
+		@SneakyThrows
+		void testRetryRestartWhenTaskIsStillStoppingAfterStartStatusInvalid() {
+			ObjectId connectionId = new ObjectId();
+			ObjectId taskId = new ObjectId();
+			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
+			MultipartFile jarFile = mockJarFile();
+			UserDetail user = mock(UserDetail.class);
+
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(connectionId);
+			TaskDto affectedTask = new TaskDto();
+			affectedTask.setId(taskId);
+			affectedTask.setName("restart-after-stopping");
+			affectedTask.setStatus(TaskDto.STATUS_RUNNING);
+			affectedTask.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			TaskDto stoppedTask = new TaskDto();
+			stoppedTask.setId(taskId);
+			stoppedTask.setStatus(TaskDto.STATUS_STOP);
+			TaskDto stoppingTask = new TaskDto();
+			stoppingTask.setId(taskId);
+			stoppingTask.setStatus(TaskDto.STATUS_STOPPING);
+
+			ReflectionTestUtils.setField(pkdSourceService, "taskStopTimeoutMillis", 100L);
+			ReflectionTestUtils.setField(pkdSourceService, "taskStopPollIntervalMillis", 0L);
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
+			when(taskService.findOne(any(Query.class), eq(user)))
+					.thenReturn(stoppedTask, stoppedTask, stoppingTask, stoppedTask);
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+			doThrow(new BizException("Task.StartStatusInvalid")).doNothing().when(taskService).start(taskId, user);
+
+			assertDoesNotThrow(() -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
+
+			verify(taskService, times(2)).start(taskId, user);
+		}
+
+		@Test
+		@SneakyThrows
+		void testSkipRestartWhenTaskWasAlreadyStartedByDependencyOrchestration() {
+			ObjectId connectionId = new ObjectId();
+			ObjectId taskId = new ObjectId();
+			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
+			MultipartFile jarFile = mockJarFile();
+			UserDetail user = mock(UserDetail.class);
+
+			DataSourceConnectionDto connection = new DataSourceConnectionDto();
+			connection.setId(connectionId);
+			TaskDto affectedTask = new TaskDto();
+			affectedTask.setId(taskId);
+			affectedTask.setName("dependency-restored-task");
+			affectedTask.setStatus(TaskDto.STATUS_RUNNING);
+			affectedTask.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			TaskDto stoppedTask = new TaskDto();
+			stoppedTask.setId(taskId);
+			stoppedTask.setStatus(TaskDto.STATUS_STOP);
+			TaskDto alreadyStartedTask = new TaskDto();
+			alreadyStartedTask.setId(taskId);
+			alreadyStartedTask.setStatus(TaskDto.STATUS_WAIT_RUN);
+
+			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
+			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
+			when(taskService.findOne(any(Query.class), eq(user)))
+					.thenReturn(stoppedTask, alreadyStartedTask);
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+
+			assertDoesNotThrow(() -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
+
+			verify(taskService).pause(taskId, user, false);
+			verify(taskService, never()).start(taskId, user);
 		}
 
 		private PdkSourceDto mockPdkSourceDto() {

@@ -254,6 +254,7 @@ public class PdkUtilTest {
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
                 // Mock builder chain
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -305,6 +306,7 @@ public class PdkUtilTest {
                 ), times(1));
 
                 // Verify builder methods were called
+                verify(mockBuilder).withJarFile(databaseType.getJarFile(), databaseType.getJarRid());
                 verify(mockBuilder).withLog(log);
                 verify(mockBuilder).withDagId(dagId);
                 verify(mockBuilder).withAssociateId(associateId);
@@ -343,6 +345,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -400,6 +403,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -458,6 +462,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -524,6 +529,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
