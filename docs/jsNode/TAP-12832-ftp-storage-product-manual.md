@@ -37,7 +37,11 @@ storage.update(connectionName, data, options)
 
 ### 3.2 写文件
 
-`data.action` 为 `write` 时：
+`data.action` 为 `write` 时，使用 `target.path` 指定目标文件，使用 `contentType` 指定内容处理方式。未传 `contentType` 时按 `text` 处理。
+
+#### 3.2.1 常规写方式
+
+常规文本或 JSON 文件使用默认的 `text` 类型，内容按 UTF-8 写入：
 
 ```javascript
 storage.update("target-ftp", {
@@ -55,46 +59,18 @@ storage.update("target-ftp", {
 | --- | --- | --- |
 | `action` | `String` | 固定为 `write` |
 | `target.path` | `String` | 目标文件路径 |
-| `contentType` | `String` | 内容处理类型：`text`、`bytes` 或 `stream`；默认 `text`，忽略大小写 |
-| `content` | 由 `contentType` 决定 | 文件内容 |
+| `contentType` | `String` | 内容处理类型；未传时默认为 `text`，忽略大小写 |
+| `content` | `String` 或可转字符串的值 | 文件内容，按 UTF-8 写入 |
 
-#### `contentType`
+`contentType: "text"` 适用于文本、JSON、CSV 等字符内容。未传 `contentType` 时不会根据 `content` 的实际类型自动推断为二进制。
 
-| 值 | `content` 类型 | 处理方式 |
-| --- | --- | --- |
-| `text` | 任意可转字符串的值 | 使用 UTF-8 写入；默认值 |
-| `bytes` | Java `byte[]` 或 JS 数字数组/List | 按原始字节写入；数组元素必须是整数，范围为 `-128` 到 `255` |
-| `stream` | Java `InputStream` | 以输入流方式写入；由 JS 脚本负责关闭 |
+#### 3.2.2 HTTP 二进制文件同步
 
-类型名称忽略大小写，例如 `BYTES`、`Bytes` 和 `bytes` 等价。未知类型会抛出异常。
+HTTP 图片、压缩包等二进制文件不能按默认 `text` 类型写入，需要先通过 `httpUtil` 获取二进制内容，再根据数据形态选择 `bytes` 或 `stream`。
 
-`stream` 示例：
+##### bytes 方式
 
-```javascript
-function process(record) {
-  var input = httpUtil.openStream(record.url);
-  try {
-    storage.update("target-ftp", {
-      action: "write",
-      contentType: "stream",
-      target: {
-        path: "save_" + record.id + ".png"
-      },
-      content: input
-    }, {
-      overwrite: "overwrite"
-    });
-  } finally {
-    input.close();
-  }
-
-  return record;
-}
-```
-
-`httpUtil.openStream(url)` 返回 Java `InputStream`。`storage.update` 不会自动关闭 `stream` 内容，脚本必须在 `finally` 中关闭。
-
-HTTP 二进制文件示例：
+`httpUtil.downloadBytes(url)` 将 HTTP 响应完整读取为 Java `byte[]`。`contentType: "bytes"` 会按原始字节写入，不进行字符集转换。该方式会将整个文件加载到内存，适合文件大小可控的场景：
 
 ```javascript
 function process(record) {
@@ -114,6 +90,45 @@ function process(record) {
   return record;
 }
 ```
+
+##### stream 方式
+
+`httpUtil.openStream(url)` 返回 HTTP 响应的 Java `InputStream`。`contentType: "stream"` 会以流方式写入，适合不希望一次性加载完整文件的场景。
+
+`storage.update` 不会自动关闭 `stream` 内容，JS 脚本必须在使用完成后关闭输入流，建议使用 `try/finally`：
+
+```javascript
+function process(record) {
+  var input = httpUtil.openStream(record.url);
+  try {
+    var result = storage.update("target-ftp", {
+      action: "write",
+      contentType: "stream",
+      target: {
+        path: "save_" + record.id + ".png"
+      },
+      content: input
+    }, {
+      overwrite: "overwrite"
+    });
+
+    if (!result || result.status !== "written") {
+      throw new Error("HTTP stream FTP write failed");
+    }
+  } finally {
+    input.close();
+  }
+
+  return record;
+}
+```
+
+| 类型 | `content` 类型 | 适用场景 | 资源要求 |
+| --- | --- | --- | --- |
+| `bytes` | Java `byte[]` 或 JS 数字数组/List | 文件大小可控、需要完整获取内容后再写入 | 不需要 JS 关闭 |
+| `stream` | Java `InputStream` | 大文件或希望流式传输 | JS 必须在 `finally` 中调用 `close()` |
+
+类型名称忽略大小写，例如 `BYTES`、`Bytes` 和 `bytes` 等价。未知类型会抛出异常。MIME 类型（例如 `image/png`）不能作为 `contentType`。
 
 `contentType` 只用于 `action: "write"`。`action: "copy"` 直接在源文件连接和目标文件连接之间复制，不读取 `content`。
 
@@ -257,3 +272,53 @@ var deleted = storage.delete("Source-ftp", {
 - 将 URL、HTTP 响应对象或普通字符串自动识别为文件二进制内容；HTTP 内容必须由脚本先通过 `httpUtil.downloadBytes` 或 `httpUtil.openStream` 获取，再以 `bytes` 或 `stream` 类型传入。
 - 将 MIME 类型（例如 `image/png`）作为 `contentType`；`contentType` 表示内容处理方式，不表示文件 MIME 类型。
 - FTP 操作与下游数据库写入之间的跨系统事务回滚。FTP 成功后下游数据库仍可能因自身原因写入失败。
+
+## 9. `httpUtil` 文件下载方法
+
+`httpUtil` 在增强 JS 节点中提供 HTTP/HTTPS GET 下载能力，支持自动跟随 30x 重定向。下载失败或 HTTP 返回非成功状态时抛出异常，不自动重试。
+
+| 方法 | 返回值 | 适用场景 | 资源要求 |
+| --- | --- | --- | --- |
+| `httpUtil.downloadBytes(url)` | Java `byte[]` | 文件大小可控，需要以完整字节数组处理 | 不需要 JS 关闭；文件内容会完整加载到内存 |
+| `httpUtil.openStream(url)` | Java `InputStream` | 大文件或需要流式传输 | JS 使用完成后必须调用 `close()` |
+
+### 9.1 `httpUtil.downloadBytes`
+
+```javascript
+var content = httpUtil.downloadBytes(record.url);
+```
+
+| 参数 | 类型 | 含义 |
+| --- | --- | --- |
+| `url` | `String` | HTTP 或 HTTPS 文件地址 |
+
+返回完整的 Java `byte[]`。传给 `storage.update` 时必须设置 `contentType: "bytes"`，否则未传 `contentType` 会按默认 `text` 处理。
+
+### 9.2 `httpUtil.openStream`
+
+```javascript
+var input = httpUtil.openStream(record.url);
+try {
+  storage.update("target-ftp", {
+    action: "write",
+    contentType: "stream",
+    target: { path: "save_" + record.id + ".png" },
+    content: input
+  }, { overwrite: "overwrite" });
+} finally {
+  input.close();
+}
+```
+
+| 参数 | 类型 | 含义 |
+| --- | --- | --- |
+| `url` | `String` | HTTP 或 HTTPS 文件地址 |
+
+返回 HTTP 响应体 `InputStream`。该流由 JS 脚本负责关闭，建议始终使用 `try/finally`，即使 FTP 写入失败也必须释放流。
+
+### 9.3 使用说明
+
+- `downloadBytes` 适合中小文件或需要先获取完整内容的逻辑，但文件大小受 JS 节点可用内存影响。
+- `openStream` 适合大文件流式写入；只能消费一次，关闭后不能继续读取或重复传给 `storage.update`。
+- 两个方法只负责下载，不负责根据 URL 后缀设置文件名或 MIME 类型；目标路径和文件扩展名由 JS 代码指定。
+- HTTP 下载和 FTP 写入不是跨系统事务；下载或写入异常会抛出，是否继续处理由任务错误处理策略决定。
