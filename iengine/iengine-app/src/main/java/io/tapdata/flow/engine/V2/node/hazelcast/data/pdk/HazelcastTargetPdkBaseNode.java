@@ -7,6 +7,7 @@ import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -181,6 +182,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
     private LinkedBlockingQueue<TapdataEvent> tapEventProcessQueue;
     private final Object saveSnapshotLock = new Object();
+    private final Object uploadDagLock = new Object();
     private ThreadPoolExecutorEx queueConsumerThreadPool;
     private boolean inCdc = false;
     protected int targetBatch;
@@ -358,19 +360,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     syncProgressKey = nodeIdList.get(0) + "," + node.getId();
 				}
 
-				SyncProgress syncProgress = null;
-				if (syncProgressKey != null) {
-					syncProgress = syncProgressMap.get(syncProgressKey);
+				synchronized (saveSnapshotLock) {
+					SyncProgress syncProgress = syncProgressKey == null
+							? new SyncProgress()
+							: syncProgressMap.computeIfAbsent(syncProgressKey, key -> new SyncProgress());
+					flushOffsetCallback(tapdataEvent, syncProgress);
 				}
-
-				if (syncProgress == null) {
-					syncProgress = new SyncProgress();
-					if (syncProgressKey != null) {
-						syncProgressMap.put(syncProgressKey, syncProgress);
-					}
-				}
-
-				flushOffsetCallback(tapdataEvent, syncProgress);
 				saveToSnapshot();
 			}
 		});
@@ -411,7 +406,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
 		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
 			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
-			syncProgress.setBatchOffsetObj(new HashMap<>());
+			syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
 		} else {
 			throw new TapCodeException(e.getMessage(), e);
 		}
@@ -825,53 +820,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-			Function<TapEvent, List<String>> partitionKeyFunction = new Function<>() {
-				private final Set<String> warnTag = new HashSet<>();
-
-				@Override
-				public List<String> apply(TapEvent tapEvent) {
-					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
-					if (null != concurrentWritePartitionMap) {
-						List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
-						if (null != fields && !fields.isEmpty()) {
-							return new ArrayList<>(fields);
-						}
-						if (!warnTag.contains(tgtTableName)) {
-							warnTag.add(tgtTableName);
-							obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
-						}
-					}
-					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-					handleTapTablePrimaryKeys(tapTable);
-					return new ArrayList<>(tapTable.primaryKeys(true));
-				}
-			};
             if (initialConcurrentInConfig != null) {
                 this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
                 this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
-                if (initialConcurrentInConfig) {
-                    this.initialPartitionConcurrentProcessor = initInitialConcurrentProcessor(
-                            initialConcurrentWriteNum,
-                            new Partitioner<TapdataEvent, List<Object>>() {
-                                final Random random = new Random();
-
-                                @Override
-                                public PartitionResult<TapdataEvent> partition(int partitionSize, TapdataEvent event, List<Object> partitionValue) {
-                                    return new PartitionResult<>(random.nextInt(partitionSize), event);
-                                }
-                            }
-                    );
-                    this.initialPartitionConcurrentProcessor.start();
-                }
+                resumeInitialConcurrentProcessorIfNeed();
             }
             final Boolean cdcConcurrentInConfig = dataParentNode.getCdcConcurrent();
             if (cdcConcurrentInConfig != null) {
                 this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
                 this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
-                if (this.cdcConcurrent) {
-                    this.cdcPartitionConcurrentProcessor = initCDCConcurrentProcessor(cdcConcurrentWriteNum, partitionKeyFunction);
-                    this.cdcPartitionConcurrentProcessor.start();
-                }
+                resumeCDCConcurrentProcessorIfNeed();
             }
 		} else if (getNode() instanceof HazelCastImdgNode) {
 			HazelCastImdgNode hazelCastImdgNode = (HazelCastImdgNode) getNode();
@@ -880,12 +838,64 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (cdcConcurrentInConfig != null) {
 				this.cdcConcurrentWriteNum = hazelCastImdgNode.getCdcConcurrentWriteNum() != null ? hazelCastImdgNode.getCdcConcurrentWriteNum() : 4;
 				this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
-				if (this.cdcConcurrent) {
-					this.cdcPartitionConcurrentProcessor = initShareCDCConcurrentProcessor(cdcConcurrentWriteNum);
-					this.cdcPartitionConcurrentProcessor.start();
-				}
+				resumeCDCConcurrentProcessorIfNeed();
 			}
 		}
+    }
+
+    private boolean resumeInitialConcurrentProcessorIfNeed() {
+        if (!initialConcurrent || isConcurrentProcessorRunning(SyncStage.INITIAL_SYNC)) return false;
+        this.initialPartitionConcurrentProcessor = initInitialConcurrentProcessor(
+                initialConcurrentWriteNum,
+                new Partitioner<TapdataEvent, List<Object>>() {
+                    final Random random = new Random();
+
+                    @Override
+                    public PartitionResult<TapdataEvent> partition(int partitionSize, TapdataEvent event, List<Object> partitionValue) {
+                        return new PartitionResult<>(random.nextInt(partitionSize), event);
+                    }
+                }
+        );
+        this.initialPartitionConcurrentProcessor.start();
+        return true;
+    }
+
+    private boolean resumeCDCConcurrentProcessorIfNeed() {
+        if (!cdcConcurrent || isConcurrentProcessorRunning(SyncStage.CDC)) return false;
+        if (getNode() instanceof DataParentNode) {
+            this.cdcPartitionConcurrentProcessor = initCDCConcurrentProcessor(
+                    cdcConcurrentWriteNum, createCDCPartitionKeyFunction());
+        } else if (getNode() instanceof HazelCastImdgNode) {
+            this.cdcPartitionConcurrentProcessor = initShareCDCConcurrentProcessor(cdcConcurrentWriteNum);
+        } else {
+            return false;
+        }
+        this.cdcPartitionConcurrentProcessor.start();
+        return true;
+    }
+
+    private Function<TapEvent, List<String>> createCDCPartitionKeyFunction() {
+        return new Function<>() {
+            private final Set<String> warnTag = new HashSet<>();
+
+            @Override
+            public List<String> apply(TapEvent tapEvent) {
+                final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+                if (null != concurrentWritePartitionMap) {
+                    List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
+                    if (null != fields && !fields.isEmpty()) {
+                        return new ArrayList<>(fields);
+                    }
+                    if (!warnTag.contains(tgtTableName)) {
+                        warnTag.add(tgtTableName);
+                        obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
+                    }
+                }
+                TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+                handleTapTablePrimaryKeys(tapTable);
+                return new ArrayList<>(tapTable.primaryKeys(true));
+            }
+        };
     }
 
     protected boolean isCDCConcurrent(Boolean cdcConcurrent) {
@@ -1181,7 +1191,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         skipErrorTable.setSyncStage(SyncStage.INITIAL_SYNC);
 
         if (CollectionUtils.isNotEmpty(initialEvents)) {
-            if (initialConcurrent && null != this.initialPartitionConcurrentProcessor && this.initialPartitionConcurrentProcessor.isRunning()) {
+            if (isConcurrentProcessorRunning(SyncStage.INITIAL_SYNC)) {
                 this.initialPartitionConcurrentProcessor.process(initialEvents, async);
             } else {
                 splitCompleteTableSnapshotEvent2NewBatch(initialEvents, this::handleTapdataEvents);
@@ -1211,7 +1221,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private void cdcProcessEvents(List<TapdataEvent> cdcEvents) {
         skipErrorTable.setSyncStage(SyncStage.CDC);
         if (CollectionUtils.isNotEmpty(cdcEvents)) {
-            if (cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
+            if (isConcurrentProcessorRunning(SyncStage.CDC)) {
                 this.cdcPartitionConcurrentProcessor.process(cdcEvents, true);
             } else {
                 splitDDL2NewBatch(cdcEvents, this::handleTapdataEvents);
@@ -1244,6 +1254,22 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             subListConsumer.accept(cdcEvents);
         } else if (beginIndex != len) {
             subListConsumer.accept(cdcEvents.subList(beginIndex, len));
+        }
+    }
+
+    private final ThreadLocal<Boolean> fromConcurrentProcessor = ThreadLocal.withInitial(() -> false);
+
+    private void handleTapdataEvents(List<TapdataEvent> tapdataEvents, boolean fromConcurrent) {
+        boolean previous = fromConcurrentProcessor.get();
+        fromConcurrentProcessor.set(fromConcurrent);
+        try {
+            handleTapdataEvents(tapdataEvents);
+        } finally {
+            if (previous) {
+                fromConcurrentProcessor.set(true);
+            } else {
+                fromConcurrentProcessor.remove();
+            }
         }
     }
 
@@ -1517,17 +1543,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             int newQueueSize = originalWriteQueueCapacity;
             switch (mode) {
                 case TapdataAdjustMemoryEvent.INCREASE:
-                    if (initialConcurrent && (null == this.initialPartitionConcurrentProcessor || !initialPartitionConcurrentProcessor.isRunning())) {
-                        initTargetConcurrentProcessorIfNeed();
+                    if (resumeInitialConcurrentProcessorIfNeed()) {
                         obsLogger.trace("{}Target initial concurrent processor resumed", DynamicAdjustMemoryConstant.LOG_PREFIX);
+                    }
+                    if (resumeCDCConcurrentProcessorIfNeed()) {
+                        obsLogger.trace("{}Target CDC concurrent processor resumed", DynamicAdjustMemoryConstant.LOG_PREFIX);
                     }
                     newQueueSize = this.originalWriteQueueCapacity;
                     break;
                 case TapdataAdjustMemoryEvent.DECREASE:
-                    if (initialConcurrent && null != initialPartitionConcurrentProcessor && initialPartitionConcurrentProcessor.isRunning()) {
+                    if (isConcurrentProcessorRunning(SyncStage.INITIAL_SYNC)) {
                         initialPartitionConcurrentProcessor.stop();
                         initialPartitionConcurrentProcessor = null;
                         obsLogger.trace("{}Target initial concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
+                    }
+                    if (isConcurrentProcessorRunning(SyncStage.CDC)) {
+                        cdcPartitionConcurrentProcessor.stop();
+                        cdcPartitionConcurrentProcessor = null;
+                        obsLogger.trace("{}Target CDC concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
                     }
                     newQueueSize = BigDecimal.valueOf(this.originalWriteQueueCapacity).divide(BigDecimal.valueOf(coefficient).multiply(BigDecimal.valueOf(TARGET_QUEUE_FACTOR)), 0, RoundingMode.HALF_UP).intValue();
                     newQueueSize = Math.max(newQueueSize, 10);
@@ -1606,12 +1639,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null != syncStage) {
                 switch (syncStage) {
                     case INITIAL_SYNC:
-                        if (null != lastTapdataEvent.get().getBatchOffset() && !initialConcurrent) {
+                        if (null != lastTapdataEvent.get().getBatchOffset() && !fromConcurrentProcessor.get()) {
                             flushSyncProgressMap(lastTapdataEvent.get());
                         }
                         break;
                     case CDC:
-                        if (null != lastTapdataEvent.get().getStreamOffset() && !cdcConcurrent) {
+                        if (null != lastTapdataEvent.get().getStreamOffset() && !fromConcurrentProcessor.get()) {
                             flushSyncProgressMap(lastTapdataEvent.get());
                         }
                         break;
@@ -1619,6 +1652,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         break;
                 }
             }
+        }
+    }
+
+    private boolean isConcurrentProcessorRunning(SyncStage syncStage) {
+        switch (syncStage) {
+            case INITIAL_SYNC:
+                return initialConcurrent
+                        && null != initialPartitionConcurrentProcessor
+                        && initialPartitionConcurrentProcessor.isRunning();
+            case CDC:
+                return cdcConcurrent
+                        && null != cdcPartitionConcurrentProcessor
+                        && cdcPartitionConcurrentProcessor.isRunning();
+            default:
+                return false;
         }
     }
 
@@ -1903,68 +1951,76 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         Node<?> node = processorBaseContext.getNode();
         if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
         String progressKey = tapdataEvent.getNodeIds().get(0) + "," + node.getId();
-        SyncProgress syncProgress = this.syncProgressMap.computeIfAbsent(progressKey, k -> new SyncProgress());
-        if (tapdataEvent instanceof TapdataStartingCdcEvent) {
-            if (null == tapdataEvent.getSyncStage()) return;
-            syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
-        } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-			if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) {
-				try {
-					ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
-					if (null == processControlFunction) {
-						return;
-					}
-					HeartbeatEvent event;
-					if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
-						event = (HeartbeatEvent) tapdataEvent.getTapEvent();
-					} else {
-						event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
-					}
-					event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
-					event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
-					event.addInfo("syncStage", tapdataEvent.getSyncStage());
-					event.addInfo("sourceTime", tapdataEvent.getSourceTime());
-					event.addInfo("nodeIds", tapdataEvent.getNodeIds());
-					processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+        if (tapdataEvent instanceof TapdataHeartbeatEvent && (null == tapdataEvent.getSyncStage() || offsetCallbackEnable)) {
+			try {
+				ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
+				if (null == processControlFunction) {
 					return;
-				} catch (Throwable throwable) {
-					errorHandle(throwable);
 				}
-			}
-            syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
-            if (null != tapdataEvent.getStreamOffset()) {
-                syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
-            }
-            if (null != tapdataEvent.getBatchOffset()) {
-                syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
-            }
-            if (tapdataEvent.getSourceTime() != null)
-				syncProgress.setSourceTime(tapdataEvent.getSourceTime());
-			if (tapdataEvent.getSourceTime() != null)
-				syncProgress.setEventTime(tapdataEvent.getSourceTime());
-			flushOffset.set(true);
-		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
-			if (null != tapdataEvent.getBatchOffset()) {
-				Object batchOffsetObj = syncProgress.getBatchOffsetObj();
-				Map<String, Object> batchOffsetMap;
-				if (batchOffsetObj instanceof Map) {
-					batchOffsetMap = (Map<String, Object>) batchOffsetObj;
+				HeartbeatEvent event;
+				if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
+					event = (HeartbeatEvent) tapdataEvent.getTapEvent();
 				} else {
-					batchOffsetMap = new ConcurrentHashMap<>();
-					syncProgress.setBatchOffsetObj(batchOffsetMap);
+					event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
 				}
-				batchOffsetMap.put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
-				flushOffset.set(true);
-			}
-		} else {
-			if (!offsetCallbackEnable) {
-				flushOffsetCallback(tapdataEvent, syncProgress);
+				event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
+				event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
+				event.addInfo("syncStage", tapdataEvent.getSyncStage());
+				event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+				event.addInfo("nodeIds", tapdataEvent.getNodeIds());
+				processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+				return;
+			} catch (Throwable throwable) {
+				errorHandle(throwable);
 			}
 		}
-		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+        synchronized (saveSnapshotLock) {
+            SyncProgress syncProgress = this.syncProgressMap.computeIfAbsent(progressKey, k -> new SyncProgress());
+            if (tapdataEvent instanceof TapdataStartingCdcEvent) {
+                if (null == tapdataEvent.getSyncStage()) return;
+                syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
+            } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+				syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
+				if (null != tapdataEvent.getStreamOffset()) {
+					syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
+				}
+				if (null != tapdataEvent.getBatchOffset()) {
+					syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+				}
+				if (tapdataEvent.getSourceTime() != null) {
+					syncProgress.setSourceTime(tapdataEvent.getSourceTime());
+					syncProgress.setEventTime(tapdataEvent.getSourceTime());
+				}
+				flushOffset.set(true);
+			} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
+				if (null != tapdataEvent.getBatchOffset()) {
+					Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+					Map<String, Object> batchOffsetMap;
+					if (batchOffsetObj instanceof Map) {
+						batchOffsetMap = (Map<String, Object>) batchOffsetObj;
+					} else {
+						batchOffsetMap = new ConcurrentHashMap<>();
+						syncProgress.setBatchOffsetObj(batchOffsetMap);
+					}
+					batchOffsetMap.put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+					flushOffset.set(true);
+				}
+			} else {
+				if (!offsetCallbackEnable) {
+					flushOffsetCallback(tapdataEvent, syncProgress);
+				}
+			}
+			syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+        }
 	}
 
 	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
+		synchronized (saveSnapshotLock) {
+			return flushOffsetCallbackLocked(tapdataEvent, syncProgress);
+		}
+	}
+
+	private boolean flushOffsetCallbackLocked(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
 		if (null == tapdataEvent.getSyncStage()) return false;
 		if (null == tapdataEvent.getBatchOffset() && null == tapdataEvent.getStreamOffset()) return false;
 		if (SyncStage.CDC == tapdataEvent.getSyncStage() && null == tapdataEvent.getSourceTime()) return false;
@@ -2029,58 +2085,31 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     @Override
     public boolean saveToSnapshot() {
         try {
-            if (!flushOffset.get()) return true;
-            if (MapUtils.isEmpty(syncProgressMap)) return true;
-            Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			SnapshotPayload snapshotPayload = createSnapshotPayload();
+			if (snapshotPayload == null) return true;
 			AtomicBoolean needSave = new AtomicBoolean(true);
-            for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
-                String key = entry.getKey();
-                SyncProgress syncProgress = entry.getValue();
-                List<String> list = Arrays.asList(key.split(","));
-                if (null != syncProgress.getBatchOffsetObj()) {
-                    syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
-                }
-                if (null != syncProgress.getStreamOffsetObj()) {
-                    if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
-                            && !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
-                        syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
-                        if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
-                            String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
-                            syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
-                        }
-						sourceConnectorNodeMap.forEach((nodeId, node) -> {
-							if (list.contains(nodeId)) {
-								FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
-								if (null == flushOffsetFunction) {
-									return;
-								}
-								try {
-									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
-								} catch (Exception e) {
-									needSave.set(false);
-								}
-							}
-						});
-                    }
-                }
+			snapshotPayload.flushOffsetRequests.forEach(request -> sourceConnectorNodeMap.forEach((nodeId, node) -> {
+				if (!request.nodeIds.contains(nodeId)) return;
+				FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
+				if (null == flushOffsetFunction) return;
 				try {
-					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
-				} catch (JsonProcessingException e) {
-					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+					flushOffsetFunction.flushOffset(node.getConnectorContext(), request.streamOffset);
+				} catch (Exception e) {
+					needSave.set(false);
 				}
-			}
+			}));
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 			try {
 				if (needSave.get()){
-					clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
 				}
 			} catch (Exception e) {
-				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
+				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, snapshotPayload.syncProgressJsonMap, e.getMessage());
 				return false;
 			}
 			if (uploadDagService.get()) {
-				synchronized (this.saveSnapshotLock) {
+				synchronized (this.uploadDagLock) {
                     if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
                         // Upload Metadata
                         TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
@@ -2122,6 +2151,77 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
         return true;
     }
+
+	private SnapshotPayload createSnapshotPayload() throws IOException {
+		synchronized (saveSnapshotLock) {
+			if (!flushOffset.get() || MapUtils.isEmpty(syncProgressMap)) return null;
+			Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			List<FlushOffsetRequest> flushOffsetRequests = new ArrayList<>();
+			for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
+				List<String> nodeIds = Arrays.asList(entry.getKey().split(","));
+				SyncProgress syncProgress = copySyncProgress(entry.getValue());
+				if (null != syncProgress.getBatchOffsetObj()) {
+					syncProgress.setBatchOffset(PdkUtil.encodeOffset(
+						BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset)
+				));
+				}
+				Object streamOffsetObj = syncProgress.getStreamOffsetObj();
+				if (null != streamOffsetObj && (!(streamOffsetObj instanceof String)
+						|| (!StringUtils.startsWith((String) streamOffsetObj, STREAM_OFFSET_COMPRESS_PREFIX_V2)
+						&& !StringUtils.startsWith((String) streamOffsetObj, ENCODE_PREFIX)))) {
+					syncProgress.setStreamOffset(PdkUtil.encodeOffset(streamOffsetObj));
+					if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
+						String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
+						syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
+					}
+					flushOffsetRequests.add(new FlushOffsetRequest(nodeIds, streamOffsetObj));
+				}
+				try {
+					syncProgressJsonMap.put(JSONUtil.obj2Json(nodeIds), JSONUtil.obj2Json(syncProgress));
+				} catch (JsonProcessingException e) {
+					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+				}
+			}
+			return new SnapshotPayload(syncProgressJsonMap, flushOffsetRequests);
+		}
+	}
+
+	private SyncProgress copySyncProgress(SyncProgress source) {
+		SyncProgress copy = new SyncProgress();
+		copy.setOffset(source.getOffset());
+		copy.setEventTime(source.getEventTime());
+		copy.setEventSerialNo(source.getEventSerialNo());
+		copy.setSourceTime(source.getSourceTime());
+		copy.setOffsetStartTime(source.getOffsetStartTime());
+		copy.setSyncStage(source.getSyncStage());
+		copy.setOffsetObj(source.getOffsetObj());
+		copy.setBatchOffset(source.getBatchOffset());
+		copy.setStreamOffset(source.getStreamOffset());
+		copy.setBatchOffsetObj(source.getBatchOffsetObj());
+		copy.setStreamOffsetObj(source.getStreamOffsetObj());
+		copy.setType(source.getType());
+		return copy;
+	}
+
+	private static class SnapshotPayload {
+		private final Map<String, String> syncProgressJsonMap;
+		private final List<FlushOffsetRequest> flushOffsetRequests;
+
+		private SnapshotPayload(Map<String, String> syncProgressJsonMap, List<FlushOffsetRequest> flushOffsetRequests) {
+			this.syncProgressJsonMap = syncProgressJsonMap;
+			this.flushOffsetRequests = flushOffsetRequests;
+		}
+	}
+
+	private static class FlushOffsetRequest {
+		private final List<String> nodeIds;
+		private final Object streamOffset;
+
+		private FlushOffsetRequest(List<String> nodeIds, Object streamOffset) {
+			this.nodeIds = nodeIds;
+			this.streamOffset = streamOffset;
+		}
+	}
 
     private class DeleteConditionFieldFilter implements TargetTapEventFilter.TapEventPredicate {
         private String tableName;
@@ -2197,7 +2297,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				batchSize,
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(partitionKeyFunction),
-				this::handleTapdataEvents,
+				events -> handleTapdataEvents(events, true),
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
@@ -2222,7 +2322,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						return values;
 					}
 				},
-				this::handleTapdataEvents,
+				events -> handleTapdataEvents(events, true),
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
@@ -2250,12 +2350,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						return Collections.emptyList();
 					}
 				},
-				this::handleTapdataEvents,
+				events -> handleTapdataEvents(events, true),
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
 				dataProcessorContext
 		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+    }
+
+    private void stopFlushOffsetExecutorAndSaveSnapshot() {
+        try {
+            flushOffsetExecutor.shutdownNow();
+        } finally {
+            saveToSnapshot();
+        }
     }
 
     @Override
@@ -2276,8 +2384,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     l.notifyAll();
                 }
             }), TAG);
-            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
-            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+            CommonUtils.ignoreAnyError(this::stopFlushOffsetExecutorAndSaveSnapshot, TAG);
             CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
         } finally {
             super.doClose();

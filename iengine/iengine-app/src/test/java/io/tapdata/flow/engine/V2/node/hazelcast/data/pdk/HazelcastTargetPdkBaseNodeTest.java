@@ -126,7 +126,13 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@BeforeEach
 	void setUp() {
 		hazelcastTargetPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "saveSnapshotLock", new Object());
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "uploadDagLock", new Object());
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
+		setBaseProperty(hazelcastTargetPdkBaseNode);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "fromConcurrentProcessor", ThreadLocal.withInitial(() -> false));
 		when(hazelcastTargetPdkBaseNode.getDataProcessorContext()).thenReturn(dataProcessorContext);
+		when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) tableNode);
 	}
 
 	@Nested
@@ -1078,6 +1084,109 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	@DisplayName("Snapshot persistence on close test")
+	class SnapshotPersistenceOnCloseTest {
+		@Test
+		void progressUpdatesUseTheSnapshotLock() throws Exception {
+			Object snapshotLock = new Object();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "saveSnapshotLock", snapshotLock);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", new AtomicBoolean());
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushOffsetCallback(any(), any());
+			TapdataEvent event = new TapdataEvent();
+			event.setSyncStage(SyncStage.CDC);
+			event.setStreamOffset("offset");
+			event.setSourceTime(1L);
+			SyncProgress syncProgress = new SyncProgress();
+
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			CountDownLatch started = new CountDownLatch(1);
+			try {
+				Future<Boolean> future;
+				synchronized (snapshotLock) {
+					future = executor.submit(() -> {
+						started.countDown();
+						return hazelcastTargetPdkBaseNode.flushOffsetCallback(event, syncProgress);
+					});
+					assertTrue(started.await(1, TimeUnit.SECONDS));
+					Thread.sleep(100);
+					assertFalse(future.isDone());
+				}
+				assertFalse(future.get(1, TimeUnit.SECONDS));
+			} finally {
+				executor.shutdownNow();
+			}
+		}
+
+		@Test
+		void snapshotDoesNotHoldProgressLockDuringTmWrite() throws Exception {
+			Object snapshotLock = new Object();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "saveSnapshotLock", snapshotLock);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", new AtomicBoolean(true));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "uploadDagService", new AtomicBoolean(false));
+			DataProcessorContext snapshotContext = mock(DataProcessorContext.class);
+			TaskDto snapshotTask = new TaskDto();
+			snapshotTask.setId(new ObjectId());
+			when(snapshotContext.getTaskDto()).thenReturn(snapshotTask);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", snapshotContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "clientMongoOperator", mockClientMongoOperator);
+			Map<String, SyncProgress> progressMap = new ConcurrentHashMap<>();
+			SyncProgress initialProgress = new SyncProgress();
+			initialProgress.setBatchOffsetObj(null);
+			progressMap.put("source,target", initialProgress);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", progressMap);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).saveToSnapshot();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushOffsetCallback(any(), any());
+
+			CountDownLatch tmWriteStarted = new CountDownLatch(1);
+			CountDownLatch releaseTmWrite = new CountDownLatch(1);
+			doAnswer(invocation -> {
+				tmWriteStarted.countDown();
+				assertTrue(releaseTmWrite.await(2, TimeUnit.SECONDS));
+				return null;
+			}).when(mockClientMongoOperator).insertOne(any(), anyString());
+
+			ExecutorService executor = Executors.newFixedThreadPool(2);
+			try {
+				Future<Boolean> saveFuture = executor.submit(hazelcastTargetPdkBaseNode::saveToSnapshot);
+				assertTrue(tmWriteStarted.await(1, TimeUnit.SECONDS));
+				TapdataEvent event = new TapdataEvent();
+				event.setSyncStage(SyncStage.CDC);
+				event.setStreamOffset("new-offset");
+				event.setSourceTime(2L);
+				Future<Boolean> updateFuture = executor.submit(() ->
+						hazelcastTargetPdkBaseNode.flushOffsetCallback(event, progressMap.get("source,target")));
+				assertFalse(updateFuture.get(1, TimeUnit.SECONDS));
+				releaseTmWrite.countDown();
+				assertTrue(saveFuture.get(1, TimeUnit.SECONDS));
+			} finally {
+				releaseTmWrite.countDown();
+				executor.shutdownNow();
+			}
+		}
+
+		@Test
+		void closeStopsScheduledSnapshotsBeforeTheFinalSnapshot() throws TapCodeException {
+			ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffsetExecutor", executor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceCache", mock(OverflowToRocksDBSet.class));
+			hazelcastTargetPdkBaseNode.syncMetricCollector = mock(ISyncMetricCollector.class);
+			Node<?> closeNode = mock(Node.class);
+			when(closeNode.getTaskId()).thenReturn("taskId");
+			when(closeNode.getId()).thenReturn("nodeId");
+			when(closeNode.getName()).thenReturn("nodeName");
+			doReturn(closeNode).when(hazelcastTargetPdkBaseNode).getNode();
+			doReturn(true).when(hazelcastTargetPdkBaseNode).saveToSnapshot();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).doClose();
+
+			hazelcastTargetPdkBaseNode.doClose();
+
+			org.mockito.InOrder inOrder = inOrder(executor, hazelcastTargetPdkBaseNode);
+			inOrder.verify(executor).shutdownNow();
+			inOrder.verify(hazelcastTargetPdkBaseNode).saveToSnapshot();
+		}
+	}
+
+	@Nested
 	@DisplayName("Method initTargetConcurrentProcessorIfNeed test")
 	class initTargetConcurrentProcessorIfNeedTest {
 		@BeforeEach
@@ -1352,6 +1461,27 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	class HandleTapdataEventsTest {
+		@Test
+		void concurrentCallbackNeverFlushesPartitionOffsetAndRestoresContext() {
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			for (SyncStage stage : new SyncStage[]{SyncStage.INITIAL_SYNC, SyncStage.CDC}) {
+				TapdataEvent event = new TapdataEvent();
+				event.setSyncStage(stage);
+				event.setBatchOffset(new Object());
+				event.setStreamOffset(new Object());
+				doAnswer(invocation -> {
+					((AtomicReference<TapdataEvent>) invocation.getArgument(2)).set(event);
+					return null;
+				}).when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(), any(), any(), any(), any(), any());
+				// Both processor fields are absent: their live state must not permit a partition flush.
+				ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode, "handleTapdataEvents",
+						Collections.singletonList(event), true);
+				verify(hazelcastTargetPdkBaseNode, never()).flushSyncProgressMap(event);
+				hazelcastTargetPdkBaseNode.handleTapdataEvents(Collections.singletonList(event));
+				verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(event);
+			}
+		}
+
 		List<TapdataEvent> tapdataEvents;
 		JetJobStatusMonitor jobStatusMonitor = mock(JetJobStatusMonitor.class);
 		DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
@@ -2086,6 +2216,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataAdjustMemoryEvent(any());
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initQueueConsumerThreadPool();
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initTargetQueueConsumer();
+			UnitTestUtils.injectField(HazelcastTargetPdkBaseNode.class, hazelcastTargetPdkBaseNode,
+					"dynamicAdjustQueueLock", new int[0]);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"originalWriteQueueCapacity", 100);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeQueueCapacity", 200);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"tapEventQueue", new LinkedBlockingQueue<>(100));
@@ -2127,6 +2259,49 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(queueExecutorEx.isShutdown()).thenReturn(false);
 			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(tapdataEvent);
 			verify(queueExecutorEx,times(1)).shutdownNow();
+		}
+
+		@Test
+		void testDecreaseStopsCdcConcurrentProcessorDuringCdc() {
+			PartitionConcurrentProcessor cdcProcessor = mock(PartitionConcurrentProcessor.class);
+			when(cdcProcessor.isRunning()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "inCdc", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcPartitionConcurrentProcessor", cdcProcessor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "writeQueueCapacity", 25);
+
+			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(
+					new TapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent.DECREASE, 2.0));
+
+			verify(cdcProcessor).stop();
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode,
+					"cdcPartitionConcurrentProcessor"));
+		}
+
+		@Test
+		void testDecreaseBeforeCdcStopsBothConcurrentProcessors() {
+			PartitionConcurrentProcessor initialProcessor = mock(PartitionConcurrentProcessor.class);
+			PartitionConcurrentProcessor cdcProcessor = mock(PartitionConcurrentProcessor.class);
+			when(initialProcessor.isRunning()).thenReturn(true);
+			when(cdcProcessor.isRunning()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "inCdc", false);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "initialConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,
+					"initialPartitionConcurrentProcessor", initialProcessor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,
+					"cdcPartitionConcurrentProcessor", cdcProcessor);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "writeQueueCapacity", 25);
+
+			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(
+					new TapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent.DECREASE, 2.0));
+
+			verify(initialProcessor).stop();
+			verify(cdcProcessor).stop();
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode,
+					"initialPartitionConcurrentProcessor"));
+			assertNull(ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode,
+					"cdcPartitionConcurrentProcessor"));
 		}
 
 		@DisplayName("test timestamp is null")
@@ -2727,6 +2902,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
 			hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e);
 			assertNotEquals("test batch offset", syncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertEquals(new HashMap<>(), syncProgress.getBatchOffsetObj());
 		}
 
@@ -3323,6 +3499,32 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	class FlushSyncProgressMapTest {
+		@Test
+		void testInitialOffsetFlushesWhenConfiguredConcurrentProcessorIsUnavailable() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+			tapdataEvent.setBatchOffset(new Object());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "initialConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "initialPartitionConcurrentProcessor", null);
+			ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode,
+					"flushOffsetByTapdataEventForNoConcurrent", new AtomicReference<>(tapdataEvent));
+
+			verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+		}
+
+		@Test
+		void testCdcOffsetFlushesWhenConfiguredConcurrentProcessorIsUnavailable() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setSyncStage(SyncStage.CDC);
+			tapdataEvent.setStreamOffset(new Object());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcConcurrent", true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "cdcPartitionConcurrentProcessor", null);
+			ReflectionTestUtils.invokeMethod(hazelcastTargetPdkBaseNode,
+					"flushOffsetByTapdataEventForNoConcurrent", new AtomicReference<>(tapdataEvent));
+
+			verify(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+		}
+
 		@Test
 		void testCompleteTableSnapshotInitializesAndFlushesBatchOffset() {
 			String sourceNodeId = "sourceNodeId";

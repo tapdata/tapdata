@@ -146,6 +146,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.URL;
 import java.time.LocalDate;
@@ -5309,6 +5310,23 @@ class TaskServiceImplTest {
             taskService.renewNotSendMq(taskDto,mock(UserDetail.class));
         }
     }
+
+    @Nested
+    class ResetUpdateTest {
+        @Test
+        @DisplayName("reset should unset nodeCurrentEventTimestamp with snapshotDoneAt")
+        void testResetUpdateUnsetsNodeCurrentEventTimestamp() throws Exception {
+            Method method = TaskServiceImpl.class.getDeclaredMethod("resetUpdate");
+            method.setAccessible(true);
+            Update update = (Update) method.invoke(null);
+            Document unset = update.getUpdateObject().get("$unset", Document.class);
+            assertNotNull(unset);
+            assertTrue(unset.containsKey("nodeCurrentEventTimestamp"));
+            assertTrue(unset.containsKey("snapshotDoneAt"));
+            assertTrue(unset.containsKey("currentEventTimestamp"));
+        }
+    }
+
     @Nested
     class IncreaseClearTest{
         private ObjectId taskId;

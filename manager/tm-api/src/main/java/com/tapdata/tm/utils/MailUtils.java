@@ -56,6 +56,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class MailUtils {
+    static final String SMTP_CONNECTION_TIMEOUT_MILLIS = "10000";
+    static final String SMTP_READ_TIMEOUT_MILLIS = "30000";
+    static final String SMTP_WRITE_TIMEOUT_MILLIS = "30000";
     private String host;
     private Integer port;
     private String user;
@@ -501,6 +504,9 @@ public class MailUtils {
         properties.put("mail.smtp.host", parms.getHost());
         properties.put("mail.smtp.port", String.valueOf(parms.getPort()));
         properties.put("mail.smtp.auth", "true");
+        properties.put("mail.smtp.connectiontimeout", SMTP_CONNECTION_TIMEOUT_MILLIS);
+        properties.put("mail.smtp.timeout", SMTP_READ_TIMEOUT_MILLIS);
+        properties.put("mail.smtp.writetimeout", SMTP_WRITE_TIMEOUT_MILLIS);
         if ("SSL".equals(parms.getProtocol())) {
             properties.put("mail.smtp.ssl.enable", "true");
             properties.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
