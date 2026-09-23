@@ -244,6 +244,8 @@ var deleted = storage.delete("Source-ftp", {
 ## 7. 路径规则
 
 - 路径相对于文件连接配置的根目录。
+- JS storage 优先使用连接配置中的 `rootPath`；未配置时要求 `filePathString` 只有一个非空根目录。多个根目录的文件连接不能直接用于 JS storage，请改为单根连接。
+- 文件数据节点的 `writeFilePath` 属于 node 配置，不作为 JS storage 的根目录。
 - 支持使用 `/` 开头的路径；系统会进行统一处理。
 - 不支持包含 `..`、控制字符或协议 URL 的路径。
 - `connectionName` 必须是连接管理中已存在的文件连接名称。
@@ -256,6 +258,7 @@ var deleted = storage.delete("Source-ftp", {
 - FTP 文件写入、单文件复制、查询、存在性判断和删除。
 - FTP 到 FTP、文件连接到文件连接的单文件复制。
 - 按事件逻辑决定是否执行文件操作。
+- 试运行/预览也会真实执行 `storage` 的写入、复制和删除，不会自动跳过远端文件操作。
 - `skip`、`overwrite`、`fail` 三种目标文件处理方式。
 - 使用 `httpUtil.downloadBytes` 获取 HTTP 二进制内容后，通过 `contentType: "bytes"` 写入文件连接。
 - 使用 `httpUtil.openStream` 获取 HTTP 输入流后，通过 `contentType: "stream"` 写入文件连接；输入流由脚本关闭。

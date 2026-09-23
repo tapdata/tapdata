@@ -44,7 +44,7 @@
 | 1 | 现有能力和问题核对 | 核对 `TapFileStorage`、`TapFileStorageBuilder`、FTP/SFTP 实现、JS 注入和缓存边界；确认不依赖 DAG 节点 | 已完成，依据形成于详细设计 |
 | 2 | 引擎内部文件执行器 | 引入 `StorageExecutor`，直接持有 `TapFileStorage`，提供 root path 解析 | 已完成，`ceffa91a1f` |
 | 3 | 按连接缓存和生命周期 | 连接名解析、并发首次访问单飞、缓存、关闭、失效和创建失败退避 | 已完成，`ceffa91a1f` |
-| 4 | JS 文件操作门面 | 实现 write/copy/find/exists/delete；跨存储流式复制；同存储临时文件复制 | 已完成，`ceffa91a1f` |
+| 4 | JS 文件操作门面 | 实现 write/copy/find/exists/delete；所有复制统一使用本地临时文件，避免跨连接锁反转 | 已完成，`ceffa91a1f` |
 | 5 | PDK 建连路径调整 | PDK 只用于获得 Connector classloader；由 `TapFileStorageBuilder` 创建并初始化一个 storage 实例；不调用 `FileStorageFunction` | 已完成，`ceffa91a1f` |
 | 6 | 文件 Connector 资源修复 | 保留 FTP/SFTP 受管 stream 和连接清理修复；补充 Local/SMB 输出流、OSS/S3 对象流关闭和存在性判断 | 已完成，`a9d8db19`、`44d1dfaa` |
 | 7 | 移除错误的公共 API方案 | 清理 `FileStorageFunction` 注册、`capabilities()` 和 operation DTO/service/session manager | 已完成，`a9d8db19`、`ae88d80` |
@@ -121,7 +121,7 @@ trim(connectionName) -> CompletableFuture<StorageExecutor>
 
 ### 4.4 路径解析
 
-连接配置中的 `rootPath` 优先于 `filePathString`。脚本传入的路径会：
+连接配置中的 `rootPath` 优先于 `filePathString`；`writeFilePath` 属于文件节点的 node config，不参与 JS storage。`filePathString` 配置多个非空根目录时拒绝创建 JS executor，避免静默使用服务根目录。脚本传入的路径会：
 
 - 统一 `/`；
 - 去掉开头 `/` 后拼到 root path；
@@ -160,7 +160,7 @@ function process(record) {
 }
 ```
 
-跨 storage 使用 `source.readFile(path, consumer)` 将输入流直接交给目标 `saveFile`；同一个 storage 实例内复制会先写本地临时文件，再读取临时文件写回目标，避免 FTP/SFTP 单连接读锁和写锁相互等待。
+跨 storage 和同 storage 复制都先使用 `source.readFile(path, consumer)` 写本地临时文件，再读取临时文件写入目标，避免 FTP/SFTP 单连接读锁和写锁相互等待，以及 A→B/B→A 反向并发时的锁反转。
 
 ### 5.3 查询、存在性、删除
 

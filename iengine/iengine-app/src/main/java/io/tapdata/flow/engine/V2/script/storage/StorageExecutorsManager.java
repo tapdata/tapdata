@@ -40,12 +40,6 @@ public final class StorageExecutorsManager implements AutoCloseable {
 
     public StorageExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator,
                                    HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
-        this(scriptLogger, clientMongoOperator, hazelcastInstance, taskId, nodeId, false);
-    }
-
-    public StorageExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator,
-                                   HazelcastInstance hazelcastInstance, String taskId, String nodeId,
-                                   boolean trialRun) {
         this(name -> clientMongoOperator.findOne(new Query(where("name").is(name)),
                         ConnectorConstant.CONNECTION_COLLECTION, Connections.class),
                 (name, connections) -> new PdkStorageExecutor(name, connections, clientMongoOperator,
@@ -100,12 +94,14 @@ public final class StorageExecutorsManager implements AutoCloseable {
             }
             StorageExecutor executor = executorFactory.create(key, connections);
             assert executor != null;
+            boolean accepted;
             synchronized (this) {
-                if (closed || executors.get(key) != future) {
-                    closeQuietly(executor);
-                    throw closedError(key);
-                }
-                future.complete(executor);
+                accepted = !closed && executors.get(key) == future;
+                if (accepted) future.complete(executor);
+            }
+            if (!accepted) {
+                closeQuietly(executor);
+                throw closedError(key);
             }
         } catch (Throwable throwable) {
             Throwable error = unwrap(throwable);
@@ -127,10 +123,13 @@ public final class StorageExecutorsManager implements AutoCloseable {
         }
     }
 
-    public synchronized void invalidate(String connectionName, Throwable cause) {
+    public void invalidate(String connectionName, Throwable cause) {
         if (connectionName == null) return;
         String key = connectionName.trim();
-        CompletableFuture<StorageExecutor> future = executors.remove(key);
+        CompletableFuture<StorageExecutor> future;
+        synchronized (this) {
+            future = executors.remove(key);
+        }
         if (future == null) return;
         if (!future.isDone()) {
             future.whenComplete((executor, error) -> closeQuietly(executor));
@@ -150,28 +149,34 @@ public final class StorageExecutorsManager implements AutoCloseable {
     }
 
     @Override
-    public synchronized void close() {
-        if (closed) return;
-        closed = true;
-        for (Map.Entry<String, CompletableFuture<StorageExecutor>> entry : executors.entrySet()) {
-            CompletableFuture<StorageExecutor> future = entry.getValue();
-            if (future.isDone() && !future.isCompletedExceptionally()) {
-                try {
-                    closeQuietly(future.get());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.warn("Interrupted while closing file storage executor: {} - {}", entry.getKey(), e.getMessage());
-                } catch (Exception e) {
-                    // Continue closing other connection executors.
-                    logger.warn("Error while closing file storage executor: {}", entry.getKey(), e);
+    public void close() {
+        Map<String, CompletableFuture<StorageExecutor>> snapshot;
+        synchronized (this) {
+            if (closed) return;
+            closed = true;
+            snapshot = new ConcurrentHashMap<>(executors);
+            executors.clear();
+            failures.clear();
+            for (Map.Entry<String, CompletableFuture<StorageExecutor>> entry : snapshot.entrySet()) {
+                CompletableFuture<StorageExecutor> future = entry.getValue();
+                if (!future.isDone()) {
+                    future.whenComplete((executor, error) -> closeQuietly(executor));
+                    future.completeExceptionally(closedError(entry.getKey()));
                 }
-            } else if (!future.isDone()) {
-                future.whenComplete((executor, error) -> closeQuietly(executor));
-                future.completeExceptionally(closedError(entry.getKey()));
             }
         }
-        executors.clear();
-        failures.clear();
+        for (Map.Entry<String, CompletableFuture<StorageExecutor>> entry : snapshot.entrySet()) {
+            CompletableFuture<StorageExecutor> future = entry.getValue();
+            if (!future.isDone() || future.isCompletedExceptionally()) continue;
+            try {
+                closeQuietly(future.get());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("Interrupted while closing file storage executor: {} - {}", entry.getKey(), e.getMessage());
+            } catch (Exception e) {
+                logger.warn("Error while closing file storage executor: {}", entry.getKey(), e);
+            }
+        }
     }
 
     private void ensureOpen(String connectionName) {

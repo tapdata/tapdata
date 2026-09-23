@@ -132,7 +132,7 @@ void close();
 
 它不暴露 `FTPClient`、PDK `ConnectorNode`、连接凭据或 common-lib 新增类型。
 
-`resolvePath` 使用连接的 `rootPath`，没有时回退到 `filePathString`；统一 `/`，拒绝 `..`、控制字符和协议 URL，最后把相对路径交给现有 storage 实现。
+`resolvePath` 使用连接配置中的 `rootPath`；未配置时只接受 `filePathString` 中唯一的非空根目录。`writeFilePath` 来自文件数据节点的 node config，JS storage 只读取连接配置，因此不参与这里的解析。若 `filePathString` 配置多个根目录，executor 创建直接失败，避免脚本路径静默落到 FTP 服务根目录。路径统一 `/`，拒绝 `..`、控制字符和协议 URL，最后把相对路径交给现有 storage 实现。
 
 ### 4.2 `StorageExecutorsManager`
 
@@ -160,6 +160,7 @@ ConcurrentMap<String, Failure> failures
 - 失效会从缓存移除并调用 `StorageExecutor.close()`；
 - 创建中的 executor 若在 manager 关闭期间完成，会被立即关闭而不会进入缓存；
 - manager 关闭时遍历并关闭所有已完成 executor；
+- executor 的销毁在移除缓存、释放 manager 监视器之后执行，避免 FTP I/O 卡住时阻塞其他连接的创建和节点关闭状态变更；
 - 关闭/失效不掩盖原始文件操作异常。
 
 这里的缓存只解决连接复用和坏连接淘汰，不是业务幂等，也不记录事件处理结果。
@@ -252,12 +253,11 @@ Map<String, Object> update(String connectionName,
 2. 获取 source executor；source 可以与 target 相同；
 3. 按 overwrite 处理目标文件；
 4. 用 source `getFile` 确认源文件存在；
-5. 不同 storage 实例：`source.readFile(callback)` 中直接调用 `target.saveFile`，不把完整文件载入 JS 或 Java byte[]；
-6. 同一 storage 实例：先读到 `Files.createTempFile`，关闭远端输入流后再从临时文件调用 `saveFile`；
-7. finally 删除本地临时文件；
-8. 返回 copied/reused 结果。
+5. 无论 source 和 target 是否为同一 storage 实例，先通过 `source.readFile(callback)` 写入 `Files.createTempFile`，源端读锁释放后再从临时文件调用 target `saveFile`，不把完整文件载入 JS 或 Java byte[]；
+6. finally 删除本地临时文件；
+7. 返回 copied/reused 结果。
 
-同一 FTP storage 不能在持有 `readFile` 的受管输入流时立即调用同一实例的写操作，否则会与 FTP 单连接 I/O 锁发生等待。因此同实例复制必须采用临时文件路径。
+FTP/SFTP storage 的底层连接存在单连接 I/O 锁。跨连接复制如果在源读锁内直接进入目标写锁，两个线程执行 A→B 和 B→A 时可能形成锁反转；统一使用本地临时文件先读后写，保证任一时刻只持有一个远端 storage 的操作锁。
 
 ### 5.2 `find`、`exists`、`delete`
 
@@ -269,7 +269,7 @@ Map<String, Object> update(String connectionName,
 
 引擎输入结构错误、action 不支持、overwrite 非法、源文件不存在等抛 `StorageOperationException`，不会因此失效连接。
 
-底层 storage 抛出的连接/I/O 异常会使相关 executor 失效；本次调用仍将异常返回给 JS，不在同一次调用内隐式重放用户文件操作。下一次事件重新建立连接。
+底层 storage 抛出的连接/I/O 异常会使相关 executor 失效；本次调用仍将异常返回给 JS，不在同一次调用内隐式重放用户文件操作。下一次事件重新建立连接。`StorageOperationException` 表示输入、业务分支或结果校验错误时，不会触发失效重建。
 
 ## 6. 文件数据源代码审查和修复点
 
@@ -348,8 +348,10 @@ OSS 原实现调用 `doesObjectExist` 后无条件返回 true；S3FS 原实现�
 引擎模块：
 
 ```text
-本次 contentType 变更验证：
-StorageFacadeTest: 14 passed, 0 failed
+本次 contentType 及并发修复验证：
+StorageFacadeTest: 16 passed, 0 failed
+PdkStorageExecutorTest: 3 passed, 0 failed
+StorageExecutorsManagerTest: 7 passed, 0 failed
 ```
 
 覆盖：
@@ -359,7 +361,7 @@ StorageFacadeTest: 14 passed, 0 failed
 - 失败退避和失效重建；
 - manager close 与创建竞态；
 - write/find/exists/delete；
-- 不同 storage 实例复制；
+- 不同 storage 实例复制和反向并发复制；
 - 同一 storage 实例复制不发生读写锁等待；
 - overwrite 冲突和非法 action。
 

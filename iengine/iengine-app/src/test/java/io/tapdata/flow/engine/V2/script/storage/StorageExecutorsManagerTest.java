@@ -4,6 +4,7 @@ import com.tapdata.entity.Connections;
 import io.tapdata.file.TapFileStorage;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -163,6 +164,43 @@ class StorageExecutorsManagerTest {
         assertEquals(1, executor.closed.get());
     }
 
+    @Test
+    void invalidationDoesNotHoldManagerMonitorWhileClosingExecutor() throws Throwable {
+        BlockingCloseExecutor first = new BlockingCloseExecutor("ftp-7");
+        FakeExecutor second = new FakeExecutor("ftp-7");
+        AtomicInteger created = new AtomicInteger();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> created.incrementAndGet() == 1 ? first : second,
+                0L);
+        assertSame(first, manager.getStorageExecutor("ftp-7"));
+
+        AtomicReference<Throwable> getterFailure = new AtomicReference<>();
+        CountDownLatch getterDone = new CountDownLatch(1);
+        Thread invalidator = new Thread(() -> manager.invalidate("ftp-7", new IOException("remote")));
+        invalidator.start();
+        assertTrue(first.closeStarted.await(5, TimeUnit.SECONDS));
+        Thread getter = new Thread(() -> {
+            try {
+                assertSame(second, manager.getStorageExecutor("ftp-7"));
+            } catch (Throwable throwable) {
+                getterFailure.set(throwable);
+            } finally {
+                getterDone.countDown();
+            }
+        });
+        getter.start();
+        try {
+            assertTrue(getterDone.await(3, TimeUnit.SECONDS));
+            assertTrue(getterFailure.get() == null, () -> "executor recreation failed: " + getterFailure.get());
+        } finally {
+            first.allowClose.countDown();
+            invalidator.join(5000);
+            getter.join(5000);
+            manager.close();
+        }
+    }
+
     private static StorageExecutor get(StorageExecutorsManager manager, String name) {
         try {
             return manager.getStorageExecutor(name);
@@ -177,7 +215,7 @@ class StorageExecutorsManagerTest {
         return connections;
     }
 
-    private static final class FakeExecutor implements StorageExecutor {
+    private static class FakeExecutor implements StorageExecutor {
         private final String name;
         private final AtomicInteger closed = new AtomicInteger();
 
@@ -189,5 +227,25 @@ class StorageExecutorsManagerTest {
         @Override public TapFileStorage getStorage() { return null; }
         @Override public String resolvePath(String path) { return path; }
         @Override public void close() { closed.incrementAndGet(); }
+    }
+
+    private static final class BlockingCloseExecutor extends FakeExecutor {
+        private final CountDownLatch closeStarted = new CountDownLatch(1);
+        private final CountDownLatch allowClose = new CountDownLatch(1);
+
+        private BlockingCloseExecutor(String name) {
+            super(name);
+        }
+
+        @Override
+        public void close() {
+            closeStarted.countDown();
+            try {
+                allowClose.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            super.close();
+        }
     }
 }

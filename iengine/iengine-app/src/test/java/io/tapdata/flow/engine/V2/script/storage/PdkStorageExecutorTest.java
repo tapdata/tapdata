@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,25 +21,22 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PdkStorageExecutorTest {
 
     @Test
-    void writeRootPrefersWritePathAndDoesNotJoinMultipleReadRoots() throws Exception {
-        Method resolveRootPath = PdkStorageExecutor.class.getDeclaredMethod("resolveRootPath", Map.class);
-        resolveRootPath.setAccessible(true);
-
+    void jsStorageRejectsMultipleReadRootsAndIgnoresNodeWritePath() {
         Map<String, Object> config = new HashMap<>();
         config.put("filePathString", "/data/in,/data/archive");
         config.put("writeFilePath", "/data/out");
-        assertEquals("/data/out", resolveRootPath.invoke(null, config));
-
-        config.remove("writeFilePath");
-        assertEquals("", resolveRootPath.invoke(null, config));
+        StorageOperationException error = assertThrows(StorageOperationException.class,
+                () -> PdkStorageExecutor.resolveRootPath(config));
+        assertTrue(error.getMessage().contains("single file root"));
 
         config.put("filePathString", "/data/in");
-        assertEquals("/data/in", resolveRootPath.invoke(null, config));
+        assertEquals("/data/in", PdkStorageExecutor.resolveRootPath(config));
     }
 
     @Test

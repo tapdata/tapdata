@@ -18,6 +18,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -223,6 +229,87 @@ class StorageFacadeTest {
     }
 
     @Test
+    void businessValidationFailureDoesNotInvalidateCachedExecutor() throws Throwable {
+        RecordingStorage storage = new RecordingStorage();
+        storage.files.put("/out/existing.txt", bytes("existing"));
+        AtomicInteger created = new AtomicInteger();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> {
+                    created.incrementAndGet();
+                    return new FakeExecutor(name, storage);
+                },
+                0L);
+        StorageFacade facade = new StorageFacade(manager);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/existing.txt"),
+                        "content", "replacement"),
+                map("overwrite", "fail")));
+
+        Map<String, Object> result = facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/existing.txt"),
+                        "content", "replacement"),
+                map("overwrite", "overwrite"));
+
+        assertEquals("written", result.get("status"));
+        assertEquals(1, created.get());
+        manager.close();
+    }
+
+    @Test
+    void oppositeCrossStorageCopiesDoNotHoldSourceAndTargetLocksTogether() throws Throwable {
+        CyclicBarrier readsStarted = new CyclicBarrier(2);
+        LockingStorage storageA = new LockingStorage("A", readsStarted);
+        LockingStorage storageB = new LockingStorage("B", readsStarted);
+        storageA.files.put("/a.txt", bytes("from-a"));
+        storageB.files.put("/b.txt", bytes("from-b"));
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> new FakeExecutor(name,
+                        "A".equals(name) ? storageA : storageB),
+                0L);
+        StorageFacade facade = new StorageFacade(manager);
+        manager.getStorageExecutor("A");
+        manager.getStorageExecutor("B");
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        try {
+            Future<Map<String, Object>> aToB = workers.submit(() -> {
+                try {
+                    return facade.update("B",
+                            map("action", "copy",
+                                    "source", map("connection", "A", "path", "/a.txt"),
+                                    "target", map("path", "/a-copy.txt")),
+                            map("overwrite", "overwrite"));
+                } catch (Throwable throwable) {
+                    throw new RuntimeException(throwable);
+                }
+            });
+            Future<Map<String, Object>> bToA = workers.submit(() -> {
+                try {
+                    return facade.update("A",
+                            map("action", "copy",
+                                    "source", map("connection", "B", "path", "/b.txt"),
+                                    "target", map("path", "/b-copy.txt")),
+                            map("overwrite", "overwrite"));
+                } catch (Throwable throwable) {
+                    throw new RuntimeException(throwable);
+                }
+            });
+
+            assertEquals("copied", aToB.get(3, TimeUnit.SECONDS).get("status"));
+            assertEquals("copied", bToA.get(3, TimeUnit.SECONDS).get("status"));
+            assertEquals("from-a", new String(storageB.files.get("/a-copy.txt"), StandardCharsets.UTF_8));
+            assertEquals("from-b", new String(storageA.files.get("/b-copy.txt"), StandardCharsets.UTF_8));
+        } finally {
+            workers.shutdownNow();
+            manager.close();
+        }
+    }
+
+    @Test
     void findExistsAndDeleteUseExistingTapFileStorageApi() throws Throwable {
         RecordingStorage storage = new RecordingStorage();
         storage.files.put("/out/1.txt", bytes("data"));
@@ -323,11 +410,65 @@ class StorageFacadeTest {
         }
     }
 
+    private static final class LockingStorage extends RecordingStorage {
+        private final String name;
+        private final CyclicBarrier readsStarted;
+        private final ReentrantLock ioLock = new ReentrantLock();
+
+        private LockingStorage(String name, CyclicBarrier readsStarted) {
+            this.name = name;
+            this.readsStarted = readsStarted;
+        }
+
+        @Override
+        public TapFile getFile(String path) {
+            ioLock.lock();
+            try {
+                return super.getFile(path);
+            } finally {
+                ioLock.unlock();
+            }
+        }
+
+        @Override
+        public boolean isFileExist(String path) {
+            ioLock.lock();
+            try {
+                return super.isFileExist(path);
+            } finally {
+                ioLock.unlock();
+            }
+        }
+
+        @Override
+        public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
+            ioLock.lock();
+            try {
+                readsStarted.await(3, TimeUnit.SECONDS);
+                super.readFile(path, consumer);
+            } finally {
+                ioLock.unlock();
+            }
+        }
+
+        @Override
+        public TapFile saveFile(String path, InputStream inputStream, boolean canReplace) throws Exception {
+            if (!ioLock.tryLock(500, TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("cross-storage lock inversion in " + name);
+            }
+            try {
+                return super.saveFile(path, inputStream, canReplace);
+            } finally {
+                ioLock.unlock();
+            }
+        }
+    }
+
     private static class RecordingStorage implements TapFileStorage {
-        private final Map<String, byte[]> files = new LinkedHashMap<>();
-        private final java.util.Set<String> directories = new java.util.HashSet<>();
-        private final java.util.Set<String> readWithoutCallback = new java.util.HashSet<>();
-        private boolean returnNullOnSave;
+        protected final Map<String, byte[]> files = new LinkedHashMap<>();
+        protected final java.util.Set<String> directories = new java.util.HashSet<>();
+        protected final java.util.Set<String> readWithoutCallback = new java.util.HashSet<>();
+        protected boolean returnNullOnSave;
 
         @Override
         public void init(Map<String, Object> params) {

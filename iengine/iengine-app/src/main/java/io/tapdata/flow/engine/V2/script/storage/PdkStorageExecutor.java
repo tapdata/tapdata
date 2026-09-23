@@ -171,10 +171,6 @@ final class PdkStorageExecutor implements StorageExecutor {
     }
 
     static String resolveRootPath(Map<String, Object> config) {
-        String writeFilePath = value(config, "writeFilePath", "").trim();
-        if (!writeFilePath.isEmpty()) {
-            return writeFilePath;
-        }
         String configuredRootPath = value(config, "rootPath", "").trim();
         if (!configuredRootPath.isEmpty()) {
             return configuredRootPath;
@@ -189,6 +185,10 @@ final class PdkStorageExecutor implements StorageExecutor {
                 singleRoot = trimmedRoot;
                 rootCount++;
             }
+        }
+        if (rootCount > 1) {
+            throw new StorageOperationException(
+                    "JS storage requires a single file root; configure one filePathString root");
         }
         return rootCount == 1 ? singleRoot : "";
     }
