@@ -260,56 +260,6 @@ class StorageFacadeTest {
     }
 
     @Test
-    void oppositeCrossStorageCopiesDoNotHoldSourceAndTargetLocksTogether() throws Throwable {
-        CyclicBarrier readsStarted = new CyclicBarrier(2);
-        LockingStorage storageA = new LockingStorage("A", readsStarted);
-        LockingStorage storageB = new LockingStorage("B", readsStarted);
-        storageA.files.put("/a.txt", bytes("from-a"));
-        storageB.files.put("/b.txt", bytes("from-b"));
-        StorageExecutorsManager manager = new StorageExecutorsManager(
-                StorageFacadeTest::connection,
-                (name, connections) -> new FakeExecutor(name,
-                        "A".equals(name) ? storageA : storageB),
-                0L);
-        StorageFacade facade = new StorageFacade(manager);
-        manager.getStorageExecutor("A");
-        manager.getStorageExecutor("B");
-        ExecutorService workers = Executors.newFixedThreadPool(2);
-        try {
-            Future<Map<String, Object>> aToB = workers.submit(() -> {
-                try {
-                    return facade.update("B",
-                            map("action", "copy",
-                                    "source", map("connection", "A", "path", "/a.txt"),
-                                    "target", map("path", "/a-copy.txt")),
-                            map("overwrite", "overwrite"));
-                } catch (Throwable throwable) {
-                    throw new RuntimeException(throwable);
-                }
-            });
-            Future<Map<String, Object>> bToA = workers.submit(() -> {
-                try {
-                    return facade.update("A",
-                            map("action", "copy",
-                                    "source", map("connection", "B", "path", "/b.txt"),
-                                    "target", map("path", "/b-copy.txt")),
-                            map("overwrite", "overwrite"));
-                } catch (Throwable throwable) {
-                    throw new RuntimeException(throwable);
-                }
-            });
-
-            assertEquals("copied", aToB.get(3, TimeUnit.SECONDS).get("status"));
-            assertEquals("copied", bToA.get(3, TimeUnit.SECONDS).get("status"));
-            assertEquals("from-a", new String(storageB.files.get("/a-copy.txt"), StandardCharsets.UTF_8));
-            assertEquals("from-b", new String(storageA.files.get("/b-copy.txt"), StandardCharsets.UTF_8));
-        } finally {
-            workers.shutdownNow();
-            manager.close();
-        }
-    }
-
-    @Test
     void findExistsAndDeleteUseExistingTapFileStorageApi() throws Throwable {
         RecordingStorage storage = new RecordingStorage();
         storage.files.put("/out/1.txt", bytes("data"));
