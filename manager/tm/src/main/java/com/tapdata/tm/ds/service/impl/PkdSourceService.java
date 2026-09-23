@@ -164,10 +164,10 @@ public class PkdSourceService {
 		} catch (RuntimeException e) {
 			registrationFailure = e;
 		} finally {
+			// A status poll may have set the interrupt flag before aborting registration. Clear it
+			// during restoration, then restore the flag so callers still observe the interruption.
+			boolean wasInterrupted = Thread.interrupted();
 			try {
-				// A status poll may have set the interrupt flag before aborting the registration; clear
-				// it so the restore calls below are not aborted by a stale interrupt.
-				Thread.interrupted();
 				restartAffectedInspects(stoppedInspects, user, restartFailures);
 				restartAffectedTasks(stoppedTasks, user, restartFailures);
 			} finally {
@@ -175,6 +175,9 @@ public class PkdSourceService {
 					lockRenewal.stop();
 				}
 				releaseRegistrationLocks(registrationLocks, lockOwner);
+				if (wasInterrupted || Thread.interrupted()) {
+					Thread.currentThread().interrupt();
+				}
 			}
 		}
 		// The affected resources are already stopped at this point. A failed restart must
@@ -604,8 +607,8 @@ public class PkdSourceService {
 			stopDto.setStatus(InspectStatusEnum.STOPPING.getValue());
 			log.info("Stopping inspect task '{}' (id={}) before connector registration",
 					inspectTask.getName(), inspectTask.getId());
-			stoppedInspects.add(inspectTask);
 			inspectService.doExecuteInspect(where, stopDto, user);
+			stoppedInspects.add(inspectTask);
 		}
 	}
 
