@@ -658,6 +658,13 @@ public class PkdSourceService {
 				|| InspectStatusEnum.ERROR.getValue().equals(status);
 	}
 
+	private boolean isInspectInProgress(String status) {
+		return InspectStatusEnum.RUNNING.getValue().equals(status)
+				|| InspectStatusEnum.SCHEDULING.getValue().equals(status)
+				|| InspectStatusEnum.WAITING.getValue().equals(status)
+				|| InspectStatusEnum.STOPPING.getValue().equals(status);
+	}
+
 	private void sleepBeforeNextStatusCheck(String taskType, String taskName) {
 		try {
 			Thread.sleep(taskStopPollIntervalMillis);
@@ -714,34 +721,31 @@ public class PkdSourceService {
 	}
 
 	private void restartTaskById(ObjectId taskId, UserDetail user) {
-		try {
-			taskService.start(taskId, user);
-		} catch (BizException e) {
-			if (!"Task.StartStatusInvalid".equals(e.getErrorCode())) {
-				throw e;
-			}
-			// A concurrent scheduler/engine callback may have restarted the task between the status
-			// snapshot and this call. Do not report that harmless race as a registration failure.
-			TaskDto currentTask = taskService.findOne(Query.query(Criteria.where("_id").is(taskId)), user);
-			if (currentTask != null && isTaskActive(currentTask.getStatus())) {
-				log.info("Task '{}' was already restarted concurrently after connector registration", taskId);
-				return;
-			}
-			// pause() and the engine callback are asynchronous. The first start can therefore observe
-			// STOPPING even though the task was STOP when the restore pass began. Wait for the stop
-			// callback, then retry the normal start instead of surfacing a transient StartStatusInvalid.
-			if (currentTask != null && TaskDto.STATUS_STOPPING.equals(currentTask.getStatus())) {
-				currentTask = waitForTaskReadyToRestart(taskId, user);
-				if (currentTask != null && isTaskActive(currentTask.getStatus())) {
-					log.info("Task '{}' was restarted concurrently while waiting for stop to complete", taskId);
-					return;
-				}
-			}
-			if (currentTask != null && isTaskStartable(currentTask.getStatus())) {
+		for (int attempt = 1; attempt <= 3; attempt++) {
+			try {
 				taskService.start(taskId, user);
 				return;
+			} catch (BizException e) {
+				if (!"Task.StartStatusInvalid".equals(e.getErrorCode())) {
+					throw e;
+				}
+				TaskDto currentTask = taskService.findOne(Query.query(Criteria.where("_id").is(taskId)), user);
+				if (currentTask != null && isTaskActive(currentTask.getStatus())) {
+					log.info("Task '{}' was already restarted concurrently after connector registration", taskId);
+					return;
+				}
+				if (currentTask != null && TaskDto.STATUS_STOPPING.equals(currentTask.getStatus())) {
+					currentTask = waitForTaskReadyToRestart(taskId, user);
+					if (currentTask != null && isTaskActive(currentTask.getStatus())) {
+						log.info("Task '{}' was restarted concurrently while waiting for stop to complete", taskId);
+						return;
+					}
+				}
+				if (currentTask == null || !isTaskStartable(currentTask.getStatus()) || attempt == 3) {
+					throw e;
+				}
+				log.info("Retrying task '{}' restart after transient start status race (attempt {})", taskId, attempt + 1);
 			}
-			throw e;
 		}
 	}
 
@@ -816,8 +820,13 @@ public class PkdSourceService {
 					continue;
 				}
 				if (!isInspectStopped(inspect.getStatus())) {
+					if (isInspectInProgress(inspect.getStatus())) {
+						log.warn("Not restarting inspect task '{}' (id={}) after connector registration because stop is still pending (status={})",
+								stoppedInspect.getName(), inspectId, inspect.getStatus());
+						continue;
+					}
 					String failure = "inspect task " + inspectId + " (" + stoppedInspect.getName()
-							+ ") remained in status '" + inspect.getStatus() + "' and was not restarted";
+							+ ") has unexpected status '" + inspect.getStatus() + "' and was not restarted";
 					restartFailures.add(failure);
 					log.error(failure);
 					continue;

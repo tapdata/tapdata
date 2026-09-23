@@ -87,6 +87,7 @@ public class RegisterCli extends CommonCli {
             printUtil.print(PrintUtil.TYPE.TIP, "Start registering data sources and plan to register all submitted data sources");
         }
         StringJoiner unUploaded = new StringJoiner("\n");
+        StringJoiner failedUploads = new StringJoiner("\n");
         files = getAllJarFile(files);
         try {
             CommonUtils.setProperty("refresh_local_jars", "true");
@@ -109,6 +110,7 @@ public class RegisterCli extends CommonCli {
                 printUtil.print(PrintUtil.TYPE.INFO, "Register connector to: " + tmUrl);
                 for (File file : files) {
                     printUtil.print(PrintUtil.TYPE.APPEND, String.format("* Register Connector: %s  Starting", file.getName()));
+                    try {
                     List<String> jsons = new ArrayList<>();
                     TapConnector connector = TapConnectorManager.getInstance().getTapConnectorByJarName(file.getName());
                     Collection<TapNodeInfo> tapNodeInfoCollection = connector.getTapNodeClassFactory().getConnectorTapNodeInfos();
@@ -256,13 +258,24 @@ public class RegisterCli extends CommonCli {
                         printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s | (%s) Completed", file.getName(), connectionType));
                     } else {
                         printUtil.print(PrintUtil.TYPE.DEBUG, "File " + file + " doesn't exists");
-                        printUtil.print(PrintUtil.TYPE.DEBUG, file.getName() + " registered failed");
+                        throw new FileNotFoundException("Connector file does not exist: " + file);
+                    }
+                    } catch (Exception e) {
+                        String failure = file.getName() + ": " + StringUtils.defaultIfBlank(e.getMessage(), e.getClass().getSimpleName());
+                        failedUploads.add(failure);
+                        printUtil.print(PrintUtil.TYPE.ERROR, "Connector registration failed: " + failure);
+                        if (showAllMessage) {
+                            CommonUtils.logError(TAG, "Connector registration failed: " + file.getName(), e);
+                        }
                     }
                 }
             } finally {
                 if (unUploaded.toString().length() > 0) {
                     printUtil.print(PrintUtil.TYPE.DEBUG, String.format("[INFO] Some connector that are not in the scope are registered this time: \n%s\nThe data connector type that needs to be registered is: %s\n", unUploaded.toString(), filterTypes));
                 }
+            }
+            if (failedUploads.length() > 0) {
+                throw new IllegalStateException("Some connectors failed to register after all files were attempted:\n" + failedUploads);
             }
             System.exit(0);
         } catch (Throwable throwable) {

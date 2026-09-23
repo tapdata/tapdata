@@ -647,7 +647,7 @@ public class PkdSourceServiceTest {
 
 		@Test
 		@SneakyThrows
-		void testRetryRestartWhenTaskIsStillStoppingAfterStartStatusInvalid() {
+		void testRetryRestartWhenTaskIsStillStoppingAfterRepeatedStartStatusInvalid() {
 			ObjectId connectionId = new ObjectId();
 			ObjectId taskId = new ObjectId();
 			PdkSourceDto pdkSourceDto = mockPdkSourceDto();
@@ -673,14 +673,32 @@ public class PkdSourceServiceTest {
 			when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(connection));
 			when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.singletonList(affectedTask));
 			when(taskService.findOne(any(Query.class), eq(user)))
-					.thenReturn(stoppedTask, stoppedTask, stoppingTask, stoppedTask);
+					.thenReturn(stoppedTask, stoppedTask, stoppingTask, stoppedTask, stoppedTask);
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
-			doThrow(new BizException("Task.StartStatusInvalid")).doNothing().when(taskService).start(taskId, user);
+			doThrow(new BizException("Task.StartStatusInvalid"), new BizException("Task.StartStatusInvalid"))
+					.doNothing().when(taskService).start(taskId, user);
 
 			assertDoesNotThrow(() -> pkdSourceService.uploadPdk(
 					new MultipartFile[]{jarFile}, Collections.singletonList(pdkSourceDto), false, user, false));
 
-			verify(taskService, times(2)).start(taskId, user);
+			verify(taskService, times(3)).start(taskId, user);
+		}
+
+		@Test
+		void testDoNotReportRunningInspectAsRestartFailure() {
+			ObjectId inspectId = new ObjectId();
+			InspectDto inspect = new InspectDto();
+			inspect.setId(inspectId);
+			inspect.setName("still-running-inspect");
+			inspect.setStatus(InspectStatusEnum.RUNNING.getValue());
+			List<String> restartFailures = new ArrayList<>();
+
+			when(inspectService.findById(inspectId)).thenReturn(inspect);
+			ReflectionTestUtils.invokeMethod(pkdSourceService, "restartAffectedInspects",
+					Collections.singletonList(inspect), mock(UserDetail.class), restartFailures);
+
+			assertTrue(restartFailures.isEmpty());
+			verify(inspectService, never()).doExecuteInspect(any(), any(InspectDto.class), any(UserDetail.class));
 		}
 
 		@Test
