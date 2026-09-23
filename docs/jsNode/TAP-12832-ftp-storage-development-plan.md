@@ -144,7 +144,7 @@ function process(record) {
 }
 ```
 
-`content` 支持字符串和 `byte[]` 形态；本次实现不把大文件 Java stream 暴露给 JS。
+`data.contentType` 固定支持 `text`、`bytes`、`stream`，默认 `text`，类型值忽略大小写。`bytes` 支持 Java `byte[]` 和 GraalJS 转换后的数字 List；`stream` 要求 Java `InputStream`。本次实现不把大文件 Java stream 构造能力暴露给普通 JS。
 
 ### 5.2 FTP 到另一个 FTP 复制
 
@@ -223,9 +223,8 @@ var removed = storage.delete("target-ftp", { path: "out/a.json" }, null);
 ### 8.1 已完成的自动化验证
 
 ```text
-StorageExecutorsManagerTest: 6 passed
-StorageFacadeTest: 5 passed
-总计：11 passed, 0 failed
+本次 contentType 变更验证：
+StorageFacadeTest: 14 passed, 0 failed
 ```
 
 验证内容包括：

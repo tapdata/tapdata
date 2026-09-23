@@ -200,3 +200,51 @@ FTP 文件操作过程中发生连接中断或权限错误时，不能将未完�
 - JS 节点返回错误。
 - 当前事件不写入下游数据库。
 - 恢复 FTP 连接后，后续事件可以重新执行文件操作。
+
+## 七、场景 6：通过 HTTP 下载二进制文件并写入目标 FTP
+
+### 用户故事
+
+增强 JS 根据事件中的 HTTP 文件 URL 下载 PNG 文件，并将原始二进制内容写入 `target-ftp`。
+
+### 输入事件
+
+```json
+{
+  "id": 4,
+  "url": "https://tapdata.io/assets-global.website-files.com/61acd54a60fc632b98cbac1a/tab_public-health-authority.png",
+  "file_type": "image_png"
+}
+```
+
+### JS 代码
+
+```javascript
+function process(record) {
+  var content = httpUtil.downloadBytes(record.url);
+
+  var result = storage.update("target-ftp", {
+    action: "write",
+    contentType: "bytes",
+    target: {
+      path: "save_" + record.id + ".png"
+    },
+    content: content
+  }, {
+    overwrite: "overwrite"
+  });
+
+  if (!result || result.status !== "written") {
+    throw new Error("PNG file write was not completed");
+  }
+
+  return record;
+}
+```
+
+### 预期结果
+
+- `target-ftp/save_4.png` 创建成功。
+- 文件可以正常打开，文件内容为 HTTP URL 返回的 PNG 二进制内容。
+- 文件不是 `[-119, 80, 78, ...]` 形式的文本。
+- HTTP 下载失败或 FTP 写入失败时，JS 节点报错，当前事件不继续下游处理。

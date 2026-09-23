@@ -40,6 +40,8 @@ ScriptExecutorsManager.getScriptExecutor("mongo-test").aggregate(query)
 
 `overwrite` 支持 `skip`、`overwrite`、`fail`，默认 `skip`。返回值是普通 Map，写入/复制会返回 `status`、`targetPath`，若底层返回元数据则包含 `bytes`。
 
+`storage.update` 的 `write` 支持 `data.contentType`：`text`、`bytes`、`stream`，默认值为 `text`，类型值忽略大小写。HTTP 二进制内容应先通过 `httpUtil.downloadBytes` 获取，再使用 `contentType: "bytes"` 写入；不能将 MIME 类型（如 `image/png`）作为 `contentType`。
+
 示例：
 
 ```javascript
@@ -48,6 +50,21 @@ function process(record) {
     action: "write",
     target: { path: "out/" + record.id + ".json" },
     content: JSON.stringify(record)
+  }, { overwrite: "overwrite" });
+  return record;
+}
+```
+
+HTTP 二进制文件写入：
+
+```javascript
+function process(record) {
+  var content = httpUtil.downloadBytes(record.url);
+  storage.update("target-ftp", {
+    action: "write",
+    contentType: "bytes",
+    target: { path: "save_" + record.id + ".png" },
+    content: content
   }, { overwrite: "overwrite" });
   return record;
 }

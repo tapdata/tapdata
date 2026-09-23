@@ -55,7 +55,41 @@ storage.update("target-ftp", {
 | --- | --- | --- |
 | `action` | `String` | 固定为 `write` |
 | `target.path` | `String` | 目标文件路径 |
-| `content` | `String`/`byte[]` | 文件内容；字符串按 UTF-8 写入 |
+| `contentType` | `String` | 内容处理类型：`text`、`bytes` 或 `stream`；默认 `text`，忽略大小写 |
+| `content` | 由 `contentType` 决定 | 文件内容 |
+
+#### `contentType`
+
+| 值 | `content` 类型 | 处理方式 |
+| --- | --- | --- |
+| `text` | 任意可转字符串的值 | 使用 UTF-8 写入；默认值 |
+| `bytes` | Java `byte[]` 或 JS 数字数组/List | 按原始字节写入；数组元素必须是整数，范围为 `-128` 到 `255` |
+| `stream` | Java `InputStream` | 以输入流方式写入 |
+
+类型名称忽略大小写，例如 `BYTES`、`Bytes` 和 `bytes` 等价。未知类型会抛出异常。
+
+HTTP 二进制文件示例：
+
+```javascript
+function process(record) {
+  var content = httpUtil.downloadBytes(record.url);
+
+  storage.update("target-ftp", {
+    action: "write",
+    contentType: "bytes",
+    target: {
+      path: "save_" + record.id + ".png"
+    },
+    content: content
+  }, {
+    overwrite: "overwrite"
+  });
+
+  return record;
+}
+```
+
+`contentType` 只用于 `action: "write"`。`action: "copy"` 直接在源文件连接和目标文件连接之间复制，不读取 `content`。
 
 ### 3.3 复制文件
 
@@ -182,6 +216,7 @@ var deleted = storage.delete("Source-ftp", {
 - FTP 到 FTP、文件连接到文件连接的单文件复制。
 - 按事件逻辑决定是否执行文件操作。
 - `skip`、`overwrite`、`fail` 三种目标文件处理方式。
+- 使用 `httpUtil.downloadBytes` 获取 HTTP 二进制内容后，通过 `contentType: "bytes"` 写入文件连接。
 
 当前首要验证协议为 FTP。引擎已包含 `local`、`ftp`、`sftp`、`smb`、`s3fs`、`nfs`、`oss` 的现有 storage 映射；其他协议是否可用取决于对应连接器、PDK 和连接配置，需要单独验证。
 
@@ -192,4 +227,6 @@ var deleted = storage.delete("Source-ftp", {
 - 目录列表、递归扫描、批量复制、文件移动/重命名、创建目录和追加写入 API。
 - checksum 校验、自动重试、`dryRun`、原子发布和跨重启业务幂等。
 - 将 FTP client、PDK 对象、连接凭据或 Java Stream 暴露给 JS。
+- 将 URL、HTTP 响应对象或普通字符串自动识别为文件二进制内容；HTTP 内容必须由脚本先获取，并以 `bytes` 或 `stream` 类型传入。
+- 将 MIME 类型（例如 `image/png`）作为 `contentType`；`contentType` 表示内容处理方式，不表示文件 MIME 类型。
 - FTP 操作与下游数据库写入之间的跨系统事务回滚。FTP 成功后下游数据库仍可能因自身原因写入失败。

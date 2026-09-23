@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -100,6 +101,8 @@ public final class StorageFacade {
         if (content == null) {
             throw new StorageOperationException("storage.update write requires content");
         }
+        StorageContentType contentType = StorageContentType.fromValue(
+                request.get("contentType") == null ? null : String.valueOf(request.get("contentType")));
 
         TapFileStorage storage = target.getStorage();
         String overwriteMode = overwriteMode(options);
@@ -111,7 +114,7 @@ public final class StorageFacade {
             return result("reused", null, path);
         }
 
-        try (InputStream input = contentStream(content)) {
+        try (InputStream input = contentStream(content, contentType)) {
             TapFile saved = storage.saveFile(path, input, true);
             return result("written", saved, path);
         }
@@ -239,17 +242,60 @@ public final class StorageFacade {
         return mode;
     }
 
-    private InputStream contentStream(Object content) {
-        if (content instanceof InputStream) {
-            return (InputStream) content;
+    private InputStream contentStream(Object content, StorageContentType contentType) {
+        return switch (contentType) {
+            case TEXT -> textContentStream(content);
+            case BYTES -> new ByteArrayInputStream(toBytes(content));
+            case STREAM -> streamContentStream(content);
+        };
+    }
+
+    private InputStream textContentStream(Object content) {
+        return new ByteArrayInputStream(
+                String.valueOf(content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private InputStream streamContentStream(Object content) {
+        if (!(content instanceof InputStream)) {
+            throw new StorageOperationException("content must be InputStream when contentType is stream");
         }
+        return (InputStream) content;
+    }
+
+    private byte[] toBytes(Object content) {
         if (content instanceof byte[]) {
-            return new ByteArrayInputStream((byte[]) content);
+            return (byte[]) content;
         }
         if (content instanceof ByteArrayOutputStream) {
-            return new ByteArrayInputStream(((ByteArrayOutputStream) content).toByteArray());
+            return ((ByteArrayOutputStream) content).toByteArray();
         }
-        return new ByteArrayInputStream(String.valueOf(content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        if (!(content instanceof List<?>)) {
+            throw new StorageOperationException(
+                    "content must be byte[] or a number list when contentType is bytes");
+        }
+
+        List<?> values = (List<?>) content;
+        byte[] bytes = new byte[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            Object value = values.get(i);
+            if (!(value instanceof Number)) {
+                throw new StorageOperationException("content byte at index " + i + " must be a number");
+            }
+            Number number = (Number) value;
+            if (number instanceof Double || number instanceof Float) {
+                double decimal = number.doubleValue();
+                if (!Double.isFinite(decimal) || decimal != Math.rint(decimal)) {
+                    throw new StorageOperationException("content byte at index " + i + " must be an integer");
+                }
+            }
+            long numericValue = number.longValue();
+            if (numericValue < -128 || numericValue > 255) {
+                throw new StorageOperationException(
+                        "content byte at index " + i + " is out of range: " + numericValue);
+            }
+            bytes[i] = (byte) numericValue;
+        }
+        return bytes;
     }
 
     private Map<String, Object> metadataMap(TapFile file) {

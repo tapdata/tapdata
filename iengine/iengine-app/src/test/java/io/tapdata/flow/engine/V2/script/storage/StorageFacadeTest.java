@@ -19,8 +19,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,6 +39,77 @@ class StorageFacadeTest {
 
         assertEquals("written", result.get("status"));
         assertEquals("hello", new String(targetStorage.files.get("/out/1.json"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void contentTypeDefaultsToTextAndParsesCaseInsensitively() {
+        assertSame(StorageContentType.TEXT, StorageContentType.fromValue(null));
+        assertSame(StorageContentType.TEXT, StorageContentType.fromValue(""));
+        assertSame(StorageContentType.TEXT, StorageContentType.fromValue(" TeXt "));
+        assertSame(StorageContentType.BYTES, StorageContentType.fromValue("ByTeS"));
+        assertSame(StorageContentType.STREAM, StorageContentType.fromValue("STREAM"));
+    }
+
+    @Test
+    void updateWriteDefaultsToTextWithoutInferringBinaryContent() throws Throwable {
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, null);
+
+        facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/default.txt"),
+                        "content", List.of(65, 66)),
+                map("overwrite", "overwrite"));
+
+        assertEquals("[65, 66]",
+                new String(targetStorage.files.get("/out/default.txt"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void updateWriteRestoresJsByteListWhenContentTypeIsBytes() throws Throwable {
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, null);
+        List<Integer> pngHeader = List.of(-119, 80, 78, 71, 13, 10, 26, 10);
+
+        Map<String, Object> result = facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/1.png"),
+                        "contentType", "ByTeS",
+                        "content", pngHeader),
+                map("overwrite", "overwrite"));
+
+        assertEquals("written", result.get("status"));
+        assertArrayEquals(new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
+                targetStorage.files.get("/out/1.png"));
+    }
+
+    @Test
+    void updateWriteUsesInputStreamWhenContentTypeIsStream() throws Throwable {
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, null);
+
+        Map<String, Object> result = facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/1.bin"),
+                        "contentType", "sTrEaM",
+                        "content", new ByteArrayInputStream(bytes("stream-content"))),
+                map("overwrite", "overwrite"));
+
+        assertEquals("written", result.get("status"));
+        assertEquals("stream-content",
+                new String(targetStorage.files.get("/out/1.bin"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void updateWriteRejectsUnsupportedContentType() {
+        StorageFacade facade = facade(new RecordingStorage(), null);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/1.bin"),
+                        "contentType", "binary",
+                        "content", "data"),
+                map("overwrite", "overwrite")));
     }
 
     @Test

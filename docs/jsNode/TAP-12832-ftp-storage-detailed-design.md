@@ -219,12 +219,18 @@ Map<String, Object> update(String connectionName,
 执行顺序：
 
 1. 解析 `target.path`；
-2. 读取 `content`；支持 String、byte[]、InputStream；
-3. 查询目标是否存在；
-4. 按 `overwrite` 处理：skip/fail/overwrite；
-5. 用 `ByteArrayInputStream` 或用户提供的输入流调用 `saveFile`；
-6. 关闭输入流；
-7. 返回 `status`、`targetPath`、文件大小（若 storage 返回元数据）。
+2. 解析 `data.contentType`；未传时默认为 `TEXT`，类型值忽略大小写；
+3. 按 `contentType` 读取 `content`：
+   - `TEXT`：将内容转为字符串并按 UTF-8 写入；
+   - `BYTES`：接受 Java `byte[]`、`ByteArrayOutputStream` 或 GraalJS 转换后的 `List<Number>`，恢复为原始 `byte[]`；
+   - `STREAM`：要求 `content` 为 `InputStream`，直接流式写入；
+4. 查询目标是否存在；
+5. 按 `overwrite` 处理：skip/fail/overwrite；
+6. 用 `ByteArrayInputStream` 或用户提供的输入流调用 `saveFile`；
+7. 关闭输入流；
+8. 返回 `status`、`targetPath`、文件大小（若 storage 返回元数据）。
+
+`contentType` 由引擎侧 `StorageContentType` 枚举解析，固定支持 `text`、`bytes`、`stream` 三种值；未知值直接抛出 `StorageOperationException`，不会回退为字符串写入。
 
 #### copy
 
@@ -340,9 +346,8 @@ OSS 原实现调用 `doesObjectExist` 后无条件返回 true；S3FS 原实现�
 引擎模块：
 
 ```text
-StorageExecutorsManagerTest: 6 passed
-StorageFacadeTest: 5 passed
-总计：11 passed, 0 failed
+本次 contentType 变更验证：
+StorageFacadeTest: 14 passed, 0 failed
 ```
 
 覆盖：
