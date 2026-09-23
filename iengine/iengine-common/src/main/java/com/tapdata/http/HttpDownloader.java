@@ -5,6 +5,9 @@ import cn.hutool.core.io.StreamProgress;
 import cn.hutool.core.lang.Assert;
 
 import java.io.File;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 
@@ -50,6 +53,37 @@ public class HttpDownloader {
 	 */
 	public static byte[] downloadBytes(String url, int timeout) {
 		return requestDownload(url, timeout).bodyBytes();
+	}
+
+	/**
+	 * 打开远程文件响应流。返回流关闭时会同时关闭HTTP响应和底层连接。
+	 *
+	 * @param url 请求下载文件地址
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url) {
+		final HttpResponse response = requestDownload(url, 0);
+		final InputStream body = response.bodyStream();
+		if (body == null) {
+			response.close();
+			throw new HttpException("HTTP response body is empty: {}", url);
+		}
+		return new FilterInputStream(body) {
+			private boolean closed;
+
+			@Override
+			public void close() throws IOException {
+				if (closed) {
+					return;
+				}
+				closed = true;
+				try {
+					super.close();
+				} finally {
+					response.close();
+				}
+			}
+		};
 	}
 
 	/**
@@ -141,6 +175,8 @@ public class HttpDownloader {
 			return response;
 		}
 
-		throw new HttpException("Server response error with status code: [{}]", response.getStatus());
+		HttpException exception = new HttpException("Server response error with status code: [{}]", response.getStatus());
+		response.close();
+		throw exception;
 	}
 }
