@@ -791,8 +791,9 @@ public class PkdSourceService {
 					|| TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
 		}
 		if (TaskDto.STATUS_SCHEDULE_FAILED.equals(statusNow)) {
-			// Pausing a task that is still scheduling leaves it in schedule_failed.
-			return TaskDto.STATUS_SCHEDULING.equals(statusBeforeStop);
+			// An active task may be snapshotted before pause and transition to schedule_failed
+			// while stop is being requested. Restore it like any other active pre-stop task.
+			return isTaskActive(statusBeforeStop);
 		}
 		return false;
 	}

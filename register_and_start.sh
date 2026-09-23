@@ -14,8 +14,19 @@ CONNECTOR_IDS="${TAP_CONNECTORS:-${TM_CONNECTORS:-}}"
 
 register_jar() {
   local jar="$1"
+  local -a auth_args=()
+  if [ -n "${TAPDATA_ACCESS_CODE:-}" ]; then
+    auth_args=(-a "$TAPDATA_ACCESS_CODE")
+  elif [ -n "${TAPDATA_ACCESS_KEY:-}" ] && [ -n "${TAPDATA_SECRET_KEY:-}" ]; then
+    auth_args=(-ak "$TAPDATA_ACCESS_KEY" -sk "$TAPDATA_SECRET_KEY")
+  elif [ -n "${TAPDATA_PASSWORD:-}" ]; then
+    auth_args=(-u "${TAPDATA_USERNAME:-admin@admin.com}" -p "$TAPDATA_PASSWORD")
+  else
+    echo "Skipping $(basename "$jar"): configure TAPDATA_ACCESS_CODE, TAPDATA_ACCESS_KEY/TAPDATA_SECRET_KEY, or TAPDATA_PASSWORD to register connectors"
+    return 0
+  fi
   echo "Registering $(basename "$jar")..."
-  java -jar /app/pdk/pdk.jar register -t http://tm:3000 "$jar"
+  java -jar /app/pdk/pdk.jar register -t http://tm:3000 "${auth_args[@]}" "$jar"
 }
 
 if [ -n "$CONNECTOR_IDS" ]; then

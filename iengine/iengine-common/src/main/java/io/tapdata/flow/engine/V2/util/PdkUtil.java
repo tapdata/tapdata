@@ -80,14 +80,9 @@ public class PdkUtil {
 						folder.mkdirs();
 					}
 
-					String filePrefix = fileName.split("\\.jar")[0];
-					StringBuilder filePath = new StringBuilder(dir)
-							.append(File.separator)
-							.append(filePrefix)
-							.append("__").append(resourceId).append("__");
-
-					filePath.append(".jar");
-					File theFilePath = new File(filePath.toString());
+					String downloadedJarName = PDKIntegration.downloadedJarName(fileName, resourceId);
+					File theFilePath = new File(dir, downloadedJarName);
+					String filePath = theFilePath.getAbsolutePath();
 					if (callback != null) callback.needDownloadPdkFile(!theFilePath.isFile());
 					if (!theFilePath.isFile()) {
 						httpClientMongoOperator.downloadFile(
