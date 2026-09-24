@@ -16,4 +16,8 @@ public class BatchUpdateAlarmParam {
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
     private List<String> emailReceivers;
+    /** null 表示本次不修改接收对象 */
+    private List<AlarmReceiver> alarmReceivers;
+    /** 仅 alarmReceivers 非 null 时有效，缺省按追加 */
+    private ReceiverBatchMode receiverMode;
 }

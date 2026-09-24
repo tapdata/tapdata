@@ -26,6 +26,8 @@ import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
+import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmImpactView;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.user.dto.TestLdapDto;
 import com.tapdata.tm.userLog.constant.Modular;
@@ -99,6 +101,9 @@ public class UserController extends BaseController {
 
     @Autowired
     UserLogService userLogService;
+
+    @Autowired
+    private AlarmService alarmService;
 
     @Autowired
     @Qualifier("caffeineCache")
@@ -579,12 +584,20 @@ public class UserController extends BaseController {
         return success(userService.refreshAccessCode(getLoginUser()));
     }
 
+    @GetMapping("{userId}/alarmImpact")
+    public ResponseMessage<AlarmImpactView> alarmImpact(@PathVariable("userId") String userId) {
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> success(alarmService.userAlarmImpact(userId)));
+    }
+
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
     public ResponseMessage<String> batchUpdateListTags( @RequestBody BatchUpdateParam batchUpdateParam) {
         UserDetail userDetail = getLoginUser();
         List<String> idList = batchUpdateParam.getId();
         List<com.tapdata.tm.commons.schema.Tag> listTags = batchUpdateParam.getListtags();
+        userService.fillTagGids(listTags);
         Update update = new Update().set("listtags", listTags);
         dataPermissionCheckOfIds(userDetail, idList, DataPermissionActionEnums.Edit,
                 id -> userService.update(Query.query(Criteria.where("id").is(toObjectId(id))), update, userDetail));

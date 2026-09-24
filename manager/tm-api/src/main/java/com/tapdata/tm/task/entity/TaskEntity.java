@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
@@ -229,6 +230,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
     private List<String> emailReceivers;
+    /** null 表示系统默认或存量邮箱；空列表表示自定义但当前没有接收对象 */
+    private List<AlarmReceiver> alarmReceivers;
 
     private Map<String, Object> logSetting;
     private Integer resetTimes;

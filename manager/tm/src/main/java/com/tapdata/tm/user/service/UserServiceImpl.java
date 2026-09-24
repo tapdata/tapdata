@@ -50,6 +50,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
@@ -164,7 +165,38 @@ public class UserServiceImpl extends UserService{
 
     @Override
     protected void beforeSave(UserDto dto, UserDetail userDetail) {
+        fillMapGids(dto.getListTags());
+    }
 
+    @Override
+    public void fillTagGids(List<com.tapdata.tm.commons.schema.Tag> tags) {
+        if (tags == null) {
+            return;
+        }
+        for (com.tapdata.tm.commons.schema.Tag tag : tags) {
+            if (tag == null || StringUtils.isNotBlank(tag.getGid()) || StringUtils.isBlank(tag.getId()) || !ObjectId.isValid(tag.getId())) {
+                continue;
+            }
+            Document group = repository.getMongoOperations().findById(new ObjectId(tag.getId()), Document.class, "UserGroup");
+            if (group != null) {
+                tag.setGid(group.getString("gid"));
+            }
+        }
+    }
+
+    private void fillMapGids(List<Map<String, Object>> tags) {
+        if (tags == null) {
+            return;
+        }
+        for (Map<String, Object> tag : tags) {
+            if (tag == null || tag.get("gid") != null || tag.get("id") == null || !ObjectId.isValid(tag.get("id").toString())) {
+                continue;
+            }
+            Document group = repository.getMongoOperations().findById(new ObjectId(tag.get("id").toString()), Document.class, "UserGroup");
+            if (group != null && group.getString("gid") != null) {
+                tag.put("gid", group.getString("gid"));
+            }
+        }
     }
 
     /**
@@ -660,7 +692,12 @@ public class UserServiceImpl extends UserService{
         field.put("ldapAccount", 1);
         UserDto user = findById(new ObjectId(id), field);
         if (updateResult.getModifiedCount() > 0) {
-            userLogService.addUserLog(Modular.USER, Operation.DELETE, userDetail.getUserId(), id, StringUtils.isNotBlank(user.getLdapAccount()) ? user.getLdapAccount() : user.getEmail());
+            String name = StringUtils.isNotBlank(user.getLdapAccount()) ? user.getLdapAccount() : user.getEmail();
+            long directTasks = repository.getMongoOperations().count(
+                    Query.query(Criteria.where("alarmReceivers").elemMatch(Criteria.where("type").is("USER").and("id").is(id))),
+                    "Task");
+            userLogService.addUserLog(Modular.USER, Operation.DELETE, userDetail, id, name, null,
+                    "{\"directTaskCount\":" + directTasks + "}");
         }
     }
 
