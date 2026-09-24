@@ -64,14 +64,16 @@ class SensitiveDataRedactorTest {
 
 	@Test
 	void redactsNestedJsonSecrets() {
-		String json = "{\"user\":\"a\",\"nested\":{\"refresh_token\":\"r1\",\"access_token\":\"t1\"},\"authorization\":\"Bearer x\",\"password\":\"Secret123\"}";
+		String json = "{\"user\":\"a\",\"nested\":{\"refresh_token\":\"r1\",\"access_token\":\"t1\"},\"authorization\":\"Bearer x\",\"password\":\"Secret123\",\"accesscode\":\"ac-secret\"}";
 		String redacted = SensitiveDataRedactor.redactJsonOrNull(json);
 		assertTrue(redacted.contains("\"access_token\":\"[REDACTED]\""));
 		assertTrue(redacted.contains("\"refresh_token\":\"[REDACTED]\""));
 		assertTrue(redacted.contains("\"authorization\":\"[REDACTED]\""));
 		assertTrue(redacted.contains("\"password\":\"[REDACTED]\""));
+		assertTrue(redacted.contains("\"accesscode\":\"[REDACTED]\""));
 		assertFalse(redacted.contains("t1"));
 		assertFalse(redacted.contains("Secret123"));
+		assertFalse(redacted.contains("ac-secret"));
 		assertTrue(redacted.contains("\"user\":\"a\""));
 	}
 

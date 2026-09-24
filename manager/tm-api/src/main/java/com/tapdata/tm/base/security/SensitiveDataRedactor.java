@@ -37,7 +37,8 @@ public final class SensitiveDataRedactor {
 			"token",
 			"privatekey",
 			"accesskey",
-			"secretkey"
+			"secretkey",
+			"accesscode"
 	);
 
 	private SensitiveDataRedactor() {

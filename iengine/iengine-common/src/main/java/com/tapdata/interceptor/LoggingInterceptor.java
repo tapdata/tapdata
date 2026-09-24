@@ -76,7 +76,7 @@ public class LoggingInterceptor implements ClientHttpRequestInterceptor {
 		}
 		return path.contains("/users/login")
 				|| path.contains("/users/generatetoken")
-				|| path.contains("/users/refreshToken");
+				|| path.contains("/users/refreshAccessCode");
 	}
 
 	static String formatResponseBody(java.net.URI uri, String body) {
@@ -118,7 +118,7 @@ public class LoggingInterceptor implements ClientHttpRequestInterceptor {
 		if (raw == null) {
 			return "";
 		}
-		return raw.replaceAll("(?i)(\"(access_token|authorization|refresh_token|client_secret)\"\\s*:\\s*\")[^\"]*", "$1[REDACTED]");
+		return raw.replaceAll("(?i)(\"(access_token|authorization|refresh_token|client_secret|accesscode)\"\\s*:\\s*\")[^\"]*", "$1[REDACTED]");
 	}
 
 }

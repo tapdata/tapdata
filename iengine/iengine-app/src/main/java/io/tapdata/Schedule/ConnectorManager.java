@@ -476,7 +476,7 @@ public class ConnectorManager {
 
 				Map<String, Object> params = new HashMap<>();
 				params.put("accesscode", accessCode);
-				logger.info("Login params: accessCode={}, endpoint={}", accessCode, baseURLs);
+				logger.info("Login params: endpoint={}", baseURLs);
 				loginResp = restTemplateOperator.postOne(params, "users/generatetoken", LoginResp.class);
 				if (loginResp != null) {
 					Date date = (Date) DateUtil.parse(loginResp.getCreated());

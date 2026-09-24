@@ -14,7 +14,7 @@ class LoggingInterceptorTest {
 	void credentialIssuingPathsMatchEngineAndTmUrls() {
 		assertTrue(LoggingInterceptor.isCredentialIssuingPath(URI.create("http://tm:3030/api/users/generatetoken")));
 		assertTrue(LoggingInterceptor.isCredentialIssuingPath(URI.create("http://tm:3030/tm/api/users/login")));
-		assertTrue(LoggingInterceptor.isCredentialIssuingPath("/api/users/refreshToken"));
+		assertTrue(LoggingInterceptor.isCredentialIssuingPath("/api/users/refreshAccessCode"));
 		assertFalse(LoggingInterceptor.isCredentialIssuingPath(URI.create("http://tm:3030/api/Task")));
 		assertFalse(LoggingInterceptor.isCredentialIssuingPath((URI) null));
 		assertFalse(LoggingInterceptor.isCredentialIssuingPath((String) null));
@@ -35,5 +35,15 @@ class LoggingInterceptorTest {
 		assertTrue(out.contains("[REDACTED]"), out);
 		assertFalse(out.contains("secret"), out);
 		assertTrue(out.contains("t1"), out);
+	}
+
+	@Test
+	void redactsAccesscodeInJsonBodies() {
+		URI uri = URI.create("http://127.0.0.1:3030/api/users/me");
+		String body = "{\"email\":\"a@b.c\",\"accesscode\":\"ac-secret\"}";
+		String out = LoggingInterceptor.formatResponseBody(uri, body);
+		assertTrue(out.contains("[REDACTED]"), out);
+		assertFalse(out.contains("ac-secret"), out);
+		assertTrue(out.contains("a@b.c"), out);
 	}
 }

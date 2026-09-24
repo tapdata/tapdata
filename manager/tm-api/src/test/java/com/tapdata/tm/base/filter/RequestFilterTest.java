@@ -11,7 +11,7 @@ class RequestFilterTest {
 	void credentialIssuingPathsOmitResponseBody() {
 		assertTrue(RequestFilter.isCredentialIssuingPath("/api/users/login"));
 		assertTrue(RequestFilter.isCredentialIssuingPath("/api/users/generatetoken"));
-		assertTrue(RequestFilter.isCredentialIssuingPath("/tm/api/users/refreshToken"));
+		assertTrue(RequestFilter.isCredentialIssuingPath("/tm/api/users/refreshAccessCode"));
 		assertFalse(RequestFilter.isCredentialIssuingPath("/api/Task"));
 		assertFalse(RequestFilter.isCredentialIssuingPath(null));
 	}

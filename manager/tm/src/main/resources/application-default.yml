@@ -9,9 +9,12 @@ application:
 security:
   auth:
     # COMPAT: accept URL access_token (V4.x default). WARN: accept + alert. REJECT: 401.
-    # REJECT is not ready to enable: SAML ACS still redirects with ?access_token=, and
-    # enterprise apiserver-java TmHttpClient still appends URL tokens. Switching to
-    # REJECT before those paths use Bearer will 401 SAML login and apiserver calls.
+    # REJECT is not ready to enable: SAML ACS still redirects with ?access_token=,
+    # enterprise apiserver-java TmHttpClient still appends URL tokens, and deployments
+    # that use the official CI/CD worker (tapdata-cicd-worker) also cannot enable REJECT
+    # because those scripts still call TM with ?access_token=. Switching to REJECT
+    # before those paths use Bearer will 401 SAML login, apiserver calls, and
+    # cicd-worker flows.
     url-token-mode: ${SECURITY_AUTH_URL_TOKEN_MODE:COMPAT}
     # Extra Origins allowed to authenticate /ws/agent with a cookie. Same-host Origin
     # is always allowed. Engine Bearer connections do not use this list.

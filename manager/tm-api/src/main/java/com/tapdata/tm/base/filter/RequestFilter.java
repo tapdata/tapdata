@@ -163,7 +163,7 @@ public class RequestFilter implements Filter {
 		}
 		return requestURI.contains("/users/login")
 				|| requestURI.contains("/users/generatetoken")
-				|| requestURI.contains("/users/refreshToken");
+				|| requestURI.contains("/users/refreshAccessCode");
 	}
 
 	@Override
