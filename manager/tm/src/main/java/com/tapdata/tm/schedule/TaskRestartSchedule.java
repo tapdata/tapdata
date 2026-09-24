@@ -111,6 +111,15 @@ public class TaskRestartSchedule {
         Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
         List<TaskDto> orderTask = metadataDefinitionService.orderTaskByTagPriority(all);
         for (TaskDto taskDto : orderTask) {
+            // A heartbeat recovery must confirm the old writer stopped before replacing it.
+            // Neither stale pingTime nor an expired recovery deadline is a fencing mechanism.
+            if (com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.enabled(taskDto)
+                    || com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.pending(
+                    com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.attr(taskDto,
+                            com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.RECOVERY))) {
+                logSkipReschedule("engineRestartNeedStartTask", taskDto, "heartbeat_recovery_requires_stop_confirmation");
+                continue;
+            }
             UserDetail user = userDetailMap.get(taskDto.getUserId());
             if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
