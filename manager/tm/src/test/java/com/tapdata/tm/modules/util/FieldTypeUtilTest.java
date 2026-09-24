@@ -26,6 +26,19 @@ class FieldTypeUtilTest {
     }
 
     @Test
+    void testParseFloatingPointTapTypes() {
+        Field floatField = new Field();
+        floatField.setTapType(FieldTypeUtil.FILED_TYPE.get("Float"));
+        FieldTypeUtil.parseTapType(floatField);
+        assertEquals("Float", floatField.getSimpleTypeName());
+
+        Field doubleField = new Field();
+        doubleField.setTapType(FieldTypeUtil.FILED_TYPE.get("Double"));
+        FieldTypeUtil.parseTapType(doubleField);
+        assertEquals("Double", doubleField.getSimpleTypeName());
+    }
+
+    @Test
     void testParseTapTypeListEmptyAndNotEmpty() {
         FieldTypeUtil.parseTapType((List<Field>) null);
         FieldTypeUtil.parseTapType(new ArrayList<>());
@@ -130,4 +143,3 @@ class FieldTypeUtilTest {
         assertEquals("f2", inPath.getOriginalFieldName());
     }
 }
-

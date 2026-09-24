@@ -55,6 +55,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -1583,6 +1585,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 	private Object getConvertValue(TapType tapType, String defaultValue) {
 		Object convertValue = defaultValue;
+		if (tapType instanceof TapFloat || tapType instanceof TapDouble) {
+			try {
+				return Double.valueOf(defaultValue);
+			} catch (NumberFormatException e) {
+				throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "Convert polling cdc condition value [" + defaultValue + "] to floating point failed", e);
+			}
+		}
 		switch (tapType.getType()) {
 			case TapType.TYPE_NUMBER:
 				if (defaultValue.contains(".")) {

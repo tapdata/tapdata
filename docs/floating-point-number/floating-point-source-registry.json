@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "requirement": "TAP-12568",
+  "scope": "binary32 and binary64 floating point only; decimal floating point and other numeric types are out of scope",
+  "allowlistFile": "tapdata/docs/floating-point-number/floating-point-spec-allowlist.json",
+  "classificationRules": {
+    "actual_binary32": {
+      "tapType": "TapFloat",
+      "bit": 32,
+      "storageBytes": 4,
+      "effectivePrecision": 7,
+      "reason": "IEEE 754 binary32 or a source type whose official definition is exactly 32-bit single precision"
+    },
+    "actual_binary64": {
+      "tapType": "TapDouble",
+      "bit": 64,
+      "storageBytes": 8,
+      "effectivePrecision": 15,
+      "reason": "IEEE 754 binary64 or a source type whose official definition is exactly 64-bit double precision"
+    },
+    "parameterized_floating": {
+      "to": "TapCoefficientFloat",
+      "mapping": "TapCoefficientFloatMapping",
+      "reason": "The existing source type parameter is the field's effective-digit coefficient; the mapping must preserve its source range and split at the vendor-defined single/double boundary"
+    },
+    "out_of_scope": {
+      "requirement": "A source-file/type-specific allowlist entry with officialUrl and reason is mandatory"
+    },
+    "false_positive": {
+      "requirement": "A source-file/type-specific allowlist entry is mandatory; the type must not be changed merely because its name contains Float"
+    }
+  },
+  "families": {
+    "sqlserver": {
+      "officialUrls": ["https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql"],
+      "rule": "real and float(1..24) are binary32; float(25..53) and default float are binary64; the resolver default is 53"
+    },
+    "mysql_compatible": {
+      "officialUrls": ["https://dev.mysql.com/doc/refman/8.4/en/floating-point-types.html"],
+      "rule": "FLOAT is binary32 and DOUBLE is binary64; FLOAT(p) uses the vendor-defined effective-digit coefficient boundary; M,D is display/scale semantics and is not copied to TapFloat/TapDouble"
+    },
+    "postgres_compatible": {
+      "officialUrls": ["https://www.postgresql.org/docs/17/datatype-numeric.html"],
+      "rule": "real/float4 are binary32 and double precision/float8 are binary64; float(p) preserves vendor binary-precision semantics"
+    },
+    "oracle": {
+      "officialUrls": ["https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlrf/Data-Types.html"],
+      "rule": "BINARY_FLOAT is binary32 and BINARY_DOUBLE is binary64; FLOAT(p) is a NUMBER subtype and remains TapNumber"
+    },
+    "hive_columnar": {
+      "officialUrls": ["https://cwiki.apache.org/confluence/display/Hive/LanguageManual+Types", "https://github.com/apache/parquet-format/blob/master/LogicalTypes.md"],
+      "rule": "FLOAT is binary32 and DOUBLE is binary64; logical/physical annotations do not become decimal scale"
+    },
+    "clickhouse": {
+      "officialUrls": ["https://clickhouse.com/docs/sql-reference/data-types/float"],
+      "rule": "Float32 is binary32 and Float64 is binary64; unsupported display parameters are not retained as decimal attributes"
+    },
+    "bigquery": {
+      "officialUrls": ["https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types"],
+      "rule": "FLOAT64 is binary64"
+    },
+    "mongodb": {
+      "officialUrls": ["https://www.mongodb.com/docs/manual/reference/bson-types/"],
+      "rule": "BSON Double is binary64; Decimal128 is decimal and remains outside this change"
+    },
+    "elasticsearch": {
+      "officialUrls": ["https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html"],
+      "rule": "float is binary32 and double is binary64; half_float and scaled_float require the explicit out-of-scope allowlist"
+    },
+    "avro": {
+      "officialUrls": ["https://avro.apache.org/docs/1.11.1/specification/"],
+      "rule": "Avro float is binary32 and double is binary64"
+    },
+    "snowflake": {
+      "officialUrls": ["https://docs.snowflake.com/en/sql-reference/data-types-numeric"],
+      "rule": "FLOAT is the connector's binary64 path; DECFLOAT is decimal and is allowlisted outside this requirement"
+    },
+    "api_or_sdk": {
+      "officialUrls": [],
+      "rule": "Only an actual SDK/protocol Float or Double payload establishes width; a logical field label without such evidence is allowlisted and cannot be inferred"
+    },
+    "dameng": {
+      "officialUrls": ["https://eco.dameng.com/document/dm/zh-cn/pm/dm8/sql-language"],
+      "rule": "DM REAL/BINARY_FLOAT are binary32 and DM DOUBLE/BINARY_DOUBLE/DOUBLE PRECISION are binary64; decimal types remain TapNumber"
+    },
+    "db2": {
+      "officialUrls": ["https://www.ibm.com/docs/en/db2/11.5?topic=elements-data-types"],
+      "rule": "Db2 REAL is binary32 and DOUBLE is binary64; decimal attributes are not copied to the platform floating type"
+    },
+    "db2i": {
+      "officialUrls": ["https://www.ibm.com/docs/en/i/7.4.0?topic=types-data-types"],
+      "rule": "Db2 for i FLOAT(p) preserves the source effective-digit coefficient semantics and promotion boundary, and DOUBLE is binary64"
+    },
+    "gbase8s": {
+      "officialUrls": ["https://www.gbase.cn/document"],
+      "rule": "SMALLFLOAT is the 32-bit type and FLOAT is the 64-bit type for this connector's source definitions"
+    },
+    "hana": {
+      "officialUrls": ["https://help.sap.com/docs/SAP_HANA_PLATFORM"],
+      "rule": "SAP HANA REAL is binary32 and DOUBLE is binary64"
+    },
+    "informix": {
+      "officialUrls": ["https://www.ibm.com/docs/en/informix-servers/14.10.0?topic=types-approximate-numbers-float-smallfloat"],
+      "rule": "Informix SMALLFLOAT/REAL is binary32, while FLOAT/DOUBLE PRECISION is binary64; the old bit=16 declaration was incorrect"
+    },
+    "iris": {
+      "officialUrls": ["https://docs.intersystems.com/irislatest/csp/docbook/DocBook.UI.Page.cls?KEY=RSQL_datatype"],
+      "rule": "IRIS double is binary64 for the connector path"
+    },
+    "yashandb": {
+      "officialUrls": ["https://doc.yashandb.com/yashandb/23.2/zh/Development-Guide/SQL-Reference-Manual/Data-Types/Numeric-Types.html"],
+      "rule": "YashanDB FLOAT(p) preserves its documented p range and promotion boundary; FLOAT is binary32 and DOUBLE is binary64"
+    }
+  },
+  "steps": [
+    {"id":"S-01","paths":["tapdata-connectors-enterprise/connectors/aliyun-rds-mssql-connector/src/main/resources/aliyun-rds-mssql-spec.json"],"family":"sqlserver","status":"fixed","commit":"1e51fc66"},
+    {"id":"S-02","paths":["tapdata-connectors-enterprise/connectors/dameng-connector/src/main/resources/spec_dameng.json"],"family":"dameng","status":"fixed","commit":"39960cba"},
+    {"id":"S-03","paths":["tapdata-connectors-enterprise/connectors/db2-connector/src/main/resources/spec_db2.json"],"family":"db2","status":"fixed","commit":"83fd3fa5"},
+    {"id":"S-04","paths":["tapdata-connectors-enterprise/connectors/db2i-connector/src/main/resources/spec_db2.json"],"family":"db2i","status":"fixed","commit":"3f2331a7"},
+    {"id":"S-05","paths":["tapdata-connectors-enterprise/connectors/gbase8a-connector/src/main/resources/spec_gbase8a.json"],"family":"mysql_compatible","status":"fixed","commit":"683febcb"},
+    {"id":"S-06","paths":["tapdata-connectors-enterprise/connectors/gbase8s-connector/src/main/resources/spec_gbase8s.json"],"family":"gbase8s","status":"fixed","commit":"fdb81c9d"},
+    {"id":"S-07","paths":["tapdata-connectors-enterprise/connectors/hana-connector/src/main/resources/spec_hana.json"],"family":"hana","status":"fixed","commit":"de21624f"},
+    {"id":"S-08","paths":["tapdata-connectors-enterprise/connectors/informix-connector/src/main/resources/spec_informix.json"],"family":"informix","status":"fixed","commit":"07906aa0"},
+    {"id":"S-09","paths":["tapdata-connectors-enterprise/connectors/iris-connector/src/main/resources/iris-spec.json"],"family":"iris","status":"fixed","commit":"9c43cfda"},
+    {"id":"S-10","paths":["tapdata-connectors-enterprise/connectors/kingbaser3-connector/src/main/resources/spec_kingbaser3.json"],"family":"postgres_compatible","status":"fixed","commit":"779c1dad"},
+    {"id":"S-11","paths":["tapdata-connectors-enterprise/connectors/kingbaser6-connector/src/main/resources/spec_kingbaser6.json"],"family":"postgres_compatible","status":"fixed","commit":"1e05273e"},
+    {"id":"S-12","paths":["tapdata-connectors-enterprise/connectors/mssql-connector/src/main/resources/mssql-spec.json"],"family":"sqlserver","status":"fixed","commit":"6cab482f"},
+    {"id":"S-13","paths":["tapdata-connectors-enterprise/connectors/oceanbase-oracle-connector/src/main/resources/oceanbase-oracle-spec.json"],"family":"oracle","status":"fixed","commit":"5def8e3a"},
+    {"id":"S-14","paths":["tapdata-connectors-enterprise/connectors/oracle-connector/src/main/resources/spec_oracle.json"],"family":"oracle","status":"fixed","commit":"6dee1af1"},
+    {"id":"S-15","paths":["tapdata-connectors-enterprise/connectors/sybase-connector/src/main/resources/spec.json"],"family":"sqlserver","status":"fixed","commit":"8d892b9f"},
+    {"id":"S-16","paths":["tapdata-connectors-enterprise/connectors/tencent-db-mssql-connector/src/main/resources/tencent-db-mssql-spec.json"],"family":"sqlserver","status":"fixed","commit":"94c65f78"},
+    {"id":"S-17","paths":["tapdata-connectors-enterprise/connectors/tencent-db-mysql-connector/src/main/resources/tencent-td-sql-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"f62d4a80"},
+    {"id":"S-18","paths":["tapdata-connectors/connectors-javascript/ali1688-connector/src/main/resources/spec.json"],"family":"api_or_sdk","status":"fixed","commit":"56615f22"},
+    {"id":"S-19","paths":["tapdata-connectors/connectors-javascript/shein-connector/src/main/resources/spec.json"],"family":"api_or_sdk","status":"fixed","commit":"4c92db61"},
+    {"id":"S-20","paths":["tapdata-connectors/connectors-unpackage/hive1-connector/src/main/resources/spec_hive1.json"],"family":"hive_columnar","status":"fixed","commit":"834f4130"},
+    {"id":"S-21","paths":["tapdata-connectors/connectors-unpackage/hive3-connector/src/main/resources/spec_hive3.json"],"family":"hive_columnar","status":"fixed","commit":"dc2367ab"},
+    {"id":"S-22","paths":["tapdata-connectors/connectors-unpackage/hudi-connector/src/main/resources/spec_hudi.json"],"family":"hive_columnar","status":"fixed","commit":"f14ea474"},
+    {"id":"S-23","paths":["tapdata-connectors/connectors-unpackage/mrs-hive3-connector/src/main/resources/spec_mrshive3.json"],"family":"hive_columnar","status":"fixed","commit":"886c6a81"},
+    {"id":"S-24","paths":["tapdata-connectors/connectors/aliyun-adb-mysql-connector/src/main/resources/aliyun-adb-mysql-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"4b0117e9"},
+    {"id":"S-25","paths":["tapdata-connectors/connectors/aliyun-adb-postgres-connector/src/main/resources/aliyun-adb-postgres-spec.json"],"family":"postgres_compatible","status":"fixed","commit":"f9cc2c3b"},
+    {"id":"S-26","paths":["tapdata-connectors/connectors/aliyun-mongodb-connector/src/main/resources/aliyun-mongodb-spec.json"],"family":"mongodb","status":"fixed","commit":"cba0a4b8"},
+    {"id":"S-27","paths":["tapdata-connectors/connectors/aliyun-rds-mariadb-connector/src/main/resources/aliyun-rds-mariadb-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"0161bfc3"},
+    {"id":"S-28","paths":["tapdata-connectors/connectors/aliyun-rds-mysql-connector/src/main/resources/aliyun-rds-mysql-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"0a923cf8"},
+    {"id":"S-29","paths":["tapdata-connectors/connectors/aliyun-rds-postgres-connector/src/main/resources/aliyun-rds-postgres-spec.json"],"family":"postgres_compatible","status":"fixed","commit":"c6689d65"},
+    {"id":"S-30","paths":["tapdata-connectors/connectors/aws-rds-mysql-connector/src/main/resources/aws-rds-mysql-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"4fa15506"},
+    {"id":"S-31","paths":["tapdata-connectors/connectors/azure-cosmosdb-connector/src/main/resources/azure-cosmosdb-spec.json"],"family":"mongodb","status":"fixed","commit":"9ebbd357"},
+    {"id":"S-32","paths":["tapdata-connectors/connectors/bigquery-connector/src/main/resources/spec.json","tapdata-connectors/connectors/bigquery-connector/src/main/resources/spec-v2.json"],"family":"bigquery","status":"fixed","commit":"c25631bc"},
+    {"id":"S-33","paths":["tapdata-connectors/connectors/clickhouse-connector/src/main/resources/spec_clickhouse.json"],"family":"clickhouse","status":"fixed","commit":"74e2b2bf"},
+    {"id":"S-34","paths":["tapdata-connectors/connectors/coding-connector/src/main/resources/spec.json","tapdata-connectors/connectors/coding-connector/src/main/resources/spec-oauth.json"],"family":"api_or_sdk","status":"allowlist_only","commit":null},
+    {"id":"S-35","paths":["tapdata-connectors/connectors/custom-connector/src/main/resources/spec_custom.json"],"family":"api_or_sdk","status":"fixed","commit":"e92ced49"},
+    {"id":"S-36","paths":["tapdata-connectors/connectors/databend-connector/src/main/resources/spec_databend.json"],"family":"mysql_compatible","status":"fixed","commit":"660fd42a"},
+    {"id":"S-37","paths":["tapdata-connectors/connectors/doris-connector/src/main/resources/spec_doris.json"],"family":"clickhouse","status":"fixed","commit":"bc247762"},
+    {"id":"S-38","paths":["tapdata-connectors/connectors/dws-connector/src/main/resources/spec_dws.json"],"family":"postgres_compatible","status":"fixed","commit":"e47752f5"},
+    {"id":"S-39","paths":["tapdata-connectors/connectors/elasticsearch-connector/src/main/resources/spec_elasticsearch.json"],"family":"elasticsearch","status":"fixed","commit":"84c7262a"},
+    {"id":"S-40","paths":["tapdata-connectors/connectors/excel-connector/src/main/resources/spec_excel.json"],"family":"api_or_sdk","status":"fixed","commit":"31f2d623"},
+    {"id":"S-41","paths":["tapdata-connectors/connectors/greenplum-connector/src/main/resources/spec_greenplum.json"],"family":"postgres_compatible","status":"fixed","commit":"e5391025"},
+    {"id":"S-42","paths":["tapdata-connectors/connectors/hbase-connector/src/main/resources/spec.json"],"family":"api_or_sdk","status":"allowlist_only","commit":null},
+    {"id":"S-43","paths":["tapdata-connectors/connectors/highgo-connector/src/main/resources/spec_highgo.json"],"family":"postgres_compatible","status":"fixed","commit":"f2996a90"},
+    {"id":"S-44","paths":["tapdata-connectors/connectors/huawei-cloud-gaussdb-connector/src/main/resources/spec_gauss_db.json"],"family":"postgres_compatible","status":"fixed","commit":"1993e119"},
+    {"id":"S-45","paths":["tapdata-connectors/connectors/kafka-avro-connector/src/main/resources/spec_kafka_avro.json"],"family":"avro","status":"fixed","commit":"f235206b"},
+    {"id":"S-46","paths":["tapdata-connectors/connectors/kafka-enhanced-connector/src/main/resources/spec_kafka_enhanced.json"],"family":"avro","status":"fixed","commit":"ae1eaf88"},
+    {"id":"S-47","paths":["tapdata-connectors/connectors/mariadb-connector/src/main/resources/spec_mariadb.json"],"family":"mysql_compatible","status":"fixed","commit":"889cbc26"},
+    {"id":"S-48","paths":["tapdata-connectors/connectors/mongodb-atlas-connector/src/main/resources/atlas-spec.json"],"family":"mongodb","status":"fixed","commit":"f56ad594"},
+    {"id":"S-49","paths":["tapdata-connectors/connectors/mongodb-connector/src/main/resources/spec.json"],"family":"mongodb","status":"fixed","commit":"77fa3566"},
+    {"id":"S-50","paths":["tapdata-connectors/connectors/mongodb-lower-connector/src/main/resources/mongo3-spec.json"],"family":"mongodb","status":"fixed","commit":"9a3207d1"},
+    {"id":"S-51","paths":["tapdata-connectors/connectors/mysql-connector/src/main/resources/mysql-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"f6d5b520"},
+    {"id":"S-52","paths":["tapdata-connectors/connectors/mysql-pxc-connector/src/main/resources/mysql-pxc-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"1ee25143"},
+    {"id":"S-53","paths":["tapdata-connectors/connectors/oceanbase-mysql-connector/src/main/resources/oceanbase-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"025bc8b8"},
+    {"id":"S-54","paths":["tapdata-connectors/connectors/opengauss-connector/src/main/resources/spec_opengauss.json"],"family":"postgres_compatible","status":"fixed","commit":"a62e34fb"},
+    {"id":"S-55","paths":["tapdata-connectors/connectors/paimon-plus-connector/src/main/resources/spec.json"],"family":"hive_columnar","status":"fixed","commit":"52b78ba5"},
+    {"id":"S-56","paths":["tapdata-connectors/connectors/polar-db-mysql-connector/src/main/resources/polar-db-mysql-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"e0335770"},
+    {"id":"S-57","paths":["tapdata-connectors/connectors/polar-db-postgres-connector/src/main/resources/polar-db-postgres-spec.json"],"family":"postgres_compatible","status":"fixed","commit":"57c552b0"},
+    {"id":"S-58","paths":["tapdata-connectors/connectors/postgres-connector/src/main/resources/spec_postgres.json"],"family":"postgres_compatible","status":"fixed","commit":"358be6dd"},
+    {"id":"S-59","paths":["tapdata-connectors/connectors/quickapi-connector/src/main/resources/spec.json"],"family":"api_or_sdk","status":"fixed","commit":"e8ed1e15"},
+    {"id":"S-60","paths":["tapdata-connectors/connectors/redis-connector/src/main/resources/spec_redis.json"],"family":"api_or_sdk","status":"fixed","commit":"b9648fa6"},
+    {"id":"S-61","paths":["tapdata-connectors/connectors/risingwave-connector/src/main/resources/spec_risingwave.json"],"family":"postgres_compatible","status":"fixed","commit":"b5f2eb8c"},
+    {"id":"S-62","paths":["tapdata-connectors/connectors/selectdb-connector/src/main/resources/spec_selectdb.json"],"family":"clickhouse","status":"fixed","commit":"f65b16fc"},
+    {"id":"S-63","paths":["tapdata-connectors/connectors/snowflake-connector/src/main/resources/spec_snowflake.json"],"family":"snowflake","status":"fixed","commit":"b22cf4fa"},
+    {"id":"S-64","paths":["tapdata-connectors/connectors/starrocks-connector/src/main/resources/spec_starrocks.json"],"family":"clickhouse","status":"fixed","commit":"3ca5a603"},
+    {"id":"S-65","paths":["tapdata-connectors/connectors/tablestore-connector/src/main/resources/spec_tablestore.json"],"family":"api_or_sdk","status":"fixed","commit":"e2536245"},
+    {"id":"S-66","paths":["tapdata-connectors/connectors/tdengine-connector/src/main/resources/tdengine-spec.json"],"family":"clickhouse","status":"fixed","commit":"44417185"},
+    {"id":"S-67","paths":["tapdata-connectors/connectors/tencent-db-mariadb-connector/src/main/resources/tencent-db-mariadb-spec.json"],"family":"mysql_compatible","status":"fixed","commit":"aa7c8ad2"},
+    {"id":"S-68","paths":["tapdata-connectors/connectors/tencent-db-mongodb-connector/src/main/resources/tencent-db-mongodb-spec.json"],"family":"mongodb","status":"fixed","commit":"04b5099f"},
+    {"id":"S-69","paths":["tapdata-connectors/connectors/tencent-db-postgres-connector/src/main/resources/tencent-db-postgres-spec.json"],"family":"postgres_compatible","status":"fixed","commit":"3823fb00"},
+    {"id":"S-70","paths":["tapdata-connectors/connectors/tidb-connector/src/main/resources/spec_tidb.json"],"family":"mysql_compatible","status":"fixed","commit":"97913f72"},
+    {"id":"S-71","paths":["tapdata-connectors/connectors/vastbase-connector/src/main/resources/spec_vastbase.json"],"family":"postgres_compatible","status":"fixed","commit":"adfded91"},
+    {"id":"S-72","paths":["tapdata-connectors/connectors/vika-connector/src/main/resources/spec_vika.json"],"family":"api_or_sdk","status":"allowlist_only","commit":null},
+    {"id":"S-73","paths":["tapdata-connectors/connectors/yashandb-connector/src/main/resources/yashandb-spec.json"],"family":"yashandb","status":"fixed","commit":"3149fc6d"},
+    {"id":"S-74","paths":["tapdata-connectors/connectors/zoho-desk-connector/src/main/resources/spec.json"],"family":"api_or_sdk","status":"allowlist_only","commit":null}
+  ]
+}

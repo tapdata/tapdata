@@ -184,16 +184,26 @@ public class JSONUtil {
 				throw new RuntimeException("Deserialize TapType failed, expected ObjectNode, actual: " + treeNode.getClass().getSimpleName() + ", tree node: " + treeNode);
 			}
 			TreeNode type = treeNode.get("type");
-			if (null == type) {
-				throw new RuntimeException("Deserialize TapType failed, type number not exists: " + treeNode);
+			TreeNode typeName = treeNode.get("typeName");
+			Class<? extends TapType> tapTypeClass = null;
+			if (typeName instanceof TextNode && !((TextNode) typeName).asText().trim().isEmpty()) {
+				tapTypeClass = TapType.getTapTypeClass(((TextNode) typeName).asText());
+				if (tapTypeClass == null) {
+					throw new RuntimeException("Deserialize TapType failed, unsupported typeName: " + typeName);
+				}
 			}
-			int typeInt;
-			try {
-				typeInt = (int) ((IntNode) type).numberValue();
-			} catch (Throwable e) {
-				throw new RuntimeException("Deserialize TapType failed, expected type node is a IntNode, actual: " + type.getClass().getSimpleName() + ", type node: " + type);
+			int typeInt = -1;
+			if (tapTypeClass == null) {
+				if (null == type) {
+					throw new RuntimeException("Deserialize TapType failed, type number not exists: " + treeNode);
+				}
+				try {
+					typeInt = (int) ((IntNode) type).numberValue();
+				} catch (Throwable e) {
+					throw new RuntimeException("Deserialize TapType failed, expected type node is a IntNode, actual: " + type.getClass().getSimpleName() + ", type node: " + type);
+				}
+				tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
 			}
-			Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
 			if (null != tapTypeClass) {
 				if (tapTypeClass.getName().equals(TapNumber.class.getName())) {
 					TreeNode minValue = treeNode.get("minValue");

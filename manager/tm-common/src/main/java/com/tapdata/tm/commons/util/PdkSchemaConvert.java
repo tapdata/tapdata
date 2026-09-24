@@ -665,6 +665,16 @@ public class PdkSchemaConvert {
 
 
     public static Class<? extends TapType> getClassByJson(String json) {
+        Map<String, Object> payload = JsonUtil.parseJson(json, Map.class);
+        if (payload != null) {
+            Object typeName = payload.get("typeName");
+            if (typeName instanceof String) {
+                Class<? extends TapType> namedClass = TapType.getTapTypeClass((String) typeName);
+                if (namedClass != null) {
+                    return namedClass;
+                }
+            }
+        }
         TypeV typeV = JsonUtil.parseJson(json, TypeV.class);
         byte type = typeV.getType();
         return TapType.getTapTypeClass(type);

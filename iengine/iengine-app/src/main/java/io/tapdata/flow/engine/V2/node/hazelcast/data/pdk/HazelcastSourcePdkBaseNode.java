@@ -75,8 +75,11 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.compat.LegacyTapTypeResolution;
+import io.tapdata.entity.schema.compat.LegacyTapTypeResolver;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -326,6 +329,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
                                 .dataProcessorContext(dataProcessorContext));
                 connectorNodeInit(dataProcessorContext);
+                normalizeLegacyFloatingPointTypes();
                 obsLogger.info("Source connector({}) initialization completed", getNode().getName());
             } catch (Throwable e) {
                 obsLogger.error("Source connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
@@ -348,6 +352,39 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             initTapCodecsFilterManager();
             initToTapValueConcurrent();
             reportPrometheusTaskRunning();
+        });
+    }
+
+    /**
+     * Upgrade fields persisted by pre-TAP-12568 models using the specification
+     * already loaded by this connector node. This is intentionally in-memory:
+     * it does not reload metadata and does not rewrite the persisted model.
+     */
+    private void normalizeLegacyFloatingPointTypes() {
+        if (dataProcessorContext == null || dataProcessorContext.getTapTableMap() == null || getConnectorNode() == null
+                || getConnectorNode().getConnectorContext() == null
+                || getConnectorNode().getConnectorContext().getSpecification() == null) {
+            return;
+        }
+        DefaultExpressionMatchingMap sourceSpec = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
+        if (sourceSpec == null || sourceSpec.isEmpty()) {
+            return;
+        }
+        String connectorId = dataProcessorContext.getSourceConn() == null
+                ? null : dataProcessorContext.getSourceConn().getPdkType();
+        dataProcessorContext.getTapTableMap().forEach((tableId, table) -> {
+            if (table == null || table.getNameFieldMap() == null) {
+                return;
+            }
+            for (TapField field : table.getNameFieldMap().values()) {
+                LegacyTapTypeResolution resolution = LegacyTapTypeResolver.resolve(connectorId, field, sourceSpec);
+                if (resolution.isResolved() && resolution.getTapType() != null
+                        && resolution.getTapType() != field.getTapType()) {
+                    field.setTapType(resolution.getTapType());
+                } else if (LegacyTapTypeResolver.LEGACY_FLOAT_TYPE_UNRESOLVED.equals(resolution.getCode())) {
+                    logger.warn("Keep legacy floating-point field {}.{} unresolved: {}", tableId, field.getName(), resolution.getMessage());
+                }
+            }
         });
     }
 

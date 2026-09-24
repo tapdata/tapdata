@@ -15,6 +15,8 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
@@ -297,8 +299,8 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 		}
 		if (null == value) {
 			TapType tapType = tapField.getTapType();
-			if (tapType instanceof TapNumber) {
-				value = RandomUtils.nextDouble(0, 100);
+            if (tapType instanceof TapNumber || tapType instanceof TapFloat || tapType instanceof TapDouble) {
+                value = RandomUtils.nextDouble(0, 100);
 			} else if (tapType instanceof TapDateTime) {
 				value = Instant.now();
 			} else {
