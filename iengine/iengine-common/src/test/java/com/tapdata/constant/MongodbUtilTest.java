@@ -1,5 +1,9 @@
 package com.tapdata.constant;
 
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -7,8 +11,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 public class MongodbUtilTest {
+	@Test
+	void countShouldEstimateOnlyWhenFilterIsNull() {
+		MongoClient client = mock(MongoClient.class);
+		MongoDatabase database = mock(MongoDatabase.class);
+		MongoCollection<Document> collection = mock(MongoCollection.class);
+		when(client.getDatabase("db")).thenReturn(database);
+		when(database.getCollection("collection")).thenReturn(collection);
+		when(collection.estimatedDocumentCount()).thenReturn(10L);
+		when(collection.countDocuments(any(Document.class))).thenReturn(9L);
+
+		assertEquals(10L, MongodbUtil.getCollectionNotAggregateCountByTableName(client, "db", "collection", null));
+		assertEquals(9L, MongodbUtil.getCollectionNotAggregateCountByTableName(client, "db", "collection", new Document()));
+		verify(collection).estimatedDocumentCount();
+		verify(collection).countDocuments(any(Document.class));
+	}
+
     @DisplayName("test get mongoUri without additionalString")
     @Test
     void test1() {

@@ -4,6 +4,7 @@ import com.mongodb.Function;
 import com.mongodb.MongoException;
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.ListIndexesIterable;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -361,6 +362,28 @@ class CustomMongoConfigTest {
     @Nested
     class getCollectionStatsTest {
 
+		@Test
+		void testMongoSixUsesCollStatsAggregation() {
+			AggregateIterable<Document> iterable = mock(AggregateIterable.class);
+			MongoCursor<Document> cursor = mock(MongoCursor.class);
+			when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
+			when(mongoDatabase.runCommand(any(Document.class))).thenReturn(new Document("version", "6.0.0"));
+			when(mongoDatabase.getCollection("testCollection")).thenReturn(mongoCollection);
+			when(mongoCollection.aggregate(anyList())).thenReturn(iterable);
+			when(iterable.iterator()).thenReturn(cursor);
+			when(cursor.hasNext()).thenReturn(true, false);
+			when(cursor.next()).thenReturn(new Document("storageStats",
+					new Document("capped", true).append("maxSize", 1048576L).append("max", 1000L)));
+			doCallRealMethod().when(customMongoConfig).getCollectionStats("testCollection");
+
+			CustomMongoConfig.CollectionStats result = customMongoConfig.getCollectionStats("testCollection");
+
+			Assertions.assertTrue(result.isCapped());
+			Assertions.assertEquals(1048576L, result.getMaxSize());
+			Assertions.assertEquals(1000L, result.getMax());
+			verify(mongoCollection).aggregate(anyList());
+		}
+
         @Test
         void testNormal() {
             Document collStats = new Document();
@@ -369,7 +392,8 @@ class CustomMongoConfigTest {
             collStats.put("max", "1000");
 
             when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
-            when(mongoDatabase.runCommand(any(Document.class))).thenReturn(collStats);
+            when(mongoDatabase.runCommand(any(Document.class))).thenAnswer(invocation ->
+                    invocation.<Document>getArgument(0).containsKey("buildInfo") ? new Document("version", "5.0.0") : collStats);
             doCallRealMethod().when(customMongoConfig).getCollectionStats("testCollection");
 
             CustomMongoConfig.CollectionStats result = customMongoConfig.getCollectionStats("testCollection");
@@ -386,7 +410,8 @@ class CustomMongoConfigTest {
             collStats.put("capped", false);
 
             when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
-            when(mongoDatabase.runCommand(any(Document.class))).thenReturn(collStats);
+            when(mongoDatabase.runCommand(any(Document.class))).thenAnswer(invocation ->
+                    invocation.<Document>getArgument(0).containsKey("buildInfo") ? new Document("version", "5.0.0") : collStats);
             doCallRealMethod().when(customMongoConfig).getCollectionStats("testCollection");
 
             CustomMongoConfig.CollectionStats result = customMongoConfig.getCollectionStats("testCollection");
@@ -404,7 +429,8 @@ class CustomMongoConfigTest {
             // maxSize and max are missing
 
             when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
-            when(mongoDatabase.runCommand(any(Document.class))).thenReturn(collStats);
+            when(mongoDatabase.runCommand(any(Document.class))).thenAnswer(invocation ->
+                    invocation.<Document>getArgument(0).containsKey("buildInfo") ? new Document("version", "5.0.0") : collStats);
             doCallRealMethod().when(customMongoConfig).getCollectionStats("testCollection");
 
             CustomMongoConfig.CollectionStats result = customMongoConfig.getCollectionStats("testCollection");
@@ -703,7 +729,8 @@ class CustomMongoConfigTest {
             collStats.put("max", null);
 
             when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
-            when(mongoDatabase.runCommand(any(Document.class))).thenReturn(collStats);
+            when(mongoDatabase.runCommand(any(Document.class))).thenAnswer(invocation ->
+                    invocation.<Document>getArgument(0).containsKey("buildInfo") ? new Document("version", "5.0.0") : collStats);
             doCallRealMethod().when(customMongoConfig).getCollectionStats("testCollection");
 
             CustomMongoConfig.CollectionStats result = customMongoConfig.getCollectionStats("testCollection");
