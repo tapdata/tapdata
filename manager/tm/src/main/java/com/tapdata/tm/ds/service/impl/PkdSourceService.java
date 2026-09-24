@@ -661,8 +661,7 @@ public class PkdSourceService {
 	private boolean isInspectInProgress(String status) {
 		return InspectStatusEnum.RUNNING.getValue().equals(status)
 				|| InspectStatusEnum.SCHEDULING.getValue().equals(status)
-				|| InspectStatusEnum.WAITING.getValue().equals(status)
-				|| InspectStatusEnum.STOPPING.getValue().equals(status);
+				|| InspectStatusEnum.WAITING.getValue().equals(status);
 	}
 
 	private void sleepBeforeNextStatusCheck(String taskType, String taskName) {
