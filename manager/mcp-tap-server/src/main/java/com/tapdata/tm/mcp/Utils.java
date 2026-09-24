@@ -101,6 +101,10 @@ public class Utils {
     }
 
     public static String sendPostRequest(String url, Object data) throws IOException {
+        return sendPostRequest(url, data, null);
+    }
+
+    public static String sendPostRequest(String url, Object data, Map<String, String> headers) throws IOException {
 
         String postData = objectMapper.writeValueAsString(data);
 
@@ -111,6 +115,13 @@ public class Utils {
             connection.setRequestMethod(HttpMethod.POST.name());
             connection.setRequestProperty(HttpHeaders.CONTENT_TYPE, "application/json; utf-8");
             connection.setRequestProperty(HttpHeaders.USER_AGENT, "Java HttpURLConnection");
+            if (headers != null) {
+                for (Map.Entry<String, String> e : headers.entrySet()) {
+                    if (e.getKey() != null && e.getValue() != null) {
+                        connection.setRequestProperty(e.getKey(), e.getValue());
+                    }
+                }
+            }
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(5 * 60 * 1000);
 

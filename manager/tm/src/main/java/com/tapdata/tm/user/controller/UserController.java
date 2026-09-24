@@ -12,6 +12,9 @@ import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.security.AccessTokenResolution;
+import com.tapdata.tm.base.security.AccessTokenResolver;
+import com.tapdata.tm.base.security.UrlTokenMode;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
@@ -48,6 +51,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -104,6 +108,8 @@ public class UserController extends BaseController {
     @Qualifier("caffeineCache")
     private CaffeineCacheManager userCache;
 
+    @Value("${security.auth.url-token-mode:COMPAT}")
+    private String urlTokenModeValue = "COMPAT";
 
     private static final String RC4_KEY = "Gotapd8";
 
@@ -391,22 +397,9 @@ public class UserController extends BaseController {
     @Operation(summary = "User logout")
     @PostMapping("/logout")
     public ResponseMessage<Long> logout(HttpServletRequest request) {
-        if ((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
-
-            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
-                    .filter(s -> s.startsWith("access_token"))
-                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
-                        try {
-                            return URLDecoder.decode(a[1], "UTF-8");
-                        } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
-                            return a[1];
-                        }
-                    }, (a, b) -> a));
-            String accessToken = queryMap.get("access_token");
-            if (StringUtils.isNotBlank(accessToken)) {
-                return success(accessTokenService.removeAccessToken(accessToken, getLoginUser()));
-            }
+        AccessTokenResolution resolution = AccessTokenResolver.resolve(request, UrlTokenMode.from(urlTokenModeValue));
+        if (resolution.isFound() && StringUtils.isNotBlank(resolution.getToken())) {
+            return success(accessTokenService.removeAccessToken(resolution.getToken(), getLoginUser()));
         }
         return success();
     }
