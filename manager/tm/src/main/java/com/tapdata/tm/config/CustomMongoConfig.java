@@ -19,6 +19,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -145,9 +146,7 @@ public class CustomMongoConfig {
     protected CollectionStats getCollectionStats(String collectionName) {
         try {
             MongoDatabase database = mongoTemplate.getDb();
-            org.bson.Document collStats = database.runCommand(
-                    new org.bson.Document("collStats", collectionName)
-            );
+            org.bson.Document collStats = collectionStats(database, collectionName);
 
             boolean capped = collStats.getBoolean("capped", false);
             long maxSize = Optional.ofNullable(collStats.get("maxSize"))
@@ -164,6 +163,21 @@ public class CustomMongoConfig {
             logger.error("Failed to get collection stats for: {}, error: {}", collectionName, e.getMessage());
             return new CollectionStats(false, 0L, 0L);
         }
+    }
+
+    private org.bson.Document collectionStats(MongoDatabase database, String collectionName) {
+        String version = database.runCommand(new org.bson.Document("buildInfo", 1)).getString("version");
+        int major = Integer.parseInt(version.substring(0, version.indexOf('.')));
+        if (major < 6) {
+            return database.runCommand(new org.bson.Document("collStats", collectionName));
+        }
+        org.bson.Document result = new org.bson.Document();
+        for (org.bson.Document item : database.getCollection(collectionName).aggregate(Collections.singletonList(
+                new org.bson.Document("$collStats", new org.bson.Document("storageStats", new org.bson.Document()))))) {
+            org.bson.Document stats = item.get("storageStats", org.bson.Document.class);
+            if (stats != null) stats.forEach(result::putIfAbsent);
+        }
+        return result;
     }
 
     protected boolean needsUpdate(CollectionStats stats, CappedCollection annotation) {
