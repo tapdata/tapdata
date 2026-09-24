@@ -32,7 +32,7 @@
 ## 检测与恢复
 
 1. 引擎独立 daemon 线程每 15 秒扫描。每条指定 CDC 单元单独比较持久化 `streamOffset` 的 SHA-256 摘要，避免一个单元掩盖另一个单元。`sourceTime/eventTime` 变化不能代替恢复位点变化。首次观测仅种子初始化，每个运行实例有新宽限期。本地超时使用单调时钟。
-2. 只有正常 CDC、存在 streamOffset 的进展参与检测。缺失、损坏、初始同步数据视为未知，不自动重启。源端收到心跳的时间仅用于诊断。
+2. 只有正常 CDC、存在 streamOffset 的进展参与检测。缺失、损坏、初始同步数据视为未知，不自动重启。配置的 `units` 如果无法匹配已有 `syncProgress` key，会写入 `heartbeatHealth.state=CONFIG_INVALID` 并输出一次 WARN；在任务启动时也会校验并 WARN。源端收到心跳的时间仅用于诊断。
 3. 超时后以 CAS 写入 `attrs.heartbeatRecovery`。TM 每 15 秒独立观察持久化 `syncProgress`，也只能写同一份恢复请求。CAS 同时检查 taskId、RUNNING、agentId、taskRecordId、lastStartDate、配置和旧恢复文档。
 4. 引擎恢复线程使用现有任务启停锁，重新读取任务状态和停滞证据，原子认领请求。认领成功才消耗恢复额度；记录有限线程栈、源心跳时间和最后持久化时间，不记录 offset 内容。
 5. 调用既有 `TaskClient.stop()`，对于尚未完成的异步取消，在恢复线程中以 250ms 间隔最多等待 60 秒。只有明确返回 true 后才清理旧客户端并通过既有 `startTask()` 启动。启动前再次检查用户状态、执行归属和恢复 CAS。普通出错重试也必须让出正在进行的 watchdog 恢复。单次 stop 调用本身若不返回，则仍由独立扫描的 120 秒截止时间阻止迟到启动。
@@ -54,7 +54,7 @@
 
 ## 可观测性
 
-- `attrs.heartbeatHealth`：运行实例 UUID、扫描报告时间、最后成功持久化时间、源心跳时间、停滞单元。OBSERVING 只表示观测中，不承诺所有指定单元均健康。
+- `attrs.heartbeatHealth`：运行实例 UUID、扫描报告时间、最后成功持久化时间、源心跳时间、停滞单元和非法配置单元。OBSERVING 只表示观测中，不承诺所有指定单元均健康；CONFIG_INVALID 表示 units 无法匹配检查点 key。
 - `attrs.heartbeatRecovery`：幂等请求 ID、来源 ENGINE/TM、状态、认领时间、尝试时间列表、涉事单元摘要。
 - 恢复状态：REQUESTED → STOPPING → VERIFYING → RECOVERED / FAILED；停止超时进入 BLOCKED，额度耗尽进入 CIRCUIT_OPEN，过期证据或显式启动进入 CANCELLED。
 - 引擎及 TM 输出 `TaskHeartbeat` 日志，同时写既有任务监控日志。首版未新增邮件/短信告警模板；需要将监控日志接入现有值班告警，不能依赖人工定时看页面防止日志窗口过期。
@@ -65,15 +65,17 @@
 
 - 检测契约、摘要与预算：`manager/tm-common/src/main/java/com/tapdata/tm/commons/task/heartbeat/HeartbeatWatchdog.java:10`。
 - CAS/执行归属校验：`manager/tm-common/src/main/java/com/tapdata/tm/commons/task/heartbeat/HeartbeatRecoveryProtocol.java:10`。
-- 源心跳诊断埋点：`iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/HazelcastSourcePdkBaseNode.java:1513`。
+- 源心跳诊断埋点：`iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/HazelcastSourcePdkBaseNode.java:1534`。
 - 持久化成功埋点：`iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/HazelcastTargetPdkBaseNode.java:2106`。
-- 引擎扫描/恢复：`iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/monitor/heartbeat/HeartbeatProgressWatchdog.java:29`。
+- 引擎扫描/恢复：`iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/monitor/heartbeat/HeartbeatProgressWatchdog.java:29`（异常按数据库当前状态转 BLOCKED，预算耗尽转 CIRCUIT_OPEN）。
 - 任务启停锁与停止确认：`iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/schedule/TapdataTaskScheduler.java:1110`。
 - TM 兜底：`manager/tm/src/main/java/com/tapdata/tm/schedule/TaskHeartbeatWatchdogSchedule.java:32`。
 
 自动化测试覆盖无 DML 心跳推进、单元独立超时、宽限期、缺失/初始数据、重复上传、摘要长度、滚动预算、恢复验证、CAS 作用域、本地停止确认、用户停止优先、旧实例请求、TM 超时保护、真实目标持久化成功/失败埋点等。
 
 2026-09-22 使用 Java 17 / Maven 3.9.8 完成下列干净构建回归：tm-common 13 项、TM 375 项、引擎 360 项，共 748 项，0 失败、0 错误，14 项既有跳过。该结果不替代真实 connector 的端到端故障注入验收。
+
+2026-09-25 针对本轮修复完成依赖链测试：tm-common 14 项、TM 362 项、引擎 watchdog 6 项，均 0 失败、0 错误；引擎测试使用 `-am` 重新构建依赖后通过。
 
 回归命令（仓库根目录）：
 

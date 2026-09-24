@@ -84,6 +84,14 @@ public final class HeartbeatWatchdog {
         return result;
     }
 
+    /** Configured edge keys which cannot be found in an existing persisted progress map. */
+    public static Set<String> invalidUnits(TaskDto task, Map<String, ?> progress) {
+        if (progress == null || progress.isEmpty()) return Collections.emptySet();
+        Set<String> invalid = new LinkedHashSet<>(units(task));
+        invalid.removeAll(progress.keySet());
+        return invalid;
+    }
+
     public static boolean pending(Map<String, Object> recovery) {
         return Arrays.asList("REQUESTED", "STOPPING", "VERIFYING", "BLOCKED").contains(recovery.get("state"));
     }

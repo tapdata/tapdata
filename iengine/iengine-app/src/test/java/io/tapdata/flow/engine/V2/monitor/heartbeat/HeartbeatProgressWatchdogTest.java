@@ -85,6 +85,28 @@ class HeartbeatProgressWatchdogTest {
         assertEquals("BLOCKED", lastRecoveryUpdate().get("state"));
     }
 
+    @Test void startExceptionBlocksCurrentVerifyingRecovery() throws Exception {
+        when(scheduler.recoverHeartbeatTask(eq(client), any(), any())).thenAnswer(invocation -> {
+            assertTrue(((BooleanSupplier) invocation.getArgument(1)).getAsBoolean());
+            assertTrue(((BooleanSupplier) invocation.getArgument(2)).getAsBoolean());
+            Map<String, Object> verifying = new HashMap<>(request);
+            verifying.put("state", "VERIFYING");
+            task.getAttrs().put("heartbeatRecovery", verifying);
+            throw new IllegalStateException("start failed");
+        });
+        watchdog.recover(client, task, request, local);
+        assertEquals("BLOCKED", lastRecoveryUpdate().get("state"));
+    }
+
+    @Test void budgetExhaustionMovesQueuedRecoveryToCircuitOpen() {
+        Map<String, Object> exhausted = new HashMap<>(request);
+        long now = System.currentTimeMillis();
+        exhausted.put("attempts", List.of(now - 3_000L, now - 2_000L, now - 1_000L));
+        task.getAttrs().put("heartbeatRecovery", exhausted);
+        watchdog.recover(client, task, exhausted, local);
+        assertEquals("CIRCUIT_OPEN", lastRecoveryUpdate().get("state"));
+    }
+
     @Test void scannerCanBlockHungRecoveryWithoutWaitingForTm() {
         Map<String, Object> stopping = new HashMap<>(request);
         stopping.put("state", "STOPPING");

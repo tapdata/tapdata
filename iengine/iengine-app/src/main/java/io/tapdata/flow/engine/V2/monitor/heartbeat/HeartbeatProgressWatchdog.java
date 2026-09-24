@@ -34,6 +34,7 @@ public class HeartbeatProgressWatchdog {
     private final ExecutorService recoveryWorkers = new ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS,
             new ArrayBlockingQueue<>(16), r -> daemon(r, "Heartbeat-Recovery"));
     private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
+    private final Set<String> invalidUnitWarnings = ConcurrentHashMap.newKeySet();
 
     private static Thread daemon(Runnable runnable, String name) {
         Thread thread = new Thread(runnable, name);
@@ -48,6 +49,7 @@ public class HeartbeatProgressWatchdog {
     @PreDestroy public void close() {
         scanner.shutdownNow();
         recoveryWorkers.shutdownNow();
+        invalidUnitWarnings.clear();
     }
 
     void scan() {
@@ -64,14 +66,26 @@ public class HeartbeatProgressWatchdog {
         TaskDto task = mongo.findOne(HeartbeatRecoveryProtocol.owner(client.getTask()), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
         if (task == null || !HeartbeatWatchdog.enabled(task)) return;
         long now = System.currentTimeMillis();
-        Map<String, String> stuck = local.detector.inspect(task, local.progress, HeartbeatProgressRegistry.monotonicMillis());
+        Set<String> invalidUnits = HeartbeatWatchdog.invalidUnits(task, local.progress);
+        if (invalidUnits.isEmpty()) {
+            invalidUnitWarnings.removeIf(key -> key.startsWith(taskId + ":"));
+        } else {
+            String warningKey = taskId + ":" + invalidUnits;
+            if (invalidUnitWarnings.add(warningKey)) {
+                warn(task, "Heartbeat watchdog disabled for invalid syncProgress units=" + invalidUnits);
+            }
+        }
+        Map<String, String> stuck = invalidUnits.isEmpty()
+                ? local.detector.inspect(task, local.progress, HeartbeatProgressRegistry.monotonicMillis())
+                : Collections.emptyMap();
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("runId", local.runId);
         health.put("reportedAt", now);
         health.put("lastPersistedAt", local.lastPersistedAt);
         health.put("sourceHeartbeats", new HashMap<>(local.sourceHeartbeats));
-        health.put("state", stuck.isEmpty() ? "OBSERVING" : "STALLED");
+        health.put("state", invalidUnits.isEmpty() ? (stuck.isEmpty() ? "OBSERVING" : "STALLED") : "CONFIG_INVALID");
         health.put("stuckUnits", new ArrayList<>(stuck.keySet()));
+        health.put("invalidUnits", new ArrayList<>(invalidUnits));
         mongo.update(HeartbeatRecoveryProtocol.owner(task), Update.update("attrs." + HeartbeatWatchdog.HEALTH, health), ConnectorConstant.TASK_COLLECTION);
 
         Map<String, Object> recovery = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
@@ -87,6 +101,7 @@ public class HeartbeatProgressWatchdog {
             return;
         }
         if ("BLOCKED".equals(state)) return;
+        if ("CIRCUIT_OPEN".equals(state)) return;
         if ("REQUESTED".equals(state) && HeartbeatWatchdog.advanced(task, recovery)) {
             transition(task, recovery, "CANCELLED", now);
             return;
@@ -101,7 +116,14 @@ public class HeartbeatProgressWatchdog {
         }
         if (!"REQUESTED".equals(state)) {
             Map<String, Object> request = HeartbeatWatchdog.request(task, stuck, "ENGINE", now);
-            if (request == null || !replace(task, recovery, request)) return;
+            if (request == null) {
+                if (!stuck.isEmpty() && HeartbeatWatchdog.recentAttempts(recovery, now).size() >= HeartbeatWatchdog.MAX_ATTEMPTS
+                        && transition(task, recovery, "CIRCUIT_OPEN", now)) {
+                    warn(task, "Heartbeat recovery budget exhausted (3 attempts/hour); manual intervention required");
+                }
+                return;
+            }
+            if (!replace(task, recovery, request)) return;
             recovery = request;
             warn(task, "Heartbeat checkpoint stalled; recovery requested, units=" + stuck.keySet());
         }
@@ -126,7 +148,12 @@ public class HeartbeatProgressWatchdog {
         Map<String, Object> stopping = new LinkedHashMap<>(request);
         long now = System.currentTimeMillis();
         List<Long> attempts = HeartbeatWatchdog.recentAttempts(request, now);
-        if (attempts.size() >= HeartbeatWatchdog.MAX_ATTEMPTS) return;
+        if (attempts.size() >= HeartbeatWatchdog.MAX_ATTEMPTS) {
+            if (transition(task, request, "CIRCUIT_OPEN", now)) {
+                warn(task, "Heartbeat recovery budget exhausted (3 attempts/hour); manual intervention required");
+            }
+            return;
+        }
         attempts.add(now);
         stopping.put("attempts", attempts);
         stopping.put("state", "STOPPING");
@@ -154,9 +181,20 @@ public class HeartbeatProgressWatchdog {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             LOG.warn("Heartbeat recovery failed for {}", task.getId(), e);
             // A thrown stop may have left the old writer alive. Never release for another try.
-            transition(task, stopping, "BLOCKED", System.currentTimeMillis());
+            blockCurrentRecovery(task, request, System.currentTimeMillis());
             warn(task, "Heartbeat recovery could not confirm safe completion; manual intervention required");
         }
+    }
+
+    /** Reload the CAS document because startTask may already have moved STOPPING to VERIFYING. */
+    private boolean blockCurrentRecovery(TaskDto task, Map<String, Object> request, long now) {
+        TaskDto current = mongo.findOne(HeartbeatRecoveryProtocol.owner(task), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+        if (current == null) return false;
+        Map<String, Object> recovery = HeartbeatWatchdog.attr(current, HeartbeatWatchdog.RECOVERY);
+        if (!Objects.equals(request.get("id"), recovery.get("id"))) return false;
+        String state = String.valueOf(recovery.get("state"));
+        if (!Arrays.asList("REQUESTED", "STOPPING", "VERIFYING").contains(state)) return false;
+        return transition(current, recovery, "BLOCKED", now);
     }
 
     private boolean transition(TaskDto task, Map<String, Object> previous, String state, long now) {

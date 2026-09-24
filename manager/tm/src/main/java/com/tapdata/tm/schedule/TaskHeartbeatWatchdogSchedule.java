@@ -48,7 +48,20 @@ public class TaskHeartbeatWatchdogSchedule {
                 + ":" + HeartbeatWatchdog.attr(task, HeartbeatWatchdog.HEALTH).get("runId");
         Observation observation = observations.compute(task.getId().toHexString(), (id, old) ->
                 old != null && old.generation.equals(generation) ? old : new Observation(generation, now));
-        Map<String, String> stuck = observation.detector.inspect(task, HeartbeatWatchdog.attr(task, "syncProgress"), now);
+        Map<String, Object> progress = HeartbeatWatchdog.attr(task, "syncProgress");
+        Set<String> invalidUnits = HeartbeatWatchdog.invalidUnits(task, progress);
+        if (invalidUnits.isEmpty()) {
+            observation.warnedInvalidUnits = null;
+        } else {
+            String invalid = invalidUnits.toString();
+            if (!invalid.equals(observation.warnedInvalidUnits)) {
+                observation.warnedInvalidUnits = invalid;
+                log.warn("TaskHeartbeat taskId={} watchdog disabled for invalid syncProgress units={}", task.getId(), invalidUnits);
+            }
+        }
+        Map<String, String> stuck = invalidUnits.isEmpty()
+                ? observation.detector.inspect(task, progress, now)
+                : Collections.emptyMap();
         Map<String, Object> previous = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
         String state = String.valueOf(previous.get("state"));
         Map<String, Object> next = new LinkedHashMap<>(previous);
@@ -100,6 +113,7 @@ public class TaskHeartbeatWatchdogSchedule {
     private static final class Observation {
         final String generation;
         final HeartbeatWatchdog.Detector detector;
+        String warnedInvalidUnits;
         Observation(String generation, long now) {
             this.generation = generation;
             detector = new HeartbeatWatchdog.Detector(now);

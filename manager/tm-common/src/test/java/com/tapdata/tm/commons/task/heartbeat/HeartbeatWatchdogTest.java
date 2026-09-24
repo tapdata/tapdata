@@ -29,6 +29,13 @@ class HeartbeatWatchdogTest {
         assertFalse(HeartbeatWatchdog.enabled(task));
     }
 
+    @Test void detectsConfiguredUnitsThatDoNotExistInPersistedProgress() {
+        TaskDto task = task();
+        assertEquals(Set.of("b"), HeartbeatWatchdog.invalidUnits(task,
+                Map.of("a", progress(1))));
+        assertTrue(HeartbeatWatchdog.invalidUnits(task, Collections.emptyMap()).isEmpty());
+    }
+
     @Test void noDmlButHeartbeatsAdvanceNeverStalls() {
         TaskDto task = task();
         HeartbeatWatchdog.Detector detector = new HeartbeatWatchdog.Detector(0);
