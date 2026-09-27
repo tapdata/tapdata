@@ -54,6 +54,11 @@ class TapdataTaskSchedulerHeartbeatTest {
 
     @Test void confirmedStopPrecedesRestartAndUsesFreshTask() throws Exception {
         when(client.stop()).thenReturn(true);
+        when(restart.getAsBoolean()).thenAnswer(invocation -> {
+            assertSame(client, clients.get(task.getId().toHexString()),
+                    "restart CAS must be claimed before the old client is removed");
+            return true;
+        });
         assertTrue(scheduler.recoverHeartbeatTask(client, claim, restart));
         var order = inOrder(claim, client, restart, scheduler);
         order.verify(claim).getAsBoolean();

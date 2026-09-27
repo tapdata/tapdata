@@ -29,6 +29,18 @@ class HeartbeatWatchdogTest {
         assertFalse(HeartbeatWatchdog.enabled(task));
     }
 
+    @Test void rejectsUnsupportedTaskVariantsAndNullAttributes() {
+        TaskDto task = task();
+        task.setAttrs(null);
+        assertFalse(HeartbeatWatchdog.enabled(task));
+        task = task();
+        task.setShareCdcEnable(true);
+        assertFalse(HeartbeatWatchdog.enabled(task));
+        task = task();
+        task.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+        assertFalse(HeartbeatWatchdog.enabled(task));
+    }
+
     @Test void detectsConfiguredUnitsThatDoNotExistInPersistedProgress() {
         TaskDto task = task();
         assertEquals(Set.of("b"), HeartbeatWatchdog.invalidUnits(task,
@@ -58,6 +70,12 @@ class HeartbeatWatchdogTest {
         Map<String, String> progress = Map.of("a", "bad-json", "b", "{\"syncStage\":\"INITIAL_SYNC\"}");
         detector.inspect(task, progress, 0);
         assertTrue(detector.inspect(task, progress, 500_000).isEmpty());
+    }
+
+    @Test void initialSyncProgressDoesNotLookLikeInvalidConfiguration() {
+        TaskDto task = task();
+        Map<String, String> initial = Map.of("a", "{\"syncStage\":\"INITIAL_SYNC\"}");
+        assertTrue(HeartbeatWatchdog.invalidUnits(task, initial).isEmpty());
     }
 
     @Test void reenteringCdcAndNewRunsGetFreshObservationWindow() {
@@ -126,8 +144,11 @@ class HeartbeatWatchdogTest {
         assertEquals(TaskDto.STATUS_RUNNING, query.get("status"));
         assertEquals("agent", query.get("agentId"));
         assertTrue(query.containsKey("taskRecordId"));
+        assertTrue(query.containsKey("lastStartDate"));
         assertEquals("request-1", query.get(HeartbeatWatchdog.RECOVERY_PATH + ".id"));
         assertEquals("REQUESTED", query.get(HeartbeatWatchdog.RECOVERY_PATH + ".state"));
-        assertTrue(query.containsKey("attrs." + HeartbeatWatchdog.CONFIG + ".units"));
+        assertFalse(query.containsKey("attrs." + HeartbeatWatchdog.CONFIG + ".units"));
+        assertFalse(query.containsKey("attrs." + HeartbeatWatchdog.CONFIG + ".timeoutMs"));
+        assertFalse(query.containsKey("attrs." + HeartbeatWatchdog.CONFIG + ".graceMs"));
     }
 }

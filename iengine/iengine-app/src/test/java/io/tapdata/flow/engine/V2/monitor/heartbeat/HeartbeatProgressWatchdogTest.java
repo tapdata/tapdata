@@ -98,6 +98,25 @@ class HeartbeatProgressWatchdogTest {
         assertEquals("BLOCKED", lastRecoveryUpdate().get("state"));
     }
 
+    @Test void successfulRecoveryEntersVerificationAndThenRecovers() throws Exception {
+        when(scheduler.recoverHeartbeatTask(eq(client), any(), any())).thenAnswer(invocation -> {
+            assertTrue(((BooleanSupplier) invocation.getArgument(1)).getAsBoolean());
+            assertTrue(((BooleanSupplier) invocation.getArgument(2)).getAsBoolean());
+            Map<String, Object> verifying = new HashMap<>(request);
+            verifying.put("state", "VERIFYING");
+            verifying.put("startedAt", System.currentTimeMillis());
+            task.getAttrs().put("heartbeatRecovery", verifying);
+            return true;
+        });
+        watchdog.recover(client, task, request, local);
+        assertEquals("VERIFYING", ((Map<?, ?>) task.getAttrs().get("heartbeatRecovery")).get("state"));
+
+        local.lastPersistedAt = System.currentTimeMillis() + 1;
+        task.getAttrs().put("syncProgress", Map.of("a", "{\"syncStage\":\"CDC\",\"streamOffset\":\"2\"}"));
+        watchdog.inspect(client);
+        assertEquals("RECOVERED", lastRecoveryUpdate().get("state"));
+    }
+
     @Test void budgetExhaustionMovesQueuedRecoveryToCircuitOpen() {
         Map<String, Object> exhausted = new HashMap<>(request);
         long now = System.currentTimeMillis();

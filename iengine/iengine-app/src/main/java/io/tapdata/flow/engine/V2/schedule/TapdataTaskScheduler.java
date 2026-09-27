@@ -246,7 +246,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	protected TaskDto safeQueryTaskById(String taskId) {
 		Query query = Query.query(where("_id").is(taskId));
-		query.fields().include("status").include("_id").include("name");
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>();
 		CompletableFuture.runAsync(() -> {
 			taskDtoAtomicReference.set(clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class));
@@ -1117,9 +1116,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			TaskDto fresh = findHeartbeatRecoveryTask(taskId);
 			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !claim.getAsBoolean()) return;
 			if (!stopHeartbeatTask(expected)) return;
-			clearTaskCacheAfterStopped(expected);
 			fresh = findHeartbeatRecoveryTask(taskId);
 			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !allowRestart.getAsBoolean()) return;
+			// Fence the recovery request before removing the only local observer. A lost CAS
+			// must leave the old client visible for the watchdog/TM to finish fencing it.
+			clearTaskCacheAfterStopped(expected);
 			// startTask rechecks the server state through the normal running transition.
 			startTask(fresh);
 			started.set(taskClientMap.get(taskId) != null);

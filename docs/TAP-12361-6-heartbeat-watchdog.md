@@ -33,7 +33,7 @@
 
 1. 引擎独立 daemon 线程每 15 秒扫描。每条指定 CDC 单元单独比较持久化 `streamOffset` 的 SHA-256 摘要，避免一个单元掩盖另一个单元。`sourceTime/eventTime` 变化不能代替恢复位点变化。首次观测仅种子初始化，每个运行实例有新宽限期。本地超时使用单调时钟。
 2. 只有正常 CDC、存在 streamOffset 的进展参与检测。缺失、损坏、初始同步数据视为未知，不自动重启。配置的 `units` 如果无法匹配已有 `syncProgress` key，会写入 `heartbeatHealth.state=CONFIG_INVALID` 并输出一次 WARN；在任务启动时也会校验并 WARN。源端收到心跳的时间仅用于诊断。
-3. 超时后以 CAS 写入 `attrs.heartbeatRecovery`。TM 每 15 秒独立观察持久化 `syncProgress`，也只能写同一份恢复请求。CAS 同时检查 taskId、RUNNING、agentId、taskRecordId、lastStartDate、配置和旧恢复文档。
+3. 超时后以 CAS 写入 `attrs.heartbeatRecovery`。TM 每 15 秒独立观察持久化 `syncProgress`，也只能写同一份恢复请求。CAS 只检查 taskId、RUNNING、agentId、taskRecordId、lastStartDate 和旧恢复文档；可变的 units/timeout/grace 配置由 `enabled()` 和检测器校验，不参与 BSON 类型/数组顺序敏感的 CAS。
 4. 引擎恢复线程使用现有任务启停锁，重新读取任务状态和停滞证据，原子认领请求。认领成功才消耗恢复额度；记录有限线程栈、源心跳时间和最后持久化时间，不记录 offset 内容。
 5. 调用既有 `TaskClient.stop()`，对于尚未完成的异步取消，在恢复线程中以 250ms 间隔最多等待 60 秒。只有明确返回 true 后才清理旧客户端并通过既有 `startTask()` 启动。启动前再次检查用户状态、执行归属和恢复 CAS。普通出错重试也必须让出正在进行的 watchdog 恢复。单次 stop 调用本身若不返回，则仍由独立扫描的 120 秒截止时间阻止迟到启动。
 6. 重启后进入 VERIFYING；需要重启后的成功持久化信号，且所有涉事单元的摘要都相对事件基线变化，才标记 RECOVERED。仅进程心跳、启动调用返回不算恢复成功。
@@ -44,7 +44,7 @@
 
 恢复请求/停止阶段超过 120 秒，独立引擎扫描或 TM 将请求标记 BLOCKED，输出需人工处理的监控日志。停止调用晚到返回时，旧 CAS 不能再授权启动。不会使用 `Thread.stop()`，也不会把中断当成停止成功。
 
-每任务滚动 1 小时最多认领 3 次恢复，跨单元共享，短暂推进不清零。额度耗尽进入 CIRCUIT_OPEN；窗口释放后可再尝试。停止未确认的 BLOCKED 不会自动释放。
+每任务滚动 1 小时最多认领 3 次恢复，跨单元共享，短暂推进不清零。额度耗尽进入 CIRCUIT_OPEN；窗口释放后可再尝试。停止未确认的 BLOCKED 不会自动释放。TM 的 REQUESTED/STOPPING/VERIFYING 超时以 TM 首次观察该恢复 ID+状态的本机时间计时，不减引擎写入的时间戳，避免跨进程时钟偏移；TM 重启后会重新开始观察窗口。
 
 启用本能力的任务跳过原 `engineRestartNeedStartTask` 基于 pingTime 的直接重新调度，以免与原地恢复争用。云版也保持原 agent，无条件重新分配不会发生。
 
@@ -54,7 +54,7 @@
 
 ## 可观测性
 
-- `attrs.heartbeatHealth`：运行实例 UUID、扫描报告时间、最后成功持久化时间、源心跳时间、停滞单元和非法配置单元。OBSERVING 只表示观测中，不承诺所有指定单元均健康；CONFIG_INVALID 表示 units 无法匹配检查点 key。
+- `attrs.heartbeatHealth`：运行实例 UUID、扫描报告时间、最后成功持久化时间、源心跳时间、停滞单元和非法配置单元。OBSERVING 只表示观测中，不承诺所有指定单元均健康；CONFIG_INVALID 表示 CDC 检查点已经出现但 units 无法匹配 key，只有初始同步/尚无 CDC 检查点时不会误报。
 - `attrs.heartbeatRecovery`：幂等请求 ID、来源 ENGINE/TM、状态、认领时间、尝试时间列表、涉事单元摘要。
 - 恢复状态：REQUESTED → STOPPING → VERIFYING → RECOVERED / FAILED；停止超时进入 BLOCKED，额度耗尽进入 CIRCUIT_OPEN，过期证据或显式启动进入 CANCELLED。
 - 引擎及 TM 输出 `TaskHeartbeat` 日志，同时写既有任务监控日志。首版未新增邮件/短信告警模板；需要将监控日志接入现有值班告警，不能依赖人工定时看页面防止日志窗口过期。

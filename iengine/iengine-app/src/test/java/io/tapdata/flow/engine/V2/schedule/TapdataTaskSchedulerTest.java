@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Query;
@@ -794,7 +795,10 @@ public class TapdataTaskSchedulerTest {
 			assertEquals(expectedTaskDto.getStatus(), result.getStatus());
 
 			// Verify the query was constructed correctly
-			verify(clientMongoOperator).findOne(any(Query.class), any(), any());
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(clientMongoOperator).findOne(queryCaptor.capture(), any(), any());
+			assertTrue(queryCaptor.getValue().getFieldsObject().isEmpty(),
+					"retry restart must load the complete task document for heartbeat watchdog initialization");
 		}
 
 		@Test

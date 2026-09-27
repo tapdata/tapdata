@@ -38,7 +38,7 @@ public final class HeartbeatWatchdog {
                 && timeout(task) >= 60_000 && grace(task) >= SCAN_MS
                 && !task.isTestTask() && !task.isPreviewTask()
                 && !Boolean.TRUE.equals(task.getShareCdcEnable())
-                && !task.getAttrs().containsKey(TaskDto.ATTRS_USED_SHARE_CACHE)
+                && !(task.getAttrs() != null && task.getAttrs().containsKey(TaskDto.ATTRS_USED_SHARE_CACHE))
                 && (TaskDto.SYNC_TYPE_SYNC.equals(task.getSyncType())
                     || TaskDto.SYNC_TYPE_MIGRATE.equals(task.getSyncType()));
     }
@@ -87,6 +87,10 @@ public final class HeartbeatWatchdog {
     /** Configured edge keys which cannot be found in an existing persisted progress map. */
     public static Set<String> invalidUnits(TaskDto task, Map<String, ?> progress) {
         if (progress == null || progress.isEmpty()) return Collections.emptySet();
+        // During initial sync there may be progress entries, but none is a usable CDC
+        // checkpoint yet. Do not report a configuration error before CDC has started.
+        boolean hasCdcCheckpoint = progress.values().stream().anyMatch(value -> fingerprint(value) != null);
+        if (!hasCdcCheckpoint) return Collections.emptySet();
         Set<String> invalid = new LinkedHashSet<>(units(task));
         invalid.removeAll(progress.keySet());
         return invalid;
@@ -134,7 +138,10 @@ public final class HeartbeatWatchdog {
         return true;
     }
 
-    /** Caller supplies monotonic elapsed time locally; TM uses its own observation clock. */
+    /**
+     * Caller supplies elapsed time locally; each Detector is single-scanner state and is not
+     * thread-safe. Do not share one instance between scheduler threads.
+     */
     public static final class Detector {
         private final Map<String, String> signatures = new HashMap<>();
         private final Map<String, Long> lastAdvance = new HashMap<>();

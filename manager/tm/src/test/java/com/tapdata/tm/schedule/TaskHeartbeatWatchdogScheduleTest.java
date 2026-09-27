@@ -47,6 +47,7 @@ class TaskHeartbeatWatchdogScheduleTest {
 
     @Test void stalledStopBecomesBlockedRatherThanSecondRestart() {
         task.getAttrs().put("heartbeatRecovery", Map.of("state", "STOPPING", "claimedAt", 1L));
+        schedule.inspect(task, 0);
         schedule.inspect(task, 120_002);
         assertEquals("BLOCKED", updatedRecovery().get("state"));
     }
@@ -67,6 +68,7 @@ class TaskHeartbeatWatchdogScheduleTest {
 
     @Test void verificationDoesNotTreatUnchangedOffsetAsRecovery() {
         task.getAttrs().put("heartbeatRecovery", Map.of("state", "VERIFYING", "startedAt", 1L));
+        schedule.inspect(task, 0);
         schedule.inspect(task, 120_002);
         assertEquals("FAILED", updatedRecovery().get("state"));
     }

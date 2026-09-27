@@ -64,14 +64,14 @@ public class TaskHeartbeatWatchdogSchedule {
                 : Collections.emptyMap();
         Map<String, Object> previous = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
         String state = String.valueOf(previous.get("state"));
+        long recoveryElapsed = observation.recoveryElapsed(previous, now);
         Map<String, Object> next = new LinkedHashMap<>(previous);
         String message;
         if ("REQUESTED".equals(state) && HeartbeatWatchdog.advanced(task, previous)) {
             next.put("state", "CANCELLED");
             message = "Checkpoint progress resumed before recovery was claimed; obsolete request cancelled.";
         } else if ("REQUESTED".equals(state) || "STOPPING".equals(state)) {
-            long at = HeartbeatWatchdog.number(previous.get("claimedAt"), HeartbeatWatchdog.number(previous.get("requestedAt"), now));
-            if (now - at < HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) return;
+            if (recoveryElapsed < HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) return;
             next.put("state", "BLOCKED");
             message = "Heartbeat recovery timed out; old task termination is unconfirmed. Manual intervention required before the source log retention window expires.";
         } else if ("VERIFYING".equals(state)) {
@@ -80,8 +80,7 @@ public class TaskHeartbeatWatchdogSchedule {
                     && HeartbeatWatchdog.advanced(task, previous)) {
                 next.put("state", "RECOVERED");
                 message = "Heartbeat recovery verified: persisted checkpoint advanced.";
-            } else if (now - HeartbeatWatchdog.number(previous.get("startedAt"), now)
-                    > HeartbeatWatchdog.timeout(task) + HeartbeatWatchdog.grace(task)) {
+            } else if (recoveryElapsed > HeartbeatWatchdog.timeout(task) + HeartbeatWatchdog.grace(task)) {
                 next.put("state", "FAILED");
                 message = "Task restarted but checkpoint progress has not recovered.";
             } else return;
@@ -114,9 +113,24 @@ public class TaskHeartbeatWatchdogSchedule {
         final String generation;
         final HeartbeatWatchdog.Detector detector;
         String warnedInvalidUnits;
+        Object recoveryId;
+        Object recoveryState;
+        long recoveryObservedAt;
         Observation(String generation, long now) {
             this.generation = generation;
             detector = new HeartbeatWatchdog.Detector(now);
+        }
+
+        /** Uses only this TM process's observation clock; never subtracts an engine timestamp. */
+        long recoveryElapsed(Map<String, Object> recovery, long now) {
+            Object id = recovery.get("id");
+            Object state = recovery.get("state");
+            if (!Objects.equals(id, recoveryId) || !Objects.equals(state, recoveryState)) {
+                recoveryId = id;
+                recoveryState = state;
+                recoveryObservedAt = now;
+            }
+            return Math.max(0L, now - recoveryObservedAt);
         }
     }
 }
