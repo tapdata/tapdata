@@ -5,6 +5,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.util.Map;
+
 /** Engine and TM use the same compare-and-set document, scoped to the current task run. */
 public final class HeartbeatRecoveryProtocol {
     private HeartbeatRecoveryProtocol() { }

@@ -6,6 +6,7 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
@@ -113,10 +114,9 @@ public class TaskRestartSchedule {
         for (TaskDto taskDto : orderTask) {
             // A heartbeat recovery must confirm the old writer stopped before replacing it.
             // Neither stale pingTime nor an expired recovery deadline is a fencing mechanism.
-            if (com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.enabled(taskDto)
-                    || com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.pending(
-                    com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.attr(taskDto,
-                            com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.RECOVERY))) {
+            if (HeartbeatWatchdog.enabled(taskDto)
+                    || HeartbeatWatchdog.pending(
+                    HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.RECOVERY))) {
                 logSkipReschedule("engineRestartNeedStartTask", taskDto, "heartbeat_recovery_requires_stop_confirmation");
                 continue;
             }

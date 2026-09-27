@@ -797,8 +797,34 @@ public class TapdataTaskSchedulerTest {
 			// Verify the query was constructed correctly
 			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
 			verify(clientMongoOperator).findOne(queryCaptor.capture(), any(), any());
-			assertTrue(queryCaptor.getValue().getFieldsObject().isEmpty(),
-					"retry restart must load the complete task document for heartbeat watchdog initialization");
+			assertFalse(queryCaptor.getValue().getFieldsObject().isEmpty(),
+					"generic retry must keep the legacy compact task projection");
+		}
+
+		@Test
+		@DisplayName("Should load the complete document only for an enabled heartbeat watchdog")
+		void testSafeQueryTaskByIdLoadsFullTaskForHeartbeatWatchdog() {
+			String taskId = "507f1f77bcf86cd799439011";
+			TaskDto expectedTaskDto = new TaskDto();
+			expectedTaskDto.setId(new ObjectId(taskId));
+			expectedTaskDto.setName("heartbeat-task");
+			expectedTaskDto.setStatus(TaskDto.STATUS_RUNNING);
+			expectedTaskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			expectedTaskDto.setAttrs(new java.util.HashMap<>(Map.of(
+				"heartbeatWatchdog", Map.of("enabled", true, "units", List.of("edge"),
+						"timeoutMs", 60_000L, "graceMs", 60_000L))));
+			when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class)))
+				.thenReturn(expectedTaskDto);
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			TaskDto result = taskScheduler.safeQueryTaskById(taskId);
+
+			assertSame(expectedTaskDto, result);
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(clientMongoOperator, times(2)).findOne(queryCaptor.capture(), any(), any());
+			assertFalse(queryCaptor.getAllValues().get(0).getFieldsObject().isEmpty());
+			assertTrue(queryCaptor.getAllValues().get(1).getFieldsObject().isEmpty(),
+					"opted-in retry must reload the complete task document");
 		}
 
 		@Test

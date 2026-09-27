@@ -102,6 +102,11 @@ class TapdataTaskSchedulerHeartbeatTest {
         assertFalse(scheduler.heartbeatRecoveryOwnsRetry(client, io.tapdata.flow.engine.V2.task.TerminalMode.STOP_GRACEFUL));
     }
 
+    @Test void deletedTaskFallsThroughToNormalTerminalCleanup() {
+        doReturn(null).when(scheduler).findHeartbeatRecoveryTask(anyString());
+        assertFalse(scheduler.heartbeatRecoveryOwnsRetry(client, io.tapdata.flow.engine.V2.task.TerminalMode.ERROR));
+    }
+
     @Test void asynchronousCancellationIsPolledUntilTerminalConfirmation() {
         when(client.stop()).thenReturn(false, true);
         doCallRealMethod().when(scheduler).stopHeartbeatTask(client);

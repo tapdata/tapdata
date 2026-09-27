@@ -15,6 +15,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import java.util.concurrent.CompletableFuture;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
@@ -246,10 +247,23 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	protected TaskDto safeQueryTaskById(String taskId) {
 		Query query = Query.query(where("_id").is(taskId));
+		query.fields().include("status").include("_id").include("name")
+				.include("syncType").include("shareCdcEnable").include("preview")
+				.include("attrs." + HeartbeatWatchdog.CONFIG)
+				.include("attrs." + TaskDto.ATTRS_USED_SHARE_CACHE);
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>();
 		CompletableFuture.runAsync(() -> {
 			taskDtoAtomicReference.set(clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class));
 		}).join();
+		TaskDto task = taskDtoAtomicReference.get();
+		if (task != null && HeartbeatWatchdog.enabled(task)) {
+			// Keep the generic retry path lean, but give an opted-in task the complete
+			// document so its replacement client can initialize the local watchdog.
+			Query fullQuery = Query.query(where("_id").is(taskId));
+			CompletableFuture.runAsync(() -> {
+				taskDtoAtomicReference.set(clientMongoOperator.findOne(fullQuery, ConnectorConstant.TASK_COLLECTION, TaskDto.class));
+			}).join();
+		}
 		return taskDtoAtomicReference.get();
 	}
 
@@ -1147,11 +1161,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	protected boolean heartbeatRecoveryOwnsRetry(TaskClient<TaskDto> client, TerminalMode terminalMode) {
 		if (terminalMode == TerminalMode.STOP_GRACEFUL || terminalMode == TerminalMode.INTERNAL_STOP
-				|| !com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.enabled(client.getTask())) return false;
+				|| !HeartbeatWatchdog.enabled(client.getTask())) return false;
 		TaskDto fresh = findHeartbeatRecoveryTask(client.getTask().getId().toHexString());
-		return fresh == null || com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.pending(
-				com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.attr(fresh,
-						com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.RECOVERY));
+		// A deleted task must follow the normal terminal cleanup path. It no longer
+		// has a recovery request that this engine can own.
+		return fresh != null && HeartbeatWatchdog.pending(
+				HeartbeatWatchdog.attr(fresh, HeartbeatWatchdog.RECOVERY));
 	}
 
 	private boolean heartbeatOwnerMatches(TaskDto previous, TaskDto current) {
@@ -1159,7 +1174,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				&& java.util.Objects.equals(previous.getAgentId(), current.getAgentId())
 				&& java.util.Objects.equals(previous.getTaskRecordId(), current.getTaskRecordId())
 				&& java.util.Objects.equals(previous.getLastStartDate(), current.getLastStartDate())
-				&& com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.enabled(current);
+				&& HeartbeatWatchdog.enabled(current);
 	}
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {

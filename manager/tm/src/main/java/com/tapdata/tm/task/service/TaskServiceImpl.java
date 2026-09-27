@@ -1333,9 +1333,9 @@ public class TaskServiceImpl extends TaskService{
             attrs.remove(EDGE_MILESTONES);
             attrs.remove(SYNC_PROGRESS);
             // A copied DAG must explicitly opt in with its new edge IDs.
-            attrs.remove("heartbeatWatchdog");
-            attrs.remove("heartbeatHealth");
-            attrs.remove("heartbeatRecovery");
+            attrs.remove(HeartbeatWatchdog.CONFIG);
+            attrs.remove(HeartbeatWatchdog.HEALTH);
+            attrs.remove(HeartbeatWatchdog.RECOVERY);
         }
         //taskDto.setTemp(null);
         if(!checkCloudTaskLimit(id,user,false)){
@@ -3984,9 +3984,9 @@ public class TaskServiceImpl extends TaskService{
             if (attrs != null) {
                 attrs.remove(EDGE_MILESTONES);
                 attrs.remove(SYNC_PROGRESS);
-                attrs.remove("heartbeatWatchdog");
-                attrs.remove("heartbeatHealth");
-                attrs.remove("heartbeatRecovery");
+                attrs.remove(HeartbeatWatchdog.CONFIG);
+                attrs.remove(HeartbeatWatchdog.HEALTH);
+                attrs.remove(HeartbeatWatchdog.RECOVERY);
             }
         }
         return false;
@@ -4414,8 +4414,8 @@ public class TaskServiceImpl extends TaskService{
 
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove(SYNC_PROGRESS);
-            taskDto.getAttrs().remove("heartbeatHealth");
-            taskDto.getAttrs().remove("heartbeatRecovery");
+            taskDto.getAttrs().remove(HeartbeatWatchdog.HEALTH);
+            taskDto.getAttrs().remove(HeartbeatWatchdog.RECOVERY);
             taskDto.getAttrs().remove(EDGE_MILESTONES);
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
@@ -4654,17 +4654,19 @@ public class TaskServiceImpl extends TaskService{
         taskDto.setLastStartDate(lastStartDate);
         warnHeartbeatWatchdogUnits(taskDto);
         if (taskDto.getAttrs() != null) {
-            taskDto.getAttrs().remove("heartbeatHealth");
-            update.unset("attrs.heartbeatHealth");
+            taskDto.getAttrs().remove(HeartbeatWatchdog.HEALTH);
+            update.unset("attrs." + HeartbeatWatchdog.HEALTH);
         }
-        if (taskDto.getAttrs() != null && taskDto.getAttrs().containsKey("heartbeatRecovery")) {
-            // An explicit start supersedes a previous incident, but retains its rolling budget.
-            update.set("attrs.heartbeatRecovery.state", "CANCELLED");
-            Object recovery = taskDto.getAttrs().get("heartbeatRecovery");
+        if (taskDto.getAttrs() != null && taskDto.getAttrs().containsKey(HeartbeatWatchdog.RECOVERY)) {
+            // An explicit start changes lastStartDate in the same Mongo update. That fences
+            // writers for the previous run, so this intentional field-level cancellation
+            // cannot race with an old engine/TM CAS owner.
+            update.set(HeartbeatWatchdog.RECOVERY_PATH + ".state", "CANCELLED");
+            Object recovery = taskDto.getAttrs().get(HeartbeatWatchdog.RECOVERY);
             if (recovery instanceof Map) {
                 Map<String, Object> nextRecovery = new HashMap<>((Map<String, Object>) recovery);
                 nextRecovery.put("state", "CANCELLED");
-                taskDto.getAttrs().put("heartbeatRecovery", nextRecovery);
+                taskDto.getAttrs().put(HeartbeatWatchdog.RECOVERY, nextRecovery);
             }
         }
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {

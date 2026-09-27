@@ -92,6 +92,7 @@ import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
@@ -1531,7 +1532,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.GENERATE_HASH_KEY_FAILED, e).dynamicDescriptionParameters(recordEvent);
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
-            io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry.sourceHeartbeat(dataProcessorContext.getTaskDto(), getNode().getId());
+            HeartbeatProgressRegistry.sourceHeartbeat(dataProcessorContext.getTaskDto(), getNode().getId());
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
         } else if (tapEvent instanceof TapDDLWarningEvent) {
             TapDDLWarningEvent warningEvent = (TapDDLWarningEvent) tapEvent;
