@@ -13,6 +13,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -44,4 +45,12 @@ public class LogCollectorVo {
     @EqField
     private List<TaskDto.SyncPoint> syncPoints;
     private Set<String> permissionActions;
+
+    /**
+     * 任务指标信息
+     * cpu: cpuUsage<Double>
+     * mem: memoryUsage<Long>
+     * time: lastUpdateTime<Long>
+     */
+    private Map<String, Object> metricInfo;
 }
