@@ -14,6 +14,10 @@ public class SettingsDto{
 
     private String key;
 
+    private String parent_key;
+
+    private String parent_value;
+
     private Object value;
 
     private Object default_value;

@@ -27,15 +27,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 
 /**
@@ -46,19 +47,77 @@ import java.util.function.LongConsumer;
  */
 @Slf4j
 public class CpuMemoryCollector {
+    public static final int TASK_STATISTICS_RESTRICTION_DEFAULT = 200;
+    public static final int TASK_STATISTICS_RESTRICTION_MIN = 1;
+    public static final int TASK_STATISTICS_RESTRICTION_MAX = 500;
     public static final long MAX_LISTENING_SIZE = Runtime.getRuntime().maxMemory() / (40L * 5L);// 25_000_000; // max allow weak ref of 1G
-    private static final Integer TASK_STATISTICS_RESTRICTION = Math.min(Math.max(CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION", 200), 1), 500);
-    private static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
-            50,
-            TASK_STATISTICS_RESTRICTION + 50,
-            0L,
-            TimeUnit.MILLISECONDS,
-            new SynchronousQueue<>(),
-            r -> new Thread(r, "CpuMemoryCollector"));
+    static volatile Function<Void, Integer> MAX_CAPACITY_FUNCTION = (vi) -> TASK_STATISTICS_RESTRICTION_DEFAULT;
+    private static final Object TASK_RESTRICTION_LOCK = new Object();
+    private static final int INITIAL_TASK_STATISTICS_RESTRICTION = normalizeTaskStatisticsRestriction(
+            CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION", TASK_STATISTICS_RESTRICTION_DEFAULT));
+    private static volatile int taskStatisticsRestriction = INITIAL_TASK_STATISTICS_RESTRICTION;
+    private static final int CPU_MONITOR_THREAD_COUNT = Math.max(1,
+            Math.min(50, Runtime.getRuntime().availableProcessors() * 2));
+    private static final int CLEANUP_THREAD_COUNT = 1;
+
     public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
     public static final CpuMemoryCollector COLLECTOR = new CpuMemoryCollector();
+
+    private static final ScheduledThreadPoolExecutor CLEANUP_EXECUTOR_SERVICE = new ScheduledThreadPoolExecutor(
+            CLEANUP_THREAD_COUNT,
+            r -> {
+                Thread thread = new Thread(r, "CpuMemoryCollector-Cleanup");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private static final ThreadPoolExecutor CPU_EXECUTOR_SERVICE = new ThreadPoolExecutor(
+            CPU_MONITOR_THREAD_COUNT,
+            CPU_MONITOR_THREAD_COUNT,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(TASK_STATISTICS_RESTRICTION_MAX),
+            r -> new Thread(r, "CpuMemoryCollector-Cpu"),
+            new ThreadPoolExecutor.CallerRunsPolicy());
+
+    static {
+        CLEANUP_EXECUTOR_SERVICE.scheduleWithFixedDelay(
+                COLLECTOR::cleanAll,
+                500L,
+                500L,
+                TimeUnit.MILLISECONDS);
+    }
+
+    public static void registerCapacityFun(Function<Void, Integer> fun) {
+        if (null == fun) {
+            return;
+        }
+        MAX_CAPACITY_FUNCTION = fun;
+    }
+
+    private static int normalizeTaskStatisticsRestriction(Integer maxTaskCount) {
+        int value = Optional.ofNullable(maxTaskCount).orElse(TASK_STATISTICS_RESTRICTION_DEFAULT);
+        return Math.min(Math.max(value, TASK_STATISTICS_RESTRICTION_MIN), TASK_STATISTICS_RESTRICTION_MAX);
+    }
+
+    static int getMaxSizeIfNeedReset() {
+        final int newSize;
+        try {
+            newSize = normalizeTaskStatisticsRestriction(MAX_CAPACITY_FUNCTION.apply(null));
+        } catch (Exception e) {
+            log.warn("Read task statistics restriction failed, keep current restriction {}", taskStatisticsRestriction, e);
+            return taskStatisticsRestriction;
+        }
+        synchronized (TASK_RESTRICTION_LOCK) {
+            if (newSize != taskStatisticsRestriction) {
+                taskStatisticsRestriction = newSize;
+            }
+            return taskStatisticsRestriction;
+        }
+    }
+
     final Map<String, String> taskWithNode = new ConcurrentHashMap<>(16);
     final Map<String, WeakReference<TaskDto>> taskDtoMap = new ConcurrentHashMap<>(16);
+    final Object taskRegistrationLock = new Object();
 
     final Map<String, FixedConcurrentHashMap<WeakReference<Object>, Long>> weakReferenceMap = new ConcurrentHashMap<>(16);
     final Map<String, ReferenceQueue<Object>> referenceQueue = new ConcurrentHashMap<>();
@@ -107,22 +166,26 @@ public class CpuMemoryCollector {
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        if (COLLECTOR.threadGroupMap.size() >= TASK_STATISTICS_RESTRICTION && !COLLECTOR.threadGroupMap.containsKey(taskId)) {
-            log.warn("Task statistics restriction exceeded, skip register task, node id: {}, task id: {}, current count: {}, restriction: {}", nodeId, taskId, COLLECTOR.threadGroupMap.size(), TASK_STATISTICS_RESTRICTION);
-            return;
-        }
         try {
-            COLLECTOR.referenceQueue.put(taskId, new ReferenceQueue<>());
-            COLLECTOR.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(MAX_LISTENING_SIZE));
-            final CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new CopyOnWriteArrayList<>());
-            weakReferences.removeIf(weakReference -> null == weakReference.get());
-            for (WeakReference<ThreadFactory> weakReference : weakReferences) {
-                if (weakReference.get() == threadGroup) {
+            synchronized (COLLECTOR.taskRegistrationLock) {
+                COLLECTOR.removeDeadThreadGroups();
+                int restriction = getMaxSizeIfNeedReset();
+                if (COLLECTOR.threadGroupMap.size() >= restriction && !COLLECTOR.threadGroupMap.containsKey(taskId)) {
+                    log.warn("Task statistics restriction exceeded, skip register task, node id: {}, task id: {}, current count: {}, restriction: {}", nodeId, taskId, COLLECTOR.threadGroupMap.size(), restriction);
                     return;
                 }
+                COLLECTOR.referenceQueue.computeIfAbsent(taskId, k -> new ReferenceQueue<>());
+                COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new FixedConcurrentHashMap<>(MAX_LISTENING_SIZE));
+                final CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new CopyOnWriteArrayList<>());
+                weakReferences.removeIf(weakReference -> null == weakReference.get());
+                for (WeakReference<ThreadFactory> weakReference : weakReferences) {
+                    if (weakReference.get() == threadGroup) {
+                        return;
+                    }
+                }
+                weakReferences.add(new WeakReference<>(threadGroup));
+                COLLECTOR.startClean(taskId);
             }
-            weakReferences.add(new WeakReference<>(threadGroup));
-            COLLECTOR.startClean(taskId);
         } catch (Exception e) {
             log.warn("Register task failed, node id = {}, e = {}", nodeId, e.getMessage());
         }
@@ -131,72 +194,74 @@ public class CpuMemoryCollector {
 
     void startClean(String taskId) {
         AtomicBoolean cleanTag = COLLECTOR.cleaned.computeIfAbsent(taskId, k -> new AtomicBoolean(false));
-        if (!cleanTag.compareAndSet(false, true)) {
+        cleanTag.set(true);
+    }
+
+    private void cleanAll() {
+        for (Map.Entry<String, AtomicBoolean> entry : new ArrayList<>(cleaned.entrySet())) {
+            if (entry.getValue().get()) {
+                cleanTaskReferences(entry.getKey());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void cleanTaskReferences(String taskId) {
+        FixedConcurrentHashMap<WeakReference<Object>, Long> weakReferences = weakReferenceMap.get(taskId);
+        ReferenceQueue<Object> taskReferenceQueue = referenceQueue.get(taskId);
+        if (null == weakReferences || null == taskReferenceQueue) {
             return;
         }
-        EXECUTOR_SERVICE.submit(() -> {
-            try {
-                while (COLLECTOR.cleaned.containsKey(taskId) && cleanTag.get()) {
-                    FixedConcurrentHashMap<WeakReference<Object>, Long> weakReferenceLongHashMap = weakReferenceMap.get(taskId);
-                    ReferenceQueue<Object> taskReferenceQueue = referenceQueue.get(taskId);
-                    if (null == weakReferenceLongHashMap || null == taskReferenceQueue) {
-                        try {
-                            Thread.yield();
-                        } catch (Exception e) {
-                            // ignore
-                        }
-                        continue;
-                    }
-                    try {
-                        WeakReference<Object> pull;
-                        do {
-                            pull = (WeakReference<Object>) taskReferenceQueue.remove(500L);
-                            if (null != pull) {
-                                weakReferenceLongHashMap.remove(pull);
-                            }
-                        } while (null != pull && cleanTag.get());
-                    } catch (IllegalArgumentException e) {
-                        //ignore
-                    } catch (InterruptedException e1) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            } finally {
-                cleanTag.compareAndSet(true, false);
+        try {
+            WeakReference<Object> pull;
+            while ((pull = (WeakReference<Object>) taskReferenceQueue.poll()) != null) {
+                weakReferences.remove(pull);
             }
+        } catch (Exception e) {
+            log.warn("Clean task references failed, task id = {}, e = {}", taskId, e.getMessage());
+        }
+    }
+
+    private void removeDeadThreadGroups() {
+        threadGroupMap.entrySet().removeIf(entry -> {
+            CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = entry.getValue();
+            weakReferences.removeIf(weakReference -> null == weakReference.get());
+            return weakReferences.isEmpty();
         });
     }
 
     public static void unregisterTask(String taskId) {
-        AtomicBoolean cleanTag = COLLECTOR.cleaned.get(taskId);
-        if (cleanTag != null) {
-            cleanTag.set(false);
+        synchronized (COLLECTOR.taskRegistrationLock) {
+            AtomicBoolean cleanTag = COLLECTOR.cleaned.get(taskId);
+            if (cleanTag != null) {
+                cleanTag.set(false);
+            }
+            CommonUtils.handleAnyError(() -> COLLECTOR.threadGroupMap.remove(taskId),
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean threadGroupMap, {}", taskId, e.getMessage()));
+            synchronized (COLLECTOR.weakReferenceMap) {
+                CommonUtils.handleAnyError(() -> COLLECTOR.weakReferenceMap.remove(taskId),
+                        e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
+            }
+            CommonUtils.handleAnyError(() -> COLLECTOR.taskDtoMap.remove(taskId),
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskDtoMap, {}", taskId, e.getMessage()));
+            CommonUtils.handleAnyError(() -> {
+                        final List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
+                        nodeIds.forEach(nodeId -> {
+                            if (Objects.equals(taskId, COLLECTOR.taskWithNode.get(nodeId))) {
+                                COLLECTOR.taskWithNode.remove(nodeId);
+                            }
+                        });
+                    },
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskWithNode, {}", taskId, e.getMessage()));
+            CommonUtils.handleAnyError(() -> {
+                        COLLECTOR.referenceQueue.remove(taskId);
+                    },
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean referenceQueue, {}", taskId, e.getMessage()));
+            CommonUtils.handleAnyError(() -> {
+                        COLLECTOR.cleaned.remove(taskId);
+                    },
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean cleaned, {}", taskId, e.getMessage()));
         }
-        CommonUtils.handleAnyError(() -> COLLECTOR.threadGroupMap.remove(taskId),
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean threadGroupMap, {}", taskId, e.getMessage()));
-        synchronized (COLLECTOR.weakReferenceMap) {
-            CommonUtils.handleAnyError(() -> COLLECTOR.weakReferenceMap.remove(taskId),
-                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
-        }
-        CommonUtils.handleAnyError(() -> COLLECTOR.taskDtoMap.remove(taskId),
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskDtoMap, {}", taskId, e.getMessage()));
-        CommonUtils.handleAnyError(() -> {
-                    final List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
-                    nodeIds.forEach(nodeId -> {
-                        if (Objects.equals(taskId, COLLECTOR.taskWithNode.get(nodeId))) {
-                            COLLECTOR.taskWithNode.remove(nodeId);
-                        }
-                    });
-                },
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskWithNode, {}", taskId, e.getMessage()));
-        CommonUtils.handleAnyError(() -> {
-                    COLLECTOR.referenceQueue.remove(taskId);
-                },
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean referenceQueue, {}", taskId, e.getMessage()));
-        CommonUtils.handleAnyError(() -> {
-                    COLLECTOR.cleaned.remove(taskId);
-                },
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean cleaned, {}", taskId, e.getMessage()));
     }
 
     public static void listeningTables(String nodeId, TapTableMap<?,?> iTable) {
@@ -317,7 +382,7 @@ public class CpuMemoryCollector {
                 CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
                     Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
                     eachOneTask(taskId, usage);
-                }, EXECUTOR_SERVICE);
+                }, CPU_EXECUTOR_SERVICE);
                 tasks.add(futureItem);
             }
         });
@@ -382,7 +447,7 @@ public class CpuMemoryCollector {
     }
 
     public static Map<String, Usage> collectOnce(List<String> taskIds) {
-        final Map<String, Usage> usageMap = new HashMap<>();
+        final Map<String, Usage> usageMap = new java.util.concurrent.ConcurrentHashMap<>();
         if (!COLLECTOR.doCollect) {
             COLLECTOR.stopCollect(taskIds, usageMap);
             return usageMap;

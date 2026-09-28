@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -184,6 +185,25 @@ class CpuMemorySchedulerTest {
                 
                 mockedCollector.verify(() -> CpuMemoryCollector.collectOnce(taskIds));
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Method afterPropertiesSet test")
+    class AfterPropertiesSetTest {
+        @Test
+        @DisplayName("test capacity setting uses default value when value is empty")
+        @SuppressWarnings("unchecked")
+        void testCapacitySettingUsesDefaultValue() {
+            when(settingService.getInt("task.statistics.restriction", CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT))
+                    .thenReturn(17);
+
+            scheduler.afterPropertiesSet();
+
+            Function<Void, Integer> capacityFunction = (Function<Void, Integer>) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+            assertNotNull(capacityFunction);
+            assertEquals(17, capacityFunction.apply(null));
         }
     }
 }

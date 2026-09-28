@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -24,6 +25,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
@@ -37,6 +44,7 @@ class CpuMemoryCollectorTest {
     @BeforeEach
     void setUp() {
         collector = CpuMemoryCollector.COLLECTOR;
+        CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT;
         // Clear all maps before each test
         collector.taskWithNode.clear();
         collector.taskDtoMap.clear();
@@ -55,6 +63,7 @@ class CpuMemoryCollectorTest {
         collector.referenceQueue.clear();
         collector.threadGroupMap.clear();
         collector.cleaned.clear();
+        CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT;
         CpuMemoryCollector.switchChange(true);
     }
 
@@ -205,6 +214,80 @@ class CpuMemoryCollectorTest {
             CpuMemoryCollector.registerTask(nodeId, threadFactory);
 
             assertEquals(1, collector.threadGroupMap.get(taskId).size());
+        }
+
+        @Test
+        @DisplayName("test dead thread groups do not consume task restriction")
+        void testDeadThreadGroupsDoNotConsumeRestriction() {
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> 1;
+            CopyOnWriteArrayList<WeakReference<ThreadFactory>> deadThreadGroups = new CopyOnWriteArrayList<>();
+            deadThreadGroups.add(new WeakReference<ThreadFactory>(null));
+            collector.threadGroupMap.put("dead-task", deadThreadGroups);
+            collector.taskWithNode.put("node1", "live-task");
+
+            CpuMemoryCollector.registerTask("node1", mock(ThreadFactory.class));
+
+            assertTrue(collector.threadGroupMap.containsKey("live-task"));
+            assertFalse(collector.threadGroupMap.containsKey("dead-task"));
+        }
+
+        @Test
+        @DisplayName("test concurrent registrations do not exceed restriction")
+        void testConcurrentRegistrationsDoNotExceedRestriction() throws InterruptedException {
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> 1;
+            int taskCount = 8;
+            CountDownLatch ready = new CountDownLatch(taskCount);
+            CountDownLatch start = new CountDownLatch(1);
+            ExecutorService executor = Executors.newFixedThreadPool(taskCount);
+            try {
+                for (int i = 0; i < taskCount; i++) {
+                    String taskId = "task-" + i;
+                    String nodeId = "node-" + i;
+                    collector.taskWithNode.put(nodeId, taskId);
+                    executor.submit(() -> {
+                        ready.countDown();
+                        try {
+                            start.await();
+                            CpuMemoryCollector.registerTask(nodeId, mock(ThreadFactory.class));
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+                }
+                assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                start.countDown();
+            } finally {
+                executor.shutdown();
+                assertTrue(executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            assertTrue(collector.threadGroupMap.size() <= 1);
+        }
+
+        @Test
+        @DisplayName("test task can register after another task is unregistered")
+        void testRegisterAfterUnregister() throws InterruptedException {
+            collector.taskWithNode.put("node1", "task1");
+            CpuMemoryCollector.registerTask("node1", mock(ThreadFactory.class));
+
+            CpuMemoryCollector.unregisterTask("task1");
+            Thread.sleep(700);
+
+            collector.taskWithNode.put("node2", "task2");
+            assertDoesNotThrow(() -> CpuMemoryCollector.registerTask("node2", mock(ThreadFactory.class)));
+            assertTrue(collector.threadGroupMap.containsKey("task2"));
+            CpuMemoryCollector.unregisterTask("task2");
+        }
+
+        @Test
+        @DisplayName("test restriction is clamped to supported range")
+        void testRestrictionIsClamped() {
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> -1;
+            assertEquals(CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_MIN,
+                    CpuMemoryCollector.getMaxSizeIfNeedReset());
+
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> 1000;
+            assertEquals(CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_MAX,
+                    CpuMemoryCollector.getMaxSizeIfNeedReset());
         }
     }
 
@@ -619,6 +702,33 @@ class CpuMemoryCollectorTest {
 
             assertTrue(usageMap.containsKey(taskId));
         }
+
+        @Test
+        @DisplayName("test cpu collection is not rejected by cleanup tasks")
+        void testCpuCollectionIsNotRejectedByCleanupTasks() {
+            int taskCount = 100;
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> taskCount;
+            assertEquals(taskCount, CpuMemoryCollector.getMaxSizeIfNeedReset());
+            List<ThreadFactory> threadFactories = new ArrayList<>();
+
+            for (int i = 0; i < taskCount; i++) {
+                String taskId = "task-" + i;
+                ThreadFactory threadFactory = mock(ThreadFactory.class);
+                when(threadFactory.getThreadGroup()).thenReturn(new ThreadGroup("cpu-" + i));
+                threadFactories.add(threadFactory);
+                CopyOnWriteArrayList<WeakReference<ThreadFactory>> list = new CopyOnWriteArrayList<>();
+                list.add(new WeakReference<>(threadFactory));
+                collector.threadGroupMap.put(taskId, list);
+                collector.referenceQueue.put(taskId, new ReferenceQueue<>());
+                collector.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(CpuMemoryCollector.MAX_LISTENING_SIZE));
+                collector.startClean(taskId);
+            }
+
+            Map<String, Usage> usageMap = new ConcurrentHashMap<>();
+            assertDoesNotThrow(() -> collector.collectCpuUsage(null, usageMap));
+            Reference.reachabilityFence(threadFactories);
+            assertEquals(taskCount, usageMap.size());
+        }
     }
 
     @Nested
@@ -868,6 +978,29 @@ class CpuMemoryCollectorTest {
     @Nested
     @DisplayName("Additional coverage tests")
     class AdditionalCoverageTest {
+        @Test
+        @DisplayName("test collector executors keep bounded thread counts")
+        void testCollectorExecutorsKeepBoundedThreadCounts() {
+            ThreadPoolExecutor cpuExecutor = (ThreadPoolExecutor) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "CPU_EXECUTOR_SERVICE");
+            ThreadPoolExecutor cleanupExecutor = (ThreadPoolExecutor) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "CLEANUP_EXECUTOR_SERVICE");
+
+            assertNotNull(cpuExecutor);
+            assertNotNull(cleanupExecutor);
+            assertTrue(cpuExecutor.getMaximumPoolSize() <= 50);
+            assertEquals(1, cleanupExecutor.getCorePoolSize(),
+                    "cleanup core pool size: " + cleanupExecutor.getCorePoolSize());
+        }
+
+        @Test
+        @DisplayName("test collectOnce uses a concurrent result map")
+        void testCollectOnceUsesConcurrentResultMap() {
+            Map<String, Usage> result = CpuMemoryCollector.collectOnce(List.of());
+
+            assertTrue(result instanceof ConcurrentMap);
+        }
+
         @Test
         @DisplayName("test startClean with InterruptedException")
         void testStartCleanInterrupted() throws InterruptedException {

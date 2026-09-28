@@ -9,6 +9,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -27,7 +28,7 @@ import java.util.Optional;
  */
 @Component
 @Slf4j
-public class CpuMemoryScheduler {
+public class CpuMemoryScheduler implements InitializingBean {
     @Autowired
     private ClientMongoOperator clientMongoOperator;
 
@@ -78,5 +79,19 @@ public class CpuMemoryScheduler {
         if (!metricInfo.isEmpty()) {
             clientMongoOperator.postOne(metricInfo, "/Task/update-cpu-memory", Void.class);
         }
+    }
+
+    @Override
+    public void afterPropertiesSet() {
+        CpuMemoryCollector.registerCapacityFun((vi) -> {
+            try {
+                return settingService.getInt(
+                        "task.statistics.restriction",
+                        CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT);
+            } catch (Exception e) {
+                log.warn("Read task statistics restriction failed, use default value", e);
+                return CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT;
+            }
+        });
     }
 }
