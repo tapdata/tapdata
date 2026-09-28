@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -200,10 +201,10 @@ class CpuMemorySchedulerTest {
 
             scheduler.afterPropertiesSet();
 
-            Function<Void, Integer> capacityFunction = (Function<Void, Integer>) ReflectionTestUtils
+            AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
                     .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
             assertNotNull(capacityFunction);
-            assertEquals(17, capacityFunction.apply(null));
+            assertEquals(17, capacityFunction.get().apply(null));
         }
     }
 }

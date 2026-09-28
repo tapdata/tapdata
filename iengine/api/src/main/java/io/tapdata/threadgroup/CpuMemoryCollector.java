@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -51,7 +52,8 @@ public class CpuMemoryCollector {
     public static final int TASK_STATISTICS_RESTRICTION_MIN = 1;
     public static final int TASK_STATISTICS_RESTRICTION_MAX = 500;
     public static final long MAX_LISTENING_SIZE = Runtime.getRuntime().maxMemory() / (40L * 5L);// 25_000_000; // max allow weak ref of 1G
-    static volatile Function<Void, Integer> MAX_CAPACITY_FUNCTION = (vi) -> TASK_STATISTICS_RESTRICTION_DEFAULT;
+    static final AtomicReference<Function<Void, Integer>> MAX_CAPACITY_FUNCTION =
+            new AtomicReference<>(vi -> TASK_STATISTICS_RESTRICTION_DEFAULT);
     private static final Object TASK_RESTRICTION_LOCK = new Object();
     private static final int INITIAL_TASK_STATISTICS_RESTRICTION = normalizeTaskStatisticsRestriction(
             CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION", TASK_STATISTICS_RESTRICTION_DEFAULT));
@@ -91,7 +93,7 @@ public class CpuMemoryCollector {
         if (null == fun) {
             return;
         }
-        MAX_CAPACITY_FUNCTION = fun;
+        MAX_CAPACITY_FUNCTION.set(fun);
     }
 
     private static int normalizeTaskStatisticsRestriction(Integer maxTaskCount) {
@@ -100,14 +102,14 @@ public class CpuMemoryCollector {
     }
 
     static int getMaxSizeIfNeedReset() {
-        final int newSize;
-        try {
-            newSize = normalizeTaskStatisticsRestriction(MAX_CAPACITY_FUNCTION.apply(null));
-        } catch (Exception e) {
-            log.warn("Read task statistics restriction failed, keep current restriction {}", taskStatisticsRestriction, e);
-            return taskStatisticsRestriction;
-        }
         synchronized (TASK_RESTRICTION_LOCK) {
+            final int newSize;
+            try {
+                newSize = normalizeTaskStatisticsRestriction(MAX_CAPACITY_FUNCTION.get().apply(null));
+            } catch (Exception e) {
+                log.warn("Read task statistics restriction failed, keep current restriction {}", taskStatisticsRestriction, e);
+                return taskStatisticsRestriction;
+            }
             if (newSize != taskStatisticsRestriction) {
                 taskStatisticsRestriction = newSize;
             }

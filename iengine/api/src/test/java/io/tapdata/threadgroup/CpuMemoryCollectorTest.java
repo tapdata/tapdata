@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,7 +45,7 @@ class CpuMemoryCollectorTest {
     @BeforeEach
     void setUp() {
         collector = CpuMemoryCollector.COLLECTOR;
-        CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT;
+        CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT);
         // Clear all maps before each test
         collector.taskWithNode.clear();
         collector.taskDtoMap.clear();
@@ -63,7 +64,7 @@ class CpuMemoryCollectorTest {
         collector.referenceQueue.clear();
         collector.threadGroupMap.clear();
         collector.cleaned.clear();
-        CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT;
+        CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT);
         CpuMemoryCollector.switchChange(true);
     }
 
@@ -219,7 +220,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test dead thread groups do not consume task restriction")
         void testDeadThreadGroupsDoNotConsumeRestriction() {
-            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> 1;
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> 1);
             CopyOnWriteArrayList<WeakReference<ThreadFactory>> deadThreadGroups = new CopyOnWriteArrayList<>();
             deadThreadGroups.add(new WeakReference<ThreadFactory>(null));
             collector.threadGroupMap.put("dead-task", deadThreadGroups);
@@ -234,7 +235,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test concurrent registrations do not exceed restriction")
         void testConcurrentRegistrationsDoNotExceedRestriction() throws InterruptedException {
-            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> 1;
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> 1);
             int taskCount = 8;
             CountDownLatch ready = new CountDownLatch(taskCount);
             CountDownLatch start = new CountDownLatch(1);
@@ -281,11 +282,11 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test restriction is clamped to supported range")
         void testRestrictionIsClamped() {
-            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> -1;
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> -1);
             assertEquals(CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_MIN,
                     CpuMemoryCollector.getMaxSizeIfNeedReset());
 
-            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> 1000;
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> 1000);
             assertEquals(CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_MAX,
                     CpuMemoryCollector.getMaxSizeIfNeedReset());
         }
@@ -707,7 +708,7 @@ class CpuMemoryCollectorTest {
         @DisplayName("test cpu collection is not rejected by cleanup tasks")
         void testCpuCollectionIsNotRejectedByCleanupTasks() {
             int taskCount = 100;
-            CpuMemoryCollector.MAX_CAPACITY_FUNCTION = vi -> taskCount;
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> taskCount);
             assertEquals(taskCount, CpuMemoryCollector.getMaxSizeIfNeedReset());
             List<ThreadFactory> threadFactories = new ArrayList<>();
 
@@ -978,6 +979,15 @@ class CpuMemoryCollectorTest {
     @Nested
     @DisplayName("Additional coverage tests")
     class AdditionalCoverageTest {
+        @Test
+        @DisplayName("test capacity function is stored in an atomic reference")
+        void testCapacityFunctionUsesAtomicReference() {
+            Object capacityFunction = ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+
+            assertInstanceOf(AtomicReference.class, capacityFunction);
+        }
+
         @Test
         @DisplayName("test collector executors keep bounded thread counts")
         void testCollectorExecutorsKeepBoundedThreadCounts() {
