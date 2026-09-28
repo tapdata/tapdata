@@ -24,6 +24,7 @@ import java.util.Properties;
 import com.tapdata.tm.userLog.entity.UserLogs;
 import org.bson.types.ObjectId;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -266,6 +267,7 @@ public class UserLogServiceImplTest {
         void setUp() {
             userLogRepository = mock(UserLogRepository.class);
             realUserLogService = new UserLogServiceImpl(userLogRepository);
+            ReflectionTestUtils.setField(realUserLogService, "userLogRepository", userLogRepository);
             userDetail = mock(UserDetail.class);
             when(userDetail.getUserId()).thenReturn("user_123");
             when(userDetail.getUsername()).thenReturn("test_user");
