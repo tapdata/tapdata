@@ -122,7 +122,11 @@ public class HeartbeatProgressWatchdog {
             return;
         }
         if ("BLOCKED".equals(state)) return;
-        if ("CIRCUIT_OPEN".equals(state)) return;
+        // Unlike BLOCKED, CIRCUIT_OPEN is not permanent: once the 1-hour attempt window has aged
+        // out enough attempts, HeartbeatWatchdog.request() below allows a fresh request again (this
+        // must match TM's TaskHeartbeatWatchdogSchedule.inspect(), which does the same). Do not
+        // return early here or this engine would never re-request recovery after the window frees
+        // up budget, even though TM would.
         if ("REQUESTED".equals(state) && HeartbeatWatchdog.advanced(task, recovery)) {
             transition(task, recovery, "CANCELLED", now);
             return;
@@ -149,7 +153,11 @@ public class HeartbeatProgressWatchdog {
         if (!"REQUESTED".equals(state)) {
             Map<String, Object> request = HeartbeatWatchdog.request(task, stuck, "ENGINE", now);
             if (request == null) {
-                if (!stuck.isEmpty() && HeartbeatWatchdog.recentAttempts(recovery, now).size() >= HeartbeatWatchdog.MAX_ATTEMPTS
+                // Already CIRCUIT_OPEN and still within the attempt window: nothing changed, so skip
+                // re-writing/re-warning every scan. Only transition into CIRCUIT_OPEN the first time
+                // the budget is exhausted.
+                if (!"CIRCUIT_OPEN".equals(state) && !stuck.isEmpty()
+                        && HeartbeatWatchdog.recentAttempts(recovery, now).size() >= HeartbeatWatchdog.MAX_ATTEMPTS
                         && transition(task, recovery, "CIRCUIT_OPEN", now)) {
                     warn(task, "Heartbeat recovery budget exhausted (3 attempts/hour); manual intervention required");
                 }

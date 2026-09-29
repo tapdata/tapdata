@@ -151,10 +151,34 @@ class HeartbeatProgressWatchdogTest {
         assertEquals("BLOCKED", lastRecoveryUpdate().get("state"));
     }
 
+    @Test void circuitOpenWithinAttemptWindowIsNotRewrittenEveryScan() {
+        // Unlike BLOCKED, CIRCUIT_OPEN must not early-return unconditionally in inspect() (that
+        // would make it permanent, diverging from TaskHeartbeatWatchdogSchedule on the TM side,
+        // which re-requests once the 1-hour attempt window ages out). But while still within the
+        // window, nothing changed, so this must stay a no-op: no repeated write/log every 15s.
+        Map<String, Object> circuitOpen = new HashMap<>(request);
+        long now = System.currentTimeMillis();
+        circuitOpen.put("state", "CIRCUIT_OPEN");
+        circuitOpen.put("attempts", List.of(now - 3_000L, now - 2_000L, now - 1_000L));
+        task.getAttrs().put("heartbeatRecovery", circuitOpen);
+        watchdog.inspect(client);
+        assertTrue(recoveryUpdates().isEmpty(),
+                "CIRCUIT_OPEN must not be rewritten while still inside the 1-hour attempt window");
+    }
+
     private Map<?, ?> lastRecoveryUpdate() {
+        List<Map<?, ?>> updates = recoveryUpdates();
+        return updates.get(updates.size() - 1);
+    }
+
+    private List<Map<?, ?>> recoveryUpdates() {
         ArgumentCaptor<Update> updates = ArgumentCaptor.forClass(Update.class);
         verify(mongo, atLeastOnce()).update(any(Query.class), updates.capture(), anyString());
-        List<Update> values = updates.getAllValues();
-        return (Map<?, ?>) ((Map<?, ?>) values.get(values.size() - 1).getUpdateObject().get("$set")).get("attrs.heartbeatRecovery");
+        List<Map<?, ?>> result = new ArrayList<>();
+        for (Update update : updates.getAllValues()) {
+            Object recovery = ((Map<?, ?>) update.getUpdateObject().get("$set")).get("attrs.heartbeatRecovery");
+            if (recovery != null) result.add((Map<?, ?>) recovery);
+        }
+        return result;
     }
 }
