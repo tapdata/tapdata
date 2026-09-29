@@ -985,16 +985,19 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         String connectionId = dataParentNode.getConnectionId();
-        DataSourceConnectionDto connection = findConnectionWithCapabilities(connectionId);
+        DataSourceConnectionDto connection = findConnectionWithCapabilities(connectionId, userDetail);
 
         try {
             List<Map<String, Object>> sampleData;
             if (StringUtils.isNotBlank(dto.getSql())) {
                 checkCapability(connection, "run_raw_command_function", "MockData.ConnectionNotSupportRawCommand", connectionId);
-                sampleData = querySampleDataBySql(taskDto.getAgentId(), connectionId, tableName, dto.getSql(),100);
+                sampleData = querySampleDataBySql(taskDto.getAgentId(), connectionId, tableName, dto.getSql(), 100);
             } else {
                 checkCapability(connection, "query_by_advance_filter_function", "MockData.ConnectionNotSupportQuery", connectionId);
                 sampleData = querySampleDataByFilter(taskDto.getAgentId(), connectionId, tableName, rows);
+            }
+            if (sampleData == null) {
+                sampleData = Collections.emptyList();
             }
             List<Map<String, Object>> result = sampleData.stream()
                     .map(after -> Map.<String, Object>of("after", after))
@@ -1007,27 +1010,38 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private DataSourceConnectionDto findConnectionWithCapabilities(String connectionId) {
+    private DataSourceConnectionDto findConnectionWithCapabilities(String connectionId, UserDetail userDetail) {
         Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(connectionId)));
-        query.fields().include("capabilities");
+        query.fields().include("capabilities", "database_type", "pdkHash");
         DataSourceConnectionDto connection = dataSourceService.findOne(query);
         if (connection == null) {
             throw new BizException("MockData.ConnectionNotFound", connectionId);
+        }
+        if (dataSourceService != null && userDetail != null) {
+            try {
+                dataSourceService.buildDefinitionParam(Collections.singletonList(connection), userDetail);
+            } catch (Exception e) {
+                log.warn("buildDefinitionParam for connectionId {} failed: {}", connectionId, e.getMessage());
+            }
         }
         return connection;
     }
 
     private void checkCapability(DataSourceConnectionDto connection, String capabilityId, String errorCode, String connectionId) {
-        boolean supported = CollectionUtils.isNotEmpty(connection.getCapabilities())
-                && connection.getCapabilities().stream()
-                        .anyMatch(capability -> capability.getId().equals(capabilityId));
-        if (!supported) {
+        if (!hasCapability(connection, capabilityId)) {
             throw new BizException(errorCode, connectionId);
         }
     }
 
+    private boolean hasCapability(DataSourceConnectionDto connection, String capabilityId) {
+        return CollectionUtils.isNotEmpty(connection.getCapabilities())
+                && connection.getCapabilities().stream()
+                .anyMatch(capability -> capabilityId.equals(capability.getId()));
+    }
+
     private List<Map<String, Object>> querySampleDataBySql(String agentId, String connectionId, String tableName, String sql,int limit) throws Throwable {
-        return taskService.callEngineRpc(agentId, List.class, "QueryDataBaseDataService", "queryV2", connectionId, tableName, sql, true,limit);
+        List<Map<String, Object>> list = taskService.callEngineRpc(agentId, List.class, "QueryDataBaseDataService", "queryV2", connectionId, tableName, sql, true,limit);
+        return list != null ? list : Collections.emptyList();
     }
 
     private List<Map<String, Object>> querySampleDataByFilter(String agentId, String connectionId, String tableName, Integer rows) throws Throwable {
