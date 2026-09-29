@@ -37,6 +37,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -330,6 +332,88 @@ public class DataSourceServiceImpl extends DataSourceService{
         hiddenMqPasswd(updateDto);
 
         return updateDto;
+    }
+
+    @Override
+    public BatchUpdateAgentSettingsResponse batchUpdateAgentSettings(
+            BatchUpdateAgentSettingsRequest request,
+            UserDetail userDetail
+    ) {
+        if (request == null || request.getSettings() == null || CollectionUtils.isEmpty(request.getConnectionIds())) {
+            throw new BizException("InvalidParameter", "connectionIds and settings are required");
+        }
+
+        List<String> connectionIds = request.getConnectionIds();
+        Set<String> distinctConnectionIds = new LinkedHashSet<>(connectionIds);
+        if (distinctConnectionIds.size() != connectionIds.size() || distinctConnectionIds.stream().anyMatch(StringUtils::isBlank)) {
+            throw new BizException("InvalidParameter", "connectionIds must be non-empty and unique");
+        }
+
+        List<ObjectId> objectIds;
+        try {
+            objectIds = distinctConnectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+        } catch (IllegalArgumentException e) {
+            throw new BizException("InvalidParameter", e, "connectionIds must contain valid object ids");
+        }
+
+        BatchUpdateAgentSettingsRequest.AgentSettings settings = request.getSettings();
+        String accessNodeType = settings.getAccessNodeType();
+        if (StringUtils.isBlank(accessNodeType)) {
+            throw new BizException("InvalidParameter", "accessNodeType is required");
+        }
+        try {
+            AccessNodeTypeEnum.valueOf(accessNodeType);
+        } catch (IllegalArgumentException e) {
+            throw new BizException("InvalidParameter", e, "Unsupported accessNodeType: " + accessNodeType);
+        }
+
+        String accessNodeProcessId = StringUtils.trimToNull(settings.getAccessNodeProcessId());
+        String priorityProcessId = StringUtils.trimToNull(settings.getPriorityProcessId());
+        List<String> accessNodeProcessIdList = Collections.emptyList();
+
+        if (AccessNodeTypeEnum.isUserManually(accessNodeType)) {
+            if (accessNodeProcessId == null) {
+                throw new BizException("Datasource.AgentNotFound", "accessNodeProcessId is required for manual agent allocation");
+            }
+            accessNodeProcessIdList = Collections.singletonList(accessNodeProcessId);
+            checkAccessNodeAvailable(accessNodeType, accessNodeProcessIdList, userDetail);
+            priorityProcessId = null;
+        } else if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
+            if (accessNodeProcessId == null) {
+                throw new BizException("lack.group.agent");
+            }
+            List<String> groupAgentIds = agentGroupService.getProcessNodeListByGroupId(
+                    Collections.singletonList(accessNodeProcessId), accessNodeType, userDetail);
+            if (priorityProcessId != null && !groupAgentIds.contains(priorityProcessId)) {
+                throw new BizException("Datasource.AgentNotFound", "priorityProcessId must belong to the selected agent group");
+            }
+        } else {
+            accessNodeProcessId = null;
+            priorityProcessId = null;
+        }
+
+        Criteria connectionCriteria = Criteria.where("_id").in(objectIds);
+        List<DataSourceEntity> connections = repository.findAll(new Query(connectionCriteria), userDetail);
+        if (connections.size() != objectIds.size()) {
+            throw new BizException("Datasource.NotFound", "Connections not found or not editable by the current user");
+        }
+
+        Query updateQuery = new Query(Criteria.where("_id").in(objectIds));
+        Update update = new Update()
+                .set("accessNodeType", accessNodeType)
+                .set("accessNodeProcessId", accessNodeProcessId)
+                .set("accessNodeProcessIdList", accessNodeProcessIdList)
+                .set("priorityProcessId", priorityProcessId)
+                .set("lastUpdAt", new Date())
+                .set("lastUpdBy", userDetail.getUserId());
+        UpdateResult updateResult = repository.update(updateQuery, update, userDetail);
+
+        BatchUpdateAgentSettingsResponse response = new BatchUpdateAgentSettingsResponse();
+        response.setRequestId(request.getRequestId());
+        response.setRequestedCount(objectIds.size());
+        response.setUpdatedCount(updateResult.getMatchedCount());
+        response.setUpdatedConnectionIds(new ArrayList<>(distinctConnectionIds));
+        return response;
     }
 
     public void generatePasswordTag(DataSourceConnectionDto dto, UserDetail user) {
