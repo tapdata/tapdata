@@ -188,10 +188,24 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				}
 			}
 			if (job.getStatus() == JobStatus.RUNNING) {
-				job.suspend();
+				try {
+					job.suspend();
+				} catch (IllegalStateException e) {
+					// A previous stop() attempt already asked Jet to suspend/cancel this job and it is
+					// still terminating (job status stays RUNNING while the request is in flight). Jet
+					// rejects a second concurrent request instead of queueing it. Treat this as "not
+					// finished yet" and let the caller keep polling job status rather than propagating.
+					logger.warn("Job with id {} rejected a repeated suspend request, already terminating: {}",
+							job.getId(), e.getMessage());
+				}
 			}
 			if (job.getStatus() == JobStatus.SUSPENDED) {
-				job.cancel();
+				try {
+					job.cancel();
+				} catch (IllegalStateException e) {
+					logger.warn("Job with id {} rejected a repeated cancel request, already terminating: {}",
+							job.getId(), e.getMessage());
+				}
 			}
 
 			if (job.getStatus().isTerminal()) {

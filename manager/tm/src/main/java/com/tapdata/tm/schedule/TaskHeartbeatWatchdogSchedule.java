@@ -70,7 +70,13 @@ public class TaskHeartbeatWatchdogSchedule {
         if ("REQUESTED".equals(state) && HeartbeatWatchdog.advanced(task, previous)) {
             next.put("state", "CANCELLED");
             message = "Checkpoint progress resumed before recovery was claimed; obsolete request cancelled.";
-        } else if ("REQUESTED".equals(state) || "STOPPING".equals(state)) {
+        } else if ("REQUESTED".equals(state)) {
+            // Unclaimed: no engine has attempted a stop yet, so there is nothing to fence. BLOCKED
+            // is permanent and would suppress ordinary error retries forever; make it retryable.
+            if (recoveryElapsed < HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) return;
+            next.put("state", "CANCELLED");
+            message = "Unclaimed heartbeat recovery request timed out; will retry on next stall detection.";
+        } else if ("STOPPING".equals(state)) {
             if (recoveryElapsed < HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) return;
             next.put("state", "BLOCKED");
             message = "Heartbeat recovery timed out; old task termination is unconfirmed. Manual intervention required before the source log retention window expires.";

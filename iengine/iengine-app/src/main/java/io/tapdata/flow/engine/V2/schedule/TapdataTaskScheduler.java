@@ -15,6 +15,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import java.util.concurrent.CompletableFuture;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatRecoveryProtocol;
 import com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
@@ -436,6 +437,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			logger.info("Found task(s) already running before engine start, will queue these task(s) for rate-limited startup\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
 
 			for (TaskDto task : tasks) {
+				clearStaleHeartbeatRecoveryOnEngineStart(task);
 				refreshEngineStartTaskPingTime(task, System.currentTimeMillis());
 				try {
 					engineStartPendingTaskMap.put(task.getId().toHexString(), task);
@@ -475,6 +477,34 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		} catch (Exception e) {
 			logger.warn("Failed to refresh engine startup task ping time: {} ({}), pingTime: {}, error: {}",
 					task.getName(), task.getId().toHexString(), pingTime, e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * A JVM restart is itself proof that any client this engine previously held for the task is
+	 * gone. Without this, a heartbeat recovery left {@code BLOCKED} (or any other pending state)
+	 * by the previous process instance would carry over into the freshly resumed run: {@code
+	 * heartbeatRecoveryOwnsRetry()} treats any pending state as "let recovery own retries", so it
+	 * would permanently suppress ordinary error retries and RUN_ERROR reporting for a task this
+	 * new JVM has not even started managing yet. Scoped to this engine-restart-resume path only —
+	 * it must never run on the normal start/stop path, where a pending recovery genuinely still
+	 * needs CAS-fenced confirmation from a live writer.
+	 */
+	private void clearStaleHeartbeatRecoveryOnEngineStart(TaskDto task) {
+		if (task == null || task.getId() == null) return;
+		Map<String, Object> recovery = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
+		if (!HeartbeatWatchdog.pending(recovery)) return;
+		try {
+			Map<String, Object> next = new LinkedHashMap<>(recovery);
+			next.put("state", "CANCELLED");
+			next.put("updatedAt", System.currentTimeMillis());
+			clientMongoOperator.update(HeartbeatRecoveryProtocol.compare(task, recovery), HeartbeatRecoveryProtocol.write(next), ConnectorConstant.TASK_COLLECTION);
+			task.getAttrs().put(HeartbeatWatchdog.RECOVERY, next);
+			logger.info("Cleared stale heartbeat recovery state '{}' on engine restart resume for task: {} ({})",
+					recovery.get("state"), task.getName(), task.getId().toHexString());
+		} catch (Exception e) {
+			logger.warn("Failed to clear stale heartbeat recovery on engine start: {} ({}), error: {}",
+					task.getName(), task.getId().toHexString(), e.getMessage(), e);
 		}
 	}
 
@@ -1126,7 +1156,16 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		String taskId = expected.getTask().getId().toHexString();
 		java.util.concurrent.atomic.AtomicBoolean started = new java.util.concurrent.atomic.AtomicBoolean();
 		taskLock.tryRun(taskId, () -> {
-			if (taskClientMap.get(taskId) != expected || expected.getTerminalMode() != null) return;
+			// A deliberate stop (user-initiated STOP_GRACEFUL, or an internal reschedule) must win
+			// over recovery: let the normal stop path own it. An ERROR/COMPLETE terminal mode does
+			// NOT bail out here, because heartbeatRecoveryOwnsRetry() makes errorOrStopTask() skip its
+			// own stop/retry for exactly this client while a recovery is pending, expecting recovery to
+			// take over the stop. Bailing out here as well would strand the task: nobody ever stops it,
+			// and it dead-locks into BLOCKED once the recovery timeout elapses.
+			TerminalMode currentTerminalMode = expected.getTerminalMode();
+			if (taskClientMap.get(taskId) != expected
+					|| currentTerminalMode == TerminalMode.STOP_GRACEFUL
+					|| currentTerminalMode == TerminalMode.INTERNAL_STOP) return;
 			TaskDto fresh = findHeartbeatRecoveryTask(taskId);
 			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !claim.getAsBoolean()) return;
 			if (!stopHeartbeatTask(expected)) return;

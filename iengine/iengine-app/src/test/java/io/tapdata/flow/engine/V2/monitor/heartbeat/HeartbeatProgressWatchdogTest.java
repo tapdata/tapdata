@@ -78,11 +78,27 @@ class HeartbeatProgressWatchdogTest {
 
     @Test void stopExceptionBlocksFurtherAttempts() throws Exception {
         when(scheduler.recoverHeartbeatTask(eq(client), any(), any())).thenAnswer(invocation -> {
+            // The claim succeeded (the CAS moved REQUESTED -> STOPPING for real, as replace()
+            // inside the claim lambda would have persisted) before the stop itself threw.
             assertTrue(((BooleanSupplier) invocation.getArgument(1)).getAsBoolean());
+            Map<String, Object> stopping = new HashMap<>(request);
+            stopping.put("state", "STOPPING");
+            task.getAttrs().put("heartbeatRecovery", stopping);
             throw new IllegalStateException("stop failed");
         });
         watchdog.recover(client, task, request, local);
         assertEquals("BLOCKED", lastRecoveryUpdate().get("state"));
+    }
+
+    @Test void unclaimedStopExceptionLeavesRequestRetryable() throws Exception {
+        // The claim itself never confirmed a stop was attempted (e.g. a transient TM HTTP
+        // failure while reading before claiming), so the persisted state is still REQUESTED.
+        // There is nothing to fence, so this must NOT be permanently BLOCKED.
+        when(scheduler.recoverHeartbeatTask(eq(client), any(), any())).thenAnswer(invocation -> {
+            throw new IllegalStateException("claim read failed");
+        });
+        watchdog.recover(client, task, request, local);
+        assertEquals("REQUESTED", ((Map<?, ?>) task.getAttrs().get("heartbeatRecovery")).get("state"));
     }
 
     @Test void startExceptionBlocksCurrentVerifyingRecovery() throws Exception {

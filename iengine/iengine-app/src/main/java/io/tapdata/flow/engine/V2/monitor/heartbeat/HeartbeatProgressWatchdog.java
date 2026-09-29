@@ -33,6 +33,10 @@ public class HeartbeatProgressWatchdog {
             new ArrayBlockingQueue<>(16), r -> daemon(r, "Heartbeat-Recovery"));
     private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
     private final Set<String> invalidUnitWarnings = ConcurrentHashMap.newKeySet();
+    // Tracks, per taskId, when THIS engine process first observed the current REQUESTED request id.
+    // requestedAt may have been written by TM's clock; never subtract it from this engine's
+    // System.currentTimeMillis() to decide a local timeout.
+    private final Map<String, Object[]> requestFirstObservedAt = new ConcurrentHashMap<>();
 
     private static Thread daemon(Runnable runnable, String name) {
         Thread thread = new Thread(runnable, name);
@@ -51,10 +55,29 @@ public class HeartbeatProgressWatchdog {
     }
 
     void scan() {
+        Set<String> live = new HashSet<>();
         for (TaskClient<TaskDto> client : scheduler.getTaskClientMap().values()) {
-            try { inspect(client); }
-            catch (Exception e) { LOG.warn("Heartbeat watchdog scan failed for {}", client.getTask().getId(), e); }
+            String taskId = "unknown";
+            try {
+                taskId = client.getTask().getId().toHexString();
+                live.add(taskId);
+                inspect(client);
+            } catch (Throwable e) {
+                // Must never let an Error (or an exception thrown while building this very log
+                // message) escape: scheduleWithFixedDelay silently cancels all future scans on any
+                // uncaught Throwable, permanently killing this engine's watchdog until restart.
+                LOG.warn("Heartbeat watchdog scan failed for {}", taskId, e);
+            }
         }
+        requestFirstObservedAt.keySet().retainAll(live);
+    }
+
+    /** Local-clock-only "first seen" timestamp for the current REQUESTED request id, analogous to
+     *  TM's own Observation. Never derives elapsed time from a timestamp another process wrote. */
+    private long requestObservedSince(String taskId, Object requestId, long now) {
+        Object[] observed = requestFirstObservedAt.compute(taskId, (id, existing) ->
+                existing != null && Objects.equals(existing[0], requestId) ? existing : new Object[]{requestId, now});
+        return (long) observed[1];
     }
 
     void inspect(TaskClient<TaskDto> client) {
@@ -104,13 +127,24 @@ public class HeartbeatProgressWatchdog {
             transition(task, recovery, "CANCELLED", now);
             return;
         }
-        if ("STOPPING".equals(state) || "REQUESTED".equals(state)) {
-            long since = HeartbeatWatchdog.number(recovery.get("claimedAt"), HeartbeatWatchdog.number(recovery.get("requestedAt"), now));
+        if ("STOPPING".equals(state)) {
+            // claimedAt is always written by the engine that claimed the request (see recover()),
+            // so it is safe to compare against this engine's own clock.
+            long since = HeartbeatWatchdog.number(recovery.get("claimedAt"), now);
             if (now - since >= HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) {
                 if (transition(task, recovery, "BLOCKED", now)) warn(task, "Recovery timed out; old task termination unconfirmed, manual intervention required");
+            }
+            return;
+        }
+        if ("REQUESTED".equals(state)) {
+            long since = requestObservedSince(taskId, recovery.get("id"), now);
+            if (now - since >= HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) {
+                // Nobody has claimed this request yet, so nothing has been stopped. BLOCKED is
+                // permanent and would suppress ordinary error retries forever; CANCELLED is safely
+                // retryable on the next stall detection.
+                if (transition(task, recovery, "CANCELLED", now)) warn(task, "Unclaimed heartbeat recovery request timed out; will retry on next stall detection");
                 return;
             }
-            if ("STOPPING".equals(state)) return;
         }
         if (!"REQUESTED".equals(state)) {
             Map<String, Object> request = HeartbeatWatchdog.request(task, stuck, "ENGINE", now);
@@ -159,7 +193,7 @@ public class HeartbeatProgressWatchdog {
         Map<String, Object> verifying = new LinkedHashMap<>(stopping);
         verifying.put("state", "VERIFYING");
         try {
-            scheduler.recoverHeartbeatTask(client, () -> {
+            boolean started = scheduler.recoverHeartbeatTask(client, () -> {
                 TaskDto fresh = mongo.findOne(HeartbeatRecoveryProtocol.owner(task), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
                 if (fresh == null) return false;
                 if (HeartbeatWatchdog.advanced(fresh, request)) {
@@ -175,12 +209,34 @@ public class HeartbeatProgressWatchdog {
                 verifying.put("startedAt", System.currentTimeMillis());
                 return replace(task, stopping, verifying);
             });
+            if (!started) failFastIfVerifyingWithoutOwner(client, task, request);
         } catch (Exception e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             LOG.warn("Heartbeat recovery failed for {}", task.getId(), e);
             // A thrown stop may have left the old writer alive. Never release for another try.
             blockCurrentRecovery(task, request, System.currentTimeMillis());
             warn(task, "Heartbeat recovery could not confirm safe completion; manual intervention required");
+        }
+    }
+
+    /**
+     * recoverHeartbeatTask() returned false without throwing. Most causes (lost CAS, obsolete
+     * request, a live owner mismatch) already transitioned the recovery document themselves. The
+     * one case that does NOT is: the STOPPING->VERIFYING CAS succeeded but startTask() afterwards
+     * silently failed to attach a client (e.g. TmUnavailableException is only logged, or cache
+     * cleanup deferred it) — see HeartbeatProgressWatchdog PR review. Left alone, that stalls in
+     * VERIFYING with no owner anywhere until TM's timeout+grace (default 6 min) elapses. Detect it
+     * here and fail fast so a fresh stall detection can request recovery again much sooner.
+     */
+    private void failFastIfVerifyingWithoutOwner(TaskClient<TaskDto> client, TaskDto task, Map<String, Object> request) {
+        String taskId = task.getId().toHexString();
+        if (scheduler.getTaskClientMap().containsKey(taskId)) return;
+        TaskDto current = mongo.findOne(HeartbeatRecoveryProtocol.owner(task), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+        if (current == null) return;
+        Map<String, Object> recovery = HeartbeatWatchdog.attr(current, HeartbeatWatchdog.RECOVERY);
+        if (!Objects.equals(request.get("id"), recovery.get("id")) || !"VERIFYING".equals(recovery.get("state"))) return;
+        if (transition(current, recovery, "FAILED", System.currentTimeMillis())) {
+            warn(task, "Heartbeat recovery restart did not attach a task client; marking recovery failed early");
         }
     }
 
@@ -191,7 +247,11 @@ public class HeartbeatProgressWatchdog {
         Map<String, Object> recovery = HeartbeatWatchdog.attr(current, HeartbeatWatchdog.RECOVERY);
         if (!Objects.equals(request.get("id"), recovery.get("id"))) return false;
         String state = String.valueOf(recovery.get("state"));
-        if (!Arrays.asList("REQUESTED", "STOPPING", "VERIFYING").contains(state)) return false;
+        // REQUESTED means the claim itself never confirmed a stop was even attempted (e.g. a
+        // transient TM HTTP failure while reading before claiming). There is nothing to fence in
+        // that case, so leave it REQUESTED for the next scan to retry instead of permanently
+        // BLOCKing a task that was never touched.
+        if (!Arrays.asList("STOPPING", "VERIFYING").contains(state)) return false;
         return transition(current, recovery, "BLOCKED", now);
     }
 
@@ -210,10 +270,20 @@ public class HeartbeatProgressWatchdog {
     private void diagnostics(TaskDto task, HeartbeatProgressRegistry.State local) {
         warn(task, "Stopping stalled task; lastPersistedAt=" + local.lastPersistedAt
                 + ", sourceHeartbeats=" + local.sourceHeartbeats + ", runId=" + local.runId);
+        // Source/Target node processing threads are named after the DAG node id, not the task id
+        // (e.g. "Target-Process-<node>[<nodeId>]"), so match on both. Otherwise a target hung in a
+        // blocking write leaves no useful evidence for root-causing the stall.
+        Set<String> markers = new HashSet<>();
+        markers.add(task.getId().toHexString());
+        if (task.getDag() != null && task.getDag().getNodes() != null) {
+            task.getDag().getNodes().forEach(node -> {
+                if (node != null && node.getId() != null) markers.add(node.getId());
+            });
+        }
         // Bounded stacks, no offset payloads, SQL or connector credentials.
         int remaining = 8;
         for (ThreadInfo info : ManagementFactory.getThreadMXBean().getThreadInfo(ManagementFactory.getThreadMXBean().getAllThreadIds(), 12)) {
-            if (info != null && info.getThreadName().contains(task.getId().toHexString())) {
+            if (info != null && markers.stream().anyMatch(info.getThreadName()::contains)) {
                 LOG.warn("Heartbeat recovery diagnostic: {}", info);
                 if (--remaining == 0) break;
             }

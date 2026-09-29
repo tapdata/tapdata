@@ -4649,6 +4649,21 @@ public class TaskServiceImpl extends TaskService{
 //            lockControlService.fdmStartQueue(user);
 //        }
 
+        //filter heartbeat task when status is renew failed for automatic test
+        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
+            log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
+            return;
+        }
+        //校验当前状态是否允许启动。放在轮换 lastStartDate（CAS fencing token）与取消心跳恢复之前，
+        //避免被拒绝的启动请求（例如批量启动误含运行中任务）静默致盲正在运行任务的引擎侧 watchdog。
+        if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
+            log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
+                throw new BizException("Task.Deleted");
+            }
+            throw new BizException("Task.StartStatusInvalid");
+        }
+
         long lastStartDate = System.currentTimeMillis();
         Update update = Update.update("lastStartDate", lastStartDate);
         taskDto.setLastStartDate(lastStartDate);
@@ -4706,19 +4721,6 @@ public class TaskServiceImpl extends TaskService{
         //模型推演,如果模型已经存在，则需要推演
 //        DAG dag = taskDto.getDag();
 
-        //filter heartbeat task when status is renew failed for automatic test
-        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
-            log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
-            return;
-        }
-        //校验当前状态是否允许启动。
-        if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
-            log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
-            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
-                throw new BizException("Task.Deleted");
-            }
-            throw new BizException("Task.StartStatusInvalid");
-        }
         if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
             metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
         }
