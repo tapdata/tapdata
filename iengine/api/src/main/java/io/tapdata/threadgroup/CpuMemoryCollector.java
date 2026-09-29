@@ -13,7 +13,6 @@ import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.ehcache.impl.internal.concurrent.ConcurrentHashMap;
 import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
 
@@ -30,6 +29,7 @@ import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -52,11 +52,10 @@ public class CpuMemoryCollector {
     public static final int TASK_STATISTICS_RESTRICTION_MIN = 1;
     public static final int TASK_STATISTICS_RESTRICTION_MAX = 500;
     public static final long MAX_LISTENING_SIZE = Runtime.getRuntime().maxMemory() / (40L * 5L);// 25_000_000; // max allow weak ref of 1G
-    static final AtomicReference<Function<Void, Integer>> MAX_CAPACITY_FUNCTION =
-            new AtomicReference<>(vi -> TASK_STATISTICS_RESTRICTION_DEFAULT);
-    private static final Object TASK_RESTRICTION_LOCK = new Object();
     private static final int INITIAL_TASK_STATISTICS_RESTRICTION = normalizeTaskStatisticsRestriction(
             CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION", TASK_STATISTICS_RESTRICTION_DEFAULT));
+    static final AtomicReference<Function<Void, Integer>> MAX_CAPACITY_FUNCTION =
+            new AtomicReference<>(vi -> INITIAL_TASK_STATISTICS_RESTRICTION);
     private static volatile int taskStatisticsRestriction = INITIAL_TASK_STATISTICS_RESTRICTION;
     private static final int CPU_MONITOR_THREAD_COUNT = Math.max(1,
             Math.min(50, Runtime.getRuntime().availableProcessors() * 2));
@@ -101,20 +100,20 @@ public class CpuMemoryCollector {
         return Math.min(Math.max(value, TASK_STATISTICS_RESTRICTION_MIN), TASK_STATISTICS_RESTRICTION_MAX);
     }
 
+    public static int getInitialTaskStatisticsRestriction() {
+        return INITIAL_TASK_STATISTICS_RESTRICTION;
+    }
+
     static int getMaxSizeIfNeedReset() {
-        synchronized (TASK_RESTRICTION_LOCK) {
-            final int newSize;
-            try {
-                newSize = normalizeTaskStatisticsRestriction(MAX_CAPACITY_FUNCTION.get().apply(null));
-            } catch (Exception e) {
-                log.warn("Read task statistics restriction failed, keep current restriction {}", taskStatisticsRestriction, e);
-                return taskStatisticsRestriction;
-            }
-            if (newSize != taskStatisticsRestriction) {
-                taskStatisticsRestriction = newSize;
-            }
+        final int newSize;
+        try {
+            newSize = normalizeTaskStatisticsRestriction(MAX_CAPACITY_FUNCTION.get().apply(null));
+        } catch (Exception e) {
+            log.warn("Read task statistics restriction failed, keep current restriction {}", taskStatisticsRestriction, e);
             return taskStatisticsRestriction;
         }
+        taskStatisticsRestriction = newSize;
+        return newSize;
     }
 
     final Map<String, String> taskWithNode = new ConcurrentHashMap<>(16);
@@ -170,8 +169,11 @@ public class CpuMemoryCollector {
         }
         try {
             synchronized (COLLECTOR.taskRegistrationLock) {
-                COLLECTOR.removeDeadThreadGroups();
                 int restriction = getMaxSizeIfNeedReset();
+                if (!COLLECTOR.threadGroupMap.containsKey(taskId)
+                        && COLLECTOR.threadGroupMap.size() >= restriction) {
+                    COLLECTOR.removeDeadThreadGroups();
+                }
                 if (COLLECTOR.threadGroupMap.size() >= restriction && !COLLECTOR.threadGroupMap.containsKey(taskId)) {
                     log.warn("Task statistics restriction exceeded, skip register task, node id: {}, task id: {}, current count: {}, restriction: {}", nodeId, taskId, COLLECTOR.threadGroupMap.size(), restriction);
                     return;
@@ -225,11 +227,33 @@ public class CpuMemoryCollector {
     }
 
     private void removeDeadThreadGroups() {
-        threadGroupMap.entrySet().removeIf(entry -> {
-            CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = entry.getValue();
+        List<String> deadTaskIds = new ArrayList<>();
+        threadGroupMap.forEach((taskId, weakReferences) -> {
             weakReferences.removeIf(weakReference -> null == weakReference.get());
-            return weakReferences.isEmpty();
+            if (weakReferences.isEmpty()) {
+                deadTaskIds.add(taskId);
+            }
         });
+        deadTaskIds.forEach(taskId -> {
+            CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = threadGroupMap.get(taskId);
+            if (weakReferences != null && weakReferences.isEmpty()) {
+                removeTaskMonitoringState(taskId, weakReferences);
+            }
+        });
+    }
+
+    private void removeTaskMonitoringState(String taskId, List<WeakReference<ThreadFactory>> expectedThreadGroups) {
+        if (expectedThreadGroups == null
+                || !expectedThreadGroups.isEmpty()
+                || threadGroupMap.get(taskId) != expectedThreadGroups) {
+            return;
+        }
+        threadGroupMap.remove(taskId);
+        weakReferenceMap.remove(taskId);
+        referenceQueue.remove(taskId);
+        cleaned.remove(taskId);
+        taskDtoMap.remove(taskId);
+        taskWithNode.entrySet().removeIf(entry -> Objects.equals(taskId, entry.getValue()));
     }
 
     public static void unregisterTask(String taskId) {
@@ -321,6 +345,9 @@ public class CpuMemoryCollector {
     }
 
     void eachTaskOnce(FixedConcurrentHashMap<WeakReference<Object>, Long> weakReferences, Usage usage) {
+        if (weakReferences == null) {
+            return;
+        }
         Iterator<Map.Entry<WeakReference<Object>, Long>> iterator = weakReferences.entrySet().iterator();
         List<WeakReference<Object>> toUpdate = new ArrayList<>();
         List<WeakReference<Object>> toRemove = new ArrayList<>();
@@ -380,14 +407,77 @@ public class CpuMemoryCollector {
                 .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
                 .toList();
         asyncCollect(tasks -> {
-            for (String taskId : taskIds) {
-                CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
-                    Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
-                    eachOneTask(taskId, usage);
-                }, CPU_EXECUTOR_SERVICE);
-                tasks.add(futureItem);
-            }
+            tasks.add(CompletableFuture.runAsync(() -> collectCpuUsageInSharedWindow(taskIds, usageMap), CPU_EXECUTOR_SERVICE));
         });
+    }
+
+    private void collectCpuUsageInSharedWindow(List<String> taskIds, Map<String, Usage> usageMap) {
+        final Map<String, Map<Long, Long>> beforeByTask = new HashMap<>();
+        final Map<String, List<WeakReference<ThreadFactory>>> threadGroupsByTask = new HashMap<>();
+        final long sampleStart = System.currentTimeMillis();
+        boolean hasThreadSample = false;
+        for (String taskId : taskIds) {
+            final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
+            final List<WeakReference<ThreadFactory>> weakReferences = threadGroupMap.get(taskId);
+            if (weakReferences == null) {
+                continue;
+            }
+            weakReferences.removeIf(weakReference -> null == weakReference.get());
+            final List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
+            final Map<Long, Long> before = new HashMap<>();
+            eachThreadGroup(weakReferences, useless,
+                    threadId -> before.put(threadId, THREAD_CPU_TIME.getThreadCpuTime(threadId)));
+            removeUselessThreadGroups(taskId, weakReferences, useless);
+            if (!before.isEmpty()) {
+                hasThreadSample = true;
+                beforeByTask.put(taskId, before);
+                threadGroupsByTask.put(taskId, weakReferences);
+            }
+        }
+        if (!hasThreadSample) {
+            return;
+        }
+        sleepForRemainingSampleWindow(sampleStart);
+        final long interval = Math.max(1L, System.currentTimeMillis() - sampleStart);
+        beforeByTask.forEach((taskId, before) -> {
+            final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
+            final List<WeakReference<ThreadFactory>> weakReferences = threadGroupsByTask.get(taskId);
+            final List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
+            eachThreadGroup(weakReferences, useless, threadId -> {
+                Long previousCpuTime = before.get(threadId);
+                if (previousCpuTime != null) {
+                    usage.addCpu(THREAD_CPU_TIME.calculateCpuUsage(threadId, previousCpuTime, interval));
+                }
+            });
+            removeUselessThreadGroups(taskId, weakReferences, useless);
+        });
+    }
+
+    private void sleepForRemainingSampleWindow(long sampleStart) {
+        long remaining = 1000L - (System.currentTimeMillis() - sampleStart);
+        if (remaining <= 0L) {
+            return;
+        }
+        try {
+            Thread.sleep(remaining);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void removeUselessThreadGroups(String taskId,
+                                           List<WeakReference<ThreadFactory>> weakReferences,
+                                           List<WeakReference<ThreadFactory>> useless) {
+        if (!useless.isEmpty()) {
+            useless.forEach(weakReferences::remove);
+        }
+        if (weakReferences.isEmpty()) {
+            synchronized (taskRegistrationLock) {
+                if (threadGroupMap.get(taskId) == weakReferences) {
+                    removeTaskMonitoringState(taskId, weakReferences);
+                }
+            }
+        }
     }
 
     void eachThreadGroup(List<WeakReference<ThreadFactory>> weakReferences, List<WeakReference<ThreadFactory>> useless, LongConsumer runnable) {
@@ -414,7 +504,6 @@ public class CpuMemoryCollector {
     void eachOneTask(String taskId, Usage usage) {
         final List<WeakReference<ThreadFactory>> weakReferences = threadGroupMap.get(taskId);
         if (null == weakReferences) {
-            threadGroupMap.remove(taskId);
             return;
         }
         weakReferences.removeIf(weakReference -> null == weakReference.get());
@@ -444,12 +533,16 @@ public class CpuMemoryCollector {
             useless.forEach(weakReferences::remove);
         }
         if (weakReferences.isEmpty()) {
-            threadGroupMap.remove(taskId);
+            synchronized (taskRegistrationLock) {
+                if (threadGroupMap.get(taskId) == weakReferences) {
+                    removeTaskMonitoringState(taskId, weakReferences);
+                }
+            }
         }
     }
 
     public static Map<String, Usage> collectOnce(List<String> taskIds) {
-        final Map<String, Usage> usageMap = new java.util.concurrent.ConcurrentHashMap<>();
+        final Map<String, Usage> usageMap = new ConcurrentHashMap<>();
         if (!COLLECTOR.doCollect) {
             COLLECTOR.stopCollect(taskIds, usageMap);
             return usageMap;

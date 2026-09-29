@@ -7,6 +7,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.utils.FixedConcurrentHashMap;
+import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
@@ -230,6 +233,73 @@ class CpuMemoryCollectorTest {
 
             assertTrue(collector.threadGroupMap.containsKey("live-task"));
             assertFalse(collector.threadGroupMap.containsKey("dead-task"));
+        }
+
+        @Test
+        @DisplayName("test dead thread groups clear all monitoring state")
+        void testDeadThreadGroupsClearAllMonitoringState() {
+            CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> 1);
+            String deadTaskId = "dead-task";
+            String liveTaskId = "live-task";
+            collector.taskWithNode.put("dead-node", deadTaskId);
+            collector.taskDtoMap.put(deadTaskId, new WeakReference<>(new TaskDto()));
+            collector.referenceQueue.put(deadTaskId, new ReferenceQueue<>());
+            collector.weakReferenceMap.put(deadTaskId, new FixedConcurrentHashMap<>(100));
+            collector.cleaned.put(deadTaskId, new AtomicBoolean(true));
+            CopyOnWriteArrayList<WeakReference<ThreadFactory>> deadThreadGroups = new CopyOnWriteArrayList<>();
+            deadThreadGroups.add(new WeakReference<>(null));
+            collector.threadGroupMap.put(deadTaskId, deadThreadGroups);
+            collector.taskWithNode.put("live-node", liveTaskId);
+
+            CpuMemoryCollector.registerTask("live-node", mock(ThreadFactory.class));
+
+            assertFalse(collector.taskWithNode.containsKey("dead-node"));
+            assertFalse(collector.taskDtoMap.containsKey(deadTaskId));
+            assertFalse(collector.referenceQueue.containsKey(deadTaskId));
+            assertFalse(collector.weakReferenceMap.containsKey(deadTaskId));
+            assertFalse(collector.cleaned.containsKey(deadTaskId));
+        }
+
+        @Test
+        @DisplayName("test registration is not lost when cpu cleanup removes an empty list")
+        void testRegistrationIsNotLostWhenCpuCleanupRemovesEmptyList() throws Exception {
+            String taskId = "task1";
+            String nodeId = "node1";
+            collector.taskWithNode.put(nodeId, taskId);
+            CountDownLatch addStarted = new CountDownLatch(1);
+            CountDownLatch allowAdd = new CountDownLatch(1);
+            CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = new CopyOnWriteArrayList<>() {
+                @Override
+                public boolean add(WeakReference<ThreadFactory> weakReference) {
+                    addStarted.countDown();
+                    try {
+                        assertTrue(allowAdd.await(5, TimeUnit.SECONDS));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return super.add(weakReference);
+                }
+            };
+            collector.threadGroupMap.put(taskId, weakReferences);
+            ThreadFactory threadFactory = mock(ThreadFactory.class);
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            try {
+                Future<?> registerFuture = executor.submit(() -> CpuMemoryCollector.registerTask(nodeId, threadFactory));
+                assertTrue(addStarted.await(5, TimeUnit.SECONDS));
+                Future<?> cleanupFuture = executor.submit(() -> collector.eachOneTask(taskId, new Usage()));
+
+                Thread.sleep(1200L);
+                allowAdd.countDown();
+                registerFuture.get(5, TimeUnit.SECONDS);
+                cleanupFuture.get(5, TimeUnit.SECONDS);
+
+                assertEquals(1, weakReferences.size());
+                assertSame(weakReferences, collector.threadGroupMap.get(taskId));
+            } finally {
+                allowAdd.countDown();
+                executor.shutdownNow();
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+            }
         }
 
         @Test
@@ -546,6 +616,12 @@ class CpuMemoryCollectorTest {
         }
 
         @Test
+        @DisplayName("test eachTaskOnce with removed weak reference map")
+        void testEachTaskOnceWithRemovedWeakReferenceMap() {
+            assertDoesNotThrow(() -> collector.eachTaskOnce(null, new Usage()));
+        }
+
+        @Test
         @DisplayName("test eachTaskOnce with null reference")
         void testEachTaskOnceNullRef() {
             FixedConcurrentHashMap<WeakReference<Object>, Long> weakReferences = new FixedConcurrentHashMap<>(100);
@@ -706,29 +782,49 @@ class CpuMemoryCollectorTest {
 
         @Test
         @DisplayName("test cpu collection is not rejected by cleanup tasks")
-        void testCpuCollectionIsNotRejectedByCleanupTasks() {
+        void testCpuCollectionIsNotRejectedByCleanupTasks() throws InterruptedException {
             int taskCount = 100;
             CpuMemoryCollector.MAX_CAPACITY_FUNCTION.set(vi -> taskCount);
             assertEquals(taskCount, CpuMemoryCollector.getMaxSizeIfNeedReset());
             List<ThreadFactory> threadFactories = new ArrayList<>();
+            ThreadGroup threadGroup = new ThreadGroup("cpu");
+            CountDownLatch stopThread = new CountDownLatch(1);
+            Thread thread = new Thread(threadGroup, () -> {
+                try {
+                    stopThread.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, "cpu-sampling");
+            thread.start();
+            try (MockedStatic<ThreadGroupUtil> mockedThreadGroupUtil = mockStatic(ThreadGroupUtil.class)) {
+                mockedThreadGroupUtil.when(() -> ThreadGroupUtil.groupThreads(threadGroup))
+                        .thenReturn(new Thread[]{thread});
+                for (int i = 0; i < taskCount; i++) {
+                    String taskId = "task-" + i;
+                    ThreadFactory threadFactory = mock(ThreadFactory.class);
+                    when(threadFactory.getThreadGroup()).thenReturn(threadGroup);
+                    threadFactories.add(threadFactory);
+                    CopyOnWriteArrayList<WeakReference<ThreadFactory>> list = new CopyOnWriteArrayList<>();
+                    list.add(new WeakReference<>(threadFactory));
+                    collector.threadGroupMap.put(taskId, list);
+                    collector.referenceQueue.put(taskId, new ReferenceQueue<>());
+                    collector.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(CpuMemoryCollector.MAX_LISTENING_SIZE));
+                    collector.startClean(taskId);
+                }
 
-            for (int i = 0; i < taskCount; i++) {
-                String taskId = "task-" + i;
-                ThreadFactory threadFactory = mock(ThreadFactory.class);
-                when(threadFactory.getThreadGroup()).thenReturn(new ThreadGroup("cpu-" + i));
-                threadFactories.add(threadFactory);
-                CopyOnWriteArrayList<WeakReference<ThreadFactory>> list = new CopyOnWriteArrayList<>();
-                list.add(new WeakReference<>(threadFactory));
-                collector.threadGroupMap.put(taskId, list);
-                collector.referenceQueue.put(taskId, new ReferenceQueue<>());
-                collector.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(CpuMemoryCollector.MAX_LISTENING_SIZE));
-                collector.startClean(taskId);
+                Map<String, Usage> usageMap = new ConcurrentHashMap<>();
+                long start = System.nanoTime();
+                assertDoesNotThrow(() -> collector.collectCpuUsage(null, usageMap));
+                long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                Reference.reachabilityFence(threadFactories);
+                assertEquals(taskCount, usageMap.size());
+                assertTrue(elapsedMillis < 1800L,
+                        "CPU sampling should use one shared interval, elapsed: " + elapsedMillis + "ms");
+            } finally {
+                stopThread.countDown();
+                thread.join(5000L);
             }
-
-            Map<String, Usage> usageMap = new ConcurrentHashMap<>();
-            assertDoesNotThrow(() -> collector.collectCpuUsage(null, usageMap));
-            Reference.reachabilityFence(threadFactories);
-            assertEquals(taskCount, usageMap.size());
         }
     }
 
@@ -1382,28 +1478,22 @@ class CpuMemoryCollectorTest {
         @DisplayName("test startClean with pull from queue")
         void testStartCleanWithPullFromQueue() throws InterruptedException {
             String taskId = "task1";
-            collector.cleaned.put(taskId, new AtomicBoolean(false));
             ReferenceQueue<Object> queue = new ReferenceQueue<>();
             collector.referenceQueue.put(taskId, queue);
             FixedConcurrentHashMap<WeakReference<Object>, Long> weakMap = new FixedConcurrentHashMap<>(100);
 
-            // Add a weak reference that will be enqueued
             Object obj = new Object();
             WeakReference<Object> weakRef = new WeakReference<>(obj, queue);
             weakMap.put(weakRef, 100L);
             collector.weakReferenceMap.put(taskId, weakMap);
 
-            collector.startClean(taskId);
-            Thread.sleep(100);
-
-            // Clear the object to trigger GC
             obj = null;
-            System.gc();
-            Thread.sleep(600);
+            weakRef.clear();
+            assertTrue(weakRef.enqueue());
 
-            // Stop the clean loop
-            collector.cleaned.get(taskId).set(false);
-            Thread.sleep(100);
+            ReflectionTestUtils.invokeMethod(collector, "cleanTaskReferences", taskId);
+
+            assertTrue(weakMap.isEmpty());
         }
 
         @Test
@@ -1485,16 +1575,12 @@ class CpuMemoryCollectorTest {
         }
 
         @Test
-        @DisplayName("test startClean with IllegalArgumentException")
-        void testStartCleanIllegalArgumentException() throws InterruptedException {
+        @DisplayName("test startClean with poll exception")
+        void testStartCleanWithPollException() throws InterruptedException {
             String taskId = "task1";
             collector.cleaned.put(taskId, new AtomicBoolean(false));
             ReferenceQueue<Object> queue = mock(ReferenceQueue.class);
-            try {
-                when(queue.remove(anyLong())).thenThrow(new IllegalArgumentException("test"));
-            } catch (InterruptedException e) {
-                // ignore
-            }
+            when(queue.poll()).thenThrow(new IllegalArgumentException("test"));
             collector.referenceQueue.put(taskId, queue);
             collector.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(100));
 
@@ -1503,31 +1589,6 @@ class CpuMemoryCollectorTest {
 
             // Stop the clean loop
             collector.cleaned.get(taskId).set(false);
-            Thread.sleep(100);
-        }
-
-        @Test
-        @DisplayName("test startClean with InterruptedException in queue remove")
-        void testStartCleanInterruptedExceptionInQueueRemove() throws InterruptedException {
-            String taskId = "task1";
-            collector.cleaned.put(taskId, new AtomicBoolean(false));
-            ReferenceQueue<Object> queue = mock(ReferenceQueue.class);
-            try {
-                when(queue.remove(anyLong())).thenThrow(new InterruptedException("test"));
-            } catch (InterruptedException e) {
-                // ignore
-            }
-            collector.referenceQueue.put(taskId, queue);
-            collector.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(100));
-
-            collector.startClean(taskId);
-            Thread.sleep(200);
-
-            // Stop the clean loop
-            AtomicBoolean cleanTag = collector.cleaned.get(taskId);
-            if (cleanTag != null) {
-                cleanTag.set(false);
-            }
             Thread.sleep(100);
         }
 

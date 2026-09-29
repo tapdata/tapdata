@@ -87,10 +87,10 @@ public class CpuMemoryScheduler implements InitializingBean {
             try {
                 return settingService.getInt(
                         "task.statistics.restriction",
-                        CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT);
+                        CpuMemoryCollector.getInitialTaskStatisticsRestriction());
             } catch (Exception e) {
                 log.warn("Read task statistics restriction failed, use default value", e);
-                return CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT;
+                return CpuMemoryCollector.getInitialTaskStatisticsRestriction();
             }
         });
     }

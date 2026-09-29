@@ -196,7 +196,9 @@ class CpuMemorySchedulerTest {
         @DisplayName("test capacity setting uses default value when value is empty")
         @SuppressWarnings("unchecked")
         void testCapacitySettingUsesDefaultValue() {
-            when(settingService.getInt("task.statistics.restriction", CpuMemoryCollector.TASK_STATISTICS_RESTRICTION_DEFAULT))
+            int initialRestriction = (Integer) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "INITIAL_TASK_STATISTICS_RESTRICTION");
+            when(settingService.getInt("task.statistics.restriction", initialRestriction))
                     .thenReturn(17);
 
             scheduler.afterPropertiesSet();
