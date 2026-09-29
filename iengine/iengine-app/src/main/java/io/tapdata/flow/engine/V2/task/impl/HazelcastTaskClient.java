@@ -72,6 +72,12 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private final AutoRecovery autoRecovery;
 	private final ISkipErrorTable skipErrorTable;
     private final long createTime = System.currentTimeMillis();
+	// Jet suspend()/cancel() are async requests, not blocking calls: once accepted, the job will
+	// eventually transition on its own. Track whether we already asked so a stop() poll loop (e.g.
+	// stopHeartbeatTask()) never re-issues the same request every 250ms while waiting for the
+	// status to change, which would otherwise hammer the cluster with rejected repeat requests.
+	private volatile boolean suspendRequested;
+	private volatile boolean cancelRequested;
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
 											 ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
@@ -188,23 +194,29 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				}
 			}
 			if (job.getStatus() == JobStatus.RUNNING) {
-				try {
-					job.suspend();
-				} catch (IllegalStateException e) {
-					// A previous stop() attempt already asked Jet to suspend/cancel this job and it is
-					// still terminating (job status stays RUNNING while the request is in flight). Jet
-					// rejects a second concurrent request instead of queueing it. Treat this as "not
-					// finished yet" and let the caller keep polling job status rather than propagating.
-					logger.warn("Job with id {} rejected a repeated suspend request, already terminating: {}",
-							job.getId(), e.getMessage());
+				// suspend()/cancel() are one-shot async requests: Jet keeps the job status unchanged
+				// (RUNNING) while the request is in flight, so a poll loop like stopHeartbeatTask()
+				// that calls stop() repeatedly would otherwise re-issue the same request every time.
+				// Only ask once per status and just keep waiting afterwards.
+				if (!suspendRequested) {
+					suspendRequested = true;
+					try {
+						job.suspend();
+					} catch (IllegalStateException e) {
+						logger.warn("Job with id {} rejected the suspend request, already terminating: {}",
+								job.getId(), e.getMessage());
+					}
 				}
 			}
 			if (job.getStatus() == JobStatus.SUSPENDED) {
-				try {
-					job.cancel();
-				} catch (IllegalStateException e) {
-					logger.warn("Job with id {} rejected a repeated cancel request, already terminating: {}",
-							job.getId(), e.getMessage());
+				if (!cancelRequested) {
+					cancelRequested = true;
+					try {
+						job.cancel();
+					} catch (IllegalStateException e) {
+						logger.warn("Job with id {} rejected the cancel request, already terminating: {}",
+								job.getId(), e.getMessage());
+					}
 				}
 			}
 
