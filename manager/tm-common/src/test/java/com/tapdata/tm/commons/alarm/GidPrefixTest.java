@@ -21,8 +21,10 @@ class GidPrefixTest {
 
     @Test
     void testRegex() {
-        assertEquals("^" + Pattern.quote(""), GidPrefix.regex(null));
-        assertEquals("^" + Pattern.quote(""), GidPrefix.regex(""));
+        assertEquals("a^", GidPrefix.regex(null));
+        assertEquals("a^", GidPrefix.regex(""));
+        assertFalse(Pattern.compile(GidPrefix.regex(null)).matcher("GID001").find());
+        assertFalse(Pattern.compile(GidPrefix.regex("")).matcher("").find());
         assertEquals("^" + Pattern.quote("001"), GidPrefix.regex("001"));
         assertEquals("^" + Pattern.quote("group.sub*+"), GidPrefix.regex("group.sub*+"));
     }
@@ -44,7 +46,7 @@ class GidPrefixTest {
         assertFalse(GidPrefix.matches("002001", "001"));
         assertFalse(GidPrefix.matches("00", "001"));
 
-        // Special regex characters treated literally
+        // Special regex characters treated literally (startsWith)
         assertTrue(GidPrefix.matches("a.b.c", "a.b"));
         assertFalse(GidPrefix.matches("axb.c", "a.b"));
     }

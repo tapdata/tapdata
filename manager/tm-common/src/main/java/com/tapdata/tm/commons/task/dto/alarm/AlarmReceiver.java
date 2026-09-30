@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.task.dto.alarm;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -13,7 +12,6 @@ import java.io.Serializable;
  */
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class AlarmReceiver implements Serializable {
     private AlarmReceiverType type;
     /** USER 为 userId，USER_GROUP 为 userGroupId，EMAIL 为空。必须写成 id，不能被当成子文档 _id。 */
@@ -21,4 +19,17 @@ public class AlarmReceiver implements Serializable {
     private String id;
     /** EMAIL 为明文地址。USER 上的值只是展示快照，发送时不采用 */
     private String email;
+    /** 可选展示名；跨环境导入时用于按组名重映射 USER_GROUP id */
+    private String name;
+
+    public AlarmReceiver(AlarmReceiverType type, String id, String email) {
+        this.type = type;
+        this.id = id;
+        this.email = email;
+    }
+
+    public AlarmReceiver(AlarmReceiverType type, String id, String email, String name) {
+        this(type, id, email);
+        this.name = name;
+    }
 }

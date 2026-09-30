@@ -23,6 +23,9 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
@@ -56,6 +59,8 @@ import java.util.Locale;
 public class AlarmController extends BaseController {
     private AlarmService alarmService;
     private TaskService taskService;
+    private PermissionService permissionService;
+    private SettingsService settingsService;
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -164,11 +169,14 @@ public class AlarmController extends BaseController {
             if (objectId == null) {
                 continue;
             }
+            // Align with checkTask / TaskController: decode parent_task_sign before Edit check.
+            ObjectId decoded = java.util.Optional.ofNullable(DataPermissionHelper.signDecode(request, objectId.toHexString()))
+                    .map(MongoUtils::toObjectId).orElse(objectId);
             Boolean editable = DataPermissionHelper.checkOfQuery(
                     user,
                     DataPermissionDataTypeEnums.Task,
                     DataPermissionActionEnums.Edit,
-                    taskService.dataPermissionFindById(objectId, new Field()),
+                    taskService.dataPermissionFindById(decoded, new Field()),
                     dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
                     () -> true,
                     () -> false);
@@ -182,7 +190,27 @@ public class AlarmController extends BaseController {
                     needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(DataPermissionActionEnums.Edit)),
                     needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(DataPermissionActionEnums.Edit)));
         }
-        return success(alarmService.receiverCandidates());
+        AlarmReceiverCandidates candidates = alarmService.receiverCandidates();
+        // Emails are tenant-wide PII; only expose when caller can View UserManagement (or cloud).
+        if (!canViewUserEmails(user) && candidates != null && candidates.getUsers() != null) {
+            for (AlarmReceiverCandidates.CandidateUser candidateUser : candidates.getUsers()) {
+                if (candidateUser != null) {
+                    candidateUser.setEmail(null);
+                }
+            }
+        }
+        return success(candidates);
+    }
+
+    private boolean canViewUserEmails(UserDetail user) {
+        if (user == null) {
+            return false;
+        }
+        if (settingsService != null && settingsService.isCloud()) {
+            return true;
+        }
+        return permissionService != null
+                && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, user.getUserId());
     }
 
     private <T> T checkTask(HttpServletRequest request, UserDetail user, ObjectId id, DataPermissionActionEnums action, java.util.function.Supplier<T> supplier) {

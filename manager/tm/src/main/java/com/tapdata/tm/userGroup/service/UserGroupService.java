@@ -68,6 +68,17 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 
 	@Override
 	public <T extends BaseDto> UserGroupDto save(UserGroupDto dto, UserDetail userDetail) {
+		// Updates must keep the existing gid. Regenerating on rename orphans children whose
+		// gid still uses the old prefix, and breaks alarm fan-out / cascade delete.
+		if (dto.getId() != null) {
+			UserGroupDto existing = findById(dto.getId());
+			if (existing != null) {
+				if (org.apache.commons.lang3.StringUtils.isNotBlank(existing.getGid())) {
+					dto.setGid(existing.getGid());
+				}
+				return super.save(dto, userDetail);
+			}
+		}
 		UserGroupDto groupDto;
 		if (StringUtils.isNotBlank(dto.getParentGid())){
 			Query query = Query.query(Criteria.where("parent_gid").is(dto.getParentGid()));
@@ -113,9 +124,11 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 				throw new BizException("UserGroup.Exists.User");
 			}
 			String deleteRegex = org.apache.commons.lang3.StringUtils.isBlank(gid) ? "^$" : com.tapdata.tm.commons.alarm.GidPrefix.regex(gid);
+			// Snapshot impact BEFORE delete — after deleteAll the group is gone and groupAlarmImpact is empty.
+			String snapshot = captureGroupAlarmImpact(userGroupDto);
 			boolean removed = super.deleteAll(Query.query(Criteria.where("gid").regex(deleteRegex))) > 0;
 			if (removed) {
-				writeDeleteLog(userGroupDto, userDetail);
+				writeDeleteLog(userGroupDto, userDetail, snapshot);
 			}
 			return removed;
 		}
@@ -123,15 +136,23 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 		return false;
 	}
 
-	private void writeDeleteLog(UserGroupDto group, UserDetail userDetail) {
+	private String captureGroupAlarmImpact(UserGroupDto group) {
+		if (alarmService == null || group == null || group.getId() == null) {
+			return null;
+		}
+		try {
+			return JSON.toJSONString(alarmService.groupAlarmImpact(group.getId().toHexString()));
+		} catch (Exception ex) {
+			log.warn("failed to capture user group alarm impact, groupId={}", group.getId(), ex);
+			return null;
+		}
+	}
+
+	private void writeDeleteLog(UserGroupDto group, UserDetail userDetail, String snapshot) {
 		if (userLogService == null || userDetail == null || group.getId() == null) {
 			return;
 		}
 		try {
-			String snapshot = null;
-			if (alarmService != null) {
-				snapshot = JSON.toJSONString(alarmService.groupAlarmImpact(group.getId().toHexString()));
-			}
 			userLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, group.getId().toHexString(),
 					group.getName(), null, snapshot);
 		} catch (Exception ex) {
