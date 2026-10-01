@@ -126,4 +126,84 @@ class AlarmServiceTest {
     void testNotifyAlarm() {
         Assertions.assertDoesNotThrow(service::notifyAlarm);
     }
+
+    @Test
+    void testUpdateTaskAlarmWithUserDetailDelegates() {
+        java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean(false);
+        AlarmService customService = new AlarmService() {
+            @Override
+            public void save(AlarmInfo info) {}
+            @Override
+            public Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto) { return Map.of(); }
+            @Override
+            public void close(String[] ids, UserDetail userDetail) {}
+            @Override
+            public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page, Integer size, UserDetail userDetail, Locale locale) { return null; }
+            @Override
+            public TaskAlarmInfoVo listByTask(AlarmListReqDto dto) { return null; }
+            @Override
+            public List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key) { return List.of(); }
+            @Override
+            public void closeWhenTaskRunning(String taskId) {}
+            @Override
+            public void delAlarm(String taskId) {}
+            @Override
+            public List<AlarmInfo> query(Query query) { return List.of(); }
+            @Override
+            public MessageDto add(MessageDto messageDto, UserDetail userDetail) { return null; }
+            @Override
+            public List<AlarmChannelDto> getAvailableChannels() { return List.of(); }
+            @Override
+            public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, List<AlarmSettingDto> settingDtos) { return false; }
+            @Override
+            public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) { return false; }
+            @Override
+            public boolean checkOpen(List<AlarmSettingVO> alarmSettingVOS, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) { return false; }
+            @Override
+            public void closeWhenInspectTaskRunning(String id) {}
+            @Override
+            public void updateTaskAlarm(AlarmVO alarm) {
+                called.set(true);
+            }
+            @Override
+            public void taskRetryAlarm(String taskId, Map<String, Object> params) {}
+            @Override
+            public void batchUpdate(BatchUpdateAlarmParam alarm) {}
+            @Override
+            public void ingestTaskAlert(com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest request) {}
+        };
+
+        customService.updateTaskAlarm(new AlarmVO(), new UserDetail("u1", "c1", "admin", "p", "t", "a", false, false, false, false, List.of()));
+        Assertions.assertTrue(called.get());
+    }
+
+    @Test
+    void testRunWithReceiverCache() {
+        java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean(false);
+        service.runWithReceiverCache(() -> ran.set(true));
+        Assertions.assertTrue(ran.get());
+
+        Assertions.assertDoesNotThrow(() -> service.runWithReceiverCache(null));
+    }
+
+    @Test
+    void testFillAlarmReceiverSummary() {
+        Assertions.assertDoesNotThrow(() -> service.fillAlarmReceiverSummary(List.of(new TaskDto())));
+        Assertions.assertDoesNotThrow(() -> service.fillAlarmReceiverSummary(null));
+    }
+
+    @Test
+    void testNonSupportedDefaultMethodsThrowBizException() {
+        assertThrowsBizException(() -> service.applyAuthorizedTaskAlarm("t1", new BatchUpdateAlarmParam(), null));
+        assertThrowsBizException(() -> service.previewReceivers("t1"));
+        assertThrowsBizException(service::receiverCandidates);
+        assertThrowsBizException(() -> service.groupAlarmImpact("g1"));
+        assertThrowsBizException(() -> service.userAlarmImpact("u1"));
+        assertThrowsBizException(service::alarmStats);
+    }
+
+    private void assertThrowsBizException(org.junit.jupiter.api.function.Executable executable) {
+        com.tapdata.tm.base.exception.BizException ex = Assertions.assertThrows(com.tapdata.tm.base.exception.BizException.class, executable);
+        Assertions.assertEquals("TapOssNonSupportFunctionException", ex.getErrorCode());
+    }
 }

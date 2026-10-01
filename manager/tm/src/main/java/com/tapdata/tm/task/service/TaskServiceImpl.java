@@ -85,7 +85,12 @@ import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.userGroup.service.UserGroupService;
+import com.tapdata.tm.userGroup.dto.UserGroupDto;
+import cn.hutool.core.lang.Validator;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
@@ -350,6 +355,7 @@ public class TaskServiceImpl extends TaskService{
     private UserLogService userLogService;
     private MessageQueueServiceImpl messageQueueService;
     private UserService userService;
+    private UserGroupService userGroupService;
     private DisruptorService disruptorService;
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
@@ -774,7 +780,184 @@ public class TaskServiceImpl extends TaskService{
         if(CollectionUtils.isEmpty(taskDto.getLdpNewTables())){
             taskDto.setLdpNewTables(null);
         }
+        if (!Boolean.TRUE.equals(importTask) && oldTaskDto != null) {
+            taskDto.setAlarmReceivers(oldTaskDto.getAlarmReceivers());
+            taskDto.setEmailReceivers(oldTaskDto.getEmailReceivers());
+        }
         return null;
+    }
+
+    /**
+     * 项目导入其余配置一致时仍写入告警字段，不改变任务状态。
+     */
+    public void patchImportedAlarm(TaskDto imported) {
+        patchImportedAlarm(imported, null);
+    }
+
+    public void patchImportedAlarm(TaskDto imported, UserDetail user) {
+        if (imported == null || imported.getId() == null) {
+            return;
+        }
+        prepareImportedAlarmReceivers(imported);
+        TaskDto existing = findById(imported.getId());
+        if (existing == null || TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing)) {
+            return;
+        }
+        Update update = new Update();
+        copyAlarmField(update, "alarmSettings", imported.getAlarmSettings());
+        copyAlarmField(update, "alarmRules", imported.getAlarmRules());
+        copyAlarmField(update, "emailReceivers", imported.getEmailReceivers());
+        copyAlarmField(update, "alarmReceivers", imported.getAlarmReceivers());
+        update(Query.query(Criteria.where("_id").is(imported.getId())), update);
+        writeImportedAlarmReceiverAudit(existing, imported, user);
+    }
+
+    /**
+     * Remap USER / USER_GROUP ids across environments and validate EMAIL entries before import write.
+     */
+    public void prepareImportedAlarmReceivers(TaskDto imported) {
+        if (imported == null) {
+            return;
+        }
+        if (imported.getAlarmReceivers() != null) {
+            imported.setAlarmReceivers(remapImportedAlarmReceivers(imported.getAlarmReceivers()));
+            rejectIllegalImportedEmails(imported.getAlarmReceivers());
+        }
+        if (imported.getEmailReceivers() != null) {
+            for (String email : imported.getEmailReceivers()) {
+                if (email == null) {
+                    continue;
+                }
+                String trimmed = email.trim();
+                if (!Validator.isEmail(trimmed)) {
+                    throw new BizException("Email.Format.wrong", trimmed);
+                }
+            }
+        }
+    }
+
+    List<AlarmReceiver> remapImportedAlarmReceivers(List<AlarmReceiver> receivers) {
+        if (receivers == null) {
+            return null;
+        }
+        List<AlarmReceiver> remapped = new ArrayList<>();
+        List<String> unresolved = new ArrayList<>();
+        for (AlarmReceiver receiver : receivers) {
+            if (receiver == null || receiver.getType() == null) {
+                continue;
+            }
+            switch (receiver.getType()) {
+                case EMAIL -> remapped.add(receiver);
+                case USER -> {
+                    AlarmReceiver mapped = remapImportedUserReceiver(receiver, unresolved);
+                    if (mapped != null) {
+                        remapped.add(mapped);
+                    }
+                }
+                case USER_GROUP -> {
+                    AlarmReceiver mapped = remapImportedGroupReceiver(receiver, unresolved);
+                    if (mapped != null) {
+                        remapped.add(mapped);
+                    }
+                }
+                default -> unresolved.add(String.valueOf(receiver.getType()));
+            }
+        }
+        if (!unresolved.isEmpty()) {
+            throw new BizException("Alarm.Receiver.ImportUnmapped", String.join(", ", unresolved));
+        }
+        return remapped;
+    }
+
+    private AlarmReceiver remapImportedUserReceiver(AlarmReceiver receiver, List<String> unresolved) {
+        String id = receiver.getId();
+        if (StringUtils.isNotBlank(id) && ObjectId.isValid(id)) {
+            UserDetail existing = userService.loadUserById(new ObjectId(id));
+            if (existing != null) {
+                return receiver;
+            }
+        }
+        String email = receiver.getEmail() == null ? null : receiver.getEmail().trim();
+        if (StringUtils.isNotBlank(email)) {
+            UserDetail byEmail = userService.loadUserByUsername(email);
+            if (byEmail != null && StringUtils.isNotBlank(byEmail.getUserId())) {
+                receiver.setId(byEmail.getUserId());
+                return receiver;
+            }
+            if (Validator.isEmail(email)) {
+                AlarmReceiver degraded = new AlarmReceiver();
+                degraded.setType(AlarmReceiverType.EMAIL);
+                degraded.setEmail(email);
+                degraded.setName(receiver.getName());
+                return degraded;
+            }
+        }
+        unresolved.add("USER:" + id);
+        return null;
+    }
+
+    private AlarmReceiver remapImportedGroupReceiver(AlarmReceiver receiver, List<String> unresolved) {
+        String id = receiver.getId();
+        if (StringUtils.isNotBlank(id) && ObjectId.isValid(id) && userGroupService != null) {
+            UserGroupDto existing = userGroupService.findById(new ObjectId(id));
+            if (existing != null) {
+                return receiver;
+            }
+        }
+        String name = receiver.getName();
+        if (StringUtils.isNotBlank(name) && userGroupService != null) {
+            UserGroupDto byName = userGroupService.findOne(Query.query(Criteria.where("name").is(name)));
+            if (byName != null && byName.getId() != null) {
+                receiver.setId(byName.getId().toHexString());
+                return receiver;
+            }
+        }
+        unresolved.add("USER_GROUP:" + (StringUtils.isNotBlank(name) ? name : id));
+        return null;
+    }
+
+    private void rejectIllegalImportedEmails(List<AlarmReceiver> receivers) {
+        if (receivers == null) {
+            return;
+        }
+        for (AlarmReceiver receiver : receivers) {
+            if (receiver == null || receiver.getType() != AlarmReceiverType.EMAIL) {
+                continue;
+            }
+            String email = receiver.getEmail() == null ? "" : receiver.getEmail().trim();
+            if (!Validator.isEmail(email)) {
+                throw new BizException("Email.Format.wrong", email);
+            }
+            receiver.setEmail(email);
+        }
+    }
+
+    private void writeImportedAlarmReceiverAudit(TaskDto existing, TaskDto imported, UserDetail user) {
+        if (userLogService == null || user == null || imported == null || imported.getId() == null) {
+            return;
+        }
+        boolean receiversChanged = !Objects.equals(existing.getAlarmReceivers(), imported.getAlarmReceivers())
+                || !Objects.equals(existing.getEmailReceivers(), imported.getEmailReceivers());
+        if (!receiversChanged) {
+            return;
+        }
+        try {
+            Map<String, Object> diff = new LinkedHashMap<>();
+            diff.put("before", existing.getAlarmReceivers() != null ? existing.getAlarmReceivers() : existing.getEmailReceivers());
+            diff.put("after", imported.getAlarmReceivers() != null ? imported.getAlarmReceivers() : imported.getEmailReceivers());
+            userLogService.addUserLog(Modular.ALARM_RECEIVER, Operation.UPDATE, user, imported.getId().toHexString(),
+                    imported.getName() != null ? imported.getName() : existing.getName(), "import", JSON.toJSONString(diff));
+        } catch (Exception ex) {
+            log.warn("failed to write imported alarm receiver audit, taskId={}", imported.getId(), ex);
+        }
+    }
+
+    private void copyAlarmField(Update update, String field, Object value) {
+        if (value == null) {
+            update.unset(field);
+        } else {
+            update.set(field, value);
+        }
     }
 
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
@@ -3770,6 +3953,8 @@ public class TaskServiceImpl extends TaskService{
         for (TaskDto taskDto : taskDtos) {
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
+               // Remap / validate receivers for every import path (patch and full overwrite).
+               prepareImportedAlarmReceivers(taskDto);
 
                // 目标环境该任务已被删除时，删除本身就是一种变更：必须导入并把记录从删除态拉回来，
                // 否则误删的任务再导入也恢复不了。其余运行状态差异（如 stop → running）仍按无变化处理。
@@ -3780,6 +3965,7 @@ public class TaskServiceImpl extends TaskService{
 
                if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
                        && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
+                   patchImportedAlarm(taskDto, user);
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
                }

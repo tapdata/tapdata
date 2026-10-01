@@ -7,6 +7,8 @@ import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmDetail;
+import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmResult;
 import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
@@ -281,6 +283,10 @@ public class TaskController extends BaseController {
         );
         if (result != null) {
             taskService.appendHeartbeatTaskRunning(result.getItems());
+            // NOTE(TAP-12848 review #11): enterprise fillAlarmReceiverSummary is relatively
+            // expensive on list poll. OSS default is a no-op; gating by requested columns /
+            // short-lived group cache remains an enterprise follow-up.
+            alarmService.fillAlarmReceiverSummary(result.getItems());
         }
         return success(result);
     }
@@ -1658,54 +1664,56 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "Batch modify task alarm information")
     @PostMapping("/alarm/batch-update")
-    public ResponseMessage<List<MutiResponseMessage>> batchUpdateTaskAlarm(@RequestBody BatchUpdateAlarmParam alarm){
+    public ResponseMessage<BatchAlarmResult> batchUpdateTaskAlarm(HttpServletRequest request, @RequestBody BatchUpdateAlarmParam alarm){
         UserDetail userDetail = getLoginUser();
-        List<String> taskIds = alarm.getTaskIds();
-        List<ObjectId> taskObjectIds = taskIds.stream()
-                .filter(StringUtils::isNotBlank)
-                .distinct().map(MongoUtils::toObjectId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return success(batchUpdateTaskAlarmWithDataPermission(alarm, taskObjectIds, userDetail));
-    }
-
-    private List<MutiResponseMessage> batchUpdateTaskAlarmWithDataPermission(BatchUpdateAlarmParam alarm, List<ObjectId> taskObjectIds, UserDetail userDetail) {
-        List<String> taskIds = alarm.getTaskIds();
-        List<String> authorizedTaskIds = new ArrayList<>();
-        List<MutiResponseMessage> noAuthMessages = new ArrayList<>();
-        for (int i = 0; i < taskIds.size(); i++) {
-            String taskId = taskIds.get(i);
-            ObjectId taskObjectId = taskObjectIds.get(i);
-            Boolean hasEditPermission = DataPermissionHelper.checkOfQuery(
-                    userDetail,
-                    DataPermissionDataTypeEnums.Task,
-                    DataPermissionActionEnums.Edit,
-                    taskService.dataPermissionFindById(taskObjectId, new Field()),
-                    task -> DataPermissionMenuEnums.ofTaskSyncType(task.getSyncType()),
-                    () -> true,
-                    () -> false
-            );
-            if (Boolean.TRUE.equals(hasEditPermission)) {
-                authorizedTaskIds.add(taskId);
-            } else {
-                MutiResponseMessage responseMessage = new MutiResponseMessage();
-                responseMessage.setId(taskId);
-                responseMessage.setCode("insufficient.permissions");
-                String msg = String.format("%s.%s", DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.Edit);
-                responseMessage.setMessage(MessageUtil.getMessage("insufficient.permissions", msg, msg));
-                noAuthMessages.add(responseMessage);
+        BatchAlarmResult result = new BatchAlarmResult();
+        if (alarm == null || CollectionUtils.isEmpty(alarm.getTaskIds())) {
+            return success(result);
+        }
+        normalizeLegacyEmailReceivers(alarm);
+        alarmService.runWithReceiverCache(() -> {
+        for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
+            ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
+            if (taskObjectId == null) {
+                result.add(BatchAlarmDetail.of(taskId, null, "IllegalArgument", "非法任务 ID"));
+                continue;
+            }
+            try {
+                BatchAlarmDetail detail = dataPermissionCheckOfId(request, userDetail, taskObjectId, DataPermissionActionEnums.Edit,
+                        () -> alarmService.applyAuthorizedTaskAlarm(taskId, alarm, userDetail));
+                result.add(detail);
+            } catch (BizException exception) {
+                String code = exception.getErrorCode();
+                result.add(BatchAlarmDetail.of(taskId, null, code, exception.getMessage()));
+            } catch (RuntimeException exception) {
+                result.add(BatchAlarmDetail.of(taskId, null, "SystemError", exception.getMessage()));
             }
         }
+        });
+        return success(result);
+    }
 
-        if (CollectionUtils.isNotEmpty(authorizedTaskIds)) {
-            BatchUpdateAlarmParam target = new BatchUpdateAlarmParam();
-            target.setTaskIds(authorizedTaskIds);
-            target.setAlarmSettings(alarm.getAlarmSettings());
-            target.setAlarmRules(alarm.getAlarmRules());
-            target.setEmailReceivers(alarm.getEmailReceivers());
-            alarmService.batchUpdate(target);
+    /**
+     * Legacy clients still POST {@code emailReceivers} only. Map them to EMAIL alarmReceivers
+     * with REPLACE semantics so the request is not a silent no-op.
+     */
+    private void normalizeLegacyEmailReceivers(com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam alarm) {
+        if (alarm.getAlarmReceivers() != null || alarm.getEmailReceivers() == null) {
+            return;
         }
-        return noAuthMessages;
+        java.util.List<com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver> receivers = new java.util.ArrayList<>();
+        for (String email : alarm.getEmailReceivers()) {
+            if (email == null) {
+                continue;
+            }
+            com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver receiver =
+                    new com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver();
+            receiver.setType(com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType.EMAIL);
+            receiver.setEmail(email.trim());
+            receivers.add(receiver);
+        }
+        alarm.setAlarmReceivers(receivers);
+        alarm.setReceiverMode(com.tapdata.tm.commons.task.dto.alarm.ReceiverBatchMode.REPLACE);
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {

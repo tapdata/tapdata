@@ -1053,4 +1053,20 @@ class TaskConfigCompareUtilTest {
             assertFalse(detail.hasChanges(), "No changes expected when JS node scripts are identical");
         }
     }
+
+    @Nested
+    @DisplayName("alarm fields stay out of the restart compare")
+    class AlarmFieldCompareTest {
+        @Test
+        void receiverDifferenceDoesNotMarkConfigUnequalButAppearsInPreview() {
+            TaskDto existing = buildTask("t", "initial_sync", "sync");
+            TaskDto imported = buildTask("t", "initial_sync", "sync");
+            imported.setEmailReceivers(List.of("a@example.com"));
+
+            assertTrue(TaskConfigCompareUtil.isConfigEqual(imported, existing));
+            assertFalse(TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing));
+            List<FieldChange> changes = TaskConfigCompareUtil.getDetailedChanges(imported, existing, new DagChangeDetail());
+            assertTrue(changes.stream().anyMatch(change -> "emailReceivers".equals(change.getField())));
+        }
+    }
 }
