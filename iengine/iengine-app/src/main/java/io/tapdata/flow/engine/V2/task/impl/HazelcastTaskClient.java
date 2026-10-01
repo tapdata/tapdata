@@ -17,6 +17,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -60,6 +61,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private ClientMongoOperator pingClientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
+	private final HeartbeatProgressRegistry.State heartbeatProgress;
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;
@@ -70,6 +72,12 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private final AutoRecovery autoRecovery;
 	private final ISkipErrorTable skipErrorTable;
     private final long createTime = System.currentTimeMillis();
+	// Jet suspend()/cancel() are async requests, not blocking calls: once accepted, the job will
+	// eventually transition on its own. Track whether we already asked so a stop() poll loop (e.g.
+	// stopHeartbeatTask()) never re-issues the same request every 250ms while waiting for the
+	// status to change, which would otherwise hammer the cluster with rejected repeat requests.
+	private volatile boolean suspendRequested;
+	private volatile boolean cancelRequested;
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
 											 ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
@@ -84,6 +92,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 							   ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
 		this.taskDto = taskDto;
+		this.heartbeatProgress = HeartbeatProgressRegistry.open(taskDto);
 		this.clientMongoOperator = clientMongoOperator;
 		this.pingClientMongoOperator = pingClientMongoOperator;
 		this.configurationCenter = configurationCenter;
@@ -185,10 +194,30 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				}
 			}
 			if (job.getStatus() == JobStatus.RUNNING) {
-				job.suspend();
+				// suspend()/cancel() are one-shot async requests: Jet keeps the job status unchanged
+				// (RUNNING) while the request is in flight, so a poll loop like stopHeartbeatTask()
+				// that calls stop() repeatedly would otherwise re-issue the same request every time.
+				// Only ask once per status and just keep waiting afterwards.
+				if (!suspendRequested) {
+					suspendRequested = true;
+					try {
+						job.suspend();
+					} catch (IllegalStateException e) {
+						logger.warn("Job with id {} rejected the suspend request, already terminating: {}",
+								job.getId(), e.getMessage());
+					}
+				}
 			}
 			if (job.getStatus() == JobStatus.SUSPENDED) {
-				job.cancel();
+				if (!cancelRequested) {
+					cancelRequested = true;
+					try {
+						job.cancel();
+					} catch (IllegalStateException e) {
+						logger.warn("Job with id {} rejected the cancel request, already terminating: {}",
+								job.getId(), e.getMessage());
+					}
+				}
 			}
 
 			if (job.getStatus().isTerminal()) {
@@ -206,6 +235,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public void close() {
+		HeartbeatProgressRegistry.close(taskDto, heartbeatProgress);
 		CommonUtils.handleAnyError(
 				() -> AdjustBatchSizeFactory.unregister(taskDto.getId().toHexString()),
 				err -> logger.warn("Unregister 'Adjust batch size' task failed, error: {}", err.getMessage())

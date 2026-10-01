@@ -6,6 +6,8 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatRecoveryProtocol;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
@@ -111,6 +113,22 @@ public class TaskRestartSchedule {
         Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
         List<TaskDto> orderTask = metadataDefinitionService.orderTaskByTagPriority(all);
         for (TaskDto taskDto : orderTask) {
+            // A heartbeat recovery must confirm the old writer stopped before replacing it.
+            // Neither stale pingTime nor an expired recovery deadline is a fencing mechanism.
+            // But only defer to it while there is fresh evidence that SOME engine watchdog is
+            // actually monitoring this task (attrs.heartbeatHealth.reportedAt still fresh). Once a
+            // recovery removes the local client (or a rejected/failed restart never attaches one),
+            // the engine-side watchdog stops refreshing heartbeatHealth and this pingTime-based
+            // fallback must remain the last resort — otherwise a task with no client anywhere would
+            // stay RUNNING forever.
+            boolean watchdogActivelyMonitoring = isHeartbeatHealthFresh(taskDto, heartExpire);
+            if (watchdogActivelyMonitoring
+                    && (HeartbeatWatchdog.enabled(taskDto)
+                    || HeartbeatWatchdog.pending(
+                    HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.RECOVERY)))) {
+                logSkipReschedule("engineRestartNeedStartTask", taskDto, "heartbeat_recovery_requires_stop_confirmation");
+                continue;
+            }
             UserDetail user = userDetailMap.get(taskDto.getUserId());
             if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
@@ -127,12 +145,36 @@ public class TaskRestartSchedule {
 
             List<Worker> workerList = getUserWorkList(isCloud, userWorkerMap, user.getUserId());
             if (CollectionUtils.isNotEmpty(workerList)) {
+                // This path reassigns the task to an engine (possibly the same one, after a crash)
+                // without going through TaskServiceImpl.start(), so lastStartDate is NOT rotated and
+                // nothing else would ever clear a stale pending heartbeatRecovery (in particular
+                // BLOCKED) left over from the abandoned run. Left alone, heartbeatRecoveryOwnsRetry()
+                // keys only on task id + pending-state, so it would silently swallow every ordinary
+                // error retry and RUN_ERROR report for the brand-new engine attempt forever. Cancel it
+                // here, fenced to the exact abandoned run (agentId/taskRecordId/lastStartDate
+                // unchanged), mirroring what an explicit start() does.
+                cancelStaleHeartbeatRecovery(taskDto);
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
                 if (stateMachineResult.isOk()) {
                     scheduleTaskSafely(taskDto, user);
                 }
             }
         }
+    }
+
+    /**
+     * No-op unless {@code taskDto} carries a pending (REQUESTED/STOPPING/VERIFYING/BLOCKED)
+     * heartbeatRecovery. CAS-fenced to the exact run being abandoned so it cannot race a fresh
+     * request/claim made by a still-alive engine or TM scan.
+     */
+    private void cancelStaleHeartbeatRecovery(TaskDto taskDto) {
+        Map<String, Object> recovery = HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.RECOVERY);
+        if (!HeartbeatWatchdog.pending(recovery)) return;
+        Map<String, Object> next = new LinkedHashMap<>(recovery);
+        next.put("state", "CANCELLED");
+        next.put("updatedAt", System.currentTimeMillis());
+        Update update = HeartbeatRecoveryProtocol.write(next).unset("attrs." + HeartbeatWatchdog.HEALTH);
+        taskService.update(HeartbeatRecoveryProtocol.compare(taskDto, recovery), update);
     }
 
     /**
@@ -152,6 +194,21 @@ public class TaskRestartSchedule {
         Query query = Query.query(Criteria.where("_id").is(taskDto.getId())
                 .and(TaskDto.PING_TIME_FIELD).gte(System.currentTimeMillis() - heartExpire));
         return taskService.count(query) > 0;
+    }
+
+    /**
+     * Returns true iff some engine's {@code HeartbeatProgressWatchdog} scan has refreshed
+     * {@code attrs.heartbeatHealth.reportedAt} within {@code heartExpire}. That field is only
+     * written for a task while it is present in a live engine's {@code taskClientMap}, so a fresh
+     * value is direct evidence the heartbeat recovery machinery still has an owner watching this
+     * task. A stale/missing value means no engine is monitoring it at all — e.g. after a recovery
+     * removed the old client but the restart silently failed to attach a new one — and the
+     * pingTime-based fallback below must not be skipped in that case.
+     */
+    private boolean isHeartbeatHealthFresh(TaskDto taskDto, long heartExpire) {
+        long reportedAt = HeartbeatWatchdog.number(
+                HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.HEALTH).get("reportedAt"), 0L);
+        return reportedAt > 0 && (System.currentTimeMillis() - reportedAt) < heartExpire;
     }
 
     private final AtomicLong lastSkipWarnAt = new AtomicLong(0L);

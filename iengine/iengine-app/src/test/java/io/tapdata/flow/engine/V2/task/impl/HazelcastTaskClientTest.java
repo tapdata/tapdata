@@ -169,6 +169,71 @@ public class HazelcastTaskClientTest {
         assertNotNull(status, "Status should not be null");
     }
 
+    @Nested
+    class testStop {
+        HazelcastTaskClient taskClient;
+        TaskDto taskDto;
+        Job mockJob;
+
+        @BeforeEach
+        void beforeEach() {
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            when(dag.getNodes()).thenReturn(new ArrayList<>());
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            mockJob = mock(Job.class);
+            when(mockJob.getId()).thenReturn(123L);
+            taskClient = new HazelcastTaskClient(
+                    mockJob,
+                    taskDto,
+                    mock(ClientMongoOperator.class),
+                    mock(ConfigurationCenter.class),
+                    null
+            );
+        }
+
+        @Test
+        void testSuspendOnlyRequestedOnce() {
+            // Job stays RUNNING (as it does while an async suspend request is in flight), so a
+            // repeated stop() poll must not re-issue job.suspend() every time.
+            when(mockJob.getStatus()).thenReturn(JobStatus.RUNNING);
+
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+
+            verify(mockJob, times(1)).suspend();
+            verify(mockJob, never()).cancel();
+        }
+
+        @Test
+        void testCancelOnlyRequestedOnce() {
+            // Job stays SUSPENDED (as it does while an async cancel request is in flight), so a
+            // repeated stop() poll must not re-issue job.cancel() every time.
+            when(mockJob.getStatus()).thenReturn(JobStatus.SUSPENDED);
+
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+
+            verify(mockJob, never()).suspend();
+            verify(mockJob, times(1)).cancel();
+        }
+
+        @Test
+        void testSuspendRejectedByIllegalStateExceptionIsNotRetried() {
+            when(mockJob.getStatus()).thenReturn(JobStatus.RUNNING);
+            doThrow(new IllegalStateException("already terminating")).when(mockJob).suspend();
+
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+
+            verify(mockJob, times(1)).suspend();
+        }
+    }
+
     @Test
     public void testGetJetStatusHandlesJobNotFoundException() {
         // Setup
