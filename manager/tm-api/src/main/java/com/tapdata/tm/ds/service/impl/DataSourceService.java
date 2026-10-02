@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -45,6 +47,11 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
     public abstract DataSourceConnectionDto addWithSpecifiedId(DataSourceConnectionDto connectionDto, UserDetail userDetail);
 
     public abstract DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast);
+
+    public abstract BatchUpdateAgentSettingsResponse batchUpdateAgentSettings(
+            BatchUpdateAgentSettingsRequest request,
+            UserDetail userDetail
+    );
 
     //返回oldName, 表示更换名称
     public abstract String updateCheck(UserDetail user, DataSourceConnectionDto updateDto);
