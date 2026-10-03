@@ -187,11 +187,23 @@ jobs:
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
           cd tapdata
-          scan_parameters=$(bash .github/scripts/sonar-analysis-args.sh) || exit "$?"
+          # BEGIN sonar mode
           sonar_args=()
-          while IFS= read -r parameter; do
-            sonar_args+=("$parameter")
-          done <<< "$scan_parameters"
+          if [[ "${SONAR_EVENT_NAME:-}" == pull_request ]]; then
+            [[ "${SONAR_PR_KEY:-}" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid Sonar PR key" >&2; exit 1; }
+            : "${SONAR_PR_BRANCH:?PR source branch is required}" "${SONAR_PR_BASE:?PR target branch is required}"
+            git check-ref-format --branch "$SONAR_PR_BRANCH" >/dev/null || exit "$?"
+            git check-ref-format --branch "$SONAR_PR_BASE" >/dev/null || exit "$?"
+            sonar_args=("-Dsonar.pullrequest.key=$SONAR_PR_KEY"
+                        "-Dsonar.pullrequest.branch=$SONAR_PR_BRANCH"
+                        "-Dsonar.pullrequest.base=$SONAR_PR_BASE"
+                        "-Dsonar.java.skipUnchanged=true")
+          else
+            : "${SONAR_BRANCH:?Sonar branch is required}"
+            git check-ref-format --branch "$SONAR_BRANCH" >/dev/null || exit "$?"
+            sonar_args=("-Dsonar.branch.name=$SONAR_BRANCH")
+          fi
+          # END sonar mode
           mvn clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
           mvn -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
