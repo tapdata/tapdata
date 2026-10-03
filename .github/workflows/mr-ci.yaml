@@ -147,6 +147,8 @@ jobs:
       - name: Checkout Tapdata Code
         run: |
           set -euo pipefail
+          # Gitee mirrors same-repository PR branches only; fork PRs are not supported here.
+          # Source/base SHA checks intentionally fail closed when the mirror is stale.
           git clone -b "$SONAR_BRANCH" git@gitee.com:${{ secrets.GITEE_USER }}/tapdata.git
           cd tapdata && git fetch --tags
           if [[ "$SONAR_EVENT_NAME" == pull_request ]]; then
@@ -172,11 +174,17 @@ jobs:
             git merge-base HEAD "origin/$SONAR_PR_BASE" >/dev/null
           fi
       - name: Patch Maven Dependens
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
+          # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
-          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing \
+          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
       - name: Build Tapdata - And Analyze
@@ -204,6 +212,8 @@ jobs:
             sonar_args=("-Dsonar.branch.name=$SONAR_BRANCH")
           fi
           # END sonar mode
+          # Install reactor artifacts for the following scan; package/install overhead is intentional.
+          # Do not add skipTests: keep the same unit-test coverage as the former clean test lifecycle.
           mvn clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
           mvn -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \

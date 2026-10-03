@@ -91,8 +91,9 @@ jobs:
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
+          # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
-          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing \
+          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
       - name: Checkout Tapdata Repo
@@ -146,8 +147,9 @@ jobs:
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
+          # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
-          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing \
+          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
       - name: Checkout Connectors Code

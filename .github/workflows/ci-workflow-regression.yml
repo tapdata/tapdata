@@ -1,0 +1,38 @@
+name: CI Workflow Regression
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'tests/ci/**'
+      - 'build/check_sonarqube.sh'
+  push:
+    branches: [main, develop]
+    paths:
+      - '.github/workflows/**'
+      - 'tests/ci/**'
+      - 'build/check_sonarqube.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-workflow-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Only Ruby, Bash and Git are needed. No Maven, Secrets or private runners.
+      - name: Ensure test library is available
+        run: |
+          ruby -e 'require "minitest"' ||
+            gem install --user-install minitest -v 5.25.5 --no-document
+      - name: Test Maven workflow and Sonar PR mode
+        run: ruby tests/ci/maven_workflow_test.rb

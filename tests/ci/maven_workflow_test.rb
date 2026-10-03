@@ -20,6 +20,8 @@ class MavenWorkflowTest < Minitest::Test
           count += 1
           refute_includes script, '--delete'
           assert_includes script, '--ignore-existing'
+          assert_includes script, '--partial-dir=.rsync-partial'
+          refute_match(/--partial(?:\s|$)/, script)
           assert_includes script, "--exclude='/com/tapdata/***'"
           assert_includes script, "--exclude='/io/tapdata/***'"
           assert_includes script, 'tapdata/repository/ /root/.m2/repository/'
@@ -114,5 +116,32 @@ class MavenWorkflowTest < Minitest::Test
     refute_match(/git (merge |checkout .*merge)/, script)
     comment = steps.find { |step| step['name'] == 'Send SonarQube Quality Gate to Pr Comment' }.fetch('run')
     assert_includes comment, '--pull-request="$SONAR_PR_KEY"'
+  end
+
+  def test_regression_suite_is_automatically_run_without_private_runner_or_secrets
+    regression = workflow('ci-workflow-regression.yml')
+    triggers = regression['on'] || regression[true] # Psych/YAML 1.1 treats "on" as true.
+    assert triggers.key?('pull_request')
+    assert_equal triggers.fetch('push').fetch('paths'), triggers.fetch('pull_request').fetch('paths')
+    job = regression.fetch('jobs').fetch('regression')
+    assert_equal 'ubuntu-latest', job.fetch('runs-on')
+    assert_equal 5, job.fetch('timeout-minutes')
+    assert_equal({'contents' => 'read'}, regression.fetch('permissions'))
+    checkout = job.fetch('steps').find { |step| step['uses'] == 'actions/checkout@v4' }
+    assert_equal false, checkout.fetch('with').fetch('persist-credentials')
+    commands = job.fetch('steps').map { |step| step['run'].to_s }.join("\n")
+    assert_includes commands, 'ruby tests/ci/maven_workflow_test.rb'
+    refute_includes commands, 'secrets.'
+  end
+
+  def test_scan_cache_credentials_come_from_secret_and_are_not_interpolated_into_shell
+    step = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata').fetch('steps')
+      .find { |item| item['name'] == 'Patch Maven Dependens' }
+    assert_equal '${{ secrets.RSYNC_PASSWORD }}', step.fetch('env').fetch('RSYNC_PASSWORD')
+    script = step.fetch('run')
+    assert_includes script, 'umask 077'
+    assert_includes script, '"$RSYNC_PASSWORD"'
+    assert_includes script, "trap 'rm -f /tmp/rsync.passwd' EXIT"
+    refute_includes script, 'echo "'
   end
 end
