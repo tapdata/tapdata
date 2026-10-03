@@ -134,14 +134,29 @@ class MavenWorkflowTest < Minitest::Test
     refute_includes commands, 'secrets.'
   end
 
-  def test_scan_cache_credentials_come_from_secret_and_are_not_interpolated_into_shell
-    step = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata').fetch('steps')
-      .find { |item| item['name'] == 'Patch Maven Dependens' }
-    assert_equal '${{ secrets.RSYNC_PASSWORD }}', step.fetch('env').fetch('RSYNC_PASSWORD')
-    script = step.fetch('run')
-    assert_includes script, 'umask 077'
-    assert_includes script, '"$RSYNC_PASSWORD"'
-    assert_includes script, "trap 'rm -f /tmp/rsync.passwd' EXIT"
-    refute_includes script, 'echo "'
+  def test_all_rsync_credentials_come_from_secret_and_are_not_interpolated_into_shell
+    count = 0
+    %w[mr-ci.yaml build.yml].each do |name|
+      workflow(name).fetch('jobs').each_value do |job|
+        Array(job['steps']).each do |step|
+          script = step['run'].to_s
+          next unless script.include?('/tmp/rsync.passwd')
+          count += 1
+          label = "#{name}: #{step['name']}"
+          assert_equal '${{ secrets.RSYNC_PASSWORD }}', step.fetch('env').fetch('RSYNC_PASSWORD'), label
+          assert_includes script, ': "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"', label
+          assert_includes script, 'umask 077', label
+          write = %q{printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd}
+          cleanup = %q{trap 'rm -f /tmp/rsync.passwd' EXIT}
+          assert_includes script, write, label
+          assert_includes script, cleanup, label
+          assert_operator script.index(cleanup), :<, script.index(write), label
+          assert_operator script.index('umask 077'), :<, script.index(write), label
+          refute_match(/echo[^\n]*>\s*\/tmp\/rsync\.passwd/, script, label)
+          refute_includes script, '${{ secrets.RSYNC_PASSWORD }}', label
+        end
+      end
+    end
+    assert_operator count, :>, 0
   end
 end

@@ -88,8 +88,13 @@ jobs:
           echo "  StrictHostKeyChecking no" >> ~/.ssh/config
           chmod 600 ~/.ssh/config
       - name: Patch Maven Dependens
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
           # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
@@ -102,11 +107,16 @@ jobs:
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Get Tapdata Version
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && tapdata_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} $tapdata_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata.version
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
       - name: compile opensource tapdata
         run: |
@@ -117,12 +127,17 @@ jobs:
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
           export JAVA_HOME=/usr/java/jdk1.8.0_361
       - name: Upload Outputs
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && bash build/build.sh -p tapdata
           temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
           mkdir -p $temp_dir
           cp -r output/* $temp_dir/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
 
   Build-Connectors:
@@ -144,8 +159,13 @@ jobs:
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
           # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
@@ -158,11 +178,16 @@ jobs:
           git clone -b ${{ inputs.connectors_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-connectors.git
           cd tapdata-connectors && git fetch --tags
       - name: Get Connectors Version
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata-connectors && tapdata_connectors_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata-connectors: ${{ inputs.connectors_branch }} $tapdata_connectors_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-connectors.version
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
       - name: compile tapdata connectors
         run: |
@@ -173,12 +198,17 @@ jobs:
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
           export JAVA_HOME=/usr/java/jdk1.8.0_361
       - name: Upload Outputs
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && bash build/build.sh -p connectors
           temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
           mkdir -p $temp_dir
           cp -r output/* $temp_dir/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
 
   Build-Frontend:
@@ -212,11 +242,16 @@ jobs:
           mkdir -p tapdata-enterprise-web
           rsync -av tapdata-web/ tapdata-enterprise-web/
       - name: Get Frontend Version
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
       - name: Build Frontend
         run: |
@@ -227,12 +262,17 @@ jobs:
           mkdir -p tapdata-enterprise-web/dist/docs/
           rsync -av docs/build/ tapdata-enterprise-web/dist/docs/
       - name: Upload Outputs
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && bash build/build.sh -p frontend
           temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
           mkdir -p $temp_dir
           cp -r output/* $temp_dir/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
 
   Build-Image:
@@ -267,9 +307,14 @@ jobs:
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Image
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@fileserver.tapdata.net:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           echo '${{ secrets.HARBOR_PASS }}' | docker login harbor.internal.tapdata.io --username=${{ secrets.HARBOR_USER }} --password-stdin
@@ -288,8 +333,13 @@ jobs:
           rm -rf tapdata-application
           git clone -b version --single-branch git@gitee.com:tapdata_1/tapdata-application.git
       - name: Add Commit ID and Version Map
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --progress --password-file=/tmp/rsync.passwd rsync://root@fileserver.tapdata.net:873/data/version/${{ needs.Set-Branch.outputs.TAG_NAME }}/ ./
           echo "## ${{ needs.Set-Branch.outputs.TAG_NAME }}" >> tapdata-application/README.md
           cat tapdata.version >> tapdata-application/README.md
@@ -327,9 +377,14 @@ jobs:
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Tar File
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@fileserver.tapdata.net:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m x86_64
@@ -348,7 +403,12 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Clean Build Temp
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           mkdir -p temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --delete --password-file=/tmp/rsync.passwd temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ rsync://root@fileserver.tapdata.net:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/

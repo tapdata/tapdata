@@ -179,8 +179,8 @@ jobs:
         run: |
           : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
           umask 077
-          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
           # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
