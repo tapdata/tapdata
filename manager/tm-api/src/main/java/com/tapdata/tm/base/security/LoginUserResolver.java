@@ -1,6 +1,8 @@
 package com.tapdata.tm.base.security;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.accessToken.dto.AuthType;
+import com.tapdata.tm.accessToken.entity.AccessTokenEntity;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
@@ -9,12 +11,12 @@ import com.tapdata.tm.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.bson.types.ObjectId;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -82,6 +84,7 @@ public class LoginUserResolver {
 			log.debug("Load user by specifiedUserId({})", specifiedUserId);
 			UserDetail userDetail = userService.loadUserByExternalId(specifiedUserId);
 			if (userDetail != null) {
+				userDetail.setAuthType(AuthType.USERNAME_LOGIN.getValue());
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
@@ -93,6 +96,7 @@ public class LoginUserResolver {
 			log.debug("Load user by request header user_id({})", userIdFromHeader);
 			UserDetail userDetail = userService.loadUserByExternalId(userIdFromHeader);
 			if (userDetail != null) {
+				userDetail.setAuthType(AuthType.USERNAME_LOGIN.getValue());
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
@@ -103,12 +107,22 @@ public class LoginUserResolver {
 		switch (resolution.getStatus()) {
 			case FOUND -> {
 				markQueryDeprecation(resolution);
-				ObjectId userId = accessTokenService.validate(resolution.getToken(), isCountAsActivity(request));
+				AccessTokenEntity accessTokenEntity = null;
+				ObjectId userId;
+				if (resolution.getSource() == AccessTokenSource.QUERY) {
+					accessTokenEntity = accessTokenService.validateEntity(resolution.getToken(), isCountAsActivity(request));
+					userId = accessTokenEntity == null ? null : accessTokenEntity.getUserId();
+				} else {
+					userId = accessTokenService.validate(resolution.getToken(), isCountAsActivity(request));
+				}
 				if (userId == null) {
 					throw new BizException("NotLogin");
 				}
 				UserDetail userDetail = userService.loadUserById(userId);
 				if (userDetail != null) {
+					if (accessTokenEntity != null) {
+						userDetail.setAuthType(accessTokenEntity.getAuthType());
+					}
 					judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 					return userDetail;
 				}
@@ -144,6 +158,7 @@ public class LoginUserResolver {
 				}
 			}
 			if (userDetail != null) {
+				userDetail.setAuthType(AuthType.USERNAME_LOGIN.getValue());
 				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
