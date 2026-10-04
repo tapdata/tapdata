@@ -38,11 +38,15 @@ public class WebSocketConfig implements WebSocketConfigurer, ServletContextIniti
 
 	private final WebSocketClusterServer webSocketClusterServer;
 
+	private final WebSocketAuthHandshakeInterceptor webSocketAuthHandshakeInterceptor;
+
 	private final long WS_BUFFER_SIZE = 8 * 10 * 1024;
 
-	public WebSocketConfig(WebSocketServer webSocket, WebSocketClusterServer webSocketClusterServer) {
+	public WebSocketConfig(WebSocketServer webSocket, WebSocketClusterServer webSocketClusterServer,
+			WebSocketAuthHandshakeInterceptor webSocketAuthHandshakeInterceptor) {
 		this.webSocket = webSocket;
 		this.webSocketClusterServer = webSocketClusterServer;
+		this.webSocketAuthHandshakeInterceptor = webSocketAuthHandshakeInterceptor;
 	}
 
 	@Override
@@ -50,6 +54,7 @@ public class WebSocketConfig implements WebSocketConfigurer, ServletContextIniti
 		registry
 				.addHandler(webSocket, "/ws/agent")
 				.addHandler(webSocketClusterServer, "/ws/cluster/")
+				.addInterceptors(webSocketAuthHandshakeInterceptor)
 				.setAllowedOrigins("*");
 	}
 
