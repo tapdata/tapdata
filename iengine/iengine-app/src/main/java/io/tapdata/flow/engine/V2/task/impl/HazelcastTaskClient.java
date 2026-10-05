@@ -199,10 +199,11 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				// that calls stop() repeatedly would otherwise re-issue the same request every time.
 				// Only ask once per status and just keep waiting afterwards.
 				if (!suspendRequested) {
-					suspendRequested = true;
 					try {
 						job.suspend();
+						suspendRequested = true;
 					} catch (IllegalStateException e) {
+						suspendRequested = e.getMessage() != null && e.getMessage().contains("already terminating");
 						logger.warn("Job with id {} rejected the suspend request, already terminating: {}",
 								job.getId(), e.getMessage());
 					}
@@ -210,10 +211,11 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			}
 			if (job.getStatus() == JobStatus.SUSPENDED) {
 				if (!cancelRequested) {
-					cancelRequested = true;
 					try {
 						job.cancel();
+						cancelRequested = true;
 					} catch (IllegalStateException e) {
+						cancelRequested = e.getMessage() != null && e.getMessage().contains("already terminating");
 						logger.warn("Job with id {} rejected the cancel request, already terminating: {}",
 								job.getId(), e.getMessage());
 					}

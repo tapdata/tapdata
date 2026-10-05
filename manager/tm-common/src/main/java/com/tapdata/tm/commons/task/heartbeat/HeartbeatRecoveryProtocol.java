@@ -11,6 +11,18 @@ import java.util.Map;
 public final class HeartbeatRecoveryProtocol {
     private HeartbeatRecoveryProtocol() { }
 
+    /** Scan payload deliberately excludes the potentially megabyte-sized DAG/schema. */
+    public static Query observation(Query query) {
+        query.fields().include("_id").include("name").include("userId").include("status")
+                .include("agentId").include("taskRecordId").include("lastStartDate")
+                .include("syncType").include("preview").include("shareCdcEnable")
+                .include("attrs." + TaskDto.ATTRS_USED_SHARE_CACHE)
+                .include("attrs." + HeartbeatWatchdog.CONFIG)
+                .include("attrs." + HeartbeatWatchdog.HEALTH)
+                .include("attrs." + HeartbeatWatchdog.RECOVERY).include("attrs.syncProgress");
+        return query;
+    }
+
     public static Query owner(TaskDto task) {
         return Query.query(Criteria.where("_id").is(task.getId())
                 .and("status").is(TaskDto.STATUS_RUNNING)

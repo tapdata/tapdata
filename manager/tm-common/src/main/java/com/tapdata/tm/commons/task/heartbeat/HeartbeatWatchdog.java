@@ -67,9 +67,13 @@ public final class HeartbeatWatchdog {
             if (!(value instanceof String) && !(value instanceof Map)) return null;
             Map<String, Object> progress = map(JsonUtil.parseJson(value instanceof String ? (String) value
                     : JsonUtil.toJsonUseJackson(value), LinkedHashMap.class));
-            if (!"CDC".equals(progress.get("syncStage")) || progress.get("streamOffset") == null) return null;
+            if (!"CDC".equals(progress.get("syncStage"))) return null;
+            Object offset = progress.get("streamOffset");
+            // Legacy non-PDK targets persist the resume checkpoint in offset, not streamOffset.
+            if (offset == null) offset = progress.get("offset");
+            if (offset == null) return null;
             // A fresh timestamp with the old resume offset does not extend log retention safety.
-            return DigestUtils.sha256Hex(JsonUtil.toJsonUseJackson(progress.get("streamOffset")));
+            return DigestUtils.sha256Hex(JsonUtil.toJsonUseJackson(offset));
         } catch (Exception ignored) {
             return null; // Unknown/initial-sync progress is not evidence of a CDC stall.
         }

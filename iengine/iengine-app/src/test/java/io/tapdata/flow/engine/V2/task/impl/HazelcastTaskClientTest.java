@@ -223,6 +223,26 @@ public class HazelcastTaskClientTest {
         }
 
         @Test
+        void testTransientSuspendFailureCanBeRetried() {
+            when(mockJob.getStatus()).thenReturn(JobStatus.RUNNING);
+            doThrow(new IllegalStateException("job is restarting")).doNothing().when(mockJob).suspend();
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            verify(mockJob, times(2)).suspend();
+        }
+
+        @Test
+        void testTransientCancelFailureCanBeRetried() {
+            when(mockJob.getStatus()).thenReturn(JobStatus.SUSPENDED);
+            doThrow(new IllegalStateException("job changed state")).doNothing().when(mockJob).cancel();
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            verify(mockJob, times(2)).cancel();
+        }
+
+        @Test
         void testSuspendRejectedByIllegalStateExceptionIsNotRetried() {
             when(mockJob.getStatus()).thenReturn(JobStatus.RUNNING);
             doThrow(new IllegalStateException("already terminating")).when(mockJob).suspend();

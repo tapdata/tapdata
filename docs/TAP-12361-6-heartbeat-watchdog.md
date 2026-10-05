@@ -32,7 +32,7 @@
 ## 检测与恢复
 
 1. 引擎独立 daemon 线程每 15 秒扫描。每条指定 CDC 单元单独比较持久化 `streamOffset` 的 SHA-256 摘要，避免一个单元掩盖另一个单元。`sourceTime/eventTime` 变化不能代替恢复位点变化。首次观测仅种子初始化，每个运行实例有新宽限期。本地超时使用单调时钟。
-2. 只有正常 CDC、存在 streamOffset 的进展参与检测。缺失、损坏、初始同步数据视为未知，不自动重启。配置的 `units` 如果无法匹配已有 `syncProgress` key，会写入 `heartbeatHealth.state=CONFIG_INVALID` 并输出一次 WARN；在任务启动时也会校验并 WARN。源端收到心跳的时间仅用于诊断。
+2. 只有正常 CDC、存在 streamOffset（非 PDK 旧目标兼容 offset）的进展参与检测。缺失、损坏、初始同步数据视为未知，不自动重启。配置的 `units` 如果无法匹配已有 `syncProgress` key，会写入 `heartbeatHealth.state=CONFIG_INVALID` 并输出一次 WARN；在任务启动时也会校验并 WARN。源端收到心跳的时间仅用于诊断。
 3. 超时后以 CAS 写入 `attrs.heartbeatRecovery`。TM 每 15 秒独立观察持久化 `syncProgress`，也只能写同一份恢复请求。CAS 只检查 taskId、RUNNING、agentId、taskRecordId、lastStartDate 和旧恢复文档；可变的 units/timeout/grace 配置由 `enabled()` 和检测器校验，不参与 BSON 类型/数组顺序敏感的 CAS。
 4. 引擎恢复线程使用现有任务启停锁，重新读取任务状态和停滞证据，原子认领请求。认领成功才消耗恢复额度；记录有限线程栈、源心跳时间和最后持久化时间，不记录 offset 内容。
 5. 调用既有 `TaskClient.stop()`，对于尚未完成的异步取消，在恢复线程中以 250ms 间隔最多等待 60 秒。只有明确返回 true 后才清理旧客户端并通过既有 `startTask()` 启动。启动前再次检查用户状态、执行归属和恢复 CAS。普通出错重试也必须让出正在进行的 watchdog 恢复。单次 stop 调用本身若不返回，则仍由独立扫描的 120 秒截止时间阻止迟到启动。
@@ -42,11 +42,11 @@
 
 ## 超时、预算与安全边界
 
-恢复请求/停止阶段超过 120 秒，独立引擎扫描或 TM 将请求标记 BLOCKED，输出需人工处理的监控日志。停止调用晚到返回时，旧 CAS 不能再授权启动。不会使用 `Thread.stop()`，也不会把中断当成停止成功。
+未认领的 REQUESTED 超过本地观察窗口 120 秒后转 CANCELLED，允许后续重新请求。已认领的 STOPPING 超过 120 秒转 BLOCKED；健康报告或 pingTime 过期不能解除该隔离。停止调用晚到返回时，旧 CAS 不能再授权启动。常规终态扫描会在同一任务锁内重新确认停止；确认成功后 CAS 转 FAILED，交由既有错误重试/终态上报处理，不会永久压住已停止的任务。不会使用 `Thread.stop()`，也不会把中断当成停止成功。
 
 每任务滚动 1 小时最多认领 3 次恢复，跨单元共享，短暂推进不清零。额度耗尽进入 CIRCUIT_OPEN；窗口释放后可再尝试。停止未确认的 BLOCKED 不会自动释放。TM 的 REQUESTED/STOPPING/VERIFYING 超时以 TM 首次观察该恢复 ID+状态的本机时间计时，不减引擎写入的时间戳，避免跨进程时钟偏移；TM 重启后会重新开始观察窗口。
 
-启用本能力的任务跳过原 `engineRestartNeedStartTask` 基于 pingTime 的直接重新调度，以免与原地恢复争用。云版也保持原 agent，无条件重新分配不会发生。
+健康报告新鲜的 watchdog 任务，以及 STOPPING/BLOCKED（无论报告是否过期）跳过 pingTime 重新调度。无认领请求或已确认停止后的启动失败仍保留既有兜底；不能仅凭失联判断旧写入者退出。
 
 **引擎进程完全失联时，TM 可以检测检查点停滞并记录请求超时，但本版不在无法确认旧写入者退出的情况下换 agent 或强杀 JVM。需要运维/supervisor 确认进程退出后通过正常启停流程恢复。** 这是首版的明确边界；对要求无人值守进程失联切换的环境，应先完成外部隔离/fencing 集成再启用。
 
@@ -57,6 +57,7 @@
 - `attrs.heartbeatHealth`：运行实例 UUID、扫描报告时间、最后成功持久化时间、源心跳时间、停滞单元和非法配置单元。OBSERVING 只表示观测中，不承诺所有指定单元均健康；CONFIG_INVALID 表示 CDC 检查点已经出现但 units 无法匹配 key，只有初始同步/尚无 CDC 检查点时不会误报。
 - `attrs.heartbeatRecovery`：幂等请求 ID、来源 ENGINE/TM、状态、认领时间、尝试时间列表、涉事单元摘要。
 - 恢复状态：REQUESTED → STOPPING → VERIFYING → RECOVERED / FAILED；停止超时进入 BLOCKED，额度耗尽进入 CIRCUIT_OPEN，过期证据或显式启动进入 CANCELLED。
+- 未认领超时和已确认旧 JVM 退出后的引擎重启清理可转 CANCELLED；OVERTIME 不能取消 STOPPING/BLOCKED。迟到的停止确认可将 STOPPING/BLOCKED 转 FAILED，释放给常规终态处理。
 - 引擎及 TM 输出 `TaskHeartbeat` 日志，同时写既有任务监控日志。首版未新增邮件/短信告警模板；需要将监控日志接入现有值班告警，不能依赖人工定时看页面防止日志窗口过期。
 
 ## 验证
@@ -88,6 +89,9 @@ mvn -o -pl manager/tm,iengine/iengine-app -am \
 ```
 
 ## 残余待办
+
+- 2026-10-05 对照 PR #3509 最后一轮意见完成迟到停止确认、STOPPING/BLOCKED 失联隔离、停止请求异常重试、旧目标 offset 兼容和周期扫描字段投影。6 个相关测试类（含嵌套用例）共 75 项通过，0 失败/错误；未替代真实故障注入。
+- 恢复状态机公共纯转换函数、无人认领超时的日志限流、健康报告写入降频仍需后续处理；本轮未宣称所有低优先级 review 意见均已闭环。
 
 - 在有真实源心跳的低流量环境做端到端故障注入：阻塞读取、阻塞写入、检查点 HTTP 失败、停止不返回、TM 断连；验证重启位点无跳数、重复符合 connector 原有语义。
 - 逐 connector 验证重复调用 `TaskClient.stop()` 的幂等性，尤其覆盖停止请求不返回、异步停止和连接器重入场景；当前只在调度层 mock 中验证了轮询协议。

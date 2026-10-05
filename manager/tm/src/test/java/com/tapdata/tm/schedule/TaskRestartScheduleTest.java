@@ -447,12 +447,9 @@ public class TaskRestartScheduleTest {
         }
 
         @Test
-        void testDoesNotSkipWhenHeartbeatRecoveryPendingButHealthStale() {
-            // A pending heartbeat recovery must NOT suppress the pingTime fallback forever: once
-            // no engine watchdog is demonstrably monitoring the task anymore (stale/missing
-            // attrs.heartbeatHealth.reportedAt) -- e.g. the recovery removed the old client and a
-            // restart silently failed to attach a new one -- this is the last-resort path that
-            // must still reschedule a task stuck RUNNING with no owner anywhere.
+        void testUnconfirmedStopRemainsFencedWhenHealthStale() {
+            // Stale health cannot prove that a partitioned old writer has exited.
+            // BLOCKED must remain fenced until the owning engine confirms termination.
             TaskDto taskDto = runningTask();
             Map<String, Object> recovery = new HashMap<>();
             recovery.put("state", "BLOCKED");
@@ -466,21 +463,19 @@ public class TaskRestartScheduleTest {
 
             taskRestartSchedule.engineRestartNeedStartTask();
 
-            verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
-            verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(), any());
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
         }
 
         @Test
-        void testCancelsStaleBlockedRecoveryBeforeReschedulingAbandonedRun() {
-            // This reschedule path never rotates lastStartDate (no TaskServiceImpl.start() call), so
-            // a stale pending recovery (BLOCKED in particular) would otherwise outlive the abandoned
-            // run and make heartbeatRecoveryOwnsRetry() swallow every ordinary error retry / RUN_ERROR
-            // report for the brand-new engine attempt forever. It must be CAS-cancelled here, fenced
-            // to the exact abandoned run, and attrs.heartbeatHealth must be cleared with it.
+        void testCancelsUnclaimedRecoveryBeforeReschedulingAbandonedRun() {
+            // An unclaimed REQUESTED has not attempted a stop and can be cancelled before
+            // the existing stale-ping fallback. Never apply this to STOPPING/BLOCKED.
             TaskDto taskDto = runningTask();
             Map<String, Object> recovery = new HashMap<>();
             recovery.put("id", "req-1");
-            recovery.put("state", "BLOCKED");
+            recovery.put("state", "REQUESTED");
             Map<String, Object> health = new HashMap<>();
             health.put("reportedAt", System.currentTimeMillis() - 3_600_000L);
             Map<String, Object> attrs = new HashMap<>();
@@ -505,7 +500,7 @@ public class TaskRestartScheduleTest {
             assertEquals(TaskDto.STATUS_RUNNING, queryDoc.get("status"));
             assertEquals(agentId, queryDoc.get("agentId"));
             assertEquals("req-1", queryDoc.get("attrs.heartbeatRecovery.id"));
-            assertEquals("BLOCKED", queryDoc.get("attrs.heartbeatRecovery.state"));
+            assertEquals("REQUESTED", queryDoc.get("attrs.heartbeatRecovery.state"));
 
             Document updateDoc = updateCaptor.getValue().getUpdateObject();
             Document set = (Document) updateDoc.get("$set");

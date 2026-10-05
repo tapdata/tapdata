@@ -1204,8 +1204,23 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		TaskDto fresh = findHeartbeatRecoveryTask(client.getTask().getId().toHexString());
 		// A deleted task must follow the normal terminal cleanup path. It no longer
 		// has a recovery request that this engine can own.
-		return fresh != null && HeartbeatWatchdog.pending(
-				HeartbeatWatchdog.attr(fresh, HeartbeatWatchdog.RECOVERY));
+		if (fresh == null) return false;
+		Map<String, Object> recovery = HeartbeatWatchdog.attr(fresh, HeartbeatWatchdog.RECOVERY);
+		String state = String.valueOf(recovery.get("state"));
+		// A stop may complete after the 60-second recovery worker has returned. The ordinary
+		// terminal scanner holds taskLock: confirm termination before releasing recovery ownership.
+		if (("STOPPING".equals(state) || "BLOCKED".equals(state))
+				&& heartbeatOwnerMatches(client.getTask(), fresh) && !client.isRunning() && client.stop()) {
+			Map<String, Object> next = new LinkedHashMap<>(recovery);
+			next.put("state", "FAILED");
+			next.put("stopConfirmedAt", System.currentTimeMillis());
+			if (clientMongoOperator.update(HeartbeatRecoveryProtocol.compare(fresh, recovery),
+					HeartbeatRecoveryProtocol.write(next), ConnectorConstant.TASK_COLLECTION).getModifiedCount() == 1) {
+				logger.warn("Heartbeat stop confirmed late for task {}; handing off to ordinary terminal cleanup", fresh.getId());
+				return false;
+			}
+		}
+		return HeartbeatWatchdog.pending(recovery);
 	}
 
 	private boolean heartbeatOwnerMatches(TaskDto previous, TaskDto current) {

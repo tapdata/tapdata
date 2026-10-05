@@ -30,8 +30,8 @@ public class TaskHeartbeatWatchdogSchedule {
     @Scheduled(fixedDelay = HeartbeatWatchdog.SCAN_MS)
     @SchedulerLock(name = "taskHeartbeatWatchdog", lockAtMostFor = "5m", lockAtLeastFor = "1s")
     public void scan() {
-        List<TaskDto> tasks = taskService.findAll(Query.query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("attrs." + HeartbeatWatchdog.CONFIG + ".enabled").is(true)));
+        List<TaskDto> tasks = taskService.findAll(HeartbeatRecoveryProtocol.observation(Query.query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
+                .and("attrs." + HeartbeatWatchdog.CONFIG + ".enabled").is(true))));
         Set<String> live = new HashSet<>();
         for (TaskDto task : tasks) {
             String id = task.getId().toHexString();

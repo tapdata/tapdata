@@ -122,7 +122,11 @@ public class TaskRestartSchedule {
             // fallback must remain the last resort — otherwise a task with no client anywhere would
             // stay RUNNING forever.
             boolean watchdogActivelyMonitoring = isHeartbeatHealthFresh(taskDto, heartExpire);
-            if (watchdogActivelyMonitoring
+            String recoveryState = String.valueOf(HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.RECOVERY).get("state"));
+            // Missing heartbeats are not proof of termination (network partition / GC).
+            // Only the owning engine can release these states after a confirmed stop.
+            if ("STOPPING".equals(recoveryState) || "BLOCKED".equals(recoveryState)
+                    || watchdogActivelyMonitoring
                     && (HeartbeatWatchdog.enabled(taskDto)
                     || HeartbeatWatchdog.pending(
                     HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.RECOVERY)))) {

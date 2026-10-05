@@ -107,6 +107,36 @@ class TapdataTaskSchedulerHeartbeatTest {
         assertFalse(scheduler.heartbeatRecoveryOwnsRetry(client, io.tapdata.flow.engine.V2.task.TerminalMode.ERROR));
     }
 
+    @Test void lateStopConfirmationReleasesBlockedRecoveryToTerminalCleanup() {
+        task.getAttrs().put("heartbeatRecovery", Map.of("id", "request", "state", "BLOCKED"));
+        var mongo = mock(com.tapdata.mongo.ClientMongoOperator.class);
+        ReflectionTestUtils.setField(scheduler, "clientMongoOperator", mongo);
+        when(mongo.update(any(), any(), anyString())).thenReturn(
+                com.mongodb.client.result.UpdateResult.acknowledged(1, 1L, null));
+        when(client.stop()).thenReturn(false, true);
+        assertTrue(scheduler.heartbeatRecoveryOwnsRetry(client, null));
+        assertFalse(scheduler.heartbeatRecoveryOwnsRetry(client, null));
+        verify(mongo).update(any(), any(), anyString());
+    }
+
+    @Test void lateStopConfirmationCannotReleaseAnotherRecoveryAfterLostCas() {
+        task.getAttrs().put("heartbeatRecovery", Map.of("id", "request", "state", "STOPPING"));
+        var mongo = mock(com.tapdata.mongo.ClientMongoOperator.class);
+        ReflectionTestUtils.setField(scheduler, "clientMongoOperator", mongo);
+        when(mongo.update(any(), any(), anyString())).thenReturn(
+                com.mongodb.client.result.UpdateResult.acknowledged(0, 0L, null));
+        when(client.stop()).thenReturn(true);
+        assertTrue(scheduler.heartbeatRecoveryOwnsRetry(client, null));
+    }
+
+    @Test void errorTerminalModeStillAllowsHeartbeatRecovery() throws Exception {
+        when(client.getTerminalMode()).thenReturn(io.tapdata.flow.engine.V2.task.TerminalMode.ERROR);
+        when(client.stop()).thenReturn(true);
+        assertTrue(scheduler.recoverHeartbeatTask(client, claim, restart));
+        verify(claim).getAsBoolean();
+        verify(scheduler).startTask(task);
+    }
+
     @Test void asynchronousCancellationIsPolledUntilTerminalConfirmation() {
         when(client.stop()).thenReturn(false, true);
         doCallRealMethod().when(scheduler).stopHeartbeatTask(client);

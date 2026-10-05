@@ -7,6 +7,22 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HeartbeatWatchdogTest {
+    @Test void observationProjectionExcludesDagAndPreservesRecoveryEvidence() {
+        var fields = HeartbeatRecoveryProtocol.observation(new org.springframework.data.mongodb.core.query.Query()).getFieldsObject();
+        assertFalse(fields.containsKey("dag"));
+        assertEquals(1, fields.get("attrs.syncProgress"));
+        assertEquals(1, fields.get("lastStartDate"));
+        assertEquals(1, fields.get("attrs.heartbeatRecovery"));
+    }
+    @Test void legacyTargetCheckpointParticipatesInStallDetection() {
+        TaskDto task = task();
+        HeartbeatWatchdog.Detector detector = new HeartbeatWatchdog.Detector(0);
+        String checkpoint = "{\"syncStage\":\"CDC\",\"offset\":\"legacy-1\"}";
+        assertNotNull(HeartbeatWatchdog.fingerprint(checkpoint));
+        detector.inspect(task, Map.of("a", checkpoint), 0);
+        assertEquals(Set.of("a"), detector.inspect(task, Map.of("a", checkpoint), 90_000).keySet());
+        assertTrue(detector.inspect(task, Map.of("a", checkpoint.replace("legacy-1", "legacy-2")), 100_000).isEmpty());
+    }
     private TaskDto task() {
         TaskDto task = new TaskDto();
         task.setId(new ObjectId());

@@ -84,7 +84,7 @@ public class HeartbeatProgressWatchdog {
         String taskId = client.getTask().getId().toHexString();
         HeartbeatProgressRegistry.State local = HeartbeatProgressRegistry.get(taskId);
         if (local == null) return;
-        TaskDto task = mongo.findOne(HeartbeatRecoveryProtocol.owner(client.getTask()), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+        TaskDto task = mongo.findOne(HeartbeatRecoveryProtocol.observation(HeartbeatRecoveryProtocol.owner(client.getTask())), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
         if (task == null || !HeartbeatWatchdog.enabled(task)) return;
         long now = System.currentTimeMillis();
         Set<String> invalidUnits = HeartbeatWatchdog.invalidUnits(task, local.progress);
@@ -209,7 +209,8 @@ public class HeartbeatProgressWatchdog {
                     return false;
                 }
                 if (!replace(task, request, stopping)) return false;
-                try { diagnostics(task, local); }
+                // The live client's task already contains DAG node ids; scans need no full DAG read.
+                try { diagnostics(client.getTask(), local); }
                 catch (Exception e) { LOG.warn("Unable to collect heartbeat diagnostics for {}", task.getId(), e); }
                 return true;
             }, () -> {
