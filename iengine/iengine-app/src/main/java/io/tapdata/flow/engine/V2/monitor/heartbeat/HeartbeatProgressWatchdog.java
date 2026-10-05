@@ -97,7 +97,7 @@ public class HeartbeatProgressWatchdog {
             }
         }
         Map<String, String> stuck = invalidUnits.isEmpty()
-                ? local.detector.inspect(task, local.progress, HeartbeatProgressRegistry.monotonicMillis())
+                ? local.detector.inspect(task, local.progress, observationTime())
                 : Collections.emptyMap();
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("runId", local.runId);
@@ -111,62 +111,19 @@ public class HeartbeatProgressWatchdog {
 
         Map<String, Object> recovery = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
         String state = String.valueOf(recovery.get("state"));
-        if ("VERIFYING".equals(state)) {
-            if (local.lastPersistedAt > HeartbeatWatchdog.number(recovery.get("startedAt"), now)
-                    && HeartbeatWatchdog.advanced(task, recovery)) {
-                if (transition(task, recovery, "RECOVERED", now)) warn(task, "Heartbeat recovery verified: persisted checkpoint advanced");
-            }
-            else if (now - HeartbeatWatchdog.number(recovery.get("startedAt"), now) > HeartbeatWatchdog.timeout(task) + HeartbeatWatchdog.grace(task)) {
-                if (transition(task, recovery, "FAILED", now)) warn(task, "Restart completed but checkpoint progress did not recover");
-            }
-            return;
-        }
-        if ("BLOCKED".equals(state)) return;
-        // Unlike BLOCKED, CIRCUIT_OPEN is not permanent: once the 1-hour attempt window has aged
-        // out enough attempts, HeartbeatWatchdog.request() below allows a fresh request again (this
-        // must match TM's TaskHeartbeatWatchdogSchedule.inspect(), which does the same). Do not
-        // return early here or this engine would never re-request recovery after the window frees
-        // up budget, even though TM would.
-        if ("REQUESTED".equals(state) && HeartbeatWatchdog.advanced(task, recovery)) {
-            transition(task, recovery, "CANCELLED", now);
-            return;
-        }
-        if ("STOPPING".equals(state)) {
-            // claimedAt is always written by the engine that claimed the request (see recover()),
-            // so it is safe to compare against this engine's own clock.
-            long since = HeartbeatWatchdog.number(recovery.get("claimedAt"), now);
-            if (now - since >= HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) {
-                if (transition(task, recovery, "BLOCKED", now)) warn(task, "Recovery timed out; old task termination unconfirmed, manual intervention required");
-            }
-            return;
-        }
-        if ("REQUESTED".equals(state)) {
-            long since = requestObservedSince(taskId, recovery.get("id"), now);
-            if (now - since >= HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) {
-                // Nobody has claimed this request yet, so nothing has been stopped. BLOCKED is
-                // permanent and would suppress ordinary error retries forever; CANCELLED is safely
-                // retryable on the next stall detection.
-                if (transition(task, recovery, "CANCELLED", now)) warn(task, "Unclaimed heartbeat recovery request timed out; will retry on next stall detection");
-                return;
-            }
-        }
-        if (!"REQUESTED".equals(state)) {
-            Map<String, Object> request = HeartbeatWatchdog.request(task, stuck, "ENGINE", now);
-            if (request == null) {
-                // Already CIRCUIT_OPEN and still within the attempt window: nothing changed, so skip
-                // re-writing/re-warning every scan. Only transition into CIRCUIT_OPEN the first time
-                // the budget is exhausted.
-                if (!"CIRCUIT_OPEN".equals(state) && !stuck.isEmpty()
-                        && HeartbeatWatchdog.recentAttempts(recovery, now).size() >= HeartbeatWatchdog.MAX_ATTEMPTS
-                        && transition(task, recovery, "CIRCUIT_OPEN", now)) {
-                    warn(task, "Heartbeat recovery budget exhausted (3 attempts/hour); manual intervention required");
-                }
-                return;
-            }
-            if (!replace(task, recovery, request)) return;
-            recovery = request;
-            warn(task, "Heartbeat checkpoint stalled; recovery requested, units=" + stuck.keySet());
-        }
+        // REQUESTED timestamps may originate in TM. STOPPING/VERIFYING timestamps were written
+        // by this engine; adapters supply clock-safe elapsed time to the shared pure state machine.
+        long since = "STOPPING".equals(state) ? HeartbeatWatchdog.number(recovery.get("claimedAt"), now)
+                : "VERIFYING".equals(state) ? HeartbeatWatchdog.number(recovery.get("startedAt"), now)
+                : requestObservedSince(taskId, recovery.get("id"), now);
+        Map<String, Object> next = HeartbeatWatchdog.propose(task, stuck, "ENGINE", now,
+                Math.max(0, now - since), local.lastPersistedAt);
+        if (next != null) {
+            if (!replace(task, recovery, next)) return;
+            warn(task, "Heartbeat recovery transition: " + state + " -> " + next.get("state"));
+            recovery = next;
+            if (!"REQUESTED".equals(next.get("state"))) return;
+        } else if (!"REQUESTED".equals(state)) return;
         // TM can request recovery when this scanner was delayed. Discard obsolete evidence.
         if (HeartbeatWatchdog.advanced(task, recovery)) {
             transition(task, recovery, "CANCELLED", now);
@@ -270,6 +227,8 @@ public class HeartbeatProgressWatchdog {
         next.put("updatedAt", now);
         return replace(task, previous, next);
     }
+
+    protected long observationTime() { return HeartbeatProgressRegistry.monotonicMillis(); }
 
     private boolean replace(TaskDto task, Map<String, Object> previous, Map<String, Object> next) {
         return mongo.update(HeartbeatRecoveryProtocol.compare(task, previous), HeartbeatRecoveryProtocol.write(next),

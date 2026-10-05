@@ -7,6 +7,45 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HeartbeatWatchdogTest {
+    @Test void sharedStateMachineTransitionTable() {
+        Object[][] cases = {
+                {"REQUESTED", true, false, 0L, false, false, "CANCELLED"},
+                {"REQUESTED", false, false, 120_000L, false, false, "CANCELLED"},
+                {"REQUESTED", false, false, 119_999L, true, false, null},
+                {"STOPPING", true, true, 120_000L, true, false, "BLOCKED"},
+                {"STOPPING", false, false, 119_999L, true, false, null},
+                {"VERIFYING", true, true, 1L, true, false, "RECOVERED"},
+                {"VERIFYING", true, false, 180_001L, true, false, "FAILED"},
+                {"VERIFYING", false, true, 180_000L, true, false, null},
+                {"BLOCKED", true, true, 999_999L, true, false, null},
+                {"CANCELLED", false, false, 0L, true, true, "CIRCUIT_OPEN"},
+                {"CIRCUIT_OPEN", false, false, 0L, true, true, null},
+                {"CIRCUIT_OPEN", false, false, 0L, true, false, "REQUESTED"}
+        };
+        for (Object[] c : cases) assertEquals(c[6], HeartbeatWatchdog.nextState(
+                (String)c[0], (boolean)c[1], (boolean)c[2], (long)c[3], 180_000L,
+                (boolean)c[4], (boolean)c[5]), Arrays.toString(c));
+    }
+
+    @Test void unclaimedTimeoutConsumesBudgetAndEventuallyOpensCircuit() {
+        TaskDto task = task();
+        Map<String, String> stuck = Map.of("a", HeartbeatWatchdog.fingerprint(progress(1)));
+        task.getAttrs().put("syncProgress", Map.of("a", progress(1)));
+        for (int i = 0; i < 3; i++) {
+            Map<String, Object> request = HeartbeatWatchdog.propose(task, stuck, "TM", 1000L + i, 0, 0);
+            assertEquals("REQUESTED", request.get("state"));
+            task.getAttrs().put(HeartbeatWatchdog.RECOVERY, request);
+            Map<String, Object> timeout = HeartbeatWatchdog.propose(task, stuck, "ENGINE", 1000L + i, 120_000L, 0);
+            assertEquals("CANCELLED", timeout.get("state"));
+            assertEquals(i + 1, HeartbeatWatchdog.recentAttempts(timeout, 1000).size());
+            task.getAttrs().put(HeartbeatWatchdog.RECOVERY, timeout);
+        }
+        Map<String, Object> circuit = HeartbeatWatchdog.propose(task, stuck, "TM", 2000, 0, 0);
+        assertEquals("CIRCUIT_OPEN", circuit.get("state"));
+        task.getAttrs().put(HeartbeatWatchdog.RECOVERY, circuit);
+        assertNull(HeartbeatWatchdog.propose(task, stuck, "ENGINE", 3000, 0, 0));
+        assertEquals("REQUESTED", HeartbeatWatchdog.propose(task, stuck, "ENGINE", HeartbeatWatchdog.WINDOW_MS + 3000, 0, 0).get("state"));
+    }
     @Test void observationProjectionExcludesDagAndPreservesRecoveryEvidence() {
         var fields = HeartbeatRecoveryProtocol.observation(new org.springframework.data.mongodb.core.query.Query()).getFieldsObject();
         assertFalse(fields.containsKey("dag"));

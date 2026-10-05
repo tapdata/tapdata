@@ -142,6 +142,50 @@ public final class HeartbeatWatchdog {
         return true;
     }
 
+    /** Pure state machine. Elapsed time and persistence evidence are supplied by the observer. */
+    public static String nextState(String state, boolean advanced, boolean persistedAfterStart,
+                                   long elapsed, long verificationTimeout, boolean stalled, boolean exhausted) {
+        switch (state) {
+            case "BLOCKED": return null;
+            case "REQUESTED":
+                if (advanced) return "CANCELLED";
+                return elapsed >= RECOVERY_TIMEOUT_MS ? "CANCELLED" : null;
+            case "STOPPING": return elapsed >= RECOVERY_TIMEOUT_MS ? "BLOCKED" : null;
+            case "VERIFYING":
+                if (advanced && persistedAfterStart) return "RECOVERED";
+                return elapsed > verificationTimeout ? "FAILED" : null;
+            default:
+                if (!stalled) return null;
+                if (exhausted) return "CIRCUIT_OPEN".equals(state) ? null : "CIRCUIT_OPEN";
+                return "REQUESTED";
+        }
+    }
+
+    /** Build a CAS proposal only; no I/O or writes. Both observers apply the same budget rules. */
+    public static Map<String, Object> propose(TaskDto task, Map<String, String> stuck, String origin,
+                                               long now, long elapsed, long lastPersistedAt) {
+        Map<String, Object> previous = attr(task, RECOVERY);
+        String state = String.valueOf(previous.get("state"));
+        boolean advanced = advanced(task, previous);
+        String nextState = nextState(state, advanced,
+                lastPersistedAt > number(previous.get("startedAt"), now), elapsed,
+                timeout(task) + grace(task), !stuck.isEmpty(), recentAttempts(previous, now).size() >= MAX_ATTEMPTS);
+        if (nextState == null) return null;
+        Map<String, Object> next = "REQUESTED".equals(nextState)
+                ? request(task, stuck, origin, now) : new LinkedHashMap<>(previous);
+        if (next == null) return null;
+        // A request nobody claimed still consumed a recovery opportunity. CAS ensures that two
+        // observers cannot charge the same timeout twice. Progress cancellation consumes nothing.
+        if ("REQUESTED".equals(state) && "CANCELLED".equals(nextState) && !advanced) {
+            List<Long> attempts = recentAttempts(previous, now);
+            attempts.add(now);
+            next.put("attempts", attempts);
+        }
+        next.put("state", nextState);
+        next.put("updatedAt", now);
+        return next;
+    }
+
     /**
      * Caller supplies elapsed time locally; each Detector is single-scanner state and is not
      * thread-safe. Do not share one instance between scheduler threads.

@@ -15,6 +15,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class TaskHeartbeatWatchdogScheduleTest {
+    @Test void unclaimedTimeoutIsCancelledAndChargedOnce() {
+        task.getAttrs().put("heartbeatRecovery", Map.of("id", "unclaimed", "state", "REQUESTED",
+                "fingerprints", Map.of("a", com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog.fingerprint(
+                        "{\"syncStage\":\"CDC\",\"streamOffset\":\"1\"}"))));
+        schedule.inspect(task, 0);
+        schedule.inspect(task, 120_000);
+        assertEquals("CANCELLED", updatedRecovery().get("state"));
+        assertEquals(1, ((List<?>) updatedRecovery().get("attempts")).size());
+    }
     private TaskHeartbeatWatchdogSchedule schedule;
     private TaskService service;
     private TaskDto task;

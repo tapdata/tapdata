@@ -195,6 +195,27 @@ public class HazelcastTaskClientTest {
         }
 
         @Test
+        void testReplacementClientHasFreshTerminationFlags() {
+            when(mockJob.getStatus()).thenReturn(JobStatus.RUNNING);
+            assertFalse(taskClient.stop());
+            assertFalse(taskClient.stop());
+            try (MockedStatic<ObsLoggerFactory> factory = mockStatic(ObsLoggerFactory.class)) {
+                ObsLoggerFactory loggerFactory = mock(ObsLoggerFactory.class);
+                factory.when(ObsLoggerFactory::getInstance).thenReturn(loggerFactory);
+                when(loggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(mock(ObsLogger.class));
+                when(mockJob.getStatus()).thenReturn(JobStatus.COMPLETED);
+                assertTrue(taskClient.stop()); // Stop/close the old run before opening its replacement.
+                when(mockJob.getStatus()).thenReturn(JobStatus.RUNNING);
+                HazelcastTaskClient replacement = new HazelcastTaskClient(mockJob, taskDto,
+                        mock(ClientMongoOperator.class), mock(ConfigurationCenter.class), null);
+                try {
+                    assertFalse(replacement.stop());
+                    verify(mockJob, times(2)).suspend();
+                } finally { replacement.close(); }
+            }
+        }
+
+        @Test
         void testSuspendOnlyRequestedOnce() {
             // Job stays RUNNING (as it does while an async suspend request is in flight), so a
             // repeated stop() poll must not re-issue job.suspend() every time.

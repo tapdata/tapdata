@@ -7,6 +7,25 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HeartbeatProgressRegistryTest {
+    @Test void lateCheckpointFromPreviousStartCannotPolluteReplacement() {
+        TaskDto oldTask = task();
+        oldTask.setTaskRecordId("same-record");
+        oldTask.setLastStartDate(1L);
+        var old = HeartbeatProgressRegistry.open(oldTask);
+        TaskDto nextTask = task();
+        nextTask.setId(oldTask.getId());
+        nextTask.setTaskRecordId(oldTask.getTaskRecordId());
+        nextTask.setLastStartDate(2L);
+        var next = HeartbeatProgressRegistry.open(nextTask);
+        try {
+            HeartbeatProgressRegistry.persisted(oldTask, Map.of("edge", "obsolete"));
+            HeartbeatProgressRegistry.sourceHeartbeat(oldTask, "source");
+            HeartbeatProgressRegistry.close(oldTask, old);
+            assertTrue(next.progress.isEmpty());
+            assertTrue(next.sourceHeartbeats.isEmpty());
+            assertSame(next, HeartbeatProgressRegistry.get(nextTask.getId().toHexString()));
+        } finally { HeartbeatProgressRegistry.close(nextTask, next); }
+    }
     private TaskDto task() {
         TaskDto task = new TaskDto();
         task.setId(new ObjectId());

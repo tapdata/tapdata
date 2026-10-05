@@ -63,47 +63,11 @@ public class TaskHeartbeatWatchdogSchedule {
                 ? observation.detector.inspect(task, progress, now)
                 : Collections.emptyMap();
         Map<String, Object> previous = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
-        String state = String.valueOf(previous.get("state"));
-        long recoveryElapsed = observation.recoveryElapsed(previous, now);
-        Map<String, Object> next = new LinkedHashMap<>(previous);
-        String message;
-        if ("REQUESTED".equals(state) && HeartbeatWatchdog.advanced(task, previous)) {
-            next.put("state", "CANCELLED");
-            message = "Checkpoint progress resumed before recovery was claimed; obsolete request cancelled.";
-        } else if ("REQUESTED".equals(state)) {
-            // Unclaimed: no engine has attempted a stop yet, so there is nothing to fence. BLOCKED
-            // is permanent and would suppress ordinary error retries forever; make it retryable.
-            if (recoveryElapsed < HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) return;
-            next.put("state", "CANCELLED");
-            message = "Unclaimed heartbeat recovery request timed out; will retry on next stall detection.";
-        } else if ("STOPPING".equals(state)) {
-            if (recoveryElapsed < HeartbeatWatchdog.RECOVERY_TIMEOUT_MS) return;
-            next.put("state", "BLOCKED");
-            message = "Heartbeat recovery timed out; old task termination is unconfirmed. Manual intervention required before the source log retention window expires.";
-        } else if ("VERIFYING".equals(state)) {
-            if (HeartbeatWatchdog.number(HeartbeatWatchdog.attr(task, HeartbeatWatchdog.HEALTH).get("lastPersistedAt"), 0)
-                    > HeartbeatWatchdog.number(previous.get("startedAt"), now)
-                    && HeartbeatWatchdog.advanced(task, previous)) {
-                next.put("state", "RECOVERED");
-                message = "Heartbeat recovery verified: persisted checkpoint advanced.";
-            } else if (recoveryElapsed > HeartbeatWatchdog.timeout(task) + HeartbeatWatchdog.grace(task)) {
-                next.put("state", "FAILED");
-                message = "Task restarted but checkpoint progress has not recovered.";
-            } else return;
-        } else if ("BLOCKED".equals(state)) {
-            return;
-        } else {
-            if (stuck.isEmpty()) return;
-            next = HeartbeatWatchdog.request(task, stuck, "TM", now);
-            if (next == null) {
-                if ("CIRCUIT_OPEN".equals(state)) return;
-                next = new LinkedHashMap<>(previous);
-                next.put("state", "CIRCUIT_OPEN");
-                message = "Heartbeat recovery budget exhausted (3 attempts/hour); manual intervention required before the source log retention window expires.";
-            } else {
-                message = "Persisted heartbeat checkpoint stalled; requested recovery on the assigned engine, units=" + stuck.keySet();
-            }
-        }
+        Map<String, Object> next = HeartbeatWatchdog.propose(task, stuck, "TM", now,
+                observation.recoveryElapsed(previous, now),
+                HeartbeatWatchdog.number(HeartbeatWatchdog.attr(task, HeartbeatWatchdog.HEALTH).get("lastPersistedAt"), 0));
+        if (next == null) return;
+        String message = "Heartbeat recovery transition: " + previous.get("state") + " -> " + next.get("state");
         next.put("updatedAt", now);
         if (taskService.update(HeartbeatRecoveryProtocol.compare(task, previous), HeartbeatRecoveryProtocol.write(next)).getModifiedCount() == 1) {
             log.warn("TaskHeartbeat taskId={} {}", task.getId(), message);

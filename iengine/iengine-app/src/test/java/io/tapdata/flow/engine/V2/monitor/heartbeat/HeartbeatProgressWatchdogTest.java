@@ -151,7 +151,18 @@ class HeartbeatProgressWatchdogTest {
         assertEquals("BLOCKED", lastRecoveryUpdate().get("state"));
     }
 
+    @Test void unclaimedTimeoutUsesLocalObservationAndChargesBudget() {
+        Map<String, Object[]> observations = new HashMap<>();
+        observations.put(task.getId().toHexString(), new Object[]{request.get("id"),
+                System.currentTimeMillis() - HeartbeatWatchdog.RECOVERY_TIMEOUT_MS - 1000});
+        ReflectionTestUtils.setField(watchdog, "requestFirstObservedAt", observations);
+        watchdog.inspect(client);
+        assertEquals("CANCELLED", lastRecoveryUpdate().get("state"));
+        assertEquals(1, ((List<?>) lastRecoveryUpdate().get("attempts")).size());
+    }
+
     @Test void circuitOpenWithinAttemptWindowIsNotRewrittenEveryScan() {
+        primeStalledDetector();
         // Unlike BLOCKED, CIRCUIT_OPEN must not early-return unconditionally in inspect() (that
         // would make it permanent, diverging from TaskHeartbeatWatchdogSchedule on the TM side,
         // which re-requests once the 1-hour attempt window ages out). But while still within the
@@ -164,6 +175,24 @@ class HeartbeatProgressWatchdogTest {
         watchdog.inspect(client);
         assertTrue(recoveryUpdates().isEmpty(),
                 "CIRCUIT_OPEN must not be rewritten while still inside the 1-hour attempt window");
+    }
+
+    private void primeStalledDetector() {
+        local.detector.inspect(task, local.progress, 0);
+        watchdog = spy(watchdog);
+        doReturn(HeartbeatProgressRegistry.monotonicMillis() + 600_000L).when(watchdog).observationTime();
+    }
+
+    @Test void circuitOpenRequestsRecoveryAfterAttemptWindowExpires() {
+        primeStalledDetector();
+        Map<String, Object> circuit = new HashMap<>(request);
+        long expired = System.currentTimeMillis() - HeartbeatWatchdog.WINDOW_MS - 1000;
+        circuit.put("state", "CIRCUIT_OPEN");
+        circuit.put("attempts", List.of(expired, expired, expired));
+        task.getAttrs().put("heartbeatRecovery", circuit);
+        watchdog.inspect(client);
+        assertEquals("REQUESTED", lastRecoveryUpdate().get("state"));
+        assertNotEquals(request.get("id"), lastRecoveryUpdate().get("id"));
     }
 
     private Map<?, ?> lastRecoveryUpdate() {

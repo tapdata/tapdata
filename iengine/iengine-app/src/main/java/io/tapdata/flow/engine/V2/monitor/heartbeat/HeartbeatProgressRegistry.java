@@ -39,18 +39,24 @@ public final class HeartbeatProgressRegistry {
     private static State current(TaskDto task) {
         if (task == null || task.getId() == null) return null;
         State state = STATES.get(task.getId().toHexString());
-        return state != null && Objects.equals(state.taskRecordId, task.getTaskRecordId()) ? state : null;
+        return state != null && Objects.equals(state.taskRecordId, task.getTaskRecordId())
+                && Objects.equals(state.lastStartDate, task.getLastStartDate())
+                && Objects.equals(state.agentId, task.getAgentId()) ? state : null;
     }
 
     public static final class State {
         public final String runId = UUID.randomUUID().toString();
         public final Object taskRecordId;
+        public final Object lastStartDate;
+        public final String agentId;
         public final Map<String, Object> progress = new ConcurrentHashMap<>();
         public final Map<String, Long> sourceHeartbeats = new ConcurrentHashMap<>();
         public final HeartbeatWatchdog.Detector detector = new HeartbeatWatchdog.Detector(monotonicMillis());
         public volatile long lastPersistedAt;
         private State(TaskDto task) {
             taskRecordId = task.getTaskRecordId();
+            lastStartDate = task.getLastStartDate();
+            agentId = task.getAgentId();
             progress.putAll(HeartbeatWatchdog.attr(task, "syncProgress"));
         }
     }

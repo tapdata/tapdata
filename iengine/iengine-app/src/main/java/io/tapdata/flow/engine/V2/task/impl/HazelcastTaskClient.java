@@ -78,6 +78,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	// status to change, which would otherwise hammer the cluster with rejected repeat requests.
 	private volatile boolean suspendRequested;
 	private volatile boolean cancelRequested;
+	// This client owns exactly one Jet Job and is never resumed/reused for another execution.
+	// Every startTask creates a new client, which resets these one-shot termination flags.
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
 											 ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
