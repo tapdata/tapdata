@@ -68,6 +68,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.StreamReadTag;
 import io.tapdata.flow.engine.V2.common.TapdataEventsRunner;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
@@ -2104,6 +2105,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				if (needSave.get()){
 					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
+					HeartbeatProgressRegistry.persisted(taskDto, snapshotPayload.syncProgressJsonMap);
 				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, snapshotPayload.syncProgressJsonMap, e.getMessage());

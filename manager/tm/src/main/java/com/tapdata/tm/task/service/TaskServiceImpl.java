@@ -88,6 +88,7 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
@@ -1331,6 +1332,10 @@ public class TaskServiceImpl extends TaskService{
         if (null != attrs) {
             attrs.remove(EDGE_MILESTONES);
             attrs.remove(SYNC_PROGRESS);
+            // A copied DAG must explicitly opt in with its new edge IDs.
+            attrs.remove(HeartbeatWatchdog.CONFIG);
+            attrs.remove(HeartbeatWatchdog.HEALTH);
+            attrs.remove(HeartbeatWatchdog.RECOVERY);
         }
         //taskDto.setTemp(null);
         if(!checkCloudTaskLimit(id,user,false)){
@@ -3979,6 +3984,9 @@ public class TaskServiceImpl extends TaskService{
             if (attrs != null) {
                 attrs.remove(EDGE_MILESTONES);
                 attrs.remove(SYNC_PROGRESS);
+                attrs.remove(HeartbeatWatchdog.CONFIG);
+                attrs.remove(HeartbeatWatchdog.HEALTH);
+                attrs.remove(HeartbeatWatchdog.RECOVERY);
             }
         }
         return false;
@@ -4406,6 +4414,8 @@ public class TaskServiceImpl extends TaskService{
 
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove(SYNC_PROGRESS);
+            taskDto.getAttrs().remove(HeartbeatWatchdog.HEALTH);
+            taskDto.getAttrs().remove(HeartbeatWatchdog.RECOVERY);
             taskDto.getAttrs().remove(EDGE_MILESTONES);
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
@@ -4639,7 +4649,41 @@ public class TaskServiceImpl extends TaskService{
 //            lockControlService.fdmStartQueue(user);
 //        }
 
-        Update update = Update.update("lastStartDate", System.currentTimeMillis());
+        //filter heartbeat task when status is renew failed for automatic test
+        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
+            log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
+            return;
+        }
+        //校验当前状态是否允许启动。放在轮换 lastStartDate（CAS fencing token）与取消心跳恢复之前，
+        //避免被拒绝的启动请求（例如批量启动误含运行中任务）静默致盲正在运行任务的引擎侧 watchdog。
+        if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
+            log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
+                throw new BizException("Task.Deleted");
+            }
+            throw new BizException("Task.StartStatusInvalid");
+        }
+
+        long lastStartDate = System.currentTimeMillis();
+        Update update = Update.update("lastStartDate", lastStartDate);
+        taskDto.setLastStartDate(lastStartDate);
+        warnHeartbeatWatchdogUnits(taskDto);
+        if (taskDto.getAttrs() != null) {
+            taskDto.getAttrs().remove(HeartbeatWatchdog.HEALTH);
+            update.unset("attrs." + HeartbeatWatchdog.HEALTH);
+        }
+        if (taskDto.getAttrs() != null && taskDto.getAttrs().containsKey(HeartbeatWatchdog.RECOVERY)) {
+            // An explicit start changes lastStartDate in the same Mongo update. That fences
+            // writers for the previous run, so this intentional field-level cancellation
+            // cannot race with an old engine/TM CAS owner.
+            update.set(HeartbeatWatchdog.RECOVERY_PATH + ".state", "CANCELLED");
+            Object recovery = taskDto.getAttrs().get(HeartbeatWatchdog.RECOVERY);
+            if (recovery instanceof Map) {
+                Map<String, Object> nextRecovery = new HashMap<>((Map<String, Object>) recovery);
+                nextRecovery.put("state", "CANCELLED");
+                taskDto.getAttrs().put(HeartbeatWatchdog.RECOVERY, nextRecovery);
+            }
+        }
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();
             update.set(TASK_RECORD_ID, taskRecordId);
@@ -4677,19 +4721,6 @@ public class TaskServiceImpl extends TaskService{
         //模型推演,如果模型已经存在，则需要推演
 //        DAG dag = taskDto.getDag();
 
-        //filter heartbeat task when status is renew failed for automatic test
-        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
-            log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
-            return;
-        }
-        //校验当前状态是否允许启动。
-        if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
-            log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
-            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
-                throw new BizException("Task.Deleted");
-            }
-            throw new BizException("Task.StartStatusInvalid");
-        }
         if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
             metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
         }
@@ -4717,6 +4748,16 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException("Task.StartCheckModelFailed");
         } else {
             run(taskDto, user);
+        }
+    }
+
+    private void warnHeartbeatWatchdogUnits(TaskDto taskDto) {
+        if (!HeartbeatWatchdog.enabled(taskDto)) return;
+        Map<String, Object> progress = HeartbeatWatchdog.attr(taskDto, SYNC_PROGRESS);
+        Set<String> invalidUnits = HeartbeatWatchdog.invalidUnits(taskDto, progress);
+        if (!invalidUnits.isEmpty()) {
+            log.warn("TaskHeartbeat taskId={} watchdog configured with unknown syncProgress units={}; detection will remain disabled",
+                    taskDto.getId(), invalidUnits);
         }
     }
 
