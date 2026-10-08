@@ -87,6 +87,10 @@ public class TaskRebalanceRuleService {
     }
 
     private boolean isManuallySpecified(TaskDto task) {
+        // A group constrains the candidate set; its resolved member list is not a pin.
+        if (AccessNodeTypeEnum.isGroupManually(task.getAccessNodeType())) {
+            return false;
+        }
         if (task.getAccessNodeType() != null && AccessNodeTypeEnum.isManually(task.getAccessNodeType())) {
             return true;
         }
