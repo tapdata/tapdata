@@ -7,6 +7,7 @@ import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -67,6 +68,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.StreamReadTag;
 import io.tapdata.flow.engine.V2.common.TapdataEventsRunner;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
@@ -405,7 +407,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
 		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
 			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
-			syncProgress.setBatchOffsetObj(new HashMap<>());
+			syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
 		} else {
 			throw new TapCodeException(e.getMessage(), e);
 		}
@@ -1957,15 +1959,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					return;
 				}
 				HeartbeatEvent event;
+				long now = null == tapdataEvent.getSourceTime() ? System.currentTimeMillis() : tapdataEvent.getSourceTime();
 				if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
 					event = (HeartbeatEvent) tapdataEvent.getTapEvent();
 				} else {
-					event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
+					event = new HeartbeatEvent().init().referenceTime(now);
 				}
 				event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
 				event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
 				event.addInfo("syncStage", tapdataEvent.getSyncStage());
-				event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+				event.addInfo("sourceTime", now);
 				event.addInfo("nodeIds", tapdataEvent.getNodeIds());
 				processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
 				return;
@@ -2102,6 +2105,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				if (needSave.get()){
 					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
+					HeartbeatProgressRegistry.persisted(taskDto, snapshotPayload.syncProgressJsonMap);
 				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, snapshotPayload.syncProgressJsonMap, e.getMessage());
@@ -2160,7 +2164,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				List<String> nodeIds = Arrays.asList(entry.getKey().split(","));
 				SyncProgress syncProgress = copySyncProgress(entry.getValue());
 				if (null != syncProgress.getBatchOffsetObj()) {
-					syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+					syncProgress.setBatchOffset(PdkUtil.encodeOffset(
+						BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset)
+				));
 				}
 				Object streamOffsetObj = syncProgress.getStreamOffsetObj();
 				if (null != streamOffsetObj && (!(streamOffsetObj instanceof String)

@@ -92,6 +92,7 @@ import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
@@ -249,6 +250,27 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 .map(ObjectId::toHexString)
                 .orElse(null);
         this.taskInspect = TaskInspectHelper.get(taskId);
+    }
+
+    @Override
+    protected boolean decodeConnectorOffsetInBatchOffset() {
+        // Source nodes pass the restored connector offset back to batchRead; target nodes only persist it.
+        return true;
+    }
+
+    @Override
+    protected void readBatchOffset(SyncProgress syncProgress) {
+        try {
+            super.readBatchOffset(syncProgress);
+        } catch (CoreException e) {
+            if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+                obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+                // The connector offset cannot be safely restored without its class; restart the full sync.
+                syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
+            } else {
+                throw new TapCodeException(e.getMessage(), e);
+            }
+        }
     }
 
     private boolean needCdcDelay() {
@@ -1200,7 +1222,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapCreateTableEvent.setPartitionMasterTableId(addTapTable.getPartitionMasterTableId());
                 TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
                 BatchOffsetUtil.updateBatchOffset(syncProgress, addTapTable.getId(), null, TableBatchReadStatus.RUNNING.name());
-                tapdataEvent.setBatchOffset(syncProgress.getBatchOffsetObj());
+                tapdataEvent.setBatchOffset(snapshotEntireBatchOffset());
                 tapdataEvent.setSourceTime(System.currentTimeMillis());
 
                 if (null == tapdataEvent) {
@@ -1510,6 +1532,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.GENERATE_HASH_KEY_FAILED, e).dynamicDescriptionParameters(recordEvent);
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
+            HeartbeatProgressRegistry.sourceHeartbeat(dataProcessorContext.getTaskDto(), getNode().getId());
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
         } else if (tapEvent instanceof TapDDLWarningEvent) {
             TapDDLWarningEvent warningEvent = (TapDDLWarningEvent) tapEvent;
@@ -1576,7 +1599,37 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         if (batchOffset instanceof PartitionTableOffset) {
             return ((PartitionTableOffset) batchOffset).copy();
         }
-        return batchOffset;
+        /**
+         * The connector may reuse and mutate the same offset instance across batches. Hand the target
+         * an immutable (already encoded) snapshot instead of the live reference, otherwise the target
+         * could persist a breakpoint ahead of the data it has actually written and the next crash
+         * resume would skip rows that were never persisted.
+         */
+        return BatchOffsetUtil.encodeConnectorOffset(batchOffset, PdkUtil::encodeOffset);
+    }
+
+    /**
+     * Snapshot the whole batch offset container ({@code tableId -&gt; table offset}) into an immutable,
+     * already-encoded copy.
+     *
+     * <p>The dynamic-new-table path hands this to the target vertex, which stores it as its own
+     * {@code batchOffsetObj} (see {@code HazelcastTargetPdkBaseNode#flushOffsetCallback}). Passing the
+     * source's live map would let the target alias - and concurrently mutate - the source container, so
+     * the 10s {@code saveToSnapshot} could persist a breakpoint ahead of the data actually written and a
+     * crash resume would skip rows. Same reasoning as {@link #snapshotBatchOffset(String)}, but for the
+     * whole container instead of a single table.
+     */
+    protected Object snapshotEntireBatchOffset() {
+        Object snapshot = BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset);
+        if (snapshot instanceof Map) {
+            Map<Object, Object> snapshotMap = (Map<Object, Object>) snapshot;
+            for (Map.Entry<Object, Object> entry : snapshotMap.entrySet()) {
+                if (entry.getValue() instanceof PartitionTableOffset) {
+                    entry.setValue(((PartitionTableOffset) entry.getValue()).copy());
+                }
+            }
+        }
+        return snapshot;
     }
 
     protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {
