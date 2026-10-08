@@ -283,6 +283,9 @@ public class TaskController extends BaseController {
         );
         if (result != null) {
             taskService.appendHeartbeatTaskRunning(result.getItems());
+            // NOTE(TAP-12848 review #11): enterprise fillAlarmReceiverSummary is relatively
+            // expensive on list poll. OSS default is a no-op; gating by requested columns /
+            // short-lived group cache remains an enterprise follow-up.
             alarmService.fillAlarmReceiverSummary(result.getItems());
         }
         return success(result);
@@ -1667,8 +1670,9 @@ public class TaskController extends BaseController {
         if (alarm == null || CollectionUtils.isEmpty(alarm.getTaskIds())) {
             return success(result);
         }
+        normalizeLegacyEmailReceivers(alarm);
         alarmService.runWithReceiverCache(() -> {
-        for (String taskId : alarm.getTaskIds()) {
+        for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
             ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
             if (taskObjectId == null) {
                 result.add(BatchAlarmDetail.of(taskId, null, "IllegalArgument", "非法任务 ID"));
@@ -1679,13 +1683,37 @@ public class TaskController extends BaseController {
                         () -> alarmService.applyAuthorizedTaskAlarm(taskId, alarm, userDetail));
                 result.add(detail);
             } catch (BizException exception) {
-                String code = "insufficient.permissions".equals(exception.getErrorCode())
-                        ? "insufficient.permissions" : exception.getErrorCode();
+                String code = exception.getErrorCode();
                 result.add(BatchAlarmDetail.of(taskId, null, code, exception.getMessage()));
+            } catch (RuntimeException exception) {
+                result.add(BatchAlarmDetail.of(taskId, null, "SystemError", exception.getMessage()));
             }
         }
         });
         return success(result);
+    }
+
+    /**
+     * Legacy clients still POST {@code emailReceivers} only. Map them to EMAIL alarmReceivers
+     * with REPLACE semantics so the request is not a silent no-op.
+     */
+    private void normalizeLegacyEmailReceivers(com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam alarm) {
+        if (alarm.getAlarmReceivers() != null || alarm.getEmailReceivers() == null) {
+            return;
+        }
+        java.util.List<com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver> receivers = new java.util.ArrayList<>();
+        for (String email : alarm.getEmailReceivers()) {
+            if (email == null) {
+                continue;
+            }
+            com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver receiver =
+                    new com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver();
+            receiver.setType(com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType.EMAIL);
+            receiver.setEmail(email.trim());
+            receivers.add(receiver);
+        }
+        alarm.setAlarmReceivers(receivers);
+        alarm.setReceiverMode(com.tapdata.tm.commons.task.dto.alarm.ReceiverBatchMode.REPLACE);
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {

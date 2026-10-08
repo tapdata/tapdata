@@ -170,33 +170,80 @@ public class UserServiceImpl extends UserService{
 
     @Override
     public void fillTagGids(List<com.tapdata.tm.commons.schema.Tag> tags) {
-        if (tags == null) {
+        if (tags == null || tags.isEmpty()) {
             return;
         }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
         for (com.tapdata.tm.commons.schema.Tag tag : tags) {
             if (tag == null || StringUtils.isNotBlank(tag.getGid()) || StringUtils.isBlank(tag.getId()) || !ObjectId.isValid(tag.getId())) {
                 continue;
             }
-            Document group = repository.getMongoOperations().findById(new ObjectId(tag.getId()), Document.class, "UserGroup");
-            if (group != null) {
-                tag.setGid(group.getString("gid"));
+            ids.add(tag.getId());
+        }
+        Map<String, String> gidById = loadUserGroupGids(ids);
+        for (com.tapdata.tm.commons.schema.Tag tag : tags) {
+            if (tag == null || StringUtils.isNotBlank(tag.getGid()) || StringUtils.isBlank(tag.getId())) {
+                continue;
+            }
+            String gid = gidById.get(tag.getId());
+            if (gid != null) {
+                tag.setGid(gid);
             }
         }
     }
 
     private void fillMapGids(List<Map<String, Object>> tags) {
-        if (tags == null) {
+        if (tags == null || tags.isEmpty()) {
             return;
         }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
         for (Map<String, Object> tag : tags) {
             if (tag == null || tag.get("gid") != null || tag.get("id") == null || !ObjectId.isValid(tag.get("id").toString())) {
                 continue;
             }
-            Document group = repository.getMongoOperations().findById(new ObjectId(tag.get("id").toString()), Document.class, "UserGroup");
-            if (group != null && group.getString("gid") != null) {
-                tag.put("gid", group.getString("gid"));
+            ids.add(tag.get("id").toString());
+        }
+        Map<String, String> gidById = loadUserGroupGids(ids);
+        for (Map<String, Object> tag : tags) {
+            if (tag == null || tag.get("gid") != null || tag.get("id") == null) {
+                continue;
+            }
+            String gid = gidById.get(tag.get("id").toString());
+            if (gid != null) {
+                tag.put("gid", gid);
             }
         }
+    }
+
+    private Map<String, String> loadUserGroupGids(java.util.Collection<String> ids) {
+        Map<String, String> gidById = new java.util.HashMap<>();
+        if (ids == null || ids.isEmpty()) {
+            return gidById;
+        }
+        java.util.List<ObjectId> objectIds = new java.util.ArrayList<>();
+        for (String id : ids) {
+            if (ObjectId.isValid(id)) {
+                objectIds.add(new ObjectId(id));
+            }
+        }
+        if (objectIds.isEmpty()) {
+            return gidById;
+        }
+        java.util.List<Document> groups = repository.getMongoOperations().find(
+                Query.query(Criteria.where("_id").in(objectIds)), Document.class, "UserGroup");
+        if (groups == null) {
+            return gidById;
+        }
+        for (Document group : groups) {
+            if (group == null || group.getObjectId("_id") == null) {
+                continue;
+            }
+            String gid = group.getString("gid");
+            if (gid != null) {
+                gidById.put(group.getObjectId("_id").toHexString(), gid);
+            }
+        }
+        return gidById;
     }
 
     /**
@@ -694,7 +741,8 @@ public class UserServiceImpl extends UserService{
         if (updateResult.getModifiedCount() > 0) {
             String name = StringUtils.isNotBlank(user.getLdapAccount()) ? user.getLdapAccount() : user.getEmail();
             long directTasks = repository.getMongoOperations().count(
-                    Query.query(Criteria.where("alarmReceivers").elemMatch(Criteria.where("type").is("USER").and("id").is(id))),
+                    Query.query(Criteria.where("alarmReceivers").elemMatch(Criteria.where("type").is("USER").and("id").is(id))
+                            .and("is_deleted").ne(true)),
                     "Task");
             userLogService.addUserLog(Modular.USER, Operation.DELETE, userDetail, id, name, null,
                     "{\"directTaskCount\":" + directTasks + "}");
