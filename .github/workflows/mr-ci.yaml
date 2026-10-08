@@ -214,8 +214,9 @@ jobs:
           # END sonar mode
           # Install reactor artifacts for the following scan; package/install overhead is intentional.
           # Do not add skipTests: keep the same unit-test coverage as the former clean test lifecycle.
-          mvn clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
-          mvn -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          # Persistent runner caches may contain previous failed downloads; force a resolution retry.
+          mvn -U clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
+          mvn -U -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             "${sonar_args[@]}" \
