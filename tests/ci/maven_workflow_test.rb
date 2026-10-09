@@ -2,6 +2,7 @@
 require 'minitest/autorun'
 require 'yaml'
 require 'open3'
+require 'tmpdir'
 
 class MavenWorkflowTest < Minitest::Test
   ROOT = File.expand_path('../..', __dir__)
@@ -35,28 +36,45 @@ class MavenWorkflowTest < Minitest::Test
     job = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata')
     script = job.fetch('steps').find { |step| step['name'] == 'Build Tapdata - And Analyze' }.fetch('run')
     script = script.gsub(/\$\{\{.*?\}\}/m, 'fixture')
-    [0, 17].each do |build_status|
-      out, err, status = Open3.capture3({'SONAR_EVENT_NAME' => 'push', 'SONAR_BRANCH' => 'develop'}, 'bash', '-c', <<~SH)
-        set -eo pipefail
-        update-alternatives() { :; }
-        cd() { :; }
-        mvn() {
-          printf '%s\n' "$*"
-          if [[ "$1" == clean ]]; then return #{build_status}; fi
-        }
-        #{script}
-      SH
-      assert_includes out, 'clean install -T1C -Dmaven.compile.fork=true -P idaas'
-      scanner = '-P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
-      if build_status.zero?
-        assert status.success?, err
-        assert_includes out, scanner
-      else
-        assert_equal 17, status.exitstatus
-        refute_includes out, scanner
+    Dir.mktmpdir('ci-settings-test-') do |directory|
+      settings_path = File.join(directory, 'settings.xml')
+      [0, 17].each do |build_status|
+        out, err, status = Open3.capture3({'SONAR_EVENT_NAME' => 'push', 'SONAR_BRANCH' => 'develop',
+                                         'CI_MAVEN_SETTINGS' => settings_path}, 'bash', '-c', <<~SH)
+          set -eo pipefail
+          update-alternatives() { :; }
+          cd() { :; }
+          mvn() {
+            printf '%s\n' "$*"
+            if [[ "$1" == clean ]]; then return #{build_status}; fi
+          }
+          #{script}
+        SH
+        assert_includes out, 'clean install -T1C -Dmaven.compile.fork=true -P idaas'
+        assert_includes out, "--settings #{settings_path}"
+        scanner = '-P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
+        if build_status.zero?
+          assert status.success?, err
+          assert_includes out, scanner
+        else
+          assert_equal 17, status.exitstatus
+          refute_includes out, scanner
+        end
       end
     end
     assert_equal 120, job.fetch('timeout-minutes')
+  end
+
+  def test_snapshot_routing_uses_private_effective_settings_and_cleans_up
+    steps = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata').fetch('steps')
+    prepare = steps.find { |step| step['name'] == 'Prepare Maven repository routing' }.fetch('run')
+    assert_includes prepare, 'umask 077'
+    assert_includes prepare, 'help:effective-settings -DshowPasswords=true -Doutput="$settings_file"'
+    assert_includes prepare, 'python3 build/prepare-maven-ci-settings.py "$settings_file"'
+    assert_includes prepare, 'CI_MAVEN_SETTINGS=%s'
+    build = steps.find { |step| step['name'] == 'Build Tapdata - And Analyze' }.fetch('run')
+    assert_equal 2, build.scan('--settings "$CI_MAVEN_SETTINGS"').size
+    assert_includes build, %q{trap 'rm -f "$CI_MAVEN_SETTINGS"' EXIT}
   end
 
   def sonar_parameters(env)
