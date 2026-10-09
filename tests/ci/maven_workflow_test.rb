@@ -72,7 +72,7 @@ class MavenWorkflowTest < Minitest::Test
     script = job.fetch('steps').find { |step| step['name'] == 'Build verified API for this runner' }.fetch('run')
     refute_includes script, 'skipTests'
     refute_includes script, 'deploy'
-    [revision, '0' * 40].each do |actual_revision|
+    [[revision, 1, 0], ['0' * 40, 1, 0], [revision, 0, 0], [revision, 1, 1]].each do |actual_revision, test_count, skipped|
       Dir.mktmpdir('api-bootstrap-test-') do |directory|
         project = File.join(directory, 'tapdata')
         source = File.join(directory, 'tapdata-common-lib/plugin-kit/tapdata-api')
@@ -86,14 +86,24 @@ class MavenWorkflowTest < Minitest::Test
         out, err, status = Open3.capture3({'API_SOURCE_REVISION' => revision}, 'bash', '-c', <<~SH, chdir: project)
           update-alternatives() { :; }
           git() { printf '%s\\n' '#{actual_revision}'; }
-          mvn() { printf 'MVN:%s\\n' "$*"; }
+          mvn() {
+            printf 'MVN:%s\\n' "$*"
+            mkdir -p ../tapdata-common-lib/plugin-kit/tapdata-api/target/surefire-reports
+            printf '<testsuite tests="#{test_count}" skipped="#{skipped}"/>' > ../tapdata-common-lib/plugin-kit/tapdata-api/target/surefire-reports/TEST-fixture.xml
+          }
           #{script}
         SH
-        if actual_revision == revision
+        if actual_revision == revision && test_count > skipped
           assert status.success?, err
           assert_includes File.read(pom), '2.0.11-fixture-SNAPSHOT'
           assert_includes File.read(pom), '<artifactId>tapdata-api</artifactId>'
+          assert_includes File.read(pom), '<artifactId>maven-surefire-plugin</artifactId>'
+          assert_includes File.read(pom), '<version>3.2.5</version>'
           assert_includes out, 'MVN:-B -ntp -f ../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml install'
+          assert_includes out, 'Verified API tests: 1'
+        elsif test_count <= skipped
+          refute status.success?
+          assert_includes err, 'executed zero tests'
         else
           refute status.success?
           refute_includes out, 'MVN:'
