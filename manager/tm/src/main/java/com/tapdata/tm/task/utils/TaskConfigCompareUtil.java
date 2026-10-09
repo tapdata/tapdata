@@ -10,6 +10,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.group.vo.DagChangeDetail;
 import com.tapdata.tm.group.vo.FieldChange;
 import lombok.extern.slf4j.Slf4j;
@@ -265,14 +267,43 @@ public class TaskConfigCompareUtil {
         return true;
     }
 
+    /** 只比接收人（alarmReceivers 按引用比较 + emailReceivers 快照），用于接收人审计 */
+    public static boolean isAlarmReceiverEqual(TaskDto left, TaskDto right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        return isFieldEqual(alarmValue(left, "alarmReceivers"), alarmValue(right, "alarmReceivers"))
+                && isFieldEqual(alarmValue(left, "emailReceivers"), alarmValue(right, "emailReceivers"));
+    }
+
     private static Object alarmValue(TaskDto task, String field) {
         return switch (field) {
             case "alarmSettings" -> task.getAlarmSettings();
             case "alarmRules" -> task.getAlarmRules();
             case "emailReceivers" -> task.getEmailReceivers();
-            case "alarmReceivers" -> task.getAlarmReceivers();
+            case "alarmReceivers" -> canonicalReceivers(task.getAlarmReceivers());
             default -> null;
         };
+    }
+
+    /**
+     * 导出包里的 USER / USER_GROUP 带有 email、name 等重映射提示，比较时只看引用本身。
+     */
+    private static List<AlarmReceiver> canonicalReceivers(List<AlarmReceiver> receivers) {
+        if (receivers == null) {
+            return null;
+        }
+        List<AlarmReceiver> canonical = new ArrayList<>();
+        for (AlarmReceiver receiver : receivers) {
+            if (receiver == null) {
+                canonical.add(null);
+            } else if (receiver.getType() == AlarmReceiverType.EMAIL) {
+                canonical.add(new AlarmReceiver(AlarmReceiverType.EMAIL, null, receiver.getEmail()));
+            } else {
+                canonical.add(new AlarmReceiver(receiver.getType(), receiver.getId(), null));
+            }
+        }
+        return canonical;
     }
 
     /**

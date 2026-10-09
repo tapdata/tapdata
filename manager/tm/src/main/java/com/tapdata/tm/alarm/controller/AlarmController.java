@@ -17,6 +17,9 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
+import com.tapdata.tm.commons.task.dto.alarm.LegacyEmailReceivers;
+import com.tapdata.tm.commons.task.dto.alarm.PreviewEmailMask;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -134,6 +137,10 @@ public class AlarmController extends BaseController {
             throw new BizException("IllegalArgument", "taskId");
         }
         checkTask(request, user, taskId, DataPermissionActionEnums.Edit, () -> {
+            if (LegacyEmailReceivers.needsNormalize(alarm)) {
+                TaskDto current = taskService.findByTaskId(taskId, "emailReceivers");
+                LegacyEmailReceivers.normalize(alarm, current == null ? null : current.getEmailReceivers());
+            }
             alarmService.updateTaskAlarm(alarm, user);
             return null;
         });
@@ -147,8 +154,15 @@ public class AlarmController extends BaseController {
         if (id == null) {
             throw new BizException("IllegalArgument", "taskId");
         }
-        return success(checkTask(request, user, id, DataPermissionActionEnums.View,
-                () -> alarmService.previewReceivers(taskId, user == null ? null : user.getUserId())));
+        AlarmReceiverPreview preview = checkTask(request, user, id, DataPermissionActionEnums.View,
+                () -> alarmService.previewReceivers(taskId, user == null ? null : user.getUserId()));
+        // 只有任务查看权限时，不能借预览拿到组成员、系统默认收件人的地址
+        if (preview != null && !canViewUserDirectory(user)) {
+            TaskDto task = taskService.findByTaskId(id, "alarmReceivers", "emailReceivers");
+            PreviewEmailMask.mask(preview, task == null ? java.util.Set.of()
+                    : PreviewEmailMask.explicitEmails(task.getAlarmReceivers(), task.getEmailReceivers()));
+        }
+        return success(preview);
     }
 
     @GetMapping("/receiverCandidates")
@@ -156,43 +170,29 @@ public class AlarmController extends BaseController {
                                                                         @RequestParam(required = false) String taskId,
                                                                         @RequestParam(required = false) List<String> taskIds) {
         UserDetail user = getLoginUser();
-        List<String> ids = new java.util.ArrayList<>();
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
         if (taskId != null && !taskId.isBlank()) {
             ids.add(taskId);
         }
         if (taskIds != null) {
             ids.addAll(taskIds);
         }
-        boolean allowed = false;
+        List<String> editableTaskIds = new java.util.ArrayList<>();
         for (String id : ids) {
             ObjectId objectId = MongoUtils.toObjectId(id);
-            if (objectId == null) {
-                continue;
-            }
-            // Align with checkTask / TaskController: decode parent_task_sign before Edit check.
-            ObjectId decoded = java.util.Optional.ofNullable(DataPermissionHelper.signDecode(request, objectId.toHexString()))
-                    .map(MongoUtils::toObjectId).orElse(objectId);
-            Boolean editable = DataPermissionHelper.checkOfQuery(
-                    user,
-                    DataPermissionDataTypeEnums.Task,
-                    DataPermissionActionEnums.Edit,
-                    taskService.dataPermissionFindById(decoded, new Field()),
-                    dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
-                    () -> true,
-                    () -> false);
-            if (Boolean.TRUE.equals(editable)) {
-                allowed = true;
-                break;
+            if (objectId != null && Boolean.TRUE.equals(
+                    checkTask(request, user, objectId, DataPermissionActionEnums.Edit, () -> true, () -> false))) {
+                editableTaskIds.add(objectId.toHexString());
             }
         }
-        if (!allowed) {
-            throw new BizException("insufficient.permissions",
-                    needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(DataPermissionActionEnums.Edit)),
-                    needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(DataPermissionActionEnums.Edit)));
+        if (editableTaskIds.isEmpty()) {
+            throw insufficientPermissions(DataPermissionActionEnums.Edit);
         }
-        AlarmReceiverCandidates candidates = alarmService.receiverCandidates();
-        // Emails are tenant-wide PII; only expose when caller can View UserManagement (or cloud).
-        if (!canViewUserEmails(user) && candidates != null && candidates.getUsers() != null) {
+        // 没有用户管理权限时只给本人所在组（含子组）的成员和组，外加这些任务已引用的接收人；邮箱一律不返回
+        boolean fullDirectory = canViewUserDirectory(user);
+        AlarmReceiverCandidates candidates = alarmService.receiverCandidates(
+                fullDirectory ? null : user.getUserId(), editableTaskIds);
+        if (!fullDirectory && candidates != null && candidates.getUsers() != null) {
             for (AlarmReceiverCandidates.CandidateUser candidateUser : candidates.getUsers()) {
                 if (candidateUser != null) {
                     candidateUser.setEmail(null);
@@ -202,18 +202,26 @@ public class AlarmController extends BaseController {
         return success(candidates);
     }
 
-    private boolean canViewUserEmails(UserDetail user) {
-        if (user == null) {
+    /**
+     * 全量用户目录只给有用户管理查看权限的人。云版 User 集合跨租户，一律按本人所在组收敛。
+     */
+    private boolean canViewUserDirectory(UserDetail user) {
+        if (user == null || (settingsService != null && settingsService.isCloud())) {
             return false;
-        }
-        if (settingsService != null && settingsService.isCloud()) {
-            return true;
         }
         return permissionService != null
                 && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, user.getUserId());
     }
 
     private <T> T checkTask(HttpServletRequest request, UserDetail user, ObjectId id, DataPermissionActionEnums action, java.util.function.Supplier<T> supplier) {
+        return checkTask(request, user, id, action, supplier, () -> {
+            throw insufficientPermissions(action);
+        });
+    }
+
+    private <T> T checkTask(HttpServletRequest request, UserDetail user, ObjectId id, DataPermissionActionEnums action,
+                            java.util.function.Supplier<T> supplier, java.util.function.Supplier<T> unAuthSupplier) {
+        // 子任务带 parent_task_sign 时按父任务校验
         ObjectId decoded = java.util.Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
                 .map(MongoUtils::toObjectId).orElse(id);
         return DataPermissionHelper.checkOfQuery(
@@ -223,11 +231,13 @@ public class AlarmController extends BaseController {
                 taskService.dataPermissionFindById(decoded, new Field()),
                 dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
                 supplier,
-                () -> {
-                    throw new BizException("insufficient.permissions",
-                            needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)),
-                            needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)));
-                });
+                unAuthSupplier);
+    }
+
+    private BizException insufficientPermissions(DataPermissionActionEnums action) {
+        return new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)),
+                needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)));
     }
 
     @Operation(summary = "add Task Retry Message")

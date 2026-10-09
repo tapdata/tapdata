@@ -7,6 +7,8 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.group.vo.DagChangeDetail;
 import com.tapdata.tm.group.vo.FieldChange;
 import org.junit.jupiter.api.DisplayName;
@@ -1067,6 +1069,40 @@ class TaskConfigCompareUtilTest {
             assertFalse(TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing));
             List<FieldChange> changes = TaskConfigCompareUtil.getDetailedChanges(imported, existing, new DagChangeDetail());
             assertTrue(changes.stream().anyMatch(change -> "emailReceivers".equals(change.getField())));
+        }
+
+        @Test
+        void exportHintsOnReceiversAreNotAChange() {
+            TaskDto existing = buildTask("t", "initial_sync", "sync");
+            existing.setAlarmReceivers(List.of(
+                    new AlarmReceiver(AlarmReceiverType.USER, "u1", null),
+                    new AlarmReceiver(AlarmReceiverType.EMAIL, null, "a@example.com")));
+            TaskDto imported = buildTask("t", "initial_sync", "sync");
+            imported.setAlarmReceivers(List.of(
+                    new AlarmReceiver(AlarmReceiverType.USER, "u1", "alice@example.com", "alice"),
+                    new AlarmReceiver(AlarmReceiverType.EMAIL, null, "a@example.com", "label")));
+
+            assertTrue(TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing));
+            List<FieldChange> changes = TaskConfigCompareUtil.getDetailedChanges(imported, existing, new DagChangeDetail());
+            assertTrue(changes.stream().noneMatch(change -> "alarmReceivers".equals(change.getField())));
+
+            imported.setAlarmReceivers(List.of(new AlarmReceiver(AlarmReceiverType.USER, "u2", null)));
+            assertFalse(TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing));
+        }
+
+        @Test
+        void receiverEqualityIgnoresRulesAndSettings() {
+            TaskDto existing = buildTask("t", "initial_sync", "sync");
+            existing.setAlarmReceivers(List.of(new AlarmReceiver(AlarmReceiverType.USER, "u1", null)));
+            TaskDto imported = buildTask("t", "initial_sync", "sync");
+            imported.setAlarmReceivers(List.of(new AlarmReceiver(AlarmReceiverType.USER, "u1", "a@example.com", "a")));
+            imported.setAlarmRules(new ArrayList<>());
+
+            assertTrue(TaskConfigCompareUtil.isAlarmReceiverEqual(imported, existing));
+            imported.setEmailReceivers(List.of("a@example.com"));
+            assertFalse(TaskConfigCompareUtil.isAlarmReceiverEqual(imported, existing));
+            assertTrue(TaskConfigCompareUtil.isAlarmReceiverEqual(null, null));
+            assertFalse(TaskConfigCompareUtil.isAlarmReceiverEqual(imported, null));
         }
     }
 }

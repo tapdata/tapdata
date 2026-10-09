@@ -104,7 +104,8 @@ public class UserGroupServiceTest {
 
             assertTrue(result);
             verify(userGroupRepository, never()).findAll(any(Query.class)); // gid is blank, does not query descendants
-            verify(userGroupRepository, times(1)).deleteAll(any(Query.class));
+            // 缺 gid 的组按 _id 删除，后代分支用不匹配任何组的正则
+            verify(userGroupRepository, times(1)).deleteAll(argThat((Query q) -> q.getQueryObject().toJson().contains(id.toHexString())));
             verify(userLogService, times(1)).addUserLog(
                     eq(Modular.USER_GROUP),
                     eq(Operation.DELETE),

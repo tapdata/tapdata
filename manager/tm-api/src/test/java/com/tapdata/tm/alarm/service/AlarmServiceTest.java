@@ -197,6 +197,8 @@ class AlarmServiceTest {
         assertThrowsBizException(() -> service.applyAuthorizedTaskAlarm("t1", new BatchUpdateAlarmParam(), null));
         assertThrowsBizException(() -> service.previewReceivers("t1"));
         assertThrowsBizException(service::receiverCandidates);
+        assertThrowsBizException(() -> service.receiverCandidates(null, List.of("t1")));
+        assertThrowsBizException(() -> service.receiverCandidates("u1", List.of("t1")));
         assertThrowsBizException(() -> service.groupAlarmImpact("g1"));
         assertThrowsBizException(() -> service.userAlarmImpact("u1"));
         assertThrowsBizException(service::alarmStats);

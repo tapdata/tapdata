@@ -193,11 +193,6 @@ public class UserGroupController extends BaseController {
 
 
 
-    /**
-     * Delete a model instance by {{id}} from the data source
-     * @param id
-     * @return
-     */
     @GetMapping("{id}/alarmImpact")
     public ResponseMessage<AlarmImpactView> alarmImpact(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
@@ -212,6 +207,11 @@ public class UserGroupController extends BaseController {
                 () -> success(alarmService.alarmStats()));
     }
 
+    /**
+     * Delete a model instance by {{id}} from the data source
+     * @param id
+     * @return
+     */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Boolean> delete(@PathVariable("id") String id) {

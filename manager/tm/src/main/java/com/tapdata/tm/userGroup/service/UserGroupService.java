@@ -123,10 +123,12 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 			if (count > 0){
 				throw new BizException("UserGroup.Exists.User");
 			}
-			String deleteRegex = org.apache.commons.lang3.StringUtils.isBlank(gid) ? "^$" : com.tapdata.tm.commons.alarm.GidPrefix.regex(gid);
 			// Snapshot impact BEFORE delete — after deleteAll the group is gone and groupAlarmImpact is empty.
 			String snapshot = captureGroupAlarmImpact(userGroupDto);
-			boolean removed = super.deleteAll(Query.query(Criteria.where("gid").regex(deleteRegex))) > 0;
+			// 本组按 _id 删（缺 gid 的旧数据也能删掉），后代按 gid 前缀；gid 为空时 GidPrefix 不匹配任何组
+			Criteria self = Criteria.where("_id").is(id);
+			Criteria descendants = Criteria.where("gid").regex(com.tapdata.tm.commons.alarm.GidPrefix.regex(gid));
+			boolean removed = super.deleteAll(Query.query(new Criteria().orOperator(self, descendants))) > 0;
 			if (removed) {
 				writeDeleteLog(userGroupDto, userDetail, snapshot);
 			}

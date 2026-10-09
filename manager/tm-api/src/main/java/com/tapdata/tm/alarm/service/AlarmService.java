@@ -113,6 +113,17 @@ public interface AlarmService {
         throw new BizException("TapOssNonSupportFunctionException");
     }
 
+    /**
+     * @param scopeUserId     null 返回全量目录；否则只返回该用户所在组（含子组）的组和成员，以及本人
+     * @param referencedTaskIds 这些任务已引用的用户/组也一并返回，避免选择器回显不出、改组时被丢掉
+     */
+    default AlarmReceiverCandidates receiverCandidates(String scopeUserId, java.util.Collection<String> referencedTaskIds) {
+        if (scopeUserId != null) {
+            throw new BizException("TapOssNonSupportFunctionException");
+        }
+        return receiverCandidates();
+    }
+
     default AlarmImpactView groupAlarmImpact(String groupId) {
         throw new BizException("TapOssNonSupportFunctionException");
     }
