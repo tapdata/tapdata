@@ -15,6 +15,8 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import java.util.concurrent.CompletableFuture;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatRecoveryProtocol;
+import com.tapdata.tm.commons.task.heartbeat.HeartbeatWatchdog;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
@@ -65,6 +67,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -104,6 +107,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final TaskOperationQueue taskOperationQueue = new TaskOperationQueue(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+	private static final long CACHE_CLEANUP_STUCK_WARN_MS = Long.getLong("cache.cleanup.stuck.warn.ms", TimeUnit.MINUTES.toMillis(1L));
+	private final AtomicInteger cacheCleanupThreadIndex = new AtomicInteger();
+	// 共享缓存的销毁可能在 TM 同步往返 / IMap 集群销毁上无界阻塞，因此每个任务的清理必须彼此隔离：
+	// 单线程池会让一个卡住的任务把后面排队的清理全部挡住，那些任务的启动随之被 deferStartUntilCacheCleanupCompletes
+	// 无限期推迟，症状又回到 TAP-12865 的「停在启动中」。同一任务的在途清理至多一个（cacheCleanupFutures 保证），
+	// 所以线程数上界就是本节点共享缓存任务数。
+	private final ExecutorService cacheCleanupThreadPool = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+			60L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+			r -> new Thread(r, "Task-Cache-Cleanup-" + cacheCleanupThreadIndex.incrementAndGet()));
+	private final Map<String, CompletableFuture<Void>> cacheCleanupFutures = new ConcurrentHashMap<>();
+	private final Map<String, TaskDto> startsWaitingForCacheCleanup = new ConcurrentHashMap<>();
+	private volatile boolean destroying;
 	private final Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
 	private final Map<String, ScheduledFuture<?>> scheduledFutureMap = new ConcurrentHashMap<>();
 
@@ -233,11 +248,23 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	protected TaskDto safeQueryTaskById(String taskId) {
 		Query query = Query.query(where("_id").is(taskId));
-		query.fields().include("status").include("_id").include("name");
+		query.fields().include("status").include("_id").include("name")
+				.include("syncType").include("shareCdcEnable").include("preview")
+				.include("attrs." + HeartbeatWatchdog.CONFIG)
+				.include("attrs." + TaskDto.ATTRS_USED_SHARE_CACHE);
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>();
 		CompletableFuture.runAsync(() -> {
 			taskDtoAtomicReference.set(clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class));
 		}).join();
+		TaskDto task = taskDtoAtomicReference.get();
+		if (task != null && HeartbeatWatchdog.enabled(task)) {
+			// Keep the generic retry path lean, but give an opted-in task the complete
+			// document so its replacement client can initialize the local watchdog.
+			Query fullQuery = Query.query(where("_id").is(taskId));
+			CompletableFuture.runAsync(() -> {
+				taskDtoAtomicReference.set(clientMongoOperator.findOne(fullQuery, ConnectorConstant.TASK_COLLECTION, TaskDto.class));
+			}).join();
+		}
 		return taskDtoAtomicReference.get();
 	}
 
@@ -300,6 +327,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	public void sendStopTask(String taskId) {
+		startsWaitingForCacheCleanup.remove(taskId);
 		taskOpEnqueue(StopTaskOperation.create().taskId(taskId));
 		if (logger.isDebugEnabled()) {
 			List<String> stackTraces = Arrays.stream(Thread.currentThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
@@ -409,6 +437,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			logger.info("Found task(s) already running before engine start, will queue these task(s) for rate-limited startup\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
 
 			for (TaskDto task : tasks) {
+				clearStaleHeartbeatRecoveryOnEngineStart(task);
 				refreshEngineStartTaskPingTime(task, System.currentTimeMillis());
 				try {
 					engineStartPendingTaskMap.put(task.getId().toHexString(), task);
@@ -448,6 +477,34 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		} catch (Exception e) {
 			logger.warn("Failed to refresh engine startup task ping time: {} ({}), pingTime: {}, error: {}",
 					task.getName(), task.getId().toHexString(), pingTime, e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * A JVM restart is itself proof that any client this engine previously held for the task is
+	 * gone. Without this, a heartbeat recovery left {@code BLOCKED} (or any other pending state)
+	 * by the previous process instance would carry over into the freshly resumed run: {@code
+	 * heartbeatRecoveryOwnsRetry()} treats any pending state as "let recovery own retries", so it
+	 * would permanently suppress ordinary error retries and RUN_ERROR reporting for a task this
+	 * new JVM has not even started managing yet. Scoped to this engine-restart-resume path only —
+	 * it must never run on the normal start/stop path, where a pending recovery genuinely still
+	 * needs CAS-fenced confirmation from a live writer.
+	 */
+	private void clearStaleHeartbeatRecoveryOnEngineStart(TaskDto task) {
+		if (task == null || task.getId() == null) return;
+		Map<String, Object> recovery = HeartbeatWatchdog.attr(task, HeartbeatWatchdog.RECOVERY);
+		if (!HeartbeatWatchdog.pending(recovery)) return;
+		try {
+			Map<String, Object> next = new LinkedHashMap<>(recovery);
+			next.put("state", "CANCELLED");
+			next.put("updatedAt", System.currentTimeMillis());
+			clientMongoOperator.update(HeartbeatRecoveryProtocol.compare(task, recovery), HeartbeatRecoveryProtocol.write(next), ConnectorConstant.TASK_COLLECTION);
+			task.getAttrs().put(HeartbeatWatchdog.RECOVERY, next);
+			logger.info("Cleared stale heartbeat recovery state '{}' on engine restart resume for task: {} ({})",
+					recovery.get("state"), task.getName(), task.getId().toHexString());
+		} catch (Exception e) {
+			logger.warn("Failed to clear stale heartbeat recovery on engine start: {} ({}), error: {}",
+					task.getName(), task.getId().toHexString(), e.getMessage(), e);
 		}
 	}
 
@@ -570,6 +627,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	protected void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
+		if (deferStartUntilCacheCleanupCompletes(taskId, taskDto)) {
+			return;
+		}
 		TaskClient<TaskDto> taskClient = getTaskClient(taskId);
 		if (null != taskClient) {
 			// 正在执行的任务，只更新状态
@@ -685,6 +745,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					taskLock.tryRun(taskId, () -> {
 						StopTaskResource stopTaskResource = null;
 						TerminalMode terminalMode = taskClient.getTerminalMode();
+						if (heartbeatRecoveryOwnsRetry(taskClient, terminalMode)) return;
 						if (TerminalMode.STOP_GRACEFUL == terminalMode) {
 							stopTaskResource = StopTaskResource.STOPPED;
 						} else if (TerminalMode.COMPLETE == terminalMode) {
@@ -779,17 +840,27 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				final String taskId = taskClient.getTask().getId().toHexString();
 				final boolean stop = taskClient.stop();
 				if (stop) {
-					try {
-						destroyCache(taskClient);
-						logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskId));
-					} catch (Exception e) {
-						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
+					// 清理必须异步、且必须在 taskLock 内登记，两点缺一不可：
+					// 1) 本方法跑在 taskControlScheduler 上，而它是单线程的（ThreadPoolTaskScheduler 默认
+					//    poolSize=1），同一条线程还驱动 scheduledTask（wait_run 扫描）与 forceStoppingTask，
+					//    在这里同步 destroy 一旦阻塞，本引擎就再也扫不到待启动任务；
+					// 2) 登记 cacheCleanupFutures 要与 startTask 的 defer 检查互斥，否则它可以插在
+					//    defer 检查与其后 HazelcastTaskService 那次 registerCache 之间，让那次启动撞上清理标记。
+					// 拿不到锁就留到下一轮（10s 后）再处理。
+					if (!taskLock.tryRun(taskId, () -> scheduleCacheDestroy(taskClient), 1L, TimeUnit.SECONDS)) {
+						logger.warn("Schedule cache destruction of internally stopped task {}[{}] failed because of task lock, will retry later",
+								taskClient.getTask().getName(), taskId);
+						continue;
 					}
 					clearTaskRetryCache(taskId);
 					ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskClient.getTask());
 					iterator.remove();
 				}
 			}
+		} catch (InterruptedException e) {
+			// taskLock.tryRun 会抛：中断意味着引擎在关停，重置中断位后交回调度线程，不当成扫描失败
+			Thread.currentThread().interrupt();
+			logger.info("Scan internal stopping data flow interrupted, will not continue this round");
 		} catch (Exception e) {
 			logger.error("Scan internal stopping data flow failed {}", e.getMessage(), e);
 		}
@@ -833,14 +904,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 			}
 		} catch (Throwable ignored) {
-		}
-	}
-
-	private void destroyCache(TaskClient<TaskDto> taskClient) {
-		String cacheName = taskClient.getCacheName();
-		if (StringUtils.isNotEmpty(cacheName)) {
-			messageDao.updateCacheStatus(cacheName, taskClient.getStatus());
-			messageDao.destroyCache(taskClient.getTask(), cacheName);
 		}
 	}
 
@@ -940,13 +1003,87 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			throw new RuntimeException(String.format("Remove memory task client failed, task: %s[%s]",
 				taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
-		try {
-			destroyCache(taskClient);
-			logger.trace("Destroy memory task client cache succeed, task: {}[{}]",
-					taskClient.getTask().getName(), taskClient.getTask().getId());
-		} catch (Exception e) {
-			throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+		scheduleCacheDestroy(taskClient);
+	}
+
+	private void scheduleCacheDestroy(TaskClient<TaskDto> taskClient) {
+		TaskDto task = taskClient.getTask();
+		String cacheName = taskClient.getCacheName();
+		if (StringUtils.isEmpty(cacheName)) {
+			return;
 		}
+		String taskId = task.getId().toHexString();
+		CompletableFuture<Void> cleanupFuture = new CompletableFuture<>();
+		CompletableFuture<Void> runningCleanup = cacheCleanupFutures.putIfAbsent(taskId, cleanupFuture);
+		if (null != runningCleanup) {
+			logger.warn("Cache destruction is already running, task: {}[{}]", task.getName(), taskId);
+			return;
+		}
+		try {
+			cacheCleanupThreadPool.execute(() -> runCacheDestroy(task, cacheName, cleanupFuture));
+			warnIfCacheDestroyStuck(task, taskId, cleanupFuture);
+		} catch (RejectedExecutionException e) {
+			cacheCleanupFutures.remove(taskId, cleanupFuture);
+			cleanupFuture.completeExceptionally(e);
+			logger.warn("Submit cache destruction failed, task: {}[{}]", task.getName(), taskId, e);
+		}
+	}
+
+	/**
+	 * 同一任务的启动会一直等自己这一代缓存清理结束（不能带超时：destroy 是物理销毁，抢跑会抹掉新一代缓存的数据）。
+	 * 所以清理卡死时任务确实会停在启动中，这里至少要把它喊出来，而不是静默等待。
+	 */
+	private void warnIfCacheDestroyStuck(TaskDto task, String taskId, CompletableFuture<Void> cleanupFuture) {
+		CompletableFuture.runAsync(() -> {
+			if (!cleanupFuture.isDone()) {
+				logger.warn("Cache destruction of task {}[{}] has been running for over {} ms, "
+								+ "starting this task stays deferred until it returns",
+						task.getName(), taskId, CACHE_CLEANUP_STUCK_WARN_MS);
+			}
+		}, CompletableFuture.delayedExecutor(CACHE_CLEANUP_STUCK_WARN_MS, TimeUnit.MILLISECONDS));
+	}
+
+	private void runCacheDestroy(TaskDto task, String cacheName, CompletableFuture<Void> cleanupFuture) {
+		String taskId = task.getId().toHexString();
+		Throwable failure = null;
+		try {
+			messageDao.destroyCache(task, cacheName);
+			logger.trace("Destroy memory task client cache succeed, task: {}[{}]", task.getName(), taskId);
+		} catch (Throwable e) {
+			failure = e;
+			logger.error("Destroy memory task client cache failed, task: {}[{}]", task.getName(), taskId, e);
+		} finally {
+			// Remove only this cleanup generation before waking a deferred start. An older
+			// cleanup must never clear a newer generation registered for the same task.
+			cacheCleanupFutures.remove(taskId, cleanupFuture);
+			if (null == failure) {
+				cleanupFuture.complete(null);
+			} else {
+				cleanupFuture.completeExceptionally(failure);
+			}
+		}
+	}
+
+	private boolean deferStartUntilCacheCleanupCompletes(String taskId, TaskDto taskDto) {
+		CompletableFuture<Void> cleanupFuture = cacheCleanupFutures.get(taskId);
+		if (null == cleanupFuture) {
+			return false;
+		}
+		TaskDto previous = startsWaitingForCacheCleanup.put(taskId, taskDto);
+		if (null == previous) {
+			cleanupFuture.whenComplete((ignored, throwable) -> {
+				TaskDto waitingTask = startsWaitingForCacheCleanup.remove(taskId);
+				if (null != waitingTask && !destroying) {
+					if (null != throwable) {
+						logger.warn("Cache destruction failed before restarting task {}[{}], continue starting",
+								waitingTask.getName(), taskId, throwable);
+					}
+					sendStartTask(waitingTask);
+				}
+			});
+		}
+		logger.info("Defer starting task {}[{}] until cache destruction generation completes", taskDto.getName(), taskId);
+		return true;
 	}
 
 	private void addAgentIdUpdate(Update update) {
@@ -981,6 +1118,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	protected void stopTask(String taskId) {
+		startsWaitingForCacheCleanup.remove(taskId);
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
 			try {
@@ -1009,6 +1147,88 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return null;
 		}
 		return taskClientMap.get(taskId);
+	}
+
+	/** Shares the normal start/stop lock. Never replace a task whose stop is unconfirmed. */
+	public boolean recoverHeartbeatTask(TaskClient<TaskDto> expected,
+			java.util.function.BooleanSupplier claim,
+			java.util.function.BooleanSupplier allowRestart) throws InterruptedException {
+		String taskId = expected.getTask().getId().toHexString();
+		java.util.concurrent.atomic.AtomicBoolean started = new java.util.concurrent.atomic.AtomicBoolean();
+		taskLock.tryRun(taskId, () -> {
+			// A deliberate stop (user-initiated STOP_GRACEFUL, or an internal reschedule) must win
+			// over recovery: let the normal stop path own it. An ERROR/COMPLETE terminal mode does
+			// NOT bail out here, because heartbeatRecoveryOwnsRetry() makes errorOrStopTask() skip its
+			// own stop/retry for exactly this client while a recovery is pending, expecting recovery to
+			// take over the stop. Bailing out here as well would strand the task: nobody ever stops it,
+			// and it dead-locks into BLOCKED once the recovery timeout elapses.
+			TerminalMode currentTerminalMode = expected.getTerminalMode();
+			if (taskClientMap.get(taskId) != expected
+					|| currentTerminalMode == TerminalMode.STOP_GRACEFUL
+					|| currentTerminalMode == TerminalMode.INTERNAL_STOP) return;
+			TaskDto fresh = findHeartbeatRecoveryTask(taskId);
+			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !claim.getAsBoolean()) return;
+			if (!stopHeartbeatTask(expected)) return;
+			fresh = findHeartbeatRecoveryTask(taskId);
+			if (!heartbeatOwnerMatches(expected.getTask(), fresh) || !allowRestart.getAsBoolean()) return;
+			// Fence the recovery request before removing the only local observer. A lost CAS
+			// must leave the old client visible for the watchdog/TM to finish fencing it.
+			clearTaskCacheAfterStopped(expected);
+			// startTask rechecks the server state through the normal running transition.
+			startTask(fresh);
+			started.set(taskClientMap.get(taskId) != null);
+		}, 1L, TimeUnit.SECONDS);
+		return started.get();
+	}
+
+	protected TaskDto findHeartbeatRecoveryTask(String taskId) {
+		return clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+	}
+
+	protected boolean stopHeartbeatTask(TaskClient<TaskDto> client) {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+		do {
+			if (client.stop()) return true;
+			try { TimeUnit.MILLISECONDS.sleep(250); }
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return false;
+			}
+		} while (System.nanoTime() < deadline);
+		return false;
+	}
+
+	protected boolean heartbeatRecoveryOwnsRetry(TaskClient<TaskDto> client, TerminalMode terminalMode) {
+		if (terminalMode == TerminalMode.STOP_GRACEFUL || terminalMode == TerminalMode.INTERNAL_STOP
+				|| !HeartbeatWatchdog.enabled(client.getTask())) return false;
+		TaskDto fresh = findHeartbeatRecoveryTask(client.getTask().getId().toHexString());
+		// A deleted task must follow the normal terminal cleanup path. It no longer
+		// has a recovery request that this engine can own.
+		if (fresh == null) return false;
+		Map<String, Object> recovery = HeartbeatWatchdog.attr(fresh, HeartbeatWatchdog.RECOVERY);
+		String state = String.valueOf(recovery.get("state"));
+		// A stop may complete after the 60-second recovery worker has returned. The ordinary
+		// terminal scanner holds taskLock: confirm termination before releasing recovery ownership.
+		if (("STOPPING".equals(state) || "BLOCKED".equals(state))
+				&& heartbeatOwnerMatches(client.getTask(), fresh) && !client.isRunning() && client.stop()) {
+			Map<String, Object> next = new LinkedHashMap<>(recovery);
+			next.put("state", "FAILED");
+			next.put("stopConfirmedAt", System.currentTimeMillis());
+			if (clientMongoOperator.update(HeartbeatRecoveryProtocol.compare(fresh, recovery),
+					HeartbeatRecoveryProtocol.write(next), ConnectorConstant.TASK_COLLECTION).getModifiedCount() == 1) {
+				logger.warn("Heartbeat stop confirmed late for task {}; handing off to ordinary terminal cleanup", fresh.getId());
+				return false;
+			}
+		}
+		return HeartbeatWatchdog.pending(recovery);
+	}
+
+	private boolean heartbeatOwnerMatches(TaskDto previous, TaskDto current) {
+		return current != null && TaskDto.STATUS_RUNNING.equals(current.getStatus())
+				&& java.util.Objects.equals(previous.getAgentId(), current.getAgentId())
+				&& java.util.Objects.equals(previous.getTaskRecordId(), current.getTaskRecordId())
+				&& java.util.Objects.equals(previous.getLastStartDate(), current.getLastStartDate())
+				&& HeartbeatWatchdog.enabled(current);
 	}
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
@@ -1053,6 +1273,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@PreDestroy
 	public void destroy() {
 		logger.info("Shutting down TapdataTaskScheduler resources");
+		destroying = true;
+		startsWaitingForCacheCleanup.clear();
 
 		// 关闭引擎启动任务调度器
 		if (engineStartTaskScheduler != null && !engineStartTaskScheduler.isShutdown()) {
@@ -1068,6 +1290,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				engineStartTaskScheduler.shutdownNow();
 				Thread.currentThread().interrupt();
 			}
+		}
+		if (cacheCleanupThreadPool != null && !cacheCleanupThreadPool.isShutdown()) {
+			cacheCleanupThreadPool.shutdownNow();
 		}
 
 		// 清空队列

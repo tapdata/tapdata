@@ -368,8 +368,17 @@ public class WorkerServiceImpl extends WorkerService{
      *
      */
     public CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
+        return scheduleTaskToEngine(entity, userDetail, type, name, false);
+    }
 
-        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail, type);
+    @Override
+    public CalculationEngineVo scheduleTaskToEngineWithStrictAgent(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
+        return scheduleTaskToEngine(entity, userDetail, type, name, true);
+    }
+
+    private CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name, boolean strictAgent) throws BizException {
+
+        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail, type, strictAgent);
         String processId = calculationEngineVo.getProcessId();
         String filter = calculationEngineVo.getFilter();
 
@@ -391,6 +400,10 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     public CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
+        return calculationEngine(entity, userDetail, type, false);
+    }
+
+    private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type, boolean strictAgent) {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         String filter;
         int availableNum;
@@ -410,6 +423,9 @@ public class WorkerServiceImpl extends WorkerService{
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
+        if (strictAgent && StringUtils.isBlank(agentId)) {
+            throw new BizException("Task.AgentNotFound");
+        }
         if (StringUtils.isNotBlank(agentId)) {
             Criteria where = Criteria.where("worker_type").is("connector")
                     .and("ping_time").gte(findTime)
@@ -446,6 +462,9 @@ public class WorkerServiceImpl extends WorkerService{
                 calculationEngineVo.setRunningNum(runningNum);
                 calculationEngineVo.setTotalLimit(taskLimit);
                 return calculationEngineVo;
+            }
+            if (strictAgent) {
+                throw new BizException("Task.AgentNotFound");
             }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end

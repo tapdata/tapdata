@@ -41,6 +41,9 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	protected final ClientMongoOperator clientMongoOperator;
 
+	// 每个 cacheName 一把销毁锁，见 destroy(String)；与 cacheStatusLockMap 一样按 cacheName 常驻
+	protected final Map<String, Object> cacheDestroyLockMap = new ConcurrentHashMap<>();
+
 	public AbstractCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
 		this(clientMongoOperator);
 		this.cacheStatusMap = cacheStatusMap;
@@ -105,21 +108,32 @@ public abstract class AbstractCacheService implements ICacheService {
 		this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
 	}
 
+	/**
+	 * 按 cacheName 加锁，不能用实例级 synchronized。
+	 * <p>
+	 * 本方法体内做的是物理销毁：{@link ICacheStore#destroy()} 是无超时的集群操作，本地没有 store 时
+	 * {@link #getCacheStore(String)} 还会经 {@link #getConfig(String)} 打一次同步 TM 往返。实例级锁会让
+	 * 不同 cache 的销毁互相排队，一个卡住的销毁就挡住本节点其它共享缓存任务的清理，那些任务的启动随之
+	 * 被无限期推迟（TAP-12865）。按 cacheName 加锁后，同一个 cache 的并发销毁仍然互斥，不同 cache 互不影响；
+	 * 方法体内触碰的 cacheStatusMap / cacheConfigMap / cacheGetterMap 本身都是并发容器。
+	 */
 	@Override
-	public synchronized void destroy(String cacheName) {
-		try {
-			ICacheStore cacheStore = this.getCacheStore(cacheName);
-			if (cacheStore != null) {
-				cacheStore.destroy();
+	public void destroy(String cacheName) {
+		synchronized (this.cacheDestroyLockMap.computeIfAbsent(cacheName, k -> new Object())) {
+			try {
+				ICacheStore cacheStore = this.getCacheStore(cacheName);
+				if (cacheStore != null) {
+					cacheStore.destroy();
+				}
+				this.cacheStatusMap.remove(cacheName);
+				this.cacheConfigMap.remove(cacheName);
+				ICacheGetter cacheGetter = this.cacheGetterMap.remove(cacheName);
+				if (cacheGetter != null) {
+					cacheGetter.close();
+				}
+			} catch (Exception e) {
+				logger.error("cache destroy error: " + cacheName, e);
 			}
-			this.cacheStatusMap.remove(cacheName);
-			this.cacheConfigMap.remove(cacheName);
-			ICacheGetter cacheGetter = this.cacheGetterMap.remove(cacheName);
-			if (cacheGetter != null) {
-				cacheGetter.close();
-			}
-		} catch (Exception e) {
-			logger.error("cache destroy error: " + cacheName, e);
 		}
 	}
 

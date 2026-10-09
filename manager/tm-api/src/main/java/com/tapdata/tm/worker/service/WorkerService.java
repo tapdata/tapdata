@@ -52,6 +52,12 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
 
     public abstract CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException;
 
+    /**
+     * Schedule to the explicitly requested Agent without falling back to platform allocation.
+     * This is reserved for task types whose Agent policy is inherited from another resource.
+     */
+    public abstract CalculationEngineVo scheduleTaskToEngineWithStrictAgent(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException;
+
     public abstract CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type);
 
     public abstract void scheduleTaskToEngine(InspectDto inspectDto, UserDetail userDetail) throws BizException;

@@ -10,6 +10,7 @@ import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -353,8 +354,13 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "删除数据源连接")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        dataSourceService.delete(getLoginUser(), id);
+    public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Delete, () -> {
+            dataSourceService.delete(userDetail, id);
+            return null;
+        });
         return success();
     }
 
@@ -466,8 +472,12 @@ public class DataSourceController extends BaseController {
         return success(connectionDto);
     }
 
-    private <T> T dataPermissionUnAuth() {
-        throw new RuntimeException("Un auth");
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action) {
+        throw new BizException(
+                "insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Connections, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Connections, Lists.newArrayList(action))
+        );
     }
 
     private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
@@ -479,7 +489,7 @@ public class DataSourceController extends BaseController {
                 dataSourceService.dataPermissionFindById(id, new Field()),
                 (dto) -> DataPermissionMenuEnums.Connections,
                 supplier,
-                this::dataPermissionUnAuth
+                () -> dataPermissionUnAuth(actionEnums)
         );
     }
 

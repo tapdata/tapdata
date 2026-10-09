@@ -34,6 +34,7 @@ public class UserDetailDeserializer extends JsonDeserializer<UserDetail> {
         String password = JsonNodeUtils.findStringValue(root, "password");
         String customerType = JsonNodeUtils.findStringValue(root, "customerType");
         String accessCode = JsonNodeUtils.findStringValue(root, "accessCode");
+        String authType = JsonNodeUtils.findStringValue(root, "authType");
         Set<SimpleGrantedAuthority> authorities = JsonNodeUtils.findValue(
                 root, "authorities", new TypeReference<Set<SimpleGrantedAuthority>>(){}, mapper);
         // JsonNodeUtils.findValue(root, "authorities", TypeRef)
@@ -51,6 +52,7 @@ public class UserDetailDeserializer extends JsonDeserializer<UserDetail> {
         userDetail.setEmail(email);
         userDetail.setPhone(phone);
         userDetail.setExternalUserId(externalUserId);
+        userDetail.setAuthType(authType);
         return userDetail;
     }
 }

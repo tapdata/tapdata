@@ -16,15 +16,20 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -369,7 +374,8 @@ public class TaskRestartScheduleTest {
             taskRestartSchedule.setWorkerService(workerService);
 
             MetadataDefinitionService metadataDefinitionService = mock(MetadataDefinitionService.class);
-            when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(all);
+            when(metadataDefinitionService.orderTaskByTagPriority(anyList()))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
             taskRestartSchedule.setMetadataDefinitionService(metadataDefinitionService);
         }
 
@@ -384,6 +390,23 @@ public class TaskRestartScheduleTest {
 
             verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+            // No heartbeatRecovery attr at all -> nothing to cancel.
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        void testOneSchedulingFailureDoesNotAbortTheRemainingTasks() {
+            TaskDto firstTask = runningTask();
+            TaskDto secondTask = runningTask();
+            wire(firstTask, 0L);
+            when(taskService.findAll(any(Query.class))).thenReturn(List.of(firstTask, secondTask));
+            doThrow(new RuntimeException("source policy conflict"))
+                    .doNothing()
+                    .when(taskScheduleService).scheduling(any(TaskDto.class), eq(userDetail), eq(true));
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(taskScheduleService).scheduling(same(secondTask), same(userDetail), eq(true));
         }
 
         @Test
@@ -396,6 +419,93 @@ public class TaskRestartScheduleTest {
 
             verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.OVERTIME), any(UserDetail.class));
             verify(taskScheduleService, never()).scheduling(any(), any(), any());
+        }
+
+        @Test
+        void testSkipsWhenHeartbeatRecoveryPendingAndHealthFresh() {
+            // A pending heartbeat recovery must defer to the CAS-fenced stop confirmation, but
+            // ONLY while some engine watchdog is still demonstrably monitoring the task (fresh
+            // attrs.heartbeatHealth.reportedAt). pingTime itself is stale (count 0), which would
+            // otherwise trigger an OVERTIME reschedule.
+            TaskDto taskDto = runningTask();
+            Map<String, Object> recovery = new HashMap<>();
+            recovery.put("state", "REQUESTED");
+            Map<String, Object> health = new HashMap<>();
+            health.put("reportedAt", System.currentTimeMillis());
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("heartbeatRecovery", recovery);
+            attrs.put("heartbeatHealth", health);
+            taskDto.setAttrs(attrs);
+            wire(taskDto, 0L);
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.OVERTIME), any(UserDetail.class));
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            // Must not touch a recovery an active engine watchdog may still be driving.
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        void testUnconfirmedStopRemainsFencedWhenHealthStale() {
+            // Stale health cannot prove that a partitioned old writer has exited.
+            // BLOCKED must remain fenced until the owning engine confirms termination.
+            TaskDto taskDto = runningTask();
+            Map<String, Object> recovery = new HashMap<>();
+            recovery.put("state", "BLOCKED");
+            Map<String, Object> health = new HashMap<>();
+            health.put("reportedAt", System.currentTimeMillis() - 3_600_000L);
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("heartbeatRecovery", recovery);
+            attrs.put("heartbeatHealth", health);
+            taskDto.setAttrs(attrs);
+            wire(taskDto, 0L);
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(), any());
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        void testCancelsUnclaimedRecoveryBeforeReschedulingAbandonedRun() {
+            // An unclaimed REQUESTED has not attempted a stop and can be cancelled before
+            // the existing stale-ping fallback. Never apply this to STOPPING/BLOCKED.
+            TaskDto taskDto = runningTask();
+            Map<String, Object> recovery = new HashMap<>();
+            recovery.put("id", "req-1");
+            recovery.put("state", "REQUESTED");
+            Map<String, Object> health = new HashMap<>();
+            health.put("reportedAt", System.currentTimeMillis() - 3_600_000L);
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("heartbeatRecovery", recovery);
+            attrs.put("heartbeatHealth", health);
+            taskDto.setAttrs(attrs);
+            wire(taskDto, 0L);
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
+            verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+
+            ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(taskService, times(1)).update(queryCaptor.capture(), updateCaptor.capture());
+
+            // Fenced to the exact abandoned run: same task id, agentId, taskRecordId, lastStartDate,
+            // and the exact pending recovery id/state (CAS), not a blanket "any RUNNING task" update.
+            Document queryDoc = queryCaptor.getValue().getQueryObject();
+            assertEquals(taskDto.getId(), queryDoc.get("_id"));
+            assertEquals(TaskDto.STATUS_RUNNING, queryDoc.get("status"));
+            assertEquals(agentId, queryDoc.get("agentId"));
+            assertEquals("req-1", queryDoc.get("attrs.heartbeatRecovery.id"));
+            assertEquals("REQUESTED", queryDoc.get("attrs.heartbeatRecovery.state"));
+
+            Document updateDoc = updateCaptor.getValue().getUpdateObject();
+            Document set = (Document) updateDoc.get("$set");
+            assertEquals("CANCELLED", ((Map<?, ?>) set.get("attrs.heartbeatRecovery")).get("state"));
+            assertTrue(((Document) updateDoc.get("$unset")).containsKey("attrs.heartbeatHealth"));
         }
     }
 

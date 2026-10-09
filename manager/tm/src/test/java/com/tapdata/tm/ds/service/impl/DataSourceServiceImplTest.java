@@ -12,6 +12,10 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.job.service.JobService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -2603,6 +2607,46 @@ class DataSourceServiceImplTest {
 
             // modulesService.analyzeApiServerKey should be called 3 times
             verify(modulesService, times(3)).analyzeApiServerKey(any(DataSourceConnectionDto.class), any(LinkedHashMap.class), isNull());
+        }
+    }
+
+    @Nested
+    class Delete {
+        DataSourceRepository dataSourceRepository = mock(DataSourceRepository.class);
+        DataSourceServiceImpl dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+        TaskService taskService;
+        JobService jobService;
+        DataFlowService dataFlowService;
+        ModulesService modulesService;
+
+        @BeforeEach
+        void before() {
+            taskService = mock(TaskService.class);
+            jobService = mock(JobService.class);
+            dataFlowService = mock(DataFlowService.class);
+            modulesService = mock(ModulesService.class);
+            ReflectionTestUtils.setField(dataSourceService, "taskService", taskService);
+            ReflectionTestUtils.setField(dataSourceService, "jobService", jobService);
+            ReflectionTestUtils.setField(dataSourceService, "dataFlowService", dataFlowService);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+            ReflectionTestUtils.setField(dataSourceService, "defaultDataDirectoryService", mock(DefaultDataDirectoryService.class));
+        }
+
+        @Test
+        void shouldBlockDeleteWhenOtherUserTaskReferencesConnection() {
+            String id = new ObjectId().toHexString();
+            UserDetail user = mock(UserDetail.class);
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            doReturn(connectionDto).when(dataSourceService).findById(any(ObjectId.class), eq(user));
+            when(jobService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+            when(dataFlowService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+            TaskDto relatedTask = new TaskDto();
+            relatedTask.setName("other-user-task");
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(relatedTask));
+
+            BizException exception = assertThrows(BizException.class, () -> dataSourceService.delete(user, id));
+            assertEquals("Datasource.LinkJobs", exception.getErrorCode());
+            verify(dataSourceService, never()).deleteById(any(), any());
         }
     }
 }

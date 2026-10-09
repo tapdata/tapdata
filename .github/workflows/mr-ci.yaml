@@ -127,6 +127,14 @@ jobs:
       - Get-Stable-Branch
       - Push-Code-To-Gitee
     timeout-minutes: 120
+    env:
+      SONAR_EVENT_NAME: ${{ github.event_name }}
+      SONAR_PR_KEY: ${{ github.event.pull_request.number }}
+      SONAR_PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+      SONAR_PR_BASE: ${{ github.event.pull_request.base.ref }}
+      SONAR_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      SONAR_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      SONAR_BRANCH: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
     steps:
       - name: Clean Directory
         run: |
@@ -138,12 +146,47 @@ jobs:
           echo '${{ secrets.GITEE_KNOWN_HOSTS }}' > /root/.ssh/known_hosts
       - name: Checkout Tapdata Code
         run: |
-          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} git@gitee.com:${{ secrets.GITEE_USER }}/tapdata.git
+          set -euo pipefail
+          # Gitee mirrors same-repository PR branches only; fork PRs are not supported here.
+          # Source/base SHA checks intentionally fail closed when the mirror is stale.
+          git clone -b "$SONAR_BRANCH" git@gitee.com:${{ secrets.GITEE_USER }}/tapdata.git
           cd tapdata && git fetch --tags
+          if [[ "$SONAR_EVENT_NAME" == pull_request ]]; then
+            git check-ref-format --branch "$SONAR_PR_BASE" >/dev/null
+            # Use the actual PR source, not a synthetic merge commit or a stale mirror.
+            [[ "$(git rev-parse HEAD)" == "$SONAR_PR_HEAD_SHA" ]] || {
+              echo "::error::Gitee source does not match the PR head SHA"; exit 1;
+            }
+            fetched=false
+            for attempt in 1 2 3; do
+              if timeout --kill-after=5s 60s git fetch --no-tags origin \
+                "+refs/heads/$SONAR_PR_BASE:refs/remotes/origin/$SONAR_PR_BASE"; then
+                fetched=true
+                break
+              fi
+              sleep "$((attempt * 5))"
+            done
+            [[ "$fetched" == true ]] || { echo "::error::Cannot fetch PR target branch"; exit 1; }
+            git cat-file -e "$SONAR_PR_BASE_SHA^{commit}" || {
+              echo "::error::Gitee target mirror does not contain the PR base SHA"; exit 1;
+            }
+            git update-ref "refs/remotes/origin/$SONAR_PR_BASE" "$SONAR_PR_BASE_SHA"
+            git merge-base HEAD "origin/$SONAR_PR_BASE" >/dev/null
+          fi
       - name: Patch Maven Dependens
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/ /root/.m2/
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
+          # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
+          # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
+          mkdir -p /root/.m2/repository
+          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
+            --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
+            rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
       - name: Build Tapdata - And Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
@@ -152,11 +195,30 @@ jobs:
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
           cd tapdata
-          mvn clean test -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
-          mvn sonar:sonar \
+          # BEGIN sonar mode
+          sonar_args=()
+          if [[ "${SONAR_EVENT_NAME:-}" == pull_request ]]; then
+            [[ "${SONAR_PR_KEY:-}" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid Sonar PR key" >&2; exit 1; }
+            : "${SONAR_PR_BRANCH:?PR source branch is required}" "${SONAR_PR_BASE:?PR target branch is required}"
+            git check-ref-format --branch "$SONAR_PR_BRANCH" >/dev/null || exit "$?"
+            git check-ref-format --branch "$SONAR_PR_BASE" >/dev/null || exit "$?"
+            sonar_args=("-Dsonar.pullrequest.key=$SONAR_PR_KEY"
+                        "-Dsonar.pullrequest.branch=$SONAR_PR_BRANCH"
+                        "-Dsonar.pullrequest.base=$SONAR_PR_BASE"
+                        "-Dsonar.java.skipUnchanged=true")
+          else
+            : "${SONAR_BRANCH:?Sonar branch is required}"
+            git check-ref-format --branch "$SONAR_BRANCH" >/dev/null || exit "$?"
+            sonar_args=("-Dsonar.branch.name=$SONAR_BRANCH")
+          fi
+          # END sonar mode
+          # Install reactor artifacts for the following scan; package/install overhead is intentional.
+          # Do not add skipTests: keep the same unit-test coverage as the former clean test lifecycle.
+          mvn clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
+          mvn -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
-            -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} \
+            "${sonar_args[@]}" \
             || exit "$?"
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
           export JAVA_HOME=/usr/java/jdk1.8.0_361
@@ -179,7 +241,11 @@ jobs:
       - name: Send SonarQube Quality Gate to Pr Comment
         if: ${{ always() && steps.sonar.outcome == 'failure' }}
         run: |
-          cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} \
+          pr_args=()
+          if [[ "$SONAR_EVENT_NAME" == pull_request ]]; then
+            pr_args=(--pull-request="$SONAR_PR_KEY")
+          fi
+          cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch="$SONAR_BRANCH" "${pr_args[@]}" \
              --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
              --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 

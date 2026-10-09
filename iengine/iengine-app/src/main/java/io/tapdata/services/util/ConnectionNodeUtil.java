@@ -38,7 +38,8 @@ public final class ConnectionNodeUtil {
                     .withAssociateId(associateId)
                     .withGroup(databaseType.getGroup())
                     .withVersion(databaseType.getVersion())
-                    .withPdkId(databaseType.getPdkId());
+                    .withPdkId(databaseType.getPdkId())
+                    .withJarFile(databaseType.getJarFile(), databaseType.getJarRid());
             if (MapUtils.isNotEmpty(connections.getConfig())) {
                 connectorBuilder.withConnectionConfig(DataMap.create(connections.getConfig()));
             }
