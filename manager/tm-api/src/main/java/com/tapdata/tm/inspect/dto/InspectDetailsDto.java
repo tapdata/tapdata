@@ -1,5 +1,7 @@
 package com.tapdata.tm.inspect.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.tapdata.tm.inspect.util.InspectDetailsValueDeserializer;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -21,7 +23,9 @@ public class InspectDetailsDto extends BaseDto {
     /**  */
     private String type;
 
+    @JsonDeserialize(using = InspectDetailsValueDeserializer.class)
     private Map<String, Object> source;
+    @JsonDeserialize(using = InspectDetailsValueDeserializer.class)
     private Map<String, Object> target;
 
 
