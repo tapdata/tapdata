@@ -745,7 +745,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			Object actualOid = ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("_id");
 			assertEquals(String.class, actualOid.getClass());
 			assertEquals(objectId.toHexString(), actualOid);
-			assertEquals(1D, assertInstanceOf(TapNumberValue.class, ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("id")).getValue());
+			assertEquals(1D, ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("id"));
 			assertEquals("test", ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("name"));
 			Object actualInsertDteObj = ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("insert_dte");
 			assertEquals(TapDateTimeValue.class, actualInsertDteObj.getClass());
@@ -764,7 +764,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			Object actualOid = ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("_id");
 			assertEquals(String.class, actualOid.getClass());
 			assertEquals(objectId.toHexString(), actualOid);
-			assertEquals(1D, assertInstanceOf(TapNumberValue.class, ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id")).getValue());
+			assertEquals(1D, ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id"));
 			assertEquals("test", ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("name"));
 			Object actualInsertDteObj = ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("insert_dte");
 			assertEquals(TapDateTimeValue.class, actualInsertDteObj.getClass());
@@ -783,7 +783,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			Object actualOid = ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("_id");
 			assertEquals(String.class, actualOid.getClass());
 			assertEquals(objectId.toHexString(), actualOid);
-			assertEquals(1D, assertInstanceOf(TapNumberValue.class, ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id")).getValue());
+			assertEquals(1D, ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id"));
 			assertEquals("test", ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("name"));
 			Object actualInsertDteObj = ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("insert_dte");
 			assertEquals(TapDateTimeValue.class, actualInsertDteObj.getClass());
@@ -809,7 +809,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(objectId, ((TapStringValue) actualOid).getOriginValue());
 			assertEquals("ObjectID", ((TapStringValue) actualOid).getOriginType());
 			assertEquals(TapString.class, ((TapStringValue) actualOid).getTapType().getClass());
-			assertEquals(1D, assertInstanceOf(TapNumberValue.class, ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("id")).getValue());
+			assertEquals(1D, ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("id"));
 			assertEquals("test", ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("name"));
 			Object actualInsertDteObj = ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter().get("insert_dte");
 			assertEquals(TapDateTimeValue.class, actualInsertDteObj.getClass());
@@ -835,7 +835,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(objectId, ((TapStringValue) actualOid).getOriginValue());
 			assertEquals("ObjectID", ((TapStringValue) actualOid).getOriginType());
 			assertEquals(TapString.class, ((TapStringValue) actualOid).getTapType().getClass());
-			assertEquals(1D, assertInstanceOf(TapNumberValue.class, ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id")).getValue());
+			assertEquals(1D, ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id"));
 			assertEquals("test", ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("name"));
 			Object actualInsertDteObj = ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("insert_dte");
 			assertEquals(TapDateTimeValue.class, actualInsertDteObj.getClass());
@@ -861,7 +861,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(objectId, ((TapStringValue) actualOid).getOriginValue());
 			assertEquals("ObjectID", ((TapStringValue) actualOid).getOriginType());
 			assertEquals(TapString.class, ((TapStringValue) actualOid).getTapType().getClass());
-			assertEquals(1D, assertInstanceOf(TapNumberValue.class, ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id")).getValue());
+			assertEquals(1D, ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("id"));
 			assertEquals("test", ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("name"));
 			Object actualInsertDteObj = ((TapDeleteRecordEvent) tapdataEvent.getTapEvent()).getBefore().get("insert_dte");
 			assertEquals(TapDateTimeValue.class, actualInsertDteObj.getClass());
