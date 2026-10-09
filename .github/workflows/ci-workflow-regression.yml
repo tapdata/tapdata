@@ -6,14 +6,12 @@ on:
       - '.github/workflows/**'
       - 'tests/ci/**'
       - 'build/check_sonarqube.sh'
-      - 'build/prepare-maven-ci-settings.py'
   push:
     branches: [main, develop]
     paths:
       - '.github/workflows/**'
       - 'tests/ci/**'
       - 'build/check_sonarqube.sh'
-      - 'build/prepare-maven-ci-settings.py'
   workflow_dispatch:
 
 permissions:
@@ -38,5 +36,3 @@ jobs:
             gem install --user-install minitest -v 5.25.5 --no-document
       - name: Test Maven workflow and Sonar PR mode
         run: ruby tests/ci/maven_workflow_test.rb
-      - name: Test Maven mirror routing and private settings preservation
-        run: python3 -m unittest discover -s tests/ci -p '*_test.py'

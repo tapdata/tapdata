@@ -135,6 +135,7 @@ jobs:
       SONAR_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       SONAR_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       SONAR_BRANCH: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+      API_SOURCE_REVISION: b09e683c27808598c01d85ab53cb29d500956d8f
     steps:
       - name: Clean Directory
         run: |
@@ -187,25 +188,41 @@ jobs:
           rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
-      - name: Prepare Maven repository routing
+      - name: Checkout verified API source
+        uses: actions/checkout@v4
+        with:
+          repository: tapdata/tapdata-common-lib
+          ref: ${{ env.API_SOURCE_REVISION }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-common-lib
+          persist-credentials: false
+      - name: Build verified API for this runner
+        working-directory: tapdata
         run: |
           set -euo pipefail
-          umask 077
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
-          settings_file="$(mktemp "$RUNNER_TEMP/tapdata-maven-settings.XXXXXX")"
-          trap 'rm -f "$settings_file"' ERR
-          cd tapdata
-          mvn -B -ntp -N help:effective-settings -DshowPasswords=true -Doutput="$settings_file"
-          python3 build/prepare-maven-ci-settings.py "$settings_file"
-          printf 'CI_MAVEN_SETTINGS=%s\n' "$settings_file" >> "$GITHUB_ENV"
+          [[ "$(git -C ../tapdata-common-lib rev-parse HEAD)" == "$API_SOURCE_REVISION" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+          ET.register_namespace("", ns["m"])
+          version = ET.parse("iengine/pom.xml").findtext("m:properties/m:tapdata-api.version", namespaces=ns)
+          if not version or not version.endswith("-SNAPSHOT"):
+              raise SystemExit("Expected a scoped API snapshot version")
+          pom = Path("../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml")
+          tree = ET.parse(pom)
+          tree.find("m:version", ns).text = version
+          tree.write(pom, encoding="utf-8", xml_declaration=True)
+          print("Building verified API source as " + version)
+          PY
+          mvn -B -ntp -f ../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml install
       - name: Build Tapdata - And Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          : "${CI_MAVEN_SETTINGS:?Temporary Maven settings are required}"
-          trap 'rm -f "$CI_MAVEN_SETTINGS"' EXIT
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
           cd tapdata
@@ -228,11 +245,10 @@ jobs:
           # END sonar mode
           # Install reactor artifacts for the following scan; package/install overhead is intentional.
           # Do not add skipTests: keep the same unit-test coverage as the former clean test lifecycle.
-          mvn clean install -T1C -Dmaven.compile.fork=true -P idaas --settings "$CI_MAVEN_SETTINGS" || exit "$?"
+          mvn clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
           mvn -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
-            --settings "$CI_MAVEN_SETTINGS" \
             "${sonar_args[@]}" \
             || exit "$?"
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java

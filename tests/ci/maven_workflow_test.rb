@@ -3,6 +3,7 @@ require 'minitest/autorun'
 require 'yaml'
 require 'open3'
 require 'tmpdir'
+require 'fileutils'
 
 class MavenWorkflowTest < Minitest::Test
   ROOT = File.expand_path('../..', __dir__)
@@ -36,45 +37,70 @@ class MavenWorkflowTest < Minitest::Test
     job = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata')
     script = job.fetch('steps').find { |step| step['name'] == 'Build Tapdata - And Analyze' }.fetch('run')
     script = script.gsub(/\$\{\{.*?\}\}/m, 'fixture')
-    Dir.mktmpdir('ci-settings-test-') do |directory|
-      settings_path = File.join(directory, 'settings.xml')
-      [0, 17].each do |build_status|
-        out, err, status = Open3.capture3({'SONAR_EVENT_NAME' => 'push', 'SONAR_BRANCH' => 'develop',
-                                         'CI_MAVEN_SETTINGS' => settings_path}, 'bash', '-c', <<~SH)
-          set -eo pipefail
-          update-alternatives() { :; }
-          cd() { :; }
-          mvn() {
-            printf '%s\n' "$*"
-            if [[ "$1" == clean ]]; then return #{build_status}; fi
-          }
-          #{script}
-        SH
-        assert_includes out, 'clean install -T1C -Dmaven.compile.fork=true -P idaas'
-        assert_includes out, "--settings #{settings_path}"
-        scanner = '-P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
-        if build_status.zero?
-          assert status.success?, err
-          assert_includes out, scanner
-        else
-          assert_equal 17, status.exitstatus
-          refute_includes out, scanner
-        end
+    [0, 17].each do |build_status|
+      out, err, status = Open3.capture3({'SONAR_EVENT_NAME' => 'push', 'SONAR_BRANCH' => 'develop'}, 'bash', '-c', <<~SH)
+        set -eo pipefail
+        update-alternatives() { :; }
+        cd() { :; }
+        mvn() {
+          printf '%s\n' "$*"
+          if [[ "$1" == clean ]]; then return #{build_status}; fi
+        }
+        #{script}
+      SH
+      assert_includes out, 'clean install -T1C -Dmaven.compile.fork=true -P idaas'
+      scanner = '-P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
+      if build_status.zero?
+        assert status.success?, err
+        assert_includes out, scanner
+      else
+        assert_equal 17, status.exitstatus
+        refute_includes out, scanner
       end
     end
     assert_equal 120, job.fetch('timeout-minutes')
   end
 
-  def test_snapshot_routing_uses_private_effective_settings_and_cleans_up
-    steps = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata').fetch('steps')
-    prepare = steps.find { |step| step['name'] == 'Prepare Maven repository routing' }.fetch('run')
-    assert_includes prepare, 'umask 077'
-    assert_includes prepare, 'help:effective-settings -DshowPasswords=true -Doutput="$settings_file"'
-    assert_includes prepare, 'python3 build/prepare-maven-ci-settings.py "$settings_file"'
-    assert_includes prepare, 'CI_MAVEN_SETTINGS=%s'
-    build = steps.find { |step| step['name'] == 'Build Tapdata - And Analyze' }.fetch('run')
-    assert_equal 2, build.scan('--settings "$CI_MAVEN_SETTINGS"').size
-    assert_includes build, %q{trap 'rm -f "$CI_MAVEN_SETTINGS"' EXIT}
+  def test_api_bootstrap_requires_pinned_source_and_runs_api_tests_before_install
+    job = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata')
+    revision = job.fetch('env').fetch('API_SOURCE_REVISION')
+    assert_match(/\A[0-9a-f]{40}\z/, revision)
+    checkout = job.fetch('steps').find { |step| step['name'] == 'Checkout verified API source' }.fetch('with')
+    assert_equal 'tapdata/tapdata-common-lib', checkout.fetch('repository')
+    assert_equal '${{ env.API_SOURCE_REVISION }}', checkout.fetch('ref')
+    assert_equal false, checkout.fetch('persist-credentials')
+    script = job.fetch('steps').find { |step| step['name'] == 'Build verified API for this runner' }.fetch('run')
+    refute_includes script, 'skipTests'
+    refute_includes script, 'deploy'
+    [revision, '0' * 40].each do |actual_revision|
+      Dir.mktmpdir('api-bootstrap-test-') do |directory|
+        project = File.join(directory, 'tapdata')
+        source = File.join(directory, 'tapdata-common-lib/plugin-kit/tapdata-api')
+        FileUtils.mkdir_p(File.join(project, 'iengine'))
+        FileUtils.mkdir_p(source)
+        namespace = 'http://maven.apache.org/POM/4.0.0'
+        File.write(File.join(project, 'iengine/pom.xml'), "<project xmlns='#{namespace}'><properties><tapdata-api.version>2.0.11-fixture-SNAPSHOT</tapdata-api.version></properties></project>")
+        pom = File.join(source, 'pom.xml')
+        original = "<project xmlns='#{namespace}'><artifactId>tapdata-api</artifactId><version>2.0.11-SNAPSHOT</version></project>"
+        File.write(pom, original)
+        out, err, status = Open3.capture3({'API_SOURCE_REVISION' => revision}, 'bash', '-c', <<~SH, chdir: project)
+          update-alternatives() { :; }
+          git() { printf '%s\\n' '#{actual_revision}'; }
+          mvn() { printf 'MVN:%s\\n' "$*"; }
+          #{script}
+        SH
+        if actual_revision == revision
+          assert status.success?, err
+          assert_includes File.read(pom), '2.0.11-fixture-SNAPSHOT'
+          assert_includes File.read(pom), '<artifactId>tapdata-api</artifactId>'
+          assert_includes out, 'MVN:-B -ntp -f ../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml install'
+        else
+          refute status.success?
+          refute_includes out, 'MVN:'
+          assert_equal original, File.read(pom)
+        end
+      end
+    end
   end
 
   def sonar_parameters(env)
