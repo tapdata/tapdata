@@ -26,6 +26,7 @@ public class UserDetail implements Serializable, UserDetails {
 	private String username;
 	private String password;
 	private String accessCode;
+	private String authType;
 	private Set<SimpleGrantedAuthority> authorities;
 	private boolean accountNonExpired;
 	private boolean accountNonLocked;

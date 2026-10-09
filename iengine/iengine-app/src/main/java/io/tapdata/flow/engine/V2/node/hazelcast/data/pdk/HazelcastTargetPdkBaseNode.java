@@ -68,6 +68,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.StreamReadTag;
 import io.tapdata.flow.engine.V2.common.TapdataEventsRunner;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
@@ -1958,15 +1959,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					return;
 				}
 				HeartbeatEvent event;
+				long now = null == tapdataEvent.getSourceTime() ? System.currentTimeMillis() : tapdataEvent.getSourceTime();
 				if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
 					event = (HeartbeatEvent) tapdataEvent.getTapEvent();
 				} else {
-					event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
+					event = new HeartbeatEvent().init().referenceTime(now);
 				}
 				event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
 				event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
 				event.addInfo("syncStage", tapdataEvent.getSyncStage());
-				event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+				event.addInfo("sourceTime", now);
 				event.addInfo("nodeIds", tapdataEvent.getNodeIds());
 				processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
 				return;
@@ -2103,6 +2105,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				if (needSave.get()){
 					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
+					HeartbeatProgressRegistry.persisted(taskDto, snapshotPayload.syncProgressJsonMap);
 				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, snapshotPayload.syncProgressJsonMap, e.getMessage());
