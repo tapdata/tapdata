@@ -21,7 +21,6 @@ import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapNumberValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.schema.value.TapYearValue;
@@ -94,7 +93,7 @@ class HazelcastSampleSourcePdkDataNodeTest {
 		Map<String, Object> after = ((TapInsertRecordEvent) tapEvents.get(0)).getAfter();
 
 		assertEquals("123", after.get("name"));
-		assertTapValue(TapNumberValue.class, 12.5D, after.get("score"));
+		assertEquals(12.5D, after.get("score"));
 		assertEquals(false, after.get("enabled"));
 		assertInstanceOf(TapDateTimeValue.class, after.get("createdAt"));
 		assertInstanceOf(TapDateValue.class, after.get("birthday"));
@@ -124,8 +123,8 @@ class HazelcastSampleSourcePdkDataNodeTest {
 		assertInstanceOf(TapMapValue.class, after.get("profile"));
 		Map<String, Object> profile = (Map<String, Object>) ((TapMapValue) after.get("profile")).getValue();
 		assertEquals("123", profile.get("name"));
-		TapNumberValue age = assertInstanceOf(TapNumberValue.class, profile.get("age"));
-		assertEquals(18D, age.getValue().doubleValue());
+		assertInstanceOf(Number.class, profile.get("age"));
+		assertEquals(18D, ((Number) profile.get("age")).doubleValue());
 
 		assertInstanceOf(TapArrayValue.class, after.get("items"));
 		List<?> items = (List<?>) ((TapArrayValue) after.get("items")).getValue();
@@ -133,10 +132,10 @@ class HazelcastSampleSourcePdkDataNodeTest {
 		Map<String, Object> secondItem = unwrapMapValue(items.get(1));
 		assertEquals("456", firstItem.get("code"));
 		assertEquals(false, firstItem.get("enabled"));
-		assertTapValue(TapNumberValue.class, 12.5D, firstItem.get("score"));
+		assertEquals(12.5D, firstItem.get("score"));
 		assertEquals("789", secondItem.get("code"));
 		assertEquals(true, secondItem.get("enabled"));
-		assertTapValue(TapNumberValue.class, 7D, secondItem.get("score"));
+		assertEquals(7, secondItem.get("score"));
 	}
 
 

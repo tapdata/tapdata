@@ -135,6 +135,7 @@ jobs:
       SONAR_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       SONAR_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       SONAR_BRANCH: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+      API_SOURCE_REVISION: b09e683c27808598c01d85ab53cb29d500956d8f
     steps:
       - name: Clean Directory
         run: |
@@ -187,6 +188,61 @@ jobs:
           rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
+      - name: Checkout verified API source
+        uses: actions/checkout@v4
+        with:
+          repository: tapdata/tapdata-common-lib
+          ref: ${{ env.API_SOURCE_REVISION }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-common-lib
+          persist-credentials: false
+      - name: Build verified API for this runner
+        working-directory: tapdata
+        run: |
+          set -euo pipefail
+          update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
+          export JAVA_HOME=/usr/java/jdk-17.0.12
+          [[ "$(git -C ../tapdata-common-lib rev-parse HEAD)" == "$API_SOURCE_REVISION" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+          ET.register_namespace("", ns["m"])
+          version = ET.parse("iengine/pom.xml").findtext("m:properties/m:tapdata-api.version", namespaces=ns)
+          if not version or not version.endswith("-SNAPSHOT"):
+              raise SystemExit("Expected a scoped API snapshot version")
+          pom = Path("../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml")
+          tree = ET.parse(pom)
+          tree.find("m:version", ns).text = version
+          tag = lambda name: "{" + ns["m"] + "}" + name
+          build = tree.find("m:build", ns)
+          if build is None:
+              build = ET.SubElement(tree.getroot(), tag("build"))
+          plugins = build.find("m:plugins", ns)
+          if plugins is None:
+              plugins = ET.SubElement(build, tag("plugins"))
+          surefire = next((p for p in plugins if p.findtext("m:artifactId", namespaces=ns) == "maven-surefire-plugin"), None)
+          if surefire is None:
+              surefire = ET.SubElement(plugins, tag("plugin"))
+              ET.SubElement(surefire, tag("artifactId")).text = "maven-surefire-plugin"
+          plugin_version = surefire.find("m:version", ns)
+          if plugin_version is None:
+              plugin_version = ET.SubElement(surefire, tag("version"))
+          plugin_version.text = "3.2.5"
+          tree.write(pom, encoding="utf-8", xml_declaration=True)
+          print("Building verified API source as " + version)
+          PY
+          mvn -B -ntp -f ../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml install
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          reports = Path("../tapdata-common-lib/plugin-kit/tapdata-api/target/surefire-reports")
+          suites = [ET.parse(p).getroot() for p in reports.glob("TEST-*.xml")]
+          tests = sum(int(s.get("tests", "0")) - int(s.get("skipped", "0")) for s in suites)
+          if tests <= 0:
+              raise SystemExit("Verified API build executed zero tests")
+          print("Verified API tests: " + str(tests))
+          PY
       - name: Build Tapdata - And Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
