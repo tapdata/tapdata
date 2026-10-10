@@ -9,6 +9,8 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dblock.DBLockConfiguration;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -40,6 +42,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -82,6 +85,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private final SettingsService settingsService;
     private final DBLockConfiguration dbLockConfiguration;
     private final TaskRebalanceRuleService ruleService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     public TaskRebalanceService(@NonNull TaskRebalanceRepository repository,
                                 TaskRebalanceJobService jobService,
@@ -111,6 +116,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         List<Worker> onlineWorkers = findAvailableAgents();
         if (CollectionUtils.isEmpty(onlineWorkers) || onlineWorkers.size() < 2) {
             TaskRebalancePreviewVo preview = new TaskRebalancePreviewVo();
+            preview.setAgentIds((onlineWorkers == null ? List.<Worker>of() : onlineWorkers).stream().map(Worker::getProcessId)
+                    .filter(StringUtils::isNotBlank).distinct().sorted().toList());
             preview.setReason("task.rebalance.onlyOneAgent");
             return preview;
         }
@@ -259,7 +266,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (!ObjectId.isValid(submittedTask.getTaskId())) {
             throw new BizException("task.rebalance.invalidPreview");
         }
-        TaskDto task = taskService.findByTaskId(new ObjectId(submittedTask.getTaskId()), "_id", "name", "status", "agentId", "type", "syncType", "accessNodeType", "accessNodeProcessIdList", "milestones", "currentEventTimestamp", "snapshotDoneAt", "dag", "startTime");
+        TaskDto task = taskService.findByTaskId(new ObjectId(submittedTask.getTaskId()), "_id", "name", "status", "agentId", "type", "syncType", "accessNodeType", "accessNodeProcessId", "accessNodeProcessIdList", "milestones", "currentEventTimestamp", "snapshotDoneAt", "dag", "startTime");
         if (task == null) {
             throw new BizException("task.rebalance.invalidPreview");
         }
@@ -267,6 +274,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (!Boolean.TRUE.equals(currentTask.getMovable())
                 || !Objects.equals(currentTask.getSourceAgentId(), submittedTask.getSourceAgentId())) {
             throw new BizException("task.rebalance.invalidPreview");
+        }
+        if (!allowedAgentIds(task, onlineAgentIds).contains(submittedTask.getTargetAgentId())) {
+            throw new BizException("task.rebalance.targetNotAllowed", task.getName());
         }
     }
 
@@ -643,6 +653,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private void stopSourceTask(String rebalanceId, TaskRebalanceJobDto job, TaskDto task, UserDetail taskUser, UserDetail userDetail,
                                 AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
         assertCurrentExecuteOwner(rebalanceId, userDetail);
+        if (!validateJobTarget(job, task, userDetail)) {
+            return;
+        }
         if (!TaskDto.STATUS_STOP.equals(task.getStatus())) {
             jobService.runAsRebalanceOperation(() -> taskService.pause(task, taskUser, false));
         }
@@ -658,6 +671,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private void moveStoppedTaskToTargetAndStart(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
                                                  AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
         assertCurrentExecuteOwner(rebalanceId, userDetail);
+        if (!validateJobTarget(job, findTaskForExecution(job.getTaskId()), userDetail)) {
+            return;
+        }
         if (!isAgentOnline(job.getTargetAgentId())) {
             String reason = formatTargetOfflineReason(job, "before start; task left stopped on source agent " + job.getSourceAgentId());
             finishJob(job, TaskRebalanceJobStatus.INVALID_AGENT, reason, userDetail);
@@ -689,6 +705,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
         UserDetail taskUser = getTaskUser(task, userDetail);
         if (Objects.equals(task.getAgentId(), job.getSourceAgentId())) {
+            if (!validateJobTarget(job, task, userDetail)) {
+                return;
+            }
             if (!TaskDto.STATUS_STOP.equals(task.getStatus())) {
                 jobService.runAsRebalanceOperation(() -> taskService.pause(task, taskUser, false));
                 assertCurrentExecuteOwner(rebalanceId, userDetail);
@@ -726,6 +745,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                                  AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
         assertCurrentExecuteOwner(rebalanceId, userDetail);
         TaskDto stoppedTask = taskService.findByTaskId(new ObjectId(job.getTaskId()));
+        if (!validateJobTarget(job, stoppedTask, userDetail)) {
+            return;
+        }
         try {
             jobService.runAsRebalanceOperation(() -> taskService.start(stoppedTask, taskUser, "11"));
         } catch (Exception startError) {
@@ -755,7 +777,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     }
 
     private TaskDto findTaskForExecution(String taskId) {
-        return taskService.findByTaskId(new ObjectId(taskId), "_id", "user_id", "name", "status", "agentId", "type", "milestones", "currentEventTimestamp", "snapshotDoneAt", "accessNodeType", "accessNodeProcessIdList", "syncType");
+        return taskService.findByTaskId(new ObjectId(taskId), "_id", "user_id", "name", "status", "agentId", "type", "milestones", "currentEventTimestamp", "snapshotDoneAt", "accessNodeType", "accessNodeProcessId", "accessNodeProcessIdList", "syncType");
     }
 
     private void handleStartFailure(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, String errorMessage, UserDetail userDetail,
@@ -1001,6 +1023,39 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         return workerService.findAvailableAgentBySystem(List.of());
     }
 
+    /** Resolve current group membership every time; missing groups fail closed. */
+    private Set<String> allowedAgentIds(TaskDto task, Set<String> onlineAgentIds) {
+        if (task == null) {
+            return Set.of();
+        }
+        if (!AccessNodeTypeEnum.isGroupManually(task.getAccessNodeType())) {
+            return AccessNodeTypeEnum.isUserManually(task.getAccessNodeType())
+                    || CollectionUtils.isNotEmpty(task.getAccessNodeProcessIdList()) ? Set.of() : onlineAgentIds;
+        }
+        if (StringUtils.isBlank(task.getAccessNodeProcessId())) {
+            return Set.of();
+        }
+        try {
+            // Rebalance is disabled in cloud; group lookup uses the system boundary here.
+            List<String> members = agentGroupService.getProcessNodeListByGroupId(
+                    List.of(task.getAccessNodeProcessId()), null);
+            return members == null ? Set.of() : members.stream()
+                    .filter(onlineAgentIds::contains).collect(Collectors.toSet());
+        } catch (BizException e) {
+            log.info("TaskRebalance group unavailable, taskId={}", task.getId());
+            return Set.of();
+        }
+    }
+
+    private boolean validateJobTarget(TaskRebalanceJobDto job, TaskDto task, UserDetail userDetail) {
+        if (!allowedAgentIds(task, Set.of(job.getTargetAgentId())).contains(job.getTargetAgentId())) {
+            finishJob(job, TaskRebalanceJobStatus.INVALID_AGENT,
+                    "Target agent is no longer allowed by task selection; task was not started on target", userDetail);
+            return false;
+        }
+        return true;
+    }
+
     private UserDetail getTaskUser(TaskDto task, UserDetail fallback) {
         if (StringUtils.isBlank(task.getUserId())) {
             return fallback;
@@ -1042,7 +1097,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         Query query = Query.query(Criteria.where("is_deleted").ne(true)
                 .and("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
         query.with(Sort.by(Sort.Order.asc("startTime"), Sort.Order.asc("_id")));
-        query.fields().include("_id", "name", "status", "agentId", "type", "syncType", "accessNodeType", "accessNodeProcessIdList", "milestones", "currentEventTimestamp", "snapshotDoneAt", "dag", "startTime");
+        query.fields().include("_id", "name", "status", "agentId", "type", "syncType", "accessNodeType", "accessNodeProcessId", "accessNodeProcessIdList", "milestones", "currentEventTimestamp", "snapshotDoneAt", "dag", "startTime");
         return taskService.findAll(query);
     }
 
@@ -1062,13 +1117,28 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         int total = afterCount.values().stream().mapToInt(Integer::intValue).sum();
         List<String> agents = new ArrayList<>(workerMap.keySet());
         agents.sort(String::compareTo);
+        preview.setAgentIds(agents);
         Map<String, Integer> targetCount = targetCount(total, agents);
         Map<String, List<TaskRebalancePreviewVo.TaskPreview>> movableByAgent = new HashMap<>();
+        Map<String, Set<String>> allowedByTask = new HashMap<>();
+        Map<String, Set<String>> allowedByGroup = new HashMap<>();
 
         for (int i = 0; i < tasks.size(); i++) {
             TaskDto task = tasks.get(i);
             int startTimePriority = task.getStartTime() == null ? 0 : tasks.size() - i;
             TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, workerMap.keySet(), startTimePriority);
+            // Cache only within this preview; submit and execution resolve membership again.
+            Set<String> allowed = AccessNodeTypeEnum.isGroupManually(task.getAccessNodeType())
+                    ? allowedByGroup.computeIfAbsent(StringUtils.defaultString(task.getAccessNodeProcessId()),
+                            group -> allowedAgentIds(task, workerMap.keySet()))
+                    : allowedAgentIds(task, workerMap.keySet());
+            item.setAllowedAgentIds(allowed.stream().sorted().toList());
+            allowedByTask.put(item.getTaskId(), allowed);
+            if (Boolean.TRUE.equals(item.getMovable()) && allowed.isEmpty()) {
+                item.setMovable(false);
+                item.setSchedulableStatus("INVALID_AGENT_GROUP");
+                item.setReason("No online agent allowed by task group");
+            }
             if (Boolean.TRUE.equals(item.getMovable())) {
                 movableByAgent.computeIfAbsent(task.getAgentId(), k -> new ArrayList<>()).add(item);
             }
@@ -1077,21 +1147,39 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         movableByAgent.values().forEach(list -> list.sort(ruleService::compareMovePriority));
 
         while (true) {
-            String source = findOverAgent(afterCount, targetCount);
-            String target = findUnderAgent(afterCount, targetCount);
-            if (source == null || target == null) {
+            boolean moved = false;
+            List<String> sources = new ArrayList<>(agents);
+            sources.sort(Comparator.<String>comparingInt(afterCount::get).reversed().thenComparing(String::compareTo));
+            for (String source : sources) {
+                List<TaskRebalancePreviewVo.TaskPreview> candidates = movableByAgent.get(source);
+                if (CollectionUtils.isEmpty(candidates)) {
+                    continue;
+                }
+                for (TaskRebalancePreviewVo.TaskPreview task : new ArrayList<>(candidates)) {
+                    String target = agents.stream()
+                            .filter(agent -> !agent.equals(source) && allowedByTask.get(task.getTaskId()).contains(agent))
+                            .filter(agent -> afterCount.get(source) - afterCount.get(agent) > 1
+                                    || afterCount.get(source) > targetCount.get(source) && afterCount.get(agent) < targetCount.get(agent))
+                            .min(Comparator.<String>comparingInt(afterCount::get).thenComparing(String::compareTo))
+                            .orElse(null);
+                    if (target == null) {
+                        continue;
+                    }
+                    candidates.remove(task);
+                    task.setTargetAgentId(target);
+                    task.setChanged(true);
+                    afterCount.put(source, afterCount.get(source) - 1);
+                    afterCount.put(target, afterCount.get(target) + 1);
+                    moved = true;
+                    break;
+                }
+                if (moved) {
+                    break;
+                }
+            }
+            if (!moved) {
                 break;
             }
-            List<TaskRebalancePreviewVo.TaskPreview> candidates = movableByAgent.get(source);
-            if (CollectionUtils.isEmpty(candidates)) {
-                targetCount.put(source, afterCount.get(source));
-                continue;
-            }
-            TaskRebalancePreviewVo.TaskPreview task = candidates.remove(0);
-            task.setTargetAgentId(target);
-            task.setChanged(true);
-            afterCount.put(source, afterCount.get(source) - 1);
-            afterCount.put(target, afterCount.get(target) + 1);
         }
         preview.setMoveCount((int) preview.getTasks().stream().filter(t -> Boolean.TRUE.equals(t.getChanged())).count());
         return preview;
@@ -1114,20 +1202,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             target.put(agents.get(i), base + (i < mod ? 1 : 0));
         }
         return target;
-    }
-
-    private String findOverAgent(Map<String, Integer> current, Map<String, Integer> target) {
-        return current.keySet().stream()
-                .filter(agent -> current.get(agent) > target.get(agent))
-                .max(Comparator.comparingInt(current::get))
-                .orElse(null);
-    }
-
-    private String findUnderAgent(Map<String, Integer> current, Map<String, Integer> target) {
-        return current.keySet().stream()
-                .filter(agent -> current.get(agent) < target.get(agent))
-                .min(Comparator.comparingInt(current::get))
-                .orElse(null);
     }
 
     private TaskRebalanceVo toVo(TaskRebalanceDto dto) {

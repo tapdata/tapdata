@@ -9,6 +9,7 @@ import java.util.Map;
 @Data
 public class TaskRebalancePreviewVo {
     private List<TaskPreview> tasks = new ArrayList<>();
+    private List<String> agentIds = new ArrayList<>();
     private Integer moveCount = 0;
     private String reason;
 
@@ -21,6 +22,7 @@ public class TaskRebalancePreviewVo {
         private String status;
         private String sourceAgentId;
         private String targetAgentId;
+        private List<String> allowedAgentIds = new ArrayList<>();
         private Boolean movable = false;
         private String schedulableStatus;
         private Boolean changed = false;

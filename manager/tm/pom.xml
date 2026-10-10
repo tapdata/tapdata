@@ -14,6 +14,8 @@
 	<packaging>jar</packaging>
 
 	<properties>
+		<skipITs>true</skipITs>
+		<tm.skipITs>${skipITs}</tm.skipITs>
 		<resource.dir>src/main/resources</resource.dir>
 		<maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
 		<okhttp3.version>4.8.0</okhttp3.version>
@@ -735,6 +737,31 @@
 
 		<plugins>
 			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<version>3.6.1</version>
+				<executions>
+					<execution>
+						<id>add-integration-test-source</id>
+						<phase>generate-test-sources</phase>
+						<goals><goal>add-test-source</goal></goals>
+						<configuration><sources><source>src/it/java</source></sources></configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>3.0.0</version>
+				<configuration>
+					<skipITs>${tm.skipITs}</skipITs>
+					<argLine>${surefireArgLine}</argLine>
+					<includes><include>**/*IT.java</include></includes>
+					<failIfNoTests>true</failIfNoTests>
+				</configuration>
+				<executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
@@ -816,6 +843,12 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+					</execution>
+				</executions>
             </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

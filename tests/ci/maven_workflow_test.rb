@@ -80,7 +80,7 @@ class MavenWorkflowTest < Minitest::Test
         }
         #{script}
       SH
-      assert_includes out, '-U clean install -T1C -Dmaven.compile.fork=true -P idaas'
+      assert_includes out, '-U clean install -T1C -Dmaven.compile.fork=true -Dtm.skipITs=false -P idaas'
       scanner = '-U -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
       if build_status.zero?
         assert status.success?, err

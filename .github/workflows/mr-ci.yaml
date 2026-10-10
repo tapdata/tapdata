@@ -271,7 +271,7 @@ jobs:
           # Install reactor artifacts for the following scan; package/install overhead is intentional.
           # Do not add skipTests: keep the same unit-test coverage as the former clean test lifecycle.
           # Persistent runner caches may contain previous failed downloads; force a resolution retry.
-          mvn -U clean install -T1C -Dmaven.compile.fork=true -P idaas || exit "$?"
+          mvn -U clean install -T1C -Dmaven.compile.fork=true -Dtm.skipITs=false -P idaas || exit "$?"
           mvn -U -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
@@ -295,6 +295,13 @@ jobs:
         with:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
           pollingTimeoutSec: 1200
+      - name: Upload TM integration test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tm-failsafe-reports-${{ github.sha }}
+          path: tapdata/manager/tm/target/failsafe-reports/
+          if-no-files-found: error
       - name: Send SonarQube Quality Gate to Pr Comment
         if: ${{ always() && steps.sonar.outcome == 'failure' }}
         run: |
