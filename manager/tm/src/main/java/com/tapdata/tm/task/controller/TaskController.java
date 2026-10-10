@@ -8,7 +8,7 @@ import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmDetail;
 import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmResult;
 import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
@@ -1690,15 +1690,20 @@ public class TaskController extends BaseController {
             return success(result);
         }
         LegacyEmailReceivers.normalize(alarm);
-        checkBatchReceiverScope(request, userDetail, alarm);
+        java.util.Set<String> taskIds = new java.util.LinkedHashSet<>(alarm.getTaskIds());
+        // REMOVE 不新增引用；其余模式按每个任务自己的当前列表算新增引用，越界整批拒绝、不做部分写入
+        if (alarm.getReceiverMode() != ReceiverBatchMode.REMOVE) {
+            alarmReceiverAccess.checkNewReferences(userDetail, alarm.getAlarmReceivers(), currentAlarmReceivers(taskIds));
+        }
         alarmService.runWithReceiverCache(() -> {
-            for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
+            for (String taskId : taskIds) {
                 ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
                 if (taskObjectId == null) {
                     result.add(BatchAlarmDetail.of(taskId, null, "IllegalArgument", "非法任务 ID"));
                     continue;
                 }
                 try {
+                    // 写入必须在权限检查的回调里执行（checkOfQuery 会设置本线程的数据权限上下文），所以每个任务只在这里检查一次
                     BatchAlarmDetail detail = dataPermissionCheckOfId(request, userDetail, taskObjectId, DataPermissionActionEnums.Edit,
                             () -> alarmService.applyAuthorizedTaskAlarm(taskId, alarm, userDetail));
                     result.add(detail);
@@ -1714,24 +1719,27 @@ public class TaskController extends BaseController {
     }
 
     /**
-     * 追加或替换时新写入的 USER / USER_GROUP 要在调用者范围内，越界整批拒绝、不做部分写入。
-     * 移除和切回系统默认不会新增引用，不校验。
+     * 一次查询读出每个目标任务当前的 alarmReceivers，供按任务计算新增引用。
+     * 这里不做权限检查：当前列表只用来和同一个任务自己的请求做差，不会把一个任务的引用借给另一个任务；
+     * 查不到的任务按空列表处理（请求里的引用全部视为新增，更严格）。
      */
-    private void checkBatchReceiverScope(HttpServletRequest request, UserDetail userDetail, BatchUpdateAlarmParam alarm) {
-        if (Boolean.TRUE.equals(alarm.getUseSystemDefaultReceivers()) || alarm.getReceiverMode() == ReceiverBatchMode.REMOVE
-                || !AlarmReceiverScope.hasDirectoryReference(alarm.getAlarmReceivers())
-                || alarmReceiverAccess.canViewUserDirectory(userDetail)) {
-            return;
-        }
-        List<String> editableTaskIds = new ArrayList<>();
-        for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
-            ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
-            if (taskObjectId != null && Boolean.TRUE.equals(dataPermissionCheckOfId(request, userDetail, taskObjectId,
-                    DataPermissionActionEnums.Edit, () -> true, () -> false))) {
-                editableTaskIds.add(taskObjectId.toHexString());
+    private List<List<AlarmReceiver>> currentAlarmReceivers(java.util.Set<String> taskIds) {
+        List<ObjectId> ids = taskIds.stream().map(MongoUtils::toObjectId).filter(Objects::nonNull).collect(Collectors.toList());
+        Map<ObjectId, List<AlarmReceiver>> found = new HashMap<>();
+        if (!ids.isEmpty()) {
+            Query query = Query.query(Criteria.where("_id").in(ids));
+            query.fields().include("_id", "alarmReceivers");
+            for (TaskDto task : taskService.findAll(query)) {
+                if (task != null && task.getId() != null) {
+                    found.put(task.getId(), task.getAlarmReceivers());
+                }
             }
         }
-        alarmReceiverAccess.checkScope(userDetail, alarm.getAlarmReceivers(), editableTaskIds);
+        List<List<AlarmReceiver>> currents = new ArrayList<>();
+        for (ObjectId id : ids) {
+            currents.add(found.get(id));
+        }
+        return currents;
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {

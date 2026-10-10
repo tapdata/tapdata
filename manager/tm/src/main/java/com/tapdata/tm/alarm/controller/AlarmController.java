@@ -134,15 +134,12 @@ public class AlarmController extends BaseController {
             throw new BizException("IllegalArgument", "taskId");
         }
         checkTask(request, user, taskId, DataPermissionActionEnums.Edit, () -> {
+            TaskDto current = taskService.findByTaskId(taskId, "alarmReceivers", "emailReceivers");
             if (LegacyEmailReceivers.needsNormalize(alarm)) {
-                TaskDto current = taskService.findByTaskId(taskId, "emailReceivers");
                 LegacyEmailReceivers.normalize(alarm, current == null ? null : current.getEmailReceivers());
             }
-            // 节点级和切回系统默认都不写接收人，不需要校验范围
-            if ((alarm.getNodeId() == null || alarm.getNodeId().isBlank())
-                    && !Boolean.TRUE.equals(alarm.getUseSystemDefaultReceivers())) {
-                alarmReceiverAccess.checkScope(user, alarm.getAlarmReceivers(), List.of(taskId.toHexString()));
-            }
+            // 不复刻 service 的写入判定：只要请求带了相对任务当前列表新增的 USER / USER_GROUP 就校验（未改动的条目零开销放行）
+            alarmReceiverAccess.checkNewReferences(user, alarm.getAlarmReceivers(), current == null ? null : current.getAlarmReceivers());
             alarmService.updateTaskAlarm(alarm, user);
             return null;
         });
@@ -159,7 +156,7 @@ public class AlarmController extends BaseController {
         AlarmReceiverPreview preview = checkTask(request, user, id, DataPermissionActionEnums.View,
                 () -> alarmService.previewReceivers(taskId, user == null ? null : user.getUserId()));
         // 只有任务查看权限时，不能借预览拿到组成员、系统默认收件人的地址
-        if (preview != null && !canViewUserDirectory(user)) {
+        if (preview != null && !alarmReceiverAccess.canViewUserDirectory(user)) {
             TaskDto task = taskService.findByTaskId(id, "alarmReceivers", "emailReceivers");
             PreviewEmailMask.mask(preview, task == null ? java.util.Set.of()
                     : PreviewEmailMask.explicitEmails(task.getAlarmReceivers(), task.getEmailReceivers()));
@@ -191,7 +188,7 @@ public class AlarmController extends BaseController {
             throw insufficientPermissions(DataPermissionActionEnums.Edit);
         }
         // 没有用户管理权限时只给本人所在组（含子组）的成员和组，外加这些任务已引用的接收人；邮箱一律不返回
-        boolean fullDirectory = canViewUserDirectory(user);
+        boolean fullDirectory = alarmReceiverAccess.canViewUserDirectory(user);
         AlarmReceiverCandidates candidates = alarmService.receiverCandidates(
                 fullDirectory ? null : user.getUserId(), editableTaskIds);
         if (!fullDirectory && candidates != null && candidates.getUsers() != null) {
@@ -202,10 +199,6 @@ public class AlarmController extends BaseController {
             }
         }
         return success(candidates);
-    }
-
-    private boolean canViewUserDirectory(UserDetail user) {
-        return alarmReceiverAccess.canViewUserDirectory(user);
     }
 
     private <T> T checkTask(HttpServletRequest request, UserDetail user, ObjectId id, DataPermissionActionEnums action, java.util.function.Supplier<T> supplier) {

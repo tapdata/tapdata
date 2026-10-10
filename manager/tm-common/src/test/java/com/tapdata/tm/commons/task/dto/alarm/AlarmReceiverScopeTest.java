@@ -44,4 +44,25 @@ class AlarmReceiverScopeTest {
         assertEquals(List.of(otherGroup), AlarmReceiverScope.outOfScope(List.of(otherGroup), null));
         assertTrue(AlarmReceiverScope.outOfScope(null, candidates).isEmpty());
     }
+
+    @Test
+    void onlyReferencesMissingFromCurrentAreNew() {
+        AlarmReceiver stale = new AlarmReceiver(AlarmReceiverType.USER, "deleted", null);
+        AlarmReceiver finance = new AlarmReceiver(AlarmReceiverType.USER_GROUP, "finance", null);
+        AlarmReceiver own = new AlarmReceiver(AlarmReceiverType.USER_GROUP, "own", null);
+        List<AlarmReceiver> current = new ArrayList<>();
+        current.add(new AlarmReceiver(AlarmReceiverType.USER, "deleted", null));
+        current.add(null);
+        List<AlarmReceiver> requested = new ArrayList<>();
+        requested.add(stale);
+        requested.add(new AlarmReceiver(AlarmReceiverType.EMAIL, null, "new@example.com"));
+        requested.add(finance);
+        requested.add(own);
+        requested.add(new AlarmReceiver(AlarmReceiverType.USER_GROUP, "finance", null));
+        requested.add(null);
+
+        assertEquals(List.of(finance, own), AlarmReceiverScope.newDirectoryReferences(requested, current));
+        assertEquals(List.of(stale, finance, own), AlarmReceiverScope.newDirectoryReferences(requested, null));
+        assertTrue(AlarmReceiverScope.newDirectoryReferences(null, current).isEmpty());
+    }
 }

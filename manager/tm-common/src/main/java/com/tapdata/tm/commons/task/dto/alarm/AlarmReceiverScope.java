@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 没有用户目录权限时，写入的 USER / USER_GROUP 只能取自收敛后的候选（本人所在组及子组、本人、这些任务已引用的对象）。
- * 否则可以把任意组塞进任务，再从解析出的 emailReceivers 快照里读到该组成员的邮箱。EMAIL 条目不受限制。
+ * 没有用户目录权限时，相对任务当前列表新增的 USER / USER_GROUP 只能取自本人范围（本人所在组及子组、组内成员、本人）。
+ * 否则可以把任意组塞进任务，再从解析出的 emailReceivers 快照里读到该组成员的邮箱。EMAIL 条目不受限制；
+ * 任务上已有的条目（包括已失效的用户 / 组）一律放行。
  */
 public final class AlarmReceiverScope {
     private AlarmReceiverScope() {
@@ -23,6 +24,40 @@ public final class AlarmReceiverScope {
             }
         }
         return false;
+    }
+
+    /**
+     * 返回 requested 中相对 current 新增的 USER / USER_GROUP（按 type + id 判断，去重，保持请求顺序）。
+     * 只看同一任务自己的 current，不借用其他任务的引用。
+     */
+    public static List<AlarmReceiver> newDirectoryReferences(List<AlarmReceiver> requested, List<AlarmReceiver> current) {
+        List<AlarmReceiver> added = new ArrayList<>();
+        if (requested == null) {
+            return added;
+        }
+        Set<String> existing = new HashSet<>();
+        if (current != null) {
+            for (AlarmReceiver receiver : current) {
+                String key = directoryKey(receiver);
+                if (key != null) {
+                    existing.add(key);
+                }
+            }
+        }
+        for (AlarmReceiver receiver : requested) {
+            String key = directoryKey(receiver);
+            if (key != null && existing.add(key)) {
+                added.add(receiver);
+            }
+        }
+        return added;
+    }
+
+    private static String directoryKey(AlarmReceiver receiver) {
+        if (receiver == null || (receiver.getType() != AlarmReceiverType.USER && receiver.getType() != AlarmReceiverType.USER_GROUP)) {
+            return null;
+        }
+        return receiver.getType() + ":" + receiver.getId();
     }
 
     /** 返回不在候选范围内的 USER / USER_GROUP 条目，保持请求里的顺序 */
