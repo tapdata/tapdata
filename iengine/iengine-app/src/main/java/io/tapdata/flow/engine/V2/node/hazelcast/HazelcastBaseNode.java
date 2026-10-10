@@ -42,6 +42,7 @@ import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.codec.filter.FloatingPointTransformMode;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
@@ -416,12 +417,12 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 		if (null != tapValueTransform) {
 			if (MapUtils.isNotEmpty(before))
-				codecsFilterManager.transformToTapValueMap(before, nameFieldMap, tapValueTransform.getBefore());
+				codecsFilterManager.transformToTapValueMap(FloatingPointTransformMode.RAW, before, nameFieldMap, tapValueTransform.getBefore());
 			if (MapUtils.isNotEmpty(after))
-				codecsFilterManager.transformToTapValueMap(after, nameFieldMap, tapValueTransform.getAfter());
+				codecsFilterManager.transformToTapValueMap(FloatingPointTransformMode.RAW, after, nameFieldMap, tapValueTransform.getAfter());
 		} else {
-			if (MapUtils.isNotEmpty(before)) codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
-			if (MapUtils.isNotEmpty(after)) codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
+			if (MapUtils.isNotEmpty(before)) codecsFilterManager.transformToTapValueMap(FloatingPointTransformMode.RAW, before, nameFieldMap);
+			if (MapUtils.isNotEmpty(after)) codecsFilterManager.transformToTapValueMap(FloatingPointTransformMode.RAW, after, nameFieldMap);
 		}
 	}
 

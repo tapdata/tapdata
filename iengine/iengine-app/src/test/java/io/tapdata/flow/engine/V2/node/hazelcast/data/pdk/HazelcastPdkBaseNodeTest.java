@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.codec.filter.FloatingPointTransformMode;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -139,8 +140,8 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		class ToTapValueTest {
 			@BeforeEach
 			void init() {
-				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(data, fields, skipDetector);
-				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(null, fields, skipDetector);
+				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(FloatingPointTransformMode.RAW, data, fields, skipDetector);
+				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(FloatingPointTransformMode.RAW, null, fields, skipDetector);
 
 				doCallRealMethod().when(hazelcastPdkBaseNode).toTapValue(data, lastTableName, tapCodecsFilterManager);
 			}
@@ -179,7 +180,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				hazelcastPdkBaseNode.toTapValue(dataTemp, lastTableName, manager);
 				verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
 				verify(hazelcastPdkBaseNode, times(execTimes)).getTableFiledMap(anyString());
-				verify(tapCodecsFilterManager, times(execTimes)).transformToTapValueMap(data, fields, skipDetector);
+				verify(tapCodecsFilterManager, times(execTimes)).transformToTapValueMap(FloatingPointTransformMode.RAW, data, fields, skipDetector);
 			}
 		}
 

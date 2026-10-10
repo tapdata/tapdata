@@ -24,6 +24,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
+import io.tapdata.entity.codec.filter.FloatingPointTransformMode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -401,9 +402,17 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			return null;
 		}
 		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
-			return ((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformToTapValueMap(data, dataProcessorContext.getTapTableMap().get(tableName), getSkipDetector());
+			return ((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformToTapValueMap(
+					FloatingPointTransformMode.RAW,
+					data,
+					dataProcessorContext.getTapTableMap().get(tableName),
+					getSkipDetector());
 		} else {
-			tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
+			tapCodecsFilterManager.transformToTapValueMap(
+				FloatingPointTransformMode.RAW,
+				data,
+				getTableFiledMap(tableName),
+				getSkipDetector());
 		}
 		return null;
 	}
