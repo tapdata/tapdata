@@ -82,7 +82,10 @@ public class AlarmReceiverAccess {
      * @return 被去掉的条目，调用方用来记日志或警告
      */
     public List<AlarmReceiver> retainInScope(UserDetail user, TaskDto task, List<AlarmReceiver> current) {
-        List<AlarmReceiver> receivers = task == null ? null : task.getAlarmReceivers();
+        if (task == null || task.getAlarmReceivers() == null) {
+            return new ArrayList<>();
+        }
+        List<AlarmReceiver> receivers = task.getAlarmReceivers();
         List<AlarmReceiver> added = AlarmReceiverScope.newDirectoryReferences(receivers, current);
         if (added.isEmpty() || canViewUserDirectory(user)) {
             return new ArrayList<>();

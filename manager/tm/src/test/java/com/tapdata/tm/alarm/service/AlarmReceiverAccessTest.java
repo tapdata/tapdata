@@ -152,6 +152,13 @@ class AlarmReceiverAccessTest {
         return new AlarmReceiver(AlarmReceiverType.USER, id, null);
     }
 
+    @Test
+    void retainInScopeIgnoresMissingTaskOrReceivers() {
+        assertTrue(access.retainInScope(user, null, null).isEmpty());
+        assertTrue(access.retainInScope(user, new TaskDto(), null).isEmpty());
+        verify(alarmService, never()).receiverCandidates(any(), any());
+    }
+
     private static AlarmReceiver email(String email) {
         return new AlarmReceiver(AlarmReceiverType.EMAIL, null, email);
     }
