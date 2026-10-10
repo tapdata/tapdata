@@ -114,8 +114,12 @@ public class ShareCdcUtil {
 		Map<String, LogCollecotrConnConfig> connConfigs = logCollectorNode.getLogCollectorConnConfigs();
 		if (null != connConfigs && !connConfigs.isEmpty()) {
 			for (LogCollecotrConnConfig logCollecotrConnConfig : connConfigs.values()) {
-				Connections conn = findConnection.apply(logCollecotrConnConfig.getConnectionId());
-				logCollecotrConnConfig.setNamespace(conn.getNamespace());
+				try {
+					Connections conn = findConnection.apply(logCollecotrConnConfig.getConnectionId());
+					logCollecotrConnConfig.setNamespace(conn.getNamespace());
+				} catch (Exception e) {
+					logger.warn("Fill config namespace failed, key: " + logCollecotrConnConfig.getConnectionId(), e);
+				}
 			}
 		}
 	}
