@@ -33,6 +33,7 @@ import io.tapdata.service.skeleton.annotation.RemoteService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -78,64 +79,55 @@ public class QueryDataBaseDataService {
 
 	public List<Map<String, Object>> queryV2(String connectionId, String tableName, String sql,boolean isMockData,int limit) {
 		String associateId = "query_" + connectionId +  "_" + UUID.randomUUID();
-		TapTable tapTable = new TapTable();
-		if (tableName != null && !tableName.isEmpty()) {
-			tapTable = TapTableUtil.getTapTableByConnectionId(connectionId, tableName);
+		TapTable tapTable = StringUtils.isBlank(tableName) ? null : TapTableUtil.getTapTableByConnectionId(connectionId, tableName);
+		if (tapTable == null) {
+			tapTable = StringUtils.isBlank(tableName) ? new TapTable() : new TapTable(tableName);
 		}
 		try {
 			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 			Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
 			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 			ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
-			List<Map<String, Object>> maps = Collections.emptyList();
 			String TAG = this.getClass().getSimpleName();
 			try {
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
-				TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
-				AtomicReference<List<Map<String, Object>>> resultsAtomic = new AtomicReference<>();
 				RunRawCommandFunction runRawCommandFunction = connectorNode.getConnectorFunctions().getRunRawCommandFunction();
-				try {
-					runRawCommandFunction.run(connectorNode.getConnectorContext(), sql, tapTable, limit, events -> {
-						List<Map<String, Object>> results = resultsAtomic.get();
-						if (results == null) {
-							results = new ArrayList<>();
-							resultsAtomic.set(results);
-						}
-						if (results.size() >= limit && isMockData) {
+				if (runRawCommandFunction == null) {
+					throw new IllegalStateException("Connector does not support raw command");
+				}
+				List<Map<String, Object>> maps = new ArrayList<>();
+				runRawCommandFunction.run(connectorNode.getConnectorContext(), sql, tapTable, limit, events -> {
+					for (TapEvent event : events) {
+						if (isMockData && maps.size() >= limit) {
 							return;
 						}
-						for (TapEvent event : events) {
-							if (results.size() >= limit && isMockData) {
-								break;
-							}
-							results.add(((TapInsertRecordEvent) event).getAfter());
-						}
-					});
-					maps = resultsAtomic.get();
-					if (CollectionUtils.isNotEmpty(maps)) {
-						for (Map<String, Object> map : maps) {
-							codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
-							originCodecsFilterManager.transformFromTapValueMap(map);
-							if(isMockData){
-								ClassHandlersV2ToStringUtils.recursiveHandleMap(map);
-							}
+						if (event instanceof TapInsertRecordEvent) {
+							maps.add(((TapInsertRecordEvent) event).getAfter());
 						}
 					}
-
-				} catch (Throwable e1) {
-					log.error("Query raw query error :", e1);
-					maps = resultsAtomic.get();
+				});
+				TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
+				for (Map<String, Object> map : maps) {
+					codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
+					originCodecsFilterManager.transformFromTapValueMap(map);
+					if (isMockData) {
+						ClassHandlersV2ToStringUtils.recursiveHandleMap(map);
+					}
 				}
-			} catch (Exception e) {
-				log.error("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+				return maps;
+			} catch (Error e) {
+				throw e;
+			} catch (Throwable e) {
+				log.error("[QueryRawCommand] query failed, connectionId: {}, table: {}, databaseType: {}",
+						connectionId, tableName, databaseType, e);
+				throw new RuntimeException(e.getMessage(), e);
 			} finally {
 				try {
 					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
 				} catch (Exception e) {
-					log.error(" Stop error{}", e.getMessage());
+					log.warn("[QueryRawCommand] stop connector failed, associateId: {}", associateId, e);
 				}
 			}
-			return maps;
 		} finally {
 			PDKIntegration.releaseAssociateId(associateId);
 		}
@@ -226,7 +218,7 @@ public class QueryDataBaseDataService {
 	}
 
 
-	private ConnectorNode createConnectorNode(String associateId, HttpClientMongoOperator clientMongoOperator, DatabaseTypeEnum.DatabaseType databaseType, Map<String, Object> connectionConfig) {
+	ConnectorNode createConnectorNode(String associateId, HttpClientMongoOperator clientMongoOperator, DatabaseTypeEnum.DatabaseType databaseType, Map<String, Object> connectionConfig) {
 		try {
 			PdkUtil.downloadPdkFileIfNeed(clientMongoOperator,
 					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
