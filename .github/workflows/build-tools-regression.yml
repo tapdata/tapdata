@@ -1,0 +1,24 @@
+name: Build tools regression
+on:
+  pull_request:
+    paths:
+      - build/build.sh
+      - tests/ci/build_tools_test.rb
+      - .github/workflows/build-tools-regression.yml
+  push:
+    paths:
+      - build/build.sh
+      - tests/ci/build_tools_test.rb
+      - .github/workflows/build-tools-regression.yml
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash -n build/build.sh
+      - run: ruby tests/ci/build_tools_test.rb
