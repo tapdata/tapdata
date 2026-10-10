@@ -134,6 +134,22 @@ class TaskRebalanceServiceIT {
     }
 
     @Test
+    @DisplayName("一任务三节点：预览保留没有任务的在线节点和组内候选")
+    void should_include_idle_online_agents() {
+        addGroupTasks(1);
+        TaskRebalancePreviewVo preview = service.preview(user);
+        assertThat(preview.getAgentIds()).containsExactly("a", "b", "c");
+        assertThat(preview.getTasks()).hasSize(1).allSatisfy(item ->
+                assertThat(item.getAllowedAgentIds()).containsExactly("a", "b"));
+    }
+
+    @Test
+    @DisplayName("无任务：预览仍返回全部在线节点")
+    void should_include_agents_without_tasks() {
+        assertThat(service.preview(user).getAgentIds()).containsExactly("a", "b", "c");
+    }
+
+    @Test
     @DisplayName("标签组预览：只向组内在线节点均衡")
     void should_preview_group_members() {
         addGroupTasks(4);
@@ -141,6 +157,7 @@ class TaskRebalanceServiceIT {
         assertThat(preview.getMoveCount()).isEqualTo(2);
         assertThat(preview.getTasks()).allSatisfy(item -> {
             assertThat(item.getMovable()).isTrue();
+            assertThat(item.getAllowedAgentIds()).containsExactly("a", "b");
             assertThat(item.getTargetAgentId()).isIn("a", "b");
         });
     }
@@ -169,7 +186,9 @@ class TaskRebalanceServiceIT {
         addGroupTasks(4);
         TaskRebalancePreviewVo preview = changedPreview();
         preview.getTasks().get(0).setTargetAgentId("c");
-        assertThatThrownBy(() -> service.createAndExecute(preview, user)).isInstanceOf(BizException.class);
+        assertThatThrownBy(() -> service.createAndExecute(preview, user))
+                .isInstanceOfSatisfying(BizException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo("task.rebalance.targetNotAllowed"));
         verify(tasks, never()).pause(any(TaskDto.class), any(), eq(false));
         verify(tasks, never()).start(any(TaskDto.class), any(), anyString());
     }
@@ -180,7 +199,9 @@ class TaskRebalanceServiceIT {
         addGroupTasks(4);
         TaskRebalancePreviewVo preview = changedPreview();
         members = List.of("a");
-        assertThatThrownBy(() -> service.createAndExecute(preview, user)).isInstanceOf(BizException.class);
+        assertThatThrownBy(() -> service.createAndExecute(preview, user))
+                .isInstanceOfSatisfying(BizException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo("task.rebalance.targetNotAllowed"));
         verify(tasks, never()).pause(any(TaskDto.class), any(), eq(false));
     }
 
