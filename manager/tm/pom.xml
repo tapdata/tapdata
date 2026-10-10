@@ -755,6 +755,7 @@
 				<version>3.0.0</version>
 				<configuration>
 					<skipITs>${tm.skipITs}</skipITs>
+					<argLine>${surefireArgLine}</argLine>
 					<includes><include>**/*IT.java</include></includes>
 					<failIfNoTests>true</failIfNoTests>
 				</configuration>
@@ -842,6 +843,12 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+					</execution>
+				</executions>
             </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
