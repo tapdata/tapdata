@@ -4,13 +4,16 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope;
 import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmDetail;
 import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmResult;
 import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.commons.task.dto.alarm.LegacyEmailReceivers;
+import com.tapdata.tm.commons.task.dto.alarm.ReceiverBatchMode;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
@@ -113,6 +116,7 @@ public class TaskController extends BaseController {
     private CpuMemoryService cpuMemoryService;
     private GroupInfoService groupInfoService;
     private AlarmService alarmService;
+    private AlarmReceiverAccess alarmReceiverAccess;
 
 		private <T> T dataPermissionUnAuth(DataPermissionActionEnums actionEnums, List<DataPermissionActionEnums> need) {
 			throw dataPermissionException(actionEnums, need);
@@ -1686,6 +1690,7 @@ public class TaskController extends BaseController {
             return success(result);
         }
         LegacyEmailReceivers.normalize(alarm);
+        checkBatchReceiverScope(request, userDetail, alarm);
         alarmService.runWithReceiverCache(() -> {
             for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
                 ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
@@ -1706,6 +1711,27 @@ public class TaskController extends BaseController {
             }
         });
         return success(result);
+    }
+
+    /**
+     * 追加或替换时新写入的 USER / USER_GROUP 要在调用者范围内，越界整批拒绝、不做部分写入。
+     * 移除和切回系统默认不会新增引用，不校验。
+     */
+    private void checkBatchReceiverScope(HttpServletRequest request, UserDetail userDetail, BatchUpdateAlarmParam alarm) {
+        if (Boolean.TRUE.equals(alarm.getUseSystemDefaultReceivers()) || alarm.getReceiverMode() == ReceiverBatchMode.REMOVE
+                || !AlarmReceiverScope.hasDirectoryReference(alarm.getAlarmReceivers())
+                || alarmReceiverAccess.canViewUserDirectory(userDetail)) {
+            return;
+        }
+        List<String> editableTaskIds = new ArrayList<>();
+        for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
+            ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
+            if (taskObjectId != null && Boolean.TRUE.equals(dataPermissionCheckOfId(request, userDetail, taskObjectId,
+                    DataPermissionActionEnums.Edit, () -> true, () -> false))) {
+                editableTaskIds.add(taskObjectId.toHexString());
+            }
+        }
+        alarmReceiverAccess.checkScope(userDetail, alarm.getAlarmReceivers(), editableTaskIds);
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {

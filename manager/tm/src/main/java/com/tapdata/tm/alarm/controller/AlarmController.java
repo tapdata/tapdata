@@ -6,6 +6,7 @@ import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -26,9 +27,6 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
-import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
-import com.tapdata.tm.Permission.service.PermissionService;
-import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
@@ -62,8 +60,7 @@ import java.util.Locale;
 public class AlarmController extends BaseController {
     private AlarmService alarmService;
     private TaskService taskService;
-    private PermissionService permissionService;
-    private SettingsService settingsService;
+    private AlarmReceiverAccess alarmReceiverAccess;
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -141,6 +138,11 @@ public class AlarmController extends BaseController {
                 TaskDto current = taskService.findByTaskId(taskId, "emailReceivers");
                 LegacyEmailReceivers.normalize(alarm, current == null ? null : current.getEmailReceivers());
             }
+            // 节点级和切回系统默认都不写接收人，不需要校验范围
+            if ((alarm.getNodeId() == null || alarm.getNodeId().isBlank())
+                    && !Boolean.TRUE.equals(alarm.getUseSystemDefaultReceivers())) {
+                alarmReceiverAccess.checkScope(user, alarm.getAlarmReceivers(), List.of(taskId.toHexString()));
+            }
             alarmService.updateTaskAlarm(alarm, user);
             return null;
         });
@@ -202,15 +204,8 @@ public class AlarmController extends BaseController {
         return success(candidates);
     }
 
-    /**
-     * 全量用户目录只给有用户管理查看权限的人。云版 User 集合跨租户，一律按本人所在组收敛。
-     */
     private boolean canViewUserDirectory(UserDetail user) {
-        if (user == null || (settingsService != null && settingsService.isCloud())) {
-            return false;
-        }
-        return permissionService != null
-                && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, user.getUserId());
+        return alarmReceiverAccess.canViewUserDirectory(user);
     }
 
     private <T> T checkTask(HttpServletRequest request, UserDetail user, ObjectId id, DataPermissionActionEnums action, java.util.function.Supplier<T> supplier) {
