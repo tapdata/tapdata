@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -611,6 +612,42 @@ public class CommonUtilTest {
             BigDecimal bd3 = new BigDecimal("123.4501");
             boolean result2 = CommonUtil.compare(bd1, bd3, false, null);
             assertTrue(result2, "数值不等的BigDecimal应该不相等，返回true");
+        }
+
+        @DisplayName("测试超出double精度的BigDecimal比较")
+        @Test
+        void testBigDecimalBeyondDoublePrecision() throws CompareException {
+            assertTrue(CommonUtil.compare(new BigDecimal("1234509876501234509"), new BigDecimal("1234509876501234400"), false, null));
+            assertTrue(CommonUtil.compare(new BigDecimal("0.12345678901234567891"), new BigDecimal("0.12345678901234567892"), false, null));
+            assertFalse(CommonUtil.compare(new BigDecimal("1234509876501234509"), new BigDecimal("1234509876501234509.00"), false, null));
+        }
+
+        @DisplayName("测试整数与BigDecimal比较不截断小数")
+        @Test
+        void testIntegerVsBigDecimalWithFraction() throws CompareException {
+            assertTrue(CommonUtil.compare(5L, new BigDecimal("5.9"), false, null));
+            assertTrue(CommonUtil.compare(5, new BigDecimal("5.1"), false, null));
+            assertFalse(CommonUtil.compare(5L, new BigDecimal("5.00"), false, null));
+        }
+
+        @DisplayName("测试超出Long范围的整数比较")
+        @Test
+        void testBeyondLongRange() throws CompareException {
+            // 18446744073709551615 与 -1 的 longValue 相同
+            assertTrue(CommonUtil.compare(new BigInteger("18446744073709551615"), -1L, false, null));
+            assertTrue(CommonUtil.compare(new BigDecimal("18446744073709551615"), -1L, false, null));
+            assertFalse(CommonUtil.compare(new BigInteger("9223372036854775806"), 9223372036854775806L, false, null));
+            assertTrue(CommonUtil.compare(9223372036854775806L, 9223372036854775807L, false, null));
+        }
+
+        @DisplayName("测试浮点类型按double精度比较")
+        @Test
+        void testFloatingPointUsesDoublePrecision() throws CompareException {
+            // 目标端为 double 时，精度损失由目标类型决定，不应判为不一致
+            assertFalse(CommonUtil.compare(new BigDecimal("0.12345678901234567891"), 0.12345678901234568d, false, null));
+            assertFalse(CommonUtil.compare(0.1f, 0.1d, false, null));
+            assertTrue(CommonUtil.compare(5.9d, 5L, false, null));
+            assertFalse(CommonUtil.compare(5.0d, 5L, false, null));
         }
 
         @DisplayName("测试异常情况处理")
