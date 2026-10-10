@@ -116,6 +116,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         List<Worker> onlineWorkers = findAvailableAgents();
         if (CollectionUtils.isEmpty(onlineWorkers) || onlineWorkers.size() < 2) {
             TaskRebalancePreviewVo preview = new TaskRebalancePreviewVo();
+            preview.setAgentIds((onlineWorkers == null ? List.<Worker>of() : onlineWorkers).stream().map(Worker::getProcessId)
+                    .filter(StringUtils::isNotBlank).distinct().sorted().toList());
             preview.setReason("task.rebalance.onlyOneAgent");
             return preview;
         }
@@ -270,9 +272,11 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
         TaskRebalancePreviewVo.TaskPreview currentTask = ruleService.evaluate(task, onlineAgentIds);
         if (!Boolean.TRUE.equals(currentTask.getMovable())
-                || !Objects.equals(currentTask.getSourceAgentId(), submittedTask.getSourceAgentId())
-                || !allowedAgentIds(task, onlineAgentIds).contains(submittedTask.getTargetAgentId())) {
+                || !Objects.equals(currentTask.getSourceAgentId(), submittedTask.getSourceAgentId())) {
             throw new BizException("task.rebalance.invalidPreview");
+        }
+        if (!allowedAgentIds(task, onlineAgentIds).contains(submittedTask.getTargetAgentId())) {
+            throw new BizException("task.rebalance.targetNotAllowed", task.getName());
         }
     }
 
@@ -1113,6 +1117,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         int total = afterCount.values().stream().mapToInt(Integer::intValue).sum();
         List<String> agents = new ArrayList<>(workerMap.keySet());
         agents.sort(String::compareTo);
+        preview.setAgentIds(agents);
         Map<String, Integer> targetCount = targetCount(total, agents);
         Map<String, List<TaskRebalancePreviewVo.TaskPreview>> movableByAgent = new HashMap<>();
         Map<String, Set<String>> allowedByTask = new HashMap<>();
@@ -1127,6 +1132,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                     ? allowedByGroup.computeIfAbsent(StringUtils.defaultString(task.getAccessNodeProcessId()),
                             group -> allowedAgentIds(task, workerMap.keySet()))
                     : allowedAgentIds(task, workerMap.keySet());
+            item.setAllowedAgentIds(allowed.stream().sorted().toList());
             allowedByTask.put(item.getTaskId(), allowed);
             if (Boolean.TRUE.equals(item.getMovable()) && allowed.isEmpty()) {
                 item.setMovable(false);
