@@ -44,12 +44,12 @@ class MavenWorkflowTest < Minitest::Test
         cd() { :; }
         mvn() {
           printf '%s\n' "$*"
-          if [[ "$1" == clean ]]; then return #{build_status}; fi
+          if [[ "$1" == -U && "$2" == clean ]]; then return #{build_status}; fi
         }
         #{script}
       SH
-      assert_includes out, 'clean install -T1C -Dmaven.compile.fork=true -P idaas'
-      scanner = '-P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
+      assert_includes out, '-U clean install -T1C -Dmaven.compile.fork=true -P idaas'
+      scanner = '-U -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
       if build_status.zero?
         assert status.success?, err
         assert_includes out, scanner
