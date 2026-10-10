@@ -6,7 +6,13 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tapdata.tm.userGroup.dto.UserGroupDto;
 import com.tapdata.tm.userGroup.entity.UserGroupEntity;
 import com.tapdata.tm.userGroup.repository.UserGroupRepository;
@@ -37,6 +43,12 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 
 	private final UserService userService;
 
+	@Autowired(required = false)
+	private UserLogService userLogService;
+
+	@Autowired(required = false)
+	private AlarmService alarmService;
+
 	public UserGroupService(@NonNull UserGroupRepository repository, UserService userService) {
         super(repository, UserGroupDto.class, UserGroupEntity.class);
 		this.userService = userService;
@@ -56,6 +68,17 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 
 	@Override
 	public <T extends BaseDto> UserGroupDto save(UserGroupDto dto, UserDetail userDetail) {
+		// Updates must keep the existing gid. Regenerating on rename orphans children whose
+		// gid still uses the old prefix, and breaks alarm fan-out / cascade delete.
+		if (dto.getId() != null) {
+			UserGroupDto existing = findById(dto.getId());
+			if (existing != null) {
+				if (org.apache.commons.lang3.StringUtils.isNotBlank(existing.getGid())) {
+					dto.setGid(existing.getGid());
+				}
+				return super.save(dto, userDetail);
+			}
+		}
 		UserGroupDto groupDto;
 		if (StringUtils.isNotBlank(dto.getParentGid())){
 			Query query = Query.query(Criteria.where("parent_gid").is(dto.getParentGid()));
@@ -78,14 +101,65 @@ public class UserGroupService extends BaseService<UserGroupDto, UserGroupEntity,
 
 		UserGroupDto userGroupDto = findById(id);
 		if (userGroupDto != null){
-			long count = userService.count(Query.query(Criteria.where("listtags.gid").regex(userGroupDto.getGid())));
+			String gid = userGroupDto.getGid();
+			java.util.Set<String> groupIds = new java.util.HashSet<>();
+			groupIds.add(id.toHexString());
+			if (org.apache.commons.lang3.StringUtils.isNotBlank(gid)) {
+				List<UserGroupDto> descendants = findAll(Query.query(Criteria.where("gid").regex(com.tapdata.tm.commons.alarm.GidPrefix.regex(gid))));
+				if (descendants != null) {
+					for (UserGroupDto descendant : descendants) {
+						if (descendant.getId() != null) {
+							groupIds.add(descendant.getId().toHexString());
+						}
+					}
+				}
+			}
+			java.util.List<Criteria> parts = new java.util.ArrayList<>();
+			parts.add(Criteria.where("listtags.id").in(groupIds));
+			if (org.apache.commons.lang3.StringUtils.isNotBlank(gid)) {
+				parts.add(Criteria.where("listtags.gid").regex(com.tapdata.tm.commons.alarm.GidPrefix.regex(gid)));
+			}
+			long count = userService.count(Query.query(new Criteria().orOperator(parts.toArray(Criteria[]::new)).and("isDeleted").ne(true)));
 			if (count > 0){
 				throw new BizException("UserGroup.Exists.User");
 			}
-			return super.deleteAll(Query.query(Criteria.where("gid").regex("^" + userGroupDto.getGid() + ".*"))) > 0;
+			// Snapshot impact BEFORE delete — after deleteAll the group is gone and groupAlarmImpact is empty.
+			String snapshot = captureGroupAlarmImpact(userGroupDto);
+			// 本组按 _id 删（缺 gid 的旧数据也能删掉），后代按 gid 前缀；gid 为空时 GidPrefix 不匹配任何组
+			Criteria self = Criteria.where("_id").is(id);
+			Criteria descendants = Criteria.where("gid").regex(com.tapdata.tm.commons.alarm.GidPrefix.regex(gid));
+			boolean removed = super.deleteAll(Query.query(new Criteria().orOperator(self, descendants))) > 0;
+			if (removed) {
+				writeDeleteLog(userGroupDto, userDetail, snapshot);
+			}
+			return removed;
 		}
 
 		return false;
+	}
+
+	private String captureGroupAlarmImpact(UserGroupDto group) {
+		if (alarmService == null || group == null || group.getId() == null) {
+			return null;
+		}
+		try {
+			return JSON.toJSONString(alarmService.groupAlarmImpact(group.getId().toHexString()));
+		} catch (Exception ex) {
+			log.warn("failed to capture user group alarm impact, groupId={}", group.getId(), ex);
+			return null;
+		}
+	}
+
+	private void writeDeleteLog(UserGroupDto group, UserDetail userDetail, String snapshot) {
+		if (userLogService == null || userDetail == null || group.getId() == null) {
+			return;
+		}
+		try {
+			userLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, group.getId().toHexString(),
+					group.getName(), null, snapshot);
+		} catch (Exception ex) {
+			log.warn("failed to write user group delete log, groupId={}", group.getId(), ex);
+		}
 	}
 
 	private String getGid(UserGroupDto groupDto){

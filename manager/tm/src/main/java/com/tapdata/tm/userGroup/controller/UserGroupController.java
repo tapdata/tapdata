@@ -12,6 +12,9 @@ import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.userGroup.dto.UserGroupDto;
+import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmImpactView;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
 import com.tapdata.tm.userGroup.service.UserGroupService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -39,6 +42,8 @@ public class UserGroupController extends BaseController {
 
     @Autowired
     private UserGroupService userGroupService;
+    @Autowired
+    private AlarmService alarmService;
     @Autowired
     private SettingsService settingsService;
     @Autowired
@@ -187,6 +192,20 @@ public class UserGroupController extends BaseController {
     }
 
 
+
+    @GetMapping("{id}/alarmImpact")
+    public ResponseMessage<AlarmImpactView> alarmImpact(@PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> success(alarmService.groupAlarmImpact(id)));
+    }
+
+    @GetMapping("alarmStats")
+    public ResponseMessage<List<AlarmReceiverCandidates.CandidateGroup>> alarmStats() {
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> success(alarmService.alarmStats()));
+    }
 
     /**
      * Delete a model instance by {{id}} from the data source

@@ -2,9 +2,43 @@
 require 'minitest/autorun'
 require 'yaml'
 require 'open3'
+require 'tmpdir'
+require 'fileutils'
 
 class MavenWorkflowTest < Minitest::Test
   ROOT = File.expand_path('../..', __dir__)
+
+  def test_image_bootstrap_uses_harbor_and_fails_before_building
+    source = File.read(File.join(ROOT, 'build/build.sh'))
+    block = source.split('  binfmt_image=', 2).last.split('  info ">> registry cache:', 2).first
+    refute_nil block
+    assert_includes block, 'harbor.internal.tapdata.io/tapdata/binfmt'
+    assert_includes block, 'harbor.internal.tapdata.io/tapdata/buildkit'
+    assert_includes block, '--driver-opt "image=$buildkit_image"'
+    # Execute the real bootstrap block with mocked commands; verify fail-fast,
+    # retry count, and no builder initialization after a QEMU failure.
+    { 'pull' => 3, 'run' => 2, 'inspect' => 2 }.each do |failure, expected_pulls|
+      prefix = <<~SH
+        info() { :; }
+        sleep() { :; }
+        timeout() { shift 2; "$@"; }
+        docker() {
+          echo "$*"
+          case "$1" in
+            pull) [[ "$FAILURE" != pull ]];;
+            run) [[ "$FAILURE" != run ]];;
+            buildx) [[ "$2" != inspect || "$FAILURE" != inspect ]];;
+          esac
+        }
+        builder_name=test-builder
+        bootstrap() {
+      SH
+      output, error, status = Open3.capture3({'FAILURE' => failure}, 'bash', '-c', prefix + '  binfmt_image=' + block + "\n}\nbootstrap\n")
+      refute status.success?, "#{failure}: #{output} #{error}"
+      assert_equal expected_pulls, output.lines.count { |line| line.start_with?('pull ') }
+      refute_includes output, 'buildx create' if failure == 'run'
+    end
+  end
 
   def workflow(name)
     YAML.load_file(File.join(ROOT, '.github/workflows', name))
@@ -42,12 +76,12 @@ class MavenWorkflowTest < Minitest::Test
         cd() { :; }
         mvn() {
           printf '%s\n' "$*"
-          if [[ "$1" == clean ]]; then return #{build_status}; fi
+          if [[ "$1" == -U && "$2" == clean ]]; then return #{build_status}; fi
         }
         #{script}
       SH
-      assert_includes out, 'clean install -T1C -Dmaven.compile.fork=true -P idaas'
-      scanner = '-P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
+      assert_includes out, '-U clean install -T1C -Dmaven.compile.fork=true -P idaas'
+      scanner = '-U -P idaas org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
       if build_status.zero?
         assert status.success?, err
         assert_includes out, scanner
@@ -57,6 +91,58 @@ class MavenWorkflowTest < Minitest::Test
       end
     end
     assert_equal 120, job.fetch('timeout-minutes')
+  end
+
+  def test_api_bootstrap_requires_pinned_source_and_runs_api_tests_before_install
+    job = workflow('mr-ci.yaml').fetch('jobs').fetch('Scan-Tapdata')
+    revision = job.fetch('env').fetch('API_SOURCE_REVISION')
+    assert_match(/\A[0-9a-f]{40}\z/, revision)
+    checkout = job.fetch('steps').find { |step| step['name'] == 'Checkout verified API source' }.fetch('with')
+    assert_equal 'tapdata/tapdata-common-lib', checkout.fetch('repository')
+    assert_equal '${{ env.API_SOURCE_REVISION }}', checkout.fetch('ref')
+    assert_equal false, checkout.fetch('persist-credentials')
+    script = job.fetch('steps').find { |step| step['name'] == 'Build verified API for this runner' }.fetch('run')
+    refute_includes script, 'skipTests'
+    refute_includes script, 'deploy'
+    [[revision, 1, 0], ['0' * 40, 1, 0], [revision, 0, 0], [revision, 1, 1]].each do |actual_revision, test_count, skipped|
+      Dir.mktmpdir('api-bootstrap-test-') do |directory|
+        project = File.join(directory, 'tapdata')
+        source = File.join(directory, 'tapdata-common-lib/plugin-kit/tapdata-api')
+        FileUtils.mkdir_p(File.join(project, 'iengine'))
+        FileUtils.mkdir_p(source)
+        namespace = 'http://maven.apache.org/POM/4.0.0'
+        File.write(File.join(project, 'iengine/pom.xml'), "<project xmlns='#{namespace}'><properties><tapdata-api.version>2.0.11-fixture-SNAPSHOT</tapdata-api.version></properties></project>")
+        pom = File.join(source, 'pom.xml')
+        original = "<project xmlns='#{namespace}'><artifactId>tapdata-api</artifactId><version>2.0.11-SNAPSHOT</version></project>"
+        File.write(pom, original)
+        out, err, status = Open3.capture3({'API_SOURCE_REVISION' => revision}, 'bash', '-c', <<~SH, chdir: project)
+          update-alternatives() { :; }
+          git() { printf '%s\\n' '#{actual_revision}'; }
+          mvn() {
+            printf 'MVN:%s\\n' "$*"
+            mkdir -p ../tapdata-common-lib/plugin-kit/tapdata-api/target/surefire-reports
+            printf '<testsuite tests="#{test_count}" skipped="#{skipped}"/>' > ../tapdata-common-lib/plugin-kit/tapdata-api/target/surefire-reports/TEST-fixture.xml
+          }
+          #{script}
+        SH
+        if actual_revision == revision && test_count > skipped
+          assert status.success?, err
+          assert_includes File.read(pom), '2.0.11-fixture-SNAPSHOT'
+          assert_includes File.read(pom), '<artifactId>tapdata-api</artifactId>'
+          assert_includes File.read(pom), '<artifactId>maven-surefire-plugin</artifactId>'
+          assert_includes File.read(pom), '<version>3.2.5</version>'
+          assert_includes out, 'MVN:-B -ntp -f ../tapdata-common-lib/plugin-kit/tapdata-api/pom.xml install'
+          assert_includes out, 'Verified API tests: 1'
+        elsif test_count <= skipped
+          refute status.success?
+          assert_includes err, 'executed zero tests'
+        else
+          refute status.success?
+          refute_includes out, 'MVN:'
+          assert_equal original, File.read(pom)
+        end
+      end
+    end
   end
 
   def sonar_parameters(env)

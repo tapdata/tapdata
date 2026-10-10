@@ -26,6 +26,8 @@ public enum Modular {
     WORKERS("Workers"),
     SYSTEM("system"),
     USER("user"),
+    USER_GROUP("userGroup"),
+    ALARM_RECEIVER("alarmReceiver"),
     ROLE("role"),
     ACCESS_CODE("accessCode"),
     CUSTOMER("customer"),

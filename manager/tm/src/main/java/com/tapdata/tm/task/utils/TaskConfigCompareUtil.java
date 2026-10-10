@@ -10,6 +10,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.group.vo.DagChangeDetail;
 import com.tapdata.tm.group.vo.FieldChange;
 import lombok.extern.slf4j.Slf4j;
@@ -197,10 +199,7 @@ public class TaskConfigCompareUtil {
         config.put("crontabExpression", task.getCrontabExpression());
         config.put("crontabExpressionFlag", task.getCrontabExpressionFlag());
 
-        // 告警与通知
-        config.put("alarmRules", task.getAlarmRules());
-        config.put("alarmSettings", task.getAlarmSettings());
-        config.put("emailReceivers", task.getEmailReceivers());
+        // 通知渠道仍会触发停任务。告警规则、阈值、接收人不在这个集合里。
         config.put("notifyTypes", task.getNotifyTypes());
 
         // 高级配置
@@ -253,6 +252,60 @@ public class TaskConfigCompareUtil {
         return new ArrayList<>(CONFIG_FIELDS);
     }
 
+    private static final List<String> ALARM_FIELDS = List.of(
+            "alarmSettings", "alarmRules", "emailReceivers", "alarmReceivers");
+
+    public static boolean isAlarmConfigEqual(TaskDto left, TaskDto right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        for (String field : ALARM_FIELDS) {
+            if (!isFieldEqual(alarmValue(left, field), alarmValue(right, field))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 只比接收人（alarmReceivers 按引用比较 + emailReceivers 快照），用于接收人审计 */
+    public static boolean isAlarmReceiverEqual(TaskDto left, TaskDto right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        return isFieldEqual(alarmValue(left, "alarmReceivers"), alarmValue(right, "alarmReceivers"))
+                && isFieldEqual(alarmValue(left, "emailReceivers"), alarmValue(right, "emailReceivers"));
+    }
+
+    private static Object alarmValue(TaskDto task, String field) {
+        return switch (field) {
+            case "alarmSettings" -> task.getAlarmSettings();
+            case "alarmRules" -> task.getAlarmRules();
+            case "emailReceivers" -> task.getEmailReceivers();
+            case "alarmReceivers" -> canonicalReceivers(task.getAlarmReceivers());
+            default -> null;
+        };
+    }
+
+    /**
+     * 导出包里的 USER / USER_GROUP 带有 email、name 等重映射提示，比较时只看引用本身。
+     */
+    private static List<AlarmReceiver> canonicalReceivers(List<AlarmReceiver> receivers) {
+        if (receivers == null) {
+            return null;
+        }
+        List<AlarmReceiver> canonical = new ArrayList<>();
+        for (AlarmReceiver receiver : receivers) {
+            if (receiver == null) {
+                canonical.add(null);
+            } else if (receiver.getType() == AlarmReceiverType.EMAIL) {
+                canonical.add(new AlarmReceiver(AlarmReceiverType.EMAIL, null, receiver.getEmail()));
+            } else {
+                canonical.add(new AlarmReceiver(receiver.getType(), receiver.getId(), null));
+            }
+        }
+        return canonical;
+    }
+
     /**
      * 返回两个任务之间详细的字段级变更列表，同时填充 DAG 分类变更详情。
      * 每个 {@link FieldChange} 包含字段路径、DB 中的旧值（from）、导入文件中的新值（to）。
@@ -271,6 +324,13 @@ public class TaskConfigCompareUtil {
                 if ("dag".equals(field)) continue; // DAG 单独展开
                 Object importVal = importConfig.get(field);
                 Object existingVal = existingConfig.get(field);
+                if (!isFieldEqual(importVal, existingVal)) {
+                    changes.add(new FieldChange(field, existingVal, importVal));
+                }
+            }
+            for (String field : ALARM_FIELDS) {
+                Object importVal = alarmValue(importTask, field);
+                Object existingVal = alarmValue(existingTask, field);
                 if (!isFieldEqual(importVal, existingVal)) {
                     changes.add(new FieldChange(field, existingVal, importVal));
                 }

@@ -12,7 +12,13 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmImpactView;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
+import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmDetail;
+import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmResult;
 import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest;
 import com.tapdata.tm.config.security.UserDetail;
@@ -74,9 +80,61 @@ public interface AlarmService {
 
     void updateTaskAlarm(AlarmVO alarm);
 
+    default void updateTaskAlarm(AlarmVO alarm, UserDetail userDetail) {
+        updateTaskAlarm(alarm);
+    }
+
     void taskRetryAlarm(String taskId,Map<String, Object> params);
 
     void batchUpdate(BatchUpdateAlarmParam alarm);
+
+    default BatchAlarmDetail applyAuthorizedTaskAlarm(String taskId, BatchUpdateAlarmParam alarm, UserDetail userDetail) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    default void runWithReceiverCache(Runnable action) {
+        if (action != null) {
+            action.run();
+        }
+    }
+
+    default void fillAlarmReceiverSummary(List<TaskDto> tasks) {
+    }
+
+    default AlarmReceiverPreview previewReceivers(String taskId) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    default AlarmReceiverPreview previewReceivers(String taskId, String userId) {
+        return previewReceivers(taskId);
+    }
+
+    default AlarmReceiverCandidates receiverCandidates() {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    /**
+     * @param scopeUserId     null 返回全量目录；否则只返回该用户所在组（含子组）的组和成员，以及本人
+     * @param referencedTaskIds 这些任务已引用的用户/组也一并返回，避免选择器回显不出、改组时被丢掉
+     */
+    default AlarmReceiverCandidates receiverCandidates(String scopeUserId, java.util.Collection<String> referencedTaskIds) {
+        if (scopeUserId != null) {
+            throw new BizException("TapOssNonSupportFunctionException");
+        }
+        return receiverCandidates();
+    }
+
+    default AlarmImpactView groupAlarmImpact(String groupId) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    default AlarmImpactView userAlarmImpact(String userId) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    default List<AlarmReceiverCandidates.CandidateGroup> alarmStats() {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
 
     void ingestTaskAlert(TaskAlertRequest request);
 }

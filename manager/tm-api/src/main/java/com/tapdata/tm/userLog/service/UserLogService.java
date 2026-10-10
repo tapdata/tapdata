@@ -10,6 +10,8 @@ import com.tapdata.tm.userLog.dto.UserLogDto;
 public interface UserLogService {
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, Boolean rename);
 
+    void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, String parameter3);
+
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1);
 
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, Object systemStart);

@@ -21,6 +21,7 @@ import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
+import com.tapdata.tm.task.service.AlarmReceiverTransfer;
 import com.tapdata.tm.task.service.TaskService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,6 +71,9 @@ public class TaskResourceHandlerTest {
     @Mock
     private MetadataDefinitionService metadataDefinitionService;
 
+    @Mock
+    private AlarmReceiverTransfer alarmReceiverTransfer;
+
     private TaskResourceHandler taskResourceHandler;
 
     private UserDetail user;
@@ -84,6 +88,7 @@ public class TaskResourceHandlerTest {
         ReflectionTestUtils.setField(taskResourceHandler, "inspectResourceHandler", inspectResourceHandler);
         ReflectionTestUtils.setField(taskResourceHandler, "externalStorageService", externalStorageService);
         ReflectionTestUtils.setField(taskResourceHandler, "metadataDefinitionService", metadataDefinitionService);
+        ReflectionTestUtils.setField(taskResourceHandler, "alarmReceiverTransfer", alarmReceiverTransfer);
         user = new UserDetail("userId123", "customerId", "testuser", "password", "customerType",
                 "accessCode", false, false, false, false,
                 Arrays.asList(new SimpleGrantedAuthority("role")));
