@@ -28,6 +28,7 @@ public class CustomMongoConfig {
     private static final Logger logger = LoggerFactory.getLogger(CustomMongoConfig.class);
 
     private final MongoTemplate mongoTemplate;
+    private final MongoCollectionStatistics collectionStatistics = new MongoCollectionStatistics();
 
     public CustomMongoConfig(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
@@ -145,9 +146,7 @@ public class CustomMongoConfig {
     protected CollectionStats getCollectionStats(String collectionName) {
         try {
             MongoDatabase database = mongoTemplate.getDb();
-            org.bson.Document collStats = database.runCommand(
-                    new org.bson.Document("collStats", collectionName)
-            );
+            org.bson.Document collStats = collectionStatistics.read(database, collectionName, mongoTemplate.getMongoDatabaseFactory());
 
             boolean capped = collStats.getBoolean("capped", false);
             long maxSize = Optional.ofNullable(collStats.get("maxSize"))
