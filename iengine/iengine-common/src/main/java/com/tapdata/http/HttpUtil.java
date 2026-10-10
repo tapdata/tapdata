@@ -423,6 +423,16 @@ public class HttpUtil {
 	}
 
 	/**
+	 * 打开远程文件响应流。调用方负责关闭返回的流。
+	 *
+	 * @param url 请求下载文件地址
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url) {
+		return HttpDownloader.openStream(url);
+	}
+
+	/**
 	 * 将Map形式的Form表单数据转换为Url参数形式，会自动url编码键和值
 	 *
 	 * @param paramMap 表单数据
