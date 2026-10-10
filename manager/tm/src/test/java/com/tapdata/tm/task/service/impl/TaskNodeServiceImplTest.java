@@ -858,6 +858,73 @@ class TaskNodeServiceImplTest {
         }
 
         @Test
+        void testWithSql_connectionCapabilityEnrichedByBuildDefinitionParam() throws Throwable {
+            dto.setSql("{\"maximum\":{\"$exists\":1}}");
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = new DataSourceConnectionDto();
+            connDto.setId(new ObjectId("69d71c986cb7bdcfc448f62b"));
+            connDto.setDatabase_type("MongoDB");
+            connDto.setPdkHash("4335aaa005ec1a74a4e2166bded2962e939ad50239f48b023b884f35b54129a5");
+            List<Capability> initialCaps = new ArrayList<>();
+            initialCaps.add(Capability.create("batch_read_function"));
+            connDto.setCapabilities(initialCaps);
+
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+            doAnswer(invocation -> {
+                List<DataSourceConnectionDto> items = invocation.getArgument(0);
+                for (DataSourceConnectionDto item : items) {
+                    item.getCapabilities().add(Capability.create("run_raw_command_function"));
+                }
+                return null;
+            }).when(dataSourceService).buildDefinitionParam(any(), eq(userDetail));
+
+            List<Map<String, Object>> sampleData = List.of(Map.of("id", "mongo1"));
+            when(taskService.callEngineRpc(eq("agent-123"), eq(List.class), eq("QueryDataBaseDataService"), eq("queryV2"),
+                    eq("connId"), eq("test_table"), eq("{\"maximum\":{\"$exists\":1}}"), eq(true), eq(100)))
+                    .thenReturn(sampleData);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            verify(dataSourceService, times(1)).buildDefinitionParam(any(), eq(userDetail));
+            Assertions.assertNotNull(result);
+            List<?> sampleDataResult = (List<?>) result.get("sampleData");
+            Assertions.assertEquals(1, sampleDataResult.size());
+            Assertions.assertEquals(Map.of("id", "mongo1"), ((Map<?, ?>) sampleDataResult.get(0)).get("after"));
+        }
+
+        @Test
+        void testWithSql_querySampleDataBySqlReturnsNull_handledGracefully() throws Throwable {
+            dto.setSql("SELECT * FROM empty_table");
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("run_raw_command_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            when(taskService.callEngineRpc(eq("agent-123"), eq(List.class), eq("QueryDataBaseDataService"), eq("queryV2"),
+                    eq("connId"), eq("test_table"), eq("SELECT * FROM empty_table"), eq(true), eq(100)))
+                    .thenReturn(null);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            List<?> sampleDataResult = (List<?>) result.get("sampleData");
+            Assertions.assertNotNull(sampleDataResult);
+            Assertions.assertTrue(sampleDataResult.isEmpty());
+        }
+
+        @Test
         void testWithoutSql_querySampleDataByFilter() throws Throwable {
             dto.setSql(null);
             TableNode dataNode = mock(TableNode.class);

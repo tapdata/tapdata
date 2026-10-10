@@ -6,6 +6,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapPartitionField;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.type.TapFloat;
+import io.tapdata.entity.schema.type.TapDouble;
 import io.tapdata.entity.simplify.TapSimplify;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
@@ -20,6 +22,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class PdkSchemaConvertTest {
+
+    @Test
+    void testGetClassByJsonPrefersFloatingPointTypeName() {
+        Assertions.assertEquals(TapFloat.class, PdkSchemaConvert.getClassByJson("{\"type\":8,\"typeName\":\"TapFloat\"}"));
+        Assertions.assertEquals(TapDouble.class, PdkSchemaConvert.getClassByJson("{\"type\":8,\"typeName\":\"TapDouble\"}"));
+        Assertions.assertEquals(TapType.getTapTypeClass(TapType.TYPE_NUMBER), PdkSchemaConvert.getClassByJson("{\"type\":8}"));
+    }
 
     @Test
     void testToPdk1_tableAttrValueNull() {
