@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Only Ruby, Bash and Git are needed. No Maven, Secrets or private runners.
+      # Uses Ruby, Python, Bash and Git; no Maven, secrets or private runners.
       - name: Ensure test library is available
         run: |
           ruby -e 'require "minitest"' ||

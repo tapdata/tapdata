@@ -10,6 +10,8 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.observable.logging.ObsLogger;
@@ -97,6 +99,9 @@ public class TestRunInputEventConvertUtil {
 		}
 		try {
 			TapType tapType = tapField.getTapType();
+			if (tapType instanceof TapFloat || tapType instanceof TapDouble) {
+				return convertFloatingPointValue(value);
+			}
 			switch (tapType.getType()) {
 				case TapType.TYPE_STRING:
 					return String.valueOf(value);
@@ -138,6 +143,19 @@ public class TestRunInputEventConvertUtil {
 			}
 			BigDecimal decimal = new BigDecimal(text);
 			return text.contains(".") || text.contains("e") || text.contains("E") ? decimal.doubleValue() : decimal.longValueExact();
+		}
+		return value;
+	}
+
+	private static Object convertFloatingPointValue(Object value) {
+		if (value instanceof Number) {
+			return ((Number) value).doubleValue();
+		}
+		if (value instanceof Boolean) {
+			return Boolean.TRUE.equals(value) ? 1.0d : 0.0d;
+		}
+		if (value instanceof String) {
+			return Double.valueOf(StringUtils.trim((String) value));
 		}
 		return value;
 	}
