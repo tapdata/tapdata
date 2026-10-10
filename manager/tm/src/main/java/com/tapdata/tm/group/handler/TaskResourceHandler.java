@@ -26,6 +26,7 @@ import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.AlarmReceiverTransfer;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -70,6 +71,9 @@ public class TaskResourceHandler implements ResourceHandler {
 
     @Autowired
     private MetadataDefinitionService metadataDefinitionService;
+
+    @Autowired
+    private AlarmReceiverTransfer alarmReceiverTransfer;
 
     private final ResourceType resourceType;
 
@@ -145,6 +149,8 @@ public class TaskResourceHandler implements ResourceHandler {
             taskDto.setStopedDate(null);
             taskDto.setStoppingTime(null);
             taskDto.setSnapshotDoneAt(null);
+            // 接收人里的用户/组 id 换环境就失效，附上邮箱、用户名、组名供导入侧重映射
+            alarmReceiverTransfer.attachExportHints(taskDto);
             // 导出任务关联的元数据
             DAG dag = taskDto.getDag();
             if (dag == null || CollectionUtils.isEmpty(dag.getNodes())) {

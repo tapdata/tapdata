@@ -7,7 +7,10 @@ import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmDetail;
+import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmResult;
 import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
+import com.tapdata.tm.commons.task.dto.alarm.LegacyEmailReceivers;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
@@ -281,8 +284,26 @@ public class TaskController extends BaseController {
         );
         if (result != null) {
             taskService.appendHeartbeatTaskRunning(result.getItems());
+            // 接收人摘要要逐组解析，列表轮询和引擎拉取都很频繁，只在显式请求这两个字段时计算
+            if (!isAgentReq() && requestsAlarmReceiverSummary(filter.getFields())) {
+                alarmService.fillAlarmReceiverSummary(result.getItems());
+            }
         }
         return success(result);
+    }
+
+    static boolean requestsAlarmReceiverSummary(Field fields) {
+        if (fields == null) {
+            return false;
+        }
+        for (String name : List.of("alarmReceiverStatus", "effectiveEmailCount")) {
+            Object value = fields.get(name);
+            if (Boolean.TRUE.equals(value) || "true".equals(String.valueOf(value))
+                    || (value instanceof Number number && number.intValue() == 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -1658,54 +1679,33 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "Batch modify task alarm information")
     @PostMapping("/alarm/batch-update")
-    public ResponseMessage<List<MutiResponseMessage>> batchUpdateTaskAlarm(@RequestBody BatchUpdateAlarmParam alarm){
+    public ResponseMessage<BatchAlarmResult> batchUpdateTaskAlarm(HttpServletRequest request, @RequestBody BatchUpdateAlarmParam alarm){
         UserDetail userDetail = getLoginUser();
-        List<String> taskIds = alarm.getTaskIds();
-        List<ObjectId> taskObjectIds = taskIds.stream()
-                .filter(StringUtils::isNotBlank)
-                .distinct().map(MongoUtils::toObjectId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return success(batchUpdateTaskAlarmWithDataPermission(alarm, taskObjectIds, userDetail));
-    }
-
-    private List<MutiResponseMessage> batchUpdateTaskAlarmWithDataPermission(BatchUpdateAlarmParam alarm, List<ObjectId> taskObjectIds, UserDetail userDetail) {
-        List<String> taskIds = alarm.getTaskIds();
-        List<String> authorizedTaskIds = new ArrayList<>();
-        List<MutiResponseMessage> noAuthMessages = new ArrayList<>();
-        for (int i = 0; i < taskIds.size(); i++) {
-            String taskId = taskIds.get(i);
-            ObjectId taskObjectId = taskObjectIds.get(i);
-            Boolean hasEditPermission = DataPermissionHelper.checkOfQuery(
-                    userDetail,
-                    DataPermissionDataTypeEnums.Task,
-                    DataPermissionActionEnums.Edit,
-                    taskService.dataPermissionFindById(taskObjectId, new Field()),
-                    task -> DataPermissionMenuEnums.ofTaskSyncType(task.getSyncType()),
-                    () -> true,
-                    () -> false
-            );
-            if (Boolean.TRUE.equals(hasEditPermission)) {
-                authorizedTaskIds.add(taskId);
-            } else {
-                MutiResponseMessage responseMessage = new MutiResponseMessage();
-                responseMessage.setId(taskId);
-                responseMessage.setCode("insufficient.permissions");
-                String msg = String.format("%s.%s", DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.Edit);
-                responseMessage.setMessage(MessageUtil.getMessage("insufficient.permissions", msg, msg));
-                noAuthMessages.add(responseMessage);
+        BatchAlarmResult result = new BatchAlarmResult();
+        if (alarm == null || CollectionUtils.isEmpty(alarm.getTaskIds())) {
+            return success(result);
+        }
+        LegacyEmailReceivers.normalize(alarm);
+        alarmService.runWithReceiverCache(() -> {
+            for (String taskId : new java.util.LinkedHashSet<>(alarm.getTaskIds())) {
+                ObjectId taskObjectId = MongoUtils.toObjectId(taskId);
+                if (taskObjectId == null) {
+                    result.add(BatchAlarmDetail.of(taskId, null, "IllegalArgument", "非法任务 ID"));
+                    continue;
+                }
+                try {
+                    BatchAlarmDetail detail = dataPermissionCheckOfId(request, userDetail, taskObjectId, DataPermissionActionEnums.Edit,
+                            () -> alarmService.applyAuthorizedTaskAlarm(taskId, alarm, userDetail));
+                    result.add(detail);
+                } catch (BizException exception) {
+                    String code = exception.getErrorCode();
+                    result.add(BatchAlarmDetail.of(taskId, null, code, exception.getMessage()));
+                } catch (RuntimeException exception) {
+                    result.add(BatchAlarmDetail.of(taskId, null, "SystemError", exception.getMessage()));
+                }
             }
-        }
-
-        if (CollectionUtils.isNotEmpty(authorizedTaskIds)) {
-            BatchUpdateAlarmParam target = new BatchUpdateAlarmParam();
-            target.setTaskIds(authorizedTaskIds);
-            target.setAlarmSettings(alarm.getAlarmSettings());
-            target.setAlarmRules(alarm.getAlarmRules());
-            target.setEmailReceivers(alarm.getEmailReceivers());
-            alarmService.batchUpdate(target);
-        }
-        return noAuthMessages;
+        });
+        return success(result);
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {
