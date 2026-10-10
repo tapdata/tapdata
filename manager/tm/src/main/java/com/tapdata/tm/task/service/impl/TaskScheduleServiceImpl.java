@@ -300,7 +300,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(
                 sourceConnectionIds, user,
                 "name", "accessNodeType", "accessNodeProcessId", "priorityProcessId");
-        if (hasMissingSourceConnection(sourceConnectionIds, connections)) {
+        if (CollectionUtils.isEmpty(connections)) {
             log.warn("Cannot find all source connections [{}] for task [{}], using task policy",
                     sourceConnectionIds, taskDto.getName());
             return taskDto;
@@ -349,9 +349,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             return taskDto.getDag().getSources().stream()
                     .filter(LogCollectorNode.class::isInstance)
                     .map(LogCollectorNode.class::cast)
-                    .map(LogCollectorNode::getConnectionIds)
-                    .filter(CollectionUtils::isNotEmpty)
-                    .flatMap(connectionIds -> connectionIds.stream())
+                    .map(LogCollectorNode::getLogCollectorConnConfigs)
+                    .filter(Map::isEmpty)
+                    .flatMap(map -> map.keySet().stream())
                     .filter(StringUtils::isNotBlank)
                     .distinct()
                     .collect(Collectors.toList());
@@ -366,19 +366,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .collect(Collectors.toList());
-    }
-
-    private boolean hasMissingSourceConnection(List<String> sourceConnectionIds,
-                                               List<DataSourceConnectionDto> connections) {
-        if (CollectionUtils.isEmpty(connections)) {
-            return true;
-        }
-        Set<String> foundConnectionIds = connections.stream()
-                .map(DataSourceConnectionDto::getId)
-                .filter(Objects::nonNull)
-                .map(ObjectId::toHexString)
-                .collect(Collectors.toSet());
-        return sourceConnectionIds.stream().anyMatch(id -> !foundConnectionIds.contains(id));
     }
 
     private boolean sameSourceAgentPolicy(DataSourceConnectionDto first,
