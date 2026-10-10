@@ -20,6 +20,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SettingServiceUtilTest {
+    @Test
+    void copyPropertiesKeepsDependencyMetadata() {
+        Settings setting = new Settings();
+        setting.setKey("task.statistics.restriction");
+        setting.setParent_key("cpu_mem_collector");
+        setting.setParent_value("true");
+
+        List<SettingsDto> result = SettingServiceUtil.copyProperties("1", List.of(setting));
+
+        Assertions.assertEquals("cpu_mem_collector", result.get(0).getParent_key());
+        Assertions.assertEquals("true", result.get(0).getParent_value());
+    }
+
     @Nested
     class CopyPropertiesTest {
         String decode;

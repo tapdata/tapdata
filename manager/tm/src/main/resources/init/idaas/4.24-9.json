@@ -1,0 +1,36 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "task.statistics.restriction"
+        },
+        "u": {
+          "$set": {
+            "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+            "category": "Job",
+            "category_sort": "20",
+            "default_value": "200",
+            "documentation": "Monitoring task upper limit",
+            "hot_reloading": false,
+            "key": "task.statistics.restriction",
+            "key_label": "Monitoring task upper limit",
+            "last_update": 0,
+            "parent_key": "cpu_mem_collector",
+            "parent_value": "true",
+            "scope": "global",
+            "sort": "20",
+            "user_visible": true,
+            "min": 1,
+            "max": 500
+          },
+          "$setOnInsert": {
+            "value": "200"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]
