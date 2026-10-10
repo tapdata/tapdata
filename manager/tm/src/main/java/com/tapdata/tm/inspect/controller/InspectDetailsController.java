@@ -6,7 +6,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.inspect.dto.InspectDetailsDto;
 import com.tapdata.tm.inspect.service.InspectDetailsService;
 import com.tapdata.tm.inspect.service.InspectResultService;
-import com.tapdata.tm.inspect.util.InspectDetailsNumberUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -84,27 +83,6 @@ public class InspectDetailsController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        Page<InspectDetailsDto> page = inspectDetailsService.find(filter);
-        InspectDetailsNumberUtils.toJsSafe(page.getItems());
-        return success(page);
-    }
-
-    /**
-     * Find all instances with original value types, used by engine (e.g. diff re-check by numeric primary keys)
-     * @param filterJson
-     * @return
-     */
-    @Operation(summary = "Find all instances of the model matched by filter from the data source, keep original value types")
-    @GetMapping("raw")
-    public ResponseMessage<Page<InspectDetailsDto>> findRaw(
-            @Parameter(in = ParameterIn.QUERY,
-                    description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
-            )
-            @RequestParam(value = "filter", required = false) String filterJson) {
-        Filter filter = parseFilter(filterJson);
-        if (filter == null) {
-            filter = new Filter();
-        }
         return success(inspectDetailsService.find(filter));
     }
 
@@ -156,7 +134,7 @@ public class InspectDetailsController extends BaseController {
     public ResponseMessage<InspectDetailsDto> findById(@PathVariable("id") String id,
             @RequestParam("fields") String fieldsJson) {
         Field fields = parseField(fieldsJson);
-        return success(InspectDetailsNumberUtils.toJsSafe(inspectDetailsService.findById(MongoUtils.toObjectId(id),  fields, getLoginUser())));
+        return success(inspectDetailsService.findById(MongoUtils.toObjectId(id),  fields, getLoginUser()));
     }
 
 
@@ -211,7 +189,7 @@ public class InspectDetailsController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(InspectDetailsNumberUtils.toJsSafe(inspectDetailsService.findOne(filter, getLoginUser())));
+        return success(inspectDetailsService.findOne(filter, getLoginUser()));
     }
 
     /**
