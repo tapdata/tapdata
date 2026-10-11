@@ -818,15 +818,38 @@ public class TaskServiceImpl extends TaskService{
     }
 
     /**
-     * 导入映射完以后，USER / USER_GROUP 也要过范围校验：相对目标环境同 id 任务当前列表新增、且不在导入者范围内的条目丢弃并返回警告。
+     * 导入映射完以后，USER / USER_GROUP 也要过范围校验：相对<b>实际写入目标</b>当前列表新增、且不在导入者范围内的条目丢弃并返回警告。
+     * 基准必须就是这次导入要覆盖的任务，不能按包里的 _id 去查：import_as_copy 命中 _id 时会换新 id 写成导入者自己的新任务，
+     * replace 写入的是同名任务，按 _id 做差就能借到别人任务上的引用。
      */
-    public List<String> restrictImportedAlarmReceivers(TaskDto imported, UserDetail user) {
+    public List<String> restrictImportedAlarmReceivers(TaskDto imported, UserDetail user, ImportModeEnum importMode) {
         if (alarmReceiverAccess == null || imported == null || CollectionUtils.isEmpty(imported.getAlarmReceivers())) {
             return new ArrayList<>();
         }
-        TaskDto existing = imported.getId() == null ? null : findByTaskId(imported.getId(), "alarmReceivers");
+        TaskDto target = findImportOverwriteTarget(imported, user, importMode);
         return describeDroppedReceivers(alarmReceiverAccess.retainInScope(user, imported,
-                existing == null ? null : existing.getAlarmReceivers()));
+                target == null ? null : target.getAlarmReceivers()));
+    }
+
+    /**
+     * 这次导入会覆盖的已有任务，查询条件与 batchImport 各模式选择覆盖目标时一致（同样按调用者可见范围 findOne）：
+     * GROUP_IMPORT 按 _id，REPLACE / REUSE_EXISTING 按名称；其余模式以及没命中时都是新任务，返回 null。
+     */
+    protected TaskDto findImportOverwriteTarget(TaskDto imported, UserDetail user, ImportModeEnum importMode) {
+        Criteria criteria;
+        if (ImportModeEnum.GROUP_IMPORT.equals(importMode)) {
+            if (imported.getId() == null) {
+                return null;
+            }
+            criteria = Criteria.where("_id").is(imported.getId());
+        } else if (ImportModeEnum.REPLACE.equals(importMode) || ImportModeEnum.REUSE_EXISTING.equals(importMode)) {
+            criteria = Criteria.where("name").is(imported.getName());
+        } else {
+            return null;
+        }
+        Query query = new Query(criteria.and(IS_DELETED).ne(true));
+        query.fields().include("_id", "alarmReceivers");
+        return findOne(query, user);
     }
 
     /**
@@ -3889,7 +3912,7 @@ public class TaskServiceImpl extends TaskService{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
                // 所有导入路径（patch 与整条覆盖）都先映射接收人；映射不到的只记警告，不中断本批
                List<String> alarmWarnings = new ArrayList<>(prepareImportedAlarmReceivers(taskDto));
-               alarmWarnings.addAll(restrictImportedAlarmReceivers(taskDto, user));
+               alarmWarnings.addAll(restrictImportedAlarmReceivers(taskDto, user, importMode));
                if (CollectionUtils.isNotEmpty(alarmWarnings) && taskDto.getId() != null) {
                    log.warn("Imported task alarm receivers partially mapped, taskId={}, warnings={}", taskDto.getId(), alarmWarnings);
                    ((Map<String, List<String>>) importResult.computeIfAbsent(IMPORT_WARNINGS_KEY, k -> new HashMap<String, List<String>>()))
