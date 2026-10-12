@@ -260,6 +260,8 @@ public class MetaDataBuilderUtils {
                 }
             }
 
+            normalizePrimaryKeyPositions(metadataObj.getFields());
+
             if (metadataObj.getVirtual() != null && metadataObj.getVirtual()) {
                 metadataObj.setDeleted(true);
             }
@@ -316,6 +318,38 @@ public class MetaDataBuilderUtils {
         }
 
         return metadataObj;
+    }
+
+    /**
+     * Primary key fields must have a positive, stable position before they are converted to a PDK schema.
+     * Older metadata can contain primaryKey=true with a missing or invalid position, especially when an
+     * existing model is reused while schema fields are not reloaded.
+     */
+    static void normalizePrimaryKeyPositions(List<Field> fields) {
+        if (CollectionUtils.isEmpty(fields)) {
+            return;
+        }
+
+        Set<Integer> usedPositions = new HashSet<>();
+        for (Field field : fields) {
+            if (field != null && field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) {
+                usedPositions.add(field.getPrimaryKeyPosition());
+            }
+        }
+
+        int nextPosition = 1;
+        for (Field field : fields) {
+            if (field == null || !Boolean.TRUE.equals(field.getPrimaryKey())
+                    || (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0)) {
+                continue;
+            }
+            while (usedPositions.contains(nextPosition)) {
+                nextPosition++;
+            }
+            field.setPrimaryKeyPosition(nextPosition);
+            usedPositions.add(nextPosition);
+            nextPosition++;
+        }
     }
 
 
@@ -458,4 +492,3 @@ public class MetaDataBuilderUtils {
     }
 
 }
-
