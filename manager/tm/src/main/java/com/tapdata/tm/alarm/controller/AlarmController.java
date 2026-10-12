@@ -4,9 +4,12 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
+import com.tapdata.tm.alarm.dto.SystemNotificationStatusDto;
+import com.tapdata.tm.alarm.dto.SystemNotificationStatusItemDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
@@ -16,12 +19,15 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.commons.task.dto.alarm.LegacyEmailReceivers;
 import com.tapdata.tm.commons.task.dto.alarm.PreviewEmailMask;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.TaskAlertRequest;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
@@ -30,6 +36,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
 import com.tapdata.tm.message.dto.MessageDto;
@@ -46,10 +53,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.apache.commons.lang3.StringUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * @author jiuyetx
@@ -64,6 +76,9 @@ public class AlarmController extends BaseController {
     private TaskService taskService;
     private PermissionService permissionService;
     private SettingsService settingsService;
+    private AlarmSettingService alarmSettingService;
+    private InspectService inspectService;
+    private UserService userService;
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -127,6 +142,101 @@ public class AlarmController extends BaseController {
     @GetMapping("channels")
     public ResponseMessage<List<AlarmChannelDto>> alarmChannel (){
         return success(alarmService.getAvailableChannels());
+    }
+
+    @Operation(summary = "Get system notification status for task alert settings")
+    @GetMapping("system-notification-status")
+    public ResponseMessage<SystemNotificationStatusDto> systemNotificationStatus(
+            HttpServletRequest request,
+            @RequestParam(required = false) String taskId,
+            @RequestParam(required = false) String inspectId) {
+        boolean hasTaskId = StringUtils.isNotBlank(taskId);
+        boolean hasInspectId = StringUtils.isNotBlank(inspectId);
+        if (hasTaskId && hasInspectId) {
+            throw new BizException("IllegalArgument", "taskId/inspectId");
+        }
+
+        UserDetail user = getLoginUser();
+        if (hasTaskId) {
+            ObjectId id = MongoUtils.toObjectId(taskId);
+            if (id == null) {
+                throw new BizException("IllegalArgument", "taskId");
+            }
+            return checkTask(request, user, id, DataPermissionActionEnums.View, () -> {
+                if (!alarmSettingService.isSystemNotificationStatusSupported()) {
+                    return success(SystemNotificationStatusDto.unsupported());
+                }
+                TaskDto task = taskService.findByTaskId(id, "userId");
+                return success(systemNotificationStatusForOwner(task, user));
+            });
+        }
+
+        if (hasInspectId) {
+            ObjectId id = MongoUtils.toObjectId(inspectId);
+            if (id == null) {
+                throw new BizException("IllegalArgument", "inspectId");
+            }
+            if (!alarmSettingService.isSystemNotificationStatusSupported()) {
+                return success(SystemNotificationStatusDto.unsupported());
+            }
+            return checkInspect(request, user, id, () -> {
+                InspectDto inspect = inspectService.findById(id, Field.includes("userId"));
+                return success(systemNotificationStatusForOwner(inspect, user));
+            });
+        }
+
+        if (!alarmSettingService.isSystemNotificationStatusSupported()) {
+            return success(SystemNotificationStatusDto.unsupported());
+        }
+        return success(systemNotificationStatus(alarmSettingService.findAllAlarmSetting(user)));
+    }
+
+    private SystemNotificationStatusDto systemNotificationStatusForOwner(
+            com.tapdata.tm.commons.base.dto.BaseDto entity,
+            UserDetail currentUser) {
+        if (entity == null || StringUtils.isBlank(entity.getUserId())) {
+            throw new BizException("IllegalArgument", "owner");
+        }
+        UserDetail owner = Objects.equals(entity.getUserId(), currentUser.getUserId())
+                ? currentUser
+                : userService.getUserByIdList(Collections.singletonList(entity.getUserId()))
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new BizException("IllegalArgument", "owner"));
+        return systemNotificationStatus(alarmSettingService.findAllAlarmSetting(owner));
+    }
+
+    private SystemNotificationStatusDto systemNotificationStatus(List<AlarmSettingDto> settings) {
+        List<SystemNotificationStatusItemDto> items = new java.util.ArrayList<>();
+        if (settings != null) {
+            for (AlarmSettingDto setting : settings) {
+                if (setting == null || setting.getKey() == null) {
+                    continue;
+                }
+                items.add(new SystemNotificationStatusItemDto(
+                        setting.getKey().name(),
+                        setting.isOpen(),
+                        Optional.ofNullable(setting.getNotify()).orElse(Collections.emptyList())));
+            }
+        }
+        return new SystemNotificationStatusDto(true, items);
+    }
+
+    private <T> T checkInspect(HttpServletRequest request, UserDetail user, ObjectId id, Supplier<T> supplier) {
+        ObjectId decoded = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
+                .map(MongoUtils::toObjectId).orElse(id);
+        return DataPermissionHelper.checkOfQuery(
+                user,
+                DataPermissionDataTypeEnums.INSPECT,
+                DataPermissionActionEnums.View,
+                inspectService.dataPermissionFindById(decoded, new Field()),
+                dto -> DataPermissionMenuEnums.INSPECT_TACK,
+                supplier,
+                () -> {
+                    throw new BizException("insufficient.permissions",
+                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(DataPermissionActionEnums.View)),
+                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(DataPermissionActionEnums.View)));
+                });
     }
 
     @PostMapping("/updateTaskAlarm")
