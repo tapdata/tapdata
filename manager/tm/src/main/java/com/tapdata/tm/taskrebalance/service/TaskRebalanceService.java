@@ -1077,7 +1077,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
         // Remove the rejected target binding even when the source can no longer be started.
         String rollback = rollbackToSourceAgent(rebalanceId, job, taskUser, userDetail);
-        TaskDto current = findTaskForExecution(job.getTaskId());
+        // start requires the complete DAG and original execution metadata, not an execution projection.
+        TaskDto current = taskService.findByTaskId(new ObjectId(job.getTaskId()));
         if (current == null || !TaskDto.STATUS_STOP.equals(current.getStatus())
                 || !Objects.equals(current.getAgentId(), job.getSourceAgentId())) {
             return rollback + "; source recovery skipped because task state changed";
