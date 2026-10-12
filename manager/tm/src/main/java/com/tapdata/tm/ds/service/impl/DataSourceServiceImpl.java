@@ -137,6 +137,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 //@Setter(onMethod_ = {@Autowired})
 public class DataSourceServiceImpl extends DataSourceService{
+    private static final int MAX_BATCH_AGENT_SETTINGS_SIZE = 100;
     public static final String DATABASE_TYPE_HUMP = "databaseType";
     public static final String PDK_HASH = "pdkHash";
     public static final String DATABASE_TYPE = "database_type";
@@ -270,7 +271,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         Boolean submit = updateDto.getSubmit();
         String oldName = updateCheck(user, updateDto);
         checkMongoUri(updateDto);
-        assertProcessNode(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), updateDto.getAccessNodeProcessIdList());
 
         ObjectId id = updateDto.getId();
         DataSourceConnectionDto oldConnection = null;
@@ -340,79 +340,72 @@ public class DataSourceServiceImpl extends DataSourceService{
             UserDetail userDetail
     ) {
         if (request == null || request.getSettings() == null || CollectionUtils.isEmpty(request.getConnectionIds())) {
-            throw new BizException("InvalidParameter", "connectionIds and settings are required");
+            throw new BizException("IllegalArgument", "connectionIds and settings are required");
         }
 
         List<String> connectionIds = request.getConnectionIds();
-        Set<String> distinctConnectionIds = new LinkedHashSet<>(connectionIds);
-        if (distinctConnectionIds.size() != connectionIds.size() || distinctConnectionIds.stream().anyMatch(StringUtils::isBlank)) {
-            throw new BizException("InvalidParameter", "connectionIds must be non-empty and unique");
+        if (connectionIds.size() > MAX_BATCH_AGENT_SETTINGS_SIZE) {
+            throw new BizException("IllegalArgument", "connectionIds cannot contain more than " + MAX_BATCH_AGENT_SETTINGS_SIZE + " items");
         }
-
-        List<ObjectId> objectIds;
+        if (connectionIds.stream().anyMatch(StringUtils::isBlank)) {
+            throw new BizException("IllegalArgument", "connectionIds must be non-empty and unique");
+        }
+        Set<ObjectId> distinctObjectIds = new LinkedHashSet<>();
         try {
-            objectIds = distinctConnectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+            for (String connectionId : connectionIds) {
+                if (!distinctObjectIds.add(new ObjectId(connectionId))) {
+                    throw new BizException("IllegalArgument", "connectionIds must be non-empty and unique");
+                }
+            }
         } catch (IllegalArgumentException e) {
-            throw new BizException("InvalidParameter", e, "connectionIds must contain valid object ids");
+            throw new BizException("IllegalArgument", e, "connectionIds must contain valid object ids");
         }
+        List<ObjectId> objectIds = new ArrayList<>(distinctObjectIds);
 
         BatchUpdateAgentSettingsRequest.AgentSettings settings = request.getSettings();
-        String accessNodeType = settings.getAccessNodeType();
-        if (StringUtils.isBlank(accessNodeType)) {
-            throw new BizException("InvalidParameter", "accessNodeType is required");
+        DataSourceConnectionDto normalizedSettings = new DataSourceConnectionDto();
+        String requestedAccessNodeType = StringUtils.trimToNull(settings.getAccessNodeType());
+        normalizedSettings.setAccessNodeType(requestedAccessNodeType);
+        normalizedSettings.setAccessNodeProcessId(settings.getAccessNodeProcessId());
+        normalizedSettings.setPriorityProcessId(settings.getPriorityProcessId());
+        if (AccessNodeTypeEnum.isUserManually(requestedAccessNodeType)) {
+            String processId = StringUtils.trimToNull(settings.getAccessNodeProcessId());
+            normalizedSettings.setAccessNodeProcessIdList(
+                    processId == null ? Collections.emptyList() : Collections.singletonList(processId));
         }
-        try {
-            AccessNodeTypeEnum.valueOf(accessNodeType);
-        } catch (IllegalArgumentException e) {
-            throw new BizException("InvalidParameter", e, "Unsupported accessNodeType: " + accessNodeType);
-        }
+        normalizeAgentSettings(normalizedSettings, userDetail);
 
-        String accessNodeProcessId = StringUtils.trimToNull(settings.getAccessNodeProcessId());
-        String priorityProcessId = StringUtils.trimToNull(settings.getPriorityProcessId());
-        List<String> accessNodeProcessIdList = Collections.emptyList();
-
-        if (AccessNodeTypeEnum.isUserManually(accessNodeType)) {
-            if (accessNodeProcessId == null) {
-                throw new BizException("Datasource.AgentNotFound", "accessNodeProcessId is required for manual agent allocation");
-            }
-            accessNodeProcessIdList = Collections.singletonList(accessNodeProcessId);
-            checkAccessNodeAvailable(accessNodeType, accessNodeProcessIdList, userDetail);
-            priorityProcessId = null;
-        } else if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
-            if (accessNodeProcessId == null) {
-                throw new BizException("lack.group.agent");
-            }
-            List<String> groupAgentIds = agentGroupService.getProcessNodeListByGroupId(
-                    Collections.singletonList(accessNodeProcessId), accessNodeType, userDetail);
-            if (priorityProcessId != null && !groupAgentIds.contains(priorityProcessId)) {
-                throw new BizException("Datasource.AgentNotFound", "priorityProcessId must belong to the selected agent group");
-            }
-        } else {
-            accessNodeProcessId = null;
-            priorityProcessId = null;
-        }
-
-        Criteria connectionCriteria = Criteria.where("_id").in(objectIds);
-        List<DataSourceEntity> connections = repository.findAll(new Query(connectionCriteria), userDetail);
-        if (connections.size() != objectIds.size()) {
+        long editableCount = repository.count(new Query(Criteria.where("_id").in(objectIds)), userDetail);
+        if (editableCount != objectIds.size()) {
             throw new BizException("Datasource.NotFound", "Connections not found or not editable by the current user");
         }
 
         Query updateQuery = new Query(Criteria.where("_id").in(objectIds));
         Update update = new Update()
-                .set("accessNodeType", accessNodeType)
-                .set("accessNodeProcessId", accessNodeProcessId)
-                .set("accessNodeProcessIdList", accessNodeProcessIdList)
-                .set("priorityProcessId", priorityProcessId)
+                .set("accessNodeType", normalizedSettings.getAccessNodeType())
+                .set("accessNodeProcessId", normalizedSettings.getAccessNodeProcessId())
+                .set("accessNodeProcessIdList", normalizedSettings.getAccessNodeProcessIdList())
+                .set("priorityProcessId", normalizedSettings.getPriorityProcessId())
+                .set("status", DataSourceEntity.STATUS_INVALID)
                 .set("lastUpdAt", new Date())
-                .set("lastUpdBy", userDetail.getUserId());
+                .set("lastUpdBy", userDetail.getUserId())
+                .unset("testTime")
+                .unset("errorMsg");
         UpdateResult updateResult = repository.update(updateQuery, update, userDetail);
+        if (updateResult.getMatchedCount() != objectIds.size()) {
+            log.warn("Batch agent settings update matched an unexpected number of connections. requestId={}, expected={}, matched={}",
+                    request.getRequestId(), objectIds.size(), updateResult.getMatchedCount());
+            throw new BizException("Datasource.NotFound", "Connections changed or are no longer editable");
+        }
+
+        List<String> updatedConnectionIds = objectIds.stream().map(ObjectId::toHexString).collect(Collectors.toList());
+        log.info("Batch agent settings update completed. requestId={}, updatedCount={}, connectionIds={}",
+                request.getRequestId(), updateResult.getMatchedCount(), updatedConnectionIds);
 
         BatchUpdateAgentSettingsResponse response = new BatchUpdateAgentSettingsResponse();
         response.setRequestId(request.getRequestId());
-        response.setRequestedCount(objectIds.size());
         response.setUpdatedCount(updateResult.getMatchedCount());
-        response.setUpdatedConnectionIds(new ArrayList<>(distinctConnectionIds));
+        response.setUpdatedConnectionIds(updatedConnectionIds);
         return response;
     }
 
@@ -436,18 +429,56 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
         if (AccessNodeTypeEnum.isGroupManually(nodeType)) {
             if(StringUtils.isBlank(accessProcessId)) {
-                throw new BizException("lack.group.agent");
+                throw new BizException("IllegalArgument", "accessNodeProcessId is required for agent group allocation");
             }
             return;
         }
         if (CollectionUtils.isEmpty(processNodeListWithGroup)) {
-            throw new BizException("Datasource.AgentNotFound", "manually_specified_by_the_user processId is null");
+            throw new BizException("IllegalArgument", "accessNodeProcessId is required for manual agent allocation");
         }
+    }
+
+    private DataSourceConnectionDto normalizeAgentSettings(DataSourceConnectionDto settings, UserDetail userDetail) {
+        String requestedType = StringUtils.trimToNull(settings.getAccessNodeType());
+        if (requestedType == null) {
+            throw new BizException("IllegalArgument", "accessNodeType is required");
+        }
+        AccessNodeTypeEnum accessNodeType = Arrays.stream(AccessNodeTypeEnum.values())
+                .filter(type -> type.name().equalsIgnoreCase(requestedType))
+                .findFirst()
+                .orElseThrow(() -> new BizException("IllegalArgument", "Unsupported accessNodeType: " + requestedType));
+
+        settings.setAccessNodeType(accessNodeType.name());
+        settings.setAccessNodeProcessId(StringUtils.trimToNull(settings.getAccessNodeProcessId()));
+        settings.setPriorityProcessId(StringUtils.trimToNull(settings.getPriorityProcessId()));
+
+        if (accessNodeType == AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION) {
+            settings.setAccessNodeProcessId(null);
+            settings.setAccessNodeProcessIdList(Collections.emptyList());
+            return settings;
+        }
+
+        assertProcessNode(accessNodeType.name(), settings.getAccessNodeProcessId(), settings.getAccessNodeProcessIdList());
+        if (accessNodeType == AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER) {
+            if (settings.getPriorityProcessId() != null) {
+                throw new BizException("IllegalArgument", "priorityProcessId is only supported for agent group allocation");
+            }
+            settings.setAccessNodeProcessId(settings.getAccessNodeProcessIdList().iterator().next());
+            checkAccessNodeAvailable(accessNodeType.name(), settings.getAccessNodeProcessIdList(), userDetail);
+            return settings;
+        }
+
+        List<String> groupAgentIds = agentGroupService.getProcessNodeListByGroupId(
+                Collections.singletonList(settings.getAccessNodeProcessId()), accessNodeType.name(), userDetail);
+        if (settings.getPriorityProcessId() != null
+                && (CollectionUtils.isEmpty(groupAgentIds) || !groupAgentIds.contains(settings.getPriorityProcessId()))) {
+            throw new BizException("IllegalArgument", "priorityProcessId must belong to the selected agent group");
+        }
+        return settings;
     }
     //返回oldName, 表示更换名称
     public String updateCheck(UserDetail user, DataSourceConnectionDto updateDto) {
         List<String> processNodeListWithGroup = updateDto.getAccessNodeProcessIdList();
-        assertProcessNode(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), processNodeListWithGroup);
 
         //校验数据源的名称是否合法
         checkName(updateDto.getName());
@@ -461,7 +492,9 @@ public class DataSourceServiceImpl extends DataSourceService{
             restoreAccessNodeType(updateDto, connectionDto, processNodeListWithGroup);
         }
 
-        checkAccessNodeAvailable(updateDto.getAccessNodeType(), processNodeListWithGroup, user);
+        if (StringUtils.isNotBlank(updateDto.getAccessNodeType())) {
+            normalizeAgentSettings(updateDto, user);
+        }
 
         if ((StringUtils.isNotBlank(connectionDto.getDatabase_username()) || StringUtils.isNotBlank(updateDto.getDatabase_username()))
                 && StringUtils.isNotBlank(updateDto.getPlain_password())) {
