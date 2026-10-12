@@ -83,7 +83,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "agent-a")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("agent-a"));
@@ -156,7 +156,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "source-agent", "source")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("source-agent"));
@@ -216,7 +216,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of());
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user))).thenReturn(List.of());
         when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of());
@@ -279,7 +279,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
                 .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a", "orders"),
                         sourceConnection(secondConnectionId, "agent-b", "users")));
 
@@ -333,7 +333,7 @@ class TaskScheduleSourceAgentPolicyTest {
 
         service.cloudTaskLimitNum(task, user, true);
 
-        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList(), eq(user), any(String[].class));
+        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
     }
 
     @Test
@@ -378,7 +378,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "heartbeat-agent")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("heartbeat-agent"));
