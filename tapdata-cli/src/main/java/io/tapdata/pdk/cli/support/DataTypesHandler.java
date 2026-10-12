@@ -49,6 +49,9 @@ public class DataTypesHandler {
             dataNameClassHandlers.register(TapDateMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapDate()));
             dataNameClassHandlers.register(TapDateTimeMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapDateTime()));
             dataNameClassHandlers.register(TapTimeMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapTime()));
+            dataNameClassHandlers.register(TapFloatMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapFloat()));
+            dataNameClassHandlers.register(TapDoubleMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapDouble()));
+            dataNameClassHandlers.register(TapCoefficientFloatMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapFloat()));
             dataNameClassHandlers.register(TapMapMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapMap()));
             dataNameClassHandlers.register(TapArrayMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapArray()));
             dataNameClassHandlers.register(TapBinaryMapping.class, (tapMapping, expression) -> this.generateDataTypeName(tapMapping, expression, new TapBinary()));
@@ -66,6 +69,9 @@ public class DataTypesHandler {
             biClassHandlers.register(TapDateMapping.class, this::handleDateMapping);
             biClassHandlers.register(TapDateTimeMapping.class, this::handleDateTimeMapping);
             biClassHandlers.register(TapTimeMapping.class, this::handleTimeMapping);
+            biClassHandlers.register(TapFloatMapping.class, this::handleFloatMapping);
+            biClassHandlers.register(TapDoubleMapping.class, this::handleDoubleMapping);
+            biClassHandlers.register(TapCoefficientFloatMapping.class, this::handleCoefficientFloatMapping);
             biClassHandlers.register(TapMapMapping.class, this::handleMapMapping);
             biClassHandlers.register(TapArrayMapping.class, this::handleArrayMapping);
             biClassHandlers.register(TapBinaryMapping.class, this::handleBinaryMapping);
@@ -75,10 +81,77 @@ public class DataTypesHandler {
     private String generateDataTypeName(TapMapping tapMapping, String expression, TapType tapType) {
         if (tapMapping.getName() != null)
             return tapMapping.getName();
-        TapResult<String> result = tapMapping.fromTapType(expression, tapType);
+        TapResult<String> result = floatingPointFromTapType(tapMapping, expression, tapType);
         if (result != null)
             return result.getData();
         return null;
+    }
+
+    private TapResult<String> floatingPointFromTapType(TapMapping tapMapping, String expression, TapType tapType) {
+        TapResult<String> result = tapMapping.fromTapType(expression, tapType);
+        if (result == null || result.getData() == null
+                || (!(tapMapping instanceof TapFloatMapping) && !(tapMapping instanceof TapDoubleMapping))) {
+            return result;
+        }
+
+        TapType resolvedType = tapMapping.toTapType(expression, null);
+        if (!(resolvedType instanceof TapNumber)) {
+            return result;
+        }
+        result.data(normalizeFloatingPointExpression(result.getData(), (TapNumber) resolvedType));
+        return result;
+    }
+
+    private String normalizeFloatingPointExpression(String expression, TapNumber type) {
+        StringBuilder normalized = new StringBuilder();
+        int start = 0;
+        while (start < expression.length()) {
+            int open = expression.indexOf('[', start);
+            if (open < 0) {
+                normalized.append(expression.substring(start));
+                break;
+            }
+            normalized.append(expression, start, open);
+
+            int close = expression.indexOf(']', open + 1);
+            if (close < 0) {
+                normalized.append(expression.substring(open + 1));
+                break;
+            }
+
+            String content = expression.substring(open + 1, close);
+            boolean unresolvedVariable = content.contains("$precision") && type.getPrecision() == null
+                    || content.contains("$scale") && type.getScale() == null;
+            if (!unresolvedVariable) {
+                String resolvedContent = replaceFloatingPointVariables(content, type);
+                if (isFloatingPointModifier(resolvedContent)) {
+                    if (normalized.length() > 0 && !Character.isWhitespace(normalized.charAt(normalized.length() - 1))) {
+                        normalized.append(' ');
+                    }
+                }
+                normalized.append(resolvedContent);
+            }
+            start = close + 1;
+        }
+
+        String result = replaceFloatingPointVariables(normalized.toString(), type);
+        return result;
+    }
+
+    private String replaceFloatingPointVariables(String expression, TapNumber type) {
+        String result = expression;
+        if (result.contains("$precision")) {
+            result = result.replace("$precision", type.getPrecision() == null ? "1" : String.valueOf(type.getPrecision()));
+        }
+        if (result.contains("$scale")) {
+            result = result.replace("$scale", type.getScale() == null ? "0" : String.valueOf(type.getScale()));
+        }
+        return result;
+    }
+
+    private boolean isFloatingPointModifier(String expression) {
+        return "unsigned".equalsIgnoreCase(expression.trim())
+                || "zerofill".equalsIgnoreCase(expression.trim());
     }
 
     private Void handleBinaryMapping(TapMapping tapMapping, TableExpressionWrapper tableExpressionWrapper) {
@@ -130,6 +203,32 @@ public class DataTypesHandler {
         String dataType = result.getData();
         tableExpressionWrapper.table().add(field(FIELD_PREFIX + dataType, dataType));
         return null;
+    }
+
+    private Void handleFloatMapping(TapMapping tapMapping, TableExpressionWrapper tableExpressionWrapper) {
+        TapFloatMapping floatMapping = (TapFloatMapping) tapMapping;
+        addFloatingPointField(floatingPointFromTapType(floatMapping, tableExpressionWrapper.expression(), new TapFloat()), tableExpressionWrapper);
+        return null;
+    }
+
+    private Void handleDoubleMapping(TapMapping tapMapping, TableExpressionWrapper tableExpressionWrapper) {
+        TapDoubleMapping doubleMapping = (TapDoubleMapping) tapMapping;
+        addFloatingPointField(floatingPointFromTapType(doubleMapping, tableExpressionWrapper.expression(), new TapDouble()), tableExpressionWrapper);
+        return null;
+    }
+
+    private Void handleCoefficientFloatMapping(TapMapping tapMapping, TableExpressionWrapper tableExpressionWrapper) {
+        TapCoefficientFloatMapping coefficientMapping = (TapCoefficientFloatMapping) tapMapping;
+        addFloatingPointField(coefficientMapping.fromTapType(tableExpressionWrapper.expression(), new TapFloat()), tableExpressionWrapper);
+        addFloatingPointField(coefficientMapping.fromTapType(tableExpressionWrapper.expression(), new TapDouble()), tableExpressionWrapper);
+        return null;
+    }
+
+    private void addFloatingPointField(TapResult<String> result, TableExpressionWrapper tableExpressionWrapper) {
+        if (result != null && result.getResult() != TapResult.RESULT_FAILED && result.getData() != null) {
+            String dataType = result.getData();
+            tableExpressionWrapper.table().add(field(FIELD_PREFIX + dataType, dataType));
+        }
     }
 
     private Void handleDateTimeMapping(TapMapping tapMapping, TableExpressionWrapper tableExpressionWrapper) {
