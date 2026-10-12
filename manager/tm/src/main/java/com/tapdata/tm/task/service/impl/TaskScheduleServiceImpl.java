@@ -297,9 +297,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             return taskDto;
         }
 
-        List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(
-                sourceConnectionIds, user,
-                "name", "accessNodeType", "accessNodeProcessId", "priorityProcessId");
+        List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(sourceConnectionIds);
         if (CollectionUtils.isEmpty(connections)) {
             log.warn("Cannot find all source connections [{}] for task [{}], using task policy",
                     sourceConnectionIds, taskDto.getName());
