@@ -42,7 +42,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -85,8 +85,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private final SettingsService settingsService;
     private final DBLockConfiguration dbLockConfiguration;
     private final TaskRebalanceRuleService ruleService;
-    @Autowired
-    private AgentGroupService agentGroupService;
+    private final AgentGroupService agentGroupService;
 
     public TaskRebalanceService(@NonNull TaskRebalanceRepository repository,
                                 TaskRebalanceJobService jobService,
@@ -95,7 +94,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                                 UserService userService,
                                 SettingsService settingsService,
                                 DBLockConfiguration dbLockConfiguration,
-                                TaskRebalanceRuleService ruleService) {
+                                TaskRebalanceRuleService ruleService,
+                                @NonNull AgentGroupService agentGroupService) {
         super(repository, TaskRebalanceDto.class, TaskRebalanceEntity.class);
         this.jobService = jobService;
         this.taskService = taskService;
@@ -104,6 +104,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         this.settingsService = settingsService;
         this.dbLockConfiguration = dbLockConfiguration;
         this.ruleService = ruleService;
+        this.agentGroupService = agentGroupService;
     }
 
     @Override
@@ -251,12 +252,14 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (onlineAgentIds.size() < 2) {
             throw new BizException("task.rebalance.onlyOneAgent");
         }
+        Map<String, Set<String>> allowedByGroup = new HashMap<>();
         for (TaskRebalancePreviewVo.TaskPreview submittedTask : submittedTasks) {
-            validateSubmittedTask(submittedTask, onlineAgentIds);
+            validateSubmittedTask(submittedTask, onlineAgentIds, allowedByGroup);
         }
     }
 
-    private void validateSubmittedTask(TaskRebalancePreviewVo.TaskPreview submittedTask, Set<String> onlineAgentIds) {
+    private void validateSubmittedTask(TaskRebalancePreviewVo.TaskPreview submittedTask, Set<String> onlineAgentIds,
+                                       Map<String, Set<String>> allowedByGroup) {
         if (StringUtils.isBlank(submittedTask.getSourceAgentId())
                 || StringUtils.isBlank(submittedTask.getTargetAgentId())
                 || Objects.equals(submittedTask.getSourceAgentId(), submittedTask.getTargetAgentId())
@@ -275,7 +278,10 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                 || !Objects.equals(currentTask.getSourceAgentId(), submittedTask.getSourceAgentId())) {
             throw new BizException("task.rebalance.invalidPreview");
         }
-        if (!allowedAgentIds(task, onlineAgentIds).contains(submittedTask.getTargetAgentId())) {
+        Set<String> allowed = AccessNodeTypeEnum.isGroupManually(task.getAccessNodeType())
+                ? allowedByGroup.computeIfAbsent(StringUtils.defaultString(task.getAccessNodeProcessId()),
+                        group -> allowedAgentIds(task, onlineAgentIds)) : allowedAgentIds(task, onlineAgentIds);
+        if (!allowed.contains(submittedTask.getTargetAgentId())) {
             throw new BizException("task.rebalance.targetNotAllowed", task.getName());
         }
     }
@@ -1042,8 +1048,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                     List.of(task.getAccessNodeProcessId()), null);
             return members == null ? Set.of() : members.stream()
                     .filter(onlineAgentIds::contains).collect(Collectors.toSet());
-        } catch (BizException e) {
-            log.info("TaskRebalance group unavailable, taskId={}", task.getId());
+        } catch (BizException | DataAccessException e) {
+            log.warn("TaskRebalance group unavailable, taskId={}, groupId={}",
+                    task.getId(), task.getAccessNodeProcessId(), e);
             return Set.of();
         }
     }
@@ -1162,6 +1169,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, workerMap.keySet(), startTimePriority);
             // Cache only within this preview; submit and execution resolve membership again.
             Set<String> allowed = AccessNodeTypeEnum.isGroupManually(task.getAccessNodeType())
+                    && !TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(task.getSyncType())
+                    && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())
                     ? allowedByGroup.computeIfAbsent(StringUtils.defaultString(task.getAccessNodeProcessId()),
                             group -> allowedAgentIds(task, workerMap.keySet()))
                     : allowedAgentIds(task, workerMap.keySet());
