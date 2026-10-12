@@ -50,6 +50,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
     public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
+    public static final String ATTRS_SOURCE_AGENT_POLICY_INHERITED = "sourceAgentPolicyInherited";
 
     public static final String RETRY_STATUS_RUNNING = "Retrying";
     public static final String RETRY_STATUS_NONE = "";

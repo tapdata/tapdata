@@ -239,7 +239,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             }
         }
 
-        boolean strictSourceAgent = schedulingTaskDto != taskDto
+        boolean strictSourceAgent = isSourceAgentPolicyTask(taskDto)
                 && AccessNodeTypeEnum.isManually(schedulingTaskDto.getAccessNodeType());
         CalculationEngineVo calculationEngineVo;
         try {
@@ -284,6 +284,13 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
     private TaskDto taskForSourceAgentPolicy(TaskDto taskDto, UserDetail user) {
         if (!isSourceAgentPolicyTask(taskDto)) {
+            return taskDto;
+        }
+        // A manually selected engine on a shared task is an explicit task-level
+        // override. Keep it for scheduling; otherwise resolve the source
+        // connection policy on every attempt so connection changes affect the
+        // default shared-mining task without rewriting the task configuration.
+        if (hasTaskAgentPolicyOverride(taskDto)) {
             return taskDto;
         }
         if (dataSourceService == null) {
@@ -331,6 +338,13 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         // is edited. Force policy evaluation on every start/scheduling attempt.
         schedulingTaskDto.setAgentId(null);
         return schedulingTaskDto;
+    }
+
+    private boolean hasTaskAgentPolicyOverride(TaskDto taskDto) {
+        return !Boolean.TRUE.equals(taskDto.getAttrs() == null ? null
+                        : taskDto.getAttrs().get(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED))
+                && AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
+                && StringUtils.isNotBlank(taskDto.getAccessNodeProcessId());
     }
 
     private boolean isSourceAgentPolicyTask(TaskDto taskDto) {
