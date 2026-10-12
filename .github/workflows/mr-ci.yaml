@@ -299,9 +299,9 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: tm-failsafe-reports-${{ github.sha }}
+          name: tm-failsafe-reports-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: tapdata/manager/tm/target/failsafe-reports/
-          if-no-files-found: error
+          if-no-files-found: warn
       - name: Send SonarQube Quality Gate to Pr Comment
         if: ${{ always() && steps.sonar.outcome == 'failure' }}
         run: |

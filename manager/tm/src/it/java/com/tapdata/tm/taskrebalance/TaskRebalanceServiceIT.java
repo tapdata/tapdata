@@ -48,6 +48,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -117,8 +119,7 @@ class TaskRebalanceServiceIT {
         });
         context.registerBean(TaskRebalanceService.class, () -> {
             TaskRebalanceService rebalanceService = new TaskRebalanceService(repository, jobs, tasks,
-                    workers, mock(UserService.class), settings, lock, context.getBean(TaskRebalanceRuleService.class));
-            ReflectionTestUtils.setField(rebalanceService, "agentGroupService", context.getBean(AgentGroupService.class));
+                    workers, mock(UserService.class), settings, lock, context.getBean(TaskRebalanceRuleService.class), context.getBean(AgentGroupService.class));
             return rebalanceService;
         });
         context.refresh();
@@ -416,6 +417,52 @@ class TaskRebalanceServiceIT {
             task.setStatus(TaskDto.STATUS_RUNNING);
             return null;
         }).when(tasks).start(eq(task), eq(user), eq("11"));
+    }
+
+    @Test
+    void should_isolate_group_database_failure_from_ordinary_preview() {
+        addGroupTasks(4);
+        when(groups.findAll(any(Query.class))).thenThrow(
+                new org.springframework.dao.DataAccessResourceFailureException("group lookup unavailable"));
+        TaskDto ordinary = new TaskDto();
+        ordinary.setId(new ObjectId());
+        ordinary.setName("ordinary");
+        ordinary.setStatus(TaskDto.STATUS_RUNNING);
+        ordinary.setType(ParentTaskDto.TYPE_CDC);
+        ordinary.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        ordinary.setAgentId("a");
+        taskData.put(ordinary.getId().toHexString(), ordinary);
+        TaskRebalancePreviewVo preview = service.preview(user);
+        assertThat(preview.getTasks()).filteredOn(item -> item.getTaskId().equals(ordinary.getId().toHexString()))
+                .allSatisfy(item -> assertThat(item.getMovable()).isTrue());
+        assertThat(preview.getTasks()).filteredOn(item -> !item.getTaskId().equals(ordinary.getId().toHexString()))
+                .allSatisfy(item -> assertThat(item.getMovable()).isFalse());
+    }
+
+    @Test
+    void should_cache_groups_only_within_one_submission() {
+        addGroupTasks(4);
+        TaskRebalancePreviewVo preview = changedPreview();
+        clearInvocations(groups);
+        ReflectionTestUtils.invokeMethod(service, "validateSubmittedTasks", preview.getTasks());
+        verify(groups, times(1)).findAll(any(Query.class));
+        members = List.of("a");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "validateSubmittedTasks", preview.getTasks()))
+                .isInstanceOf(BizException.class);
+        verify(groups, times(2)).findAll(any(Query.class));
+    }
+
+    @Test
+    void should_not_cache_special_task_rejection_as_group_membership() {
+        TaskDto special = addGroupTasks(1);
+        special.setSyncType(TaskDto.SYNC_TYPE_CONN_HEARTBEAT);
+        addGroupTasks(4);
+        TaskRebalancePreviewVo preview = service.preview(user);
+        assertThat(preview.getTasks()).filteredOn(item -> !item.getTaskId().equals(special.getId().toHexString()))
+                .allSatisfy(item -> {
+                    assertThat(item.getMovable()).isTrue();
+                    assertThat(item.getAllowedAgentIds()).containsExactly("a", "b");
+                });
     }
 
     private TaskRebalancePreviewVo changedPreview() {

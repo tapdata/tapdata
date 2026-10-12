@@ -755,7 +755,7 @@
 				<version>3.0.0</version>
 				<configuration>
 					<skipITs>${tm.skipITs}</skipITs>
-					<argLine>${surefireArgLine}</argLine>
+					<argLine>${tm.test.jvmArgs} ${surefireArgLine}</argLine>
 					<includes><include>**/*IT.java</include></includes>
 					<failIfNoTests>true</failIfNoTests>
 				</configuration>
