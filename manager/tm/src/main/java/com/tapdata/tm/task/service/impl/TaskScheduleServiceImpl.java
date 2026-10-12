@@ -347,9 +347,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             return taskDto.getDag().getSources().stream()
                     .filter(LogCollectorNode.class::isInstance)
                     .map(LogCollectorNode.class::cast)
-                    .map(LogCollectorNode::getLogCollectorConnConfigs)
-                    .filter(Map::isEmpty)
-                    .flatMap(map -> map.keySet().stream())
+                    .map(LogCollectorNode::getConnectionIds)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .flatMap(connectionIds -> connectionIds.stream())
                     .filter(StringUtils::isNotBlank)
                     .distinct()
                     .collect(Collectors.toList());
