@@ -1,0 +1,8 @@
+{
+  "heartbeatWatchdog": {
+    "enabled": true,
+    "units": ["[\"SOURCE_NODE_ID\",\"TARGET_NODE_ID\"]"],
+    "timeoutMs": 180000,
+    "graceMs": 180000
+  }
+}

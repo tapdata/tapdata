@@ -51,6 +51,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public abstract class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
+    /** batchImport 结果里的非致命警告：值为 Map&lt;原任务 id, List&lt;警告&gt;&gt;，不是某个任务的导入计数 */
+    public static final String IMPORT_WARNINGS_KEY = "__importWarnings";
+
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }

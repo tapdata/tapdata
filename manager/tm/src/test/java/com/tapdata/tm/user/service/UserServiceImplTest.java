@@ -894,7 +894,7 @@ public class UserServiceImplTest {
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
             verify(mongoTemplate).remove(any(Query.class), eq(SsoExternalIdentity.class));
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
         @Test
         void testDeleteFailed() {
@@ -904,7 +904,7 @@ public class UserServiceImplTest {
             when(userDto.getEmail()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(0)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(0)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
         @Test
         void testDeleteWithEmail() {
@@ -914,7 +914,7 @@ public class UserServiceImplTest {
             when(userDto.getEmail()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
     }
 

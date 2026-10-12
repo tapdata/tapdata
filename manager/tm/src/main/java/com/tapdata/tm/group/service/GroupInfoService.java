@@ -3201,9 +3201,32 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             }
             updateRecordAction(item.getId(), copy.getId(), item.getType() == ResourceType.MODULE ? moduleImportResult : taskImportResult, recordDetailMap);
+            if (item.getType() != ResourceType.MODULE) {
+                attachImportWarnings(item.getId(), taskImportResult, recordDetailMap);
+            }
             mapped.add(copy);
         }
         return mapped;
+    }
+
+    /**
+     * 任务导入成功但有非致命警告（如告警接收人映射不到）时挂到报告行上，不改 action。
+     */
+    @SuppressWarnings("unchecked")
+    protected void attachImportWarnings(String resourceId, Map<String, Object> importResult,
+                                        Map<String, GroupInfoRecordDetail.RecordDetail> recordDetailMap) {
+        if (MapUtils.isEmpty(importResult) || !(importResult.get(TaskService.IMPORT_WARNINGS_KEY) instanceof Map<?, ?> all)) {
+            return;
+        }
+        Object warnings = all.get(resourceId);
+        if (!(warnings instanceof List<?> list) || list.isEmpty()) {
+            return;
+        }
+        String message = String.join("; ", (List<String>) list);
+        recordDetailMap.computeIfPresent(resourceId, (k, v) -> {
+            v.setMessage(StringUtils.isBlank(v.getMessage()) ? message : v.getMessage() + " | " + message);
+            return v;
+        });
     }
 
     protected void updateRecordAction(String resourceId,String newId,Map<String, Object> importResult,Map<String, GroupInfoRecordDetail.RecordDetail> recordDetailMap){

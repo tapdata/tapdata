@@ -19,6 +19,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapBoolean;
 import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.schema.TapTableUtil;
@@ -107,7 +109,7 @@ public class ShareCdcLogContentResolver {
 		if (isTapType(tapField, TapBoolean.class)) {
 			return toBoolean(value);
 		}
-		if (isTapType(tapField, TapNumber.class)) {
+		if (isTapType(tapField, TapNumber.class) || isTapType(tapField, TapFloat.class) || isTapType(tapField, TapDouble.class)) {
 			return toNumber(value);
 		}
 		return value;
