@@ -77,12 +77,14 @@ class TaskRebalanceRuleServiceTest {
         }
 
         @Test
-        void manuallySpecifiedAgentGroupIsNotMovable() {
+        void manuallySpecifiedAgentGroupIsMovableWithinCurrentGroup() {
             TaskDto task = newRunningCdcTask("a1");
             task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+            task.setAccessNodeProcessIdList(java.util.List.of("a1", "a2"));
             TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, Set.of("a1"));
-            assertFalse(item.getMovable());
-            assertEquals("MANUAL_AGENT", item.getSchedulableStatus());
+            assertTrue(item.getMovable());
+            assertEquals("OK", item.getSchedulableStatus());
+            assertTrue(ruleService.isMovableAtExecution(task));
         }
 
         @Test
@@ -123,6 +125,13 @@ class TaskRebalanceRuleServiceTest {
             TaskRebalancePreviewVo.TaskPreview h = ruleService.evaluate(heartbeat, Set.of("a1"));
             TaskRebalancePreviewVo.TaskPreview s = ruleService.evaluate(sync, Set.of("a1"));
             TaskRebalancePreviewVo.TaskPreview l = ruleService.evaluate(logCollector, Set.of("a1"));
+
+            assertFalse(h.getMovable());
+            assertFalse(l.getMovable());
+            assertEquals("SOURCE_AGENT_POLICY", h.getSchedulableStatus());
+            assertEquals("SOURCE_AGENT_POLICY", l.getSchedulableStatus());
+            assertFalse(ruleService.isMovableAtExecution(heartbeat));
+            assertFalse(ruleService.isMovableAtExecution(logCollector));
 
             assertTrue(h.getPriorityScore() > s.getPriorityScore());
             assertTrue(s.getPriorityScore() > l.getPriorityScore());
