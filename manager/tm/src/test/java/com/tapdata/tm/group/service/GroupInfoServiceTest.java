@@ -3728,4 +3728,43 @@ public class GroupInfoServiceTest {
         }
     }
 
+
+    @Nested
+    class ImportWarningsTest {
+        @Test
+        void taskWarningsAreAttachedWithoutChangingAction() {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceId("t1");
+            row.setResourceType(ResourceType.SYNC_TASK);
+            detail.getRecordDetails().add(row);
+            ResourceItem item = new ResourceItem();
+            item.setId("t1");
+            item.setType(ResourceType.SYNC_TASK);
+            Map<String, Object> taskResult = new HashMap<>();
+            taskResult.put("t1", 1L);
+            taskResult.put(com.tapdata.tm.task.service.TaskService.IMPORT_WARNINGS_KEY,
+                    Map.of("t1", List.of("Alarm receiver group ops not found, dropped")));
+
+            groupInfoService.mapResourceItems(List.of(item), new HashMap<>(), detail, null, taskResult);
+
+            assertEquals(GroupInfoRecordDetail.RecordAction.REPLACED, row.getAction());
+            assertEquals("Alarm receiver group ops not found, dropped", row.getMessage());
+        }
+
+        @Test
+        void noWarningsLeaveMessageEmpty() {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceId("t1");
+            detail.getRecordDetails().add(row);
+            ResourceItem item = new ResourceItem();
+            item.setId("t1");
+            item.setType(ResourceType.MIGRATE_TASK);
+
+            groupInfoService.mapResourceItems(List.of(item), new HashMap<>(), detail, null, Map.of("t1", 0L));
+
+            assertNull(row.getMessage());
+        }
+    }
 }

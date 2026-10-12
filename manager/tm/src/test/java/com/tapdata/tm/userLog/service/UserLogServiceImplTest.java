@@ -21,7 +21,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
+import com.tapdata.tm.userLog.entity.UserLogs;
+import org.bson.types.ObjectId;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -248,6 +254,70 @@ public class UserLogServiceImplTest {
                     .anyMatch(key -> key.startsWith(UserLogTemplateKey.PREFIX)
                             && !key.startsWith(internalPrefix)
                             && key.endsWith("." + operation));
+        }
+    }
+
+    @Nested
+    class TestAddUserLogWithSevenParameters {
+        private UserLogRepository userLogRepository;
+        private UserLogServiceImpl realUserLogService;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            userLogRepository = mock(UserLogRepository.class);
+            realUserLogService = new UserLogServiceImpl(userLogRepository);
+            ReflectionTestUtils.setField(realUserLogService, "userLogRepository", userLogRepository);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("user_123");
+            when(userDetail.getUsername()).thenReturn("test_user");
+        }
+
+        @Test
+        void testAddUserLogWithValidSourceId() {
+            String sourceId = "675fa0e310853b4b042db50c";
+            String p1 = "param1";
+            String p2 = "param2";
+            String p3 = "{\"directTaskCount\":0}";
+
+            realUserLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, sourceId, p1, p2, p3);
+
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(userLogRepository, times(1)).insert(captor.capture(), eq(userDetail));
+
+            UserLogs captured = captor.getValue();
+            assertEquals(Modular.USER_GROUP.getValue(), captured.getModular());
+            assertEquals(Operation.DELETE.getValue(), captured.getOperation());
+            assertEquals(new ObjectId(sourceId), captured.getSourceId());
+            assertEquals(UserLogType.USER_OPERATION.getValue(), captured.getType());
+            assertEquals(p1, captured.getParameter1());
+            assertEquals(p2, captured.getParameter2());
+            assertEquals(p3, captured.getParameter3());
+            assertEquals("user_123", captured.getUserId());
+            assertEquals("test_user", captured.getUsername());
+        }
+
+        @Test
+        void testAddUserLogWithNullSourceId() {
+            String p1 = "param1";
+            String p2 = null;
+            String p3 = "{\"directTaskCount\":2}";
+
+            realUserLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, (String) null, p1, p2, p3);
+
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(userLogRepository, times(1)).insert(captor.capture(), eq(userDetail));
+
+            UserLogs captured = captor.getValue();
+            assertEquals(Modular.USER_GROUP.getValue(), captured.getModular());
+            assertEquals(Operation.DELETE.getValue(), captured.getOperation());
+            assertNull(captured.getSourceId());
+            assertEquals(UserLogType.USER_OPERATION.getValue(), captured.getType());
+            assertEquals(p1, captured.getParameter1());
+            assertNull(captured.getParameter2());
+            assertEquals(p3, captured.getParameter3());
+            assertEquals("user_123", captured.getUserId());
+            assertEquals("test_user", captured.getUsername());
         }
     }
 

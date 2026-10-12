@@ -8,6 +8,38 @@ require 'fileutils'
 class MavenWorkflowTest < Minitest::Test
   ROOT = File.expand_path('../..', __dir__)
 
+  def test_image_bootstrap_uses_harbor_and_fails_before_building
+    source = File.read(File.join(ROOT, 'build/build.sh'))
+    block = source.split('  binfmt_image=', 2).last.split('  info ">> registry cache:', 2).first
+    refute_nil block
+    assert_includes block, 'harbor.internal.tapdata.io/tapdata/binfmt'
+    assert_includes block, 'harbor.internal.tapdata.io/tapdata/buildkit'
+    assert_includes block, '--driver-opt "image=$buildkit_image"'
+    # Execute the real bootstrap block with mocked commands; verify fail-fast,
+    # retry count, and no builder initialization after a QEMU failure.
+    { 'pull' => 3, 'run' => 2, 'inspect' => 2 }.each do |failure, expected_pulls|
+      prefix = <<~SH
+        info() { :; }
+        sleep() { :; }
+        timeout() { shift 2; "$@"; }
+        docker() {
+          echo "$*"
+          case "$1" in
+            pull) [[ "$FAILURE" != pull ]];;
+            run) [[ "$FAILURE" != run ]];;
+            buildx) [[ "$2" != inspect || "$FAILURE" != inspect ]];;
+          esac
+        }
+        builder_name=test-builder
+        bootstrap() {
+      SH
+      output, error, status = Open3.capture3({'FAILURE' => failure}, 'bash', '-c', prefix + '  binfmt_image=' + block + "\n}\nbootstrap\n")
+      refute status.success?, "#{failure}: #{output} #{error}"
+      assert_equal expected_pulls, output.lines.count { |line| line.start_with?('pull ') }
+      refute_includes output, 'buildx create' if failure == 'run'
+    end
+  end
+
   def workflow(name)
     YAML.load_file(File.join(ROOT, '.github/workflows', name))
   end
