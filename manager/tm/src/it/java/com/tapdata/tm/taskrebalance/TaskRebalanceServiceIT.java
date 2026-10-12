@@ -465,6 +465,43 @@ class TaskRebalanceServiceIT {
                 });
     }
 
+    @Test
+    void should_load_complete_task_before_recovering_source() {
+        TaskDto task = addGroupTasks(1);
+        task.setDag(mock(com.tapdata.tm.commons.dag.DAG.class));
+        task.setStartTime(new java.util.Date(123456789L));
+        task.setTaskRecordId("original-record");
+        task.setAttrs(Map.of("original", true));
+        task.setAgentId("b");
+        task.setStatus(TaskDto.STATUS_STOP);
+        members = List.of("a");
+        when(tasks.findByTaskId(any(ObjectId.class), any(String[].class))).thenAnswer(invocation -> {
+            TaskDto projection = new TaskDto();
+            org.springframework.beans.BeanUtils.copyProperties(task, projection);
+            projection.setDag(null);
+            projection.setStartTime(null);
+            projection.setTaskRecordId(null);
+            projection.setAttrs(null);
+            return projection;
+        });
+        when(tasks.findByTaskId(eq(task.getId()))).thenReturn(task);
+        mockAgentUpdates(task, false);
+        doAnswer(invocation -> {
+            TaskDto started = invocation.getArgument(0);
+            assertThat(started.getDag()).isSameAs(task.getDag());
+            assertThat(started.getStartTime()).isEqualTo(new java.util.Date(123456789L));
+            assertThat(started.getTaskRecordId()).isEqualTo("original-record");
+            assertThat(started.getAttrs()).containsEntry("original", true);
+            task.setStatus(TaskDto.STATUS_RUNNING);
+            return null;
+        }).when(tasks).start(any(TaskDto.class), eq(user), eq("11"));
+        executeJob(task, TaskRebalanceJobStatus.STARTING);
+        assertInvalidAgent();
+        assertThat(task.getAgentId()).isEqualTo("a");
+        assertThat(task.getStatus()).isEqualTo(TaskDto.STATUS_RUNNING);
+        verify(tasks, times(2)).findByTaskId(eq(task.getId()));
+    }
+
     private TaskRebalancePreviewVo changedPreview() {
         TaskRebalancePreviewVo preview = service.preview(user);
         preview.setTasks(preview.getTasks().stream().filter(item -> Boolean.TRUE.equals(item.getChanged())).toList());
