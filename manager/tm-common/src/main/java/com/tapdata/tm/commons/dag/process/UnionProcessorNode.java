@@ -125,6 +125,12 @@ public class UnionProcessorNode extends ProcessorNode{
 
     private Object[] getBytes(String tapTypeJson) {
         TapType tapType = JsonUtil.parseJsonUseJackson(tapTypeJson, new TypeReference<TapType>() {});
+        if (tapType instanceof TapFloat) {
+            return new Object[]{tapType.getType(), ((TapFloat) tapType).getBit().longValue()};
+        }
+        if (tapType instanceof TapDouble) {
+            return new Object[]{tapType.getType(), ((TapDouble) tapType).getBit().longValue()};
+        }
         Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass(tapType.getType());
         switch (Objects.requireNonNull(tapTypeClass).getSimpleName()) {
             case "TapBinary":

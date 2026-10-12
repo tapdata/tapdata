@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
@@ -137,6 +138,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
     private List<String> emailReceivers;
+    /** null 表示系统默认或存量邮箱；空列表表示自定义但当前没有接收对象 */
+    private List<AlarmReceiver> alarmReceivers;
+    /** 列表展示用，不落库 */
+    private String alarmReceiverStatus;
+    private Integer effectiveEmailCount;
 
     private Integer resetTimes;
 

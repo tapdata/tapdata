@@ -39,6 +39,8 @@ import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -1135,6 +1137,8 @@ class TaskServiceImplTest {
             // Verify
             verify(taskDto, times(1)).setId(existingId);
             verify(taskService, times(1)).updateConnectionIds(taskDto, conMap);
+            verify(taskService, times(1)).findAlarmReceiversForAudit(existingId);
+            verify(taskService, times(1)).writeImportedAlarmReceiverAudit(any(), eq(taskDto), eq(user));
         }
 
         @Test
@@ -5206,6 +5210,7 @@ class TaskServiceImplTest {
         void testImportRmProject() throws IOException {
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
+            taskService.setAlarmReceiverTransfer(new AlarmReceiverTransfer());
             ParseParam param = new ParseParam()
                     .withMultipartFile(mockMultipartFile)
                     .withSink("sink")
@@ -8183,4 +8188,33 @@ class TaskServiceImplTest {
         }
     }
 
+
+    @Nested
+    class ImportedAlarmReceiverAuditTest {
+        @Test
+        void changedReceiversAreAudited() {
+            UserDetail userDetail = mock(UserDetail.class);
+            TaskServiceImpl service = mock(TaskServiceImpl.class);
+            UserLogService logService = mock(UserLogService.class);
+            ReflectionTestUtils.setField(service, "userLogService", logService);
+            doCallRealMethod().when(service).writeImportedAlarmReceiverAudit(any(), any(), any());
+            TaskDto before = new TaskDto();
+            before.setName("t");
+            before.setAlarmReceivers(List.of(new AlarmReceiver(AlarmReceiverType.USER, "u1", null)));
+            TaskDto after = new TaskDto();
+            after.setId(new ObjectId());
+            after.setAlarmReceivers(List.of(new AlarmReceiver(AlarmReceiverType.USER, "u1", "a@example.com", "a")));
+
+            service.writeImportedAlarmReceiverAudit(before, after, userDetail);
+            verify(logService, never()).addUserLog(any(), any(), any(UserDetail.class), anyString(), anyString(), anyString(), anyString());
+
+            after.setAlarmReceivers(List.of(new AlarmReceiver(AlarmReceiverType.USER_GROUP, "g1", null)));
+            service.writeImportedAlarmReceiverAudit(before, after, userDetail);
+            verify(logService, times(1)).addUserLog(eq(com.tapdata.tm.userLog.constant.Modular.ALARM_RECEIVER), eq(com.tapdata.tm.userLog.constant.Operation.UPDATE), eq(userDetail),
+                    eq(after.getId().toHexString()), eq("t"), eq("import"), anyString());
+
+            service.writeImportedAlarmReceiverAudit(null, after, userDetail);
+            verifyNoMoreInteractions(logService);
+        }
+    }
 }

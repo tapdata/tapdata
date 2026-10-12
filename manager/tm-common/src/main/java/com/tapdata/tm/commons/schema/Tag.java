@@ -30,6 +30,16 @@ public class Tag implements Serializable {
      */
     private String value;
 
+    /**
+     * 用户组物化路径。旧数据可能没有该字段，写入时要补上，避免前缀查询为空。
+     */
+    private String gid;
+
+    public Tag(String id, String value) {
+        this.id = id;
+        this.value = value;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
