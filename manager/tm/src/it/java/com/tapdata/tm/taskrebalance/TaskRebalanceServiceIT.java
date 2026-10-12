@@ -239,7 +239,7 @@ class TaskRebalanceServiceIT {
     }
 
     @Test
-    @DisplayName("停止后成员变化：保留源节点且不启动目标")
+    @DisplayName("停止后成员变化：合法源节点恢复运行")
     void should_revalidate_before_start() {
         TaskDto task = addGroupTasks(1);
         doAnswer(invocation -> {
@@ -247,12 +247,14 @@ class TaskRebalanceServiceIT {
             members = List.of("a");
             return null;
         }).when(tasks).pause(eq(task), eq(user), eq(false));
+        doAnswer(invocation -> { task.setStatus(TaskDto.STATUS_RUNNING); return null; })
+                .when(tasks).start(eq(task), eq(user), eq("11"));
         executeJob(task);
         assertInvalidAgent();
         assertThat(task.getAgentId()).isEqualTo("a");
-        assertThat(task.getStatus()).isEqualTo(TaskDto.STATUS_STOP);
+        assertThat(task.getStatus()).isEqualTo(TaskDto.STATUS_RUNNING);
         verify(tasks, never()).updateById(any(ObjectId.class), any(Update.class), any());
-        verify(tasks, never()).start(any(TaskDto.class), any(), anyString());
+        verify(tasks).start(eq(task), eq(user), eq("11"));
     }
 
     @Test
@@ -308,6 +310,114 @@ class TaskRebalanceServiceIT {
         });
     }
 
+    @Test
+    void should_rollback_binding_when_members_change_after_move() {
+        TaskDto task = addGroupTasks(1);
+        doAnswer(invocation -> { task.setStatus(TaskDto.STATUS_STOP); return null; })
+                .when(tasks).pause(eq(task), eq(user), eq(false));
+        mockAgentUpdates(task, true);
+        mockSourceStart(task);
+        executeJob(task);
+        assertInvalidAgent();
+        assertThat(task.getAgentId()).isEqualTo("a");
+        assertThat(task.getStatus()).isEqualTo(TaskDto.STATUS_RUNNING);
+    }
+
+    @Test
+    void should_recover_starting_job_with_rejected_target_binding() {
+        TaskDto task = addGroupTasks(1);
+        task.setAgentId("b");
+        task.setStatus(TaskDto.STATUS_STOP);
+        members = List.of("a");
+        mockAgentUpdates(task, false);
+        mockSourceStart(task);
+        executeJob(task, TaskRebalanceJobStatus.STARTING);
+        assertInvalidAgent();
+        assertThat(task.getAgentId()).isEqualTo("a");
+        assertThat(task.getStatus()).isEqualTo(TaskDto.STATUS_RUNNING);
+    }
+
+    @Test
+    void should_not_restart_source_removed_from_group() {
+        TaskDto task = addGroupTasks(1);
+        doAnswer(invocation -> { task.setStatus(TaskDto.STATUS_STOP); members = List.of("c"); return null; })
+                .when(tasks).pause(eq(task), eq(user), eq(false));
+        executeJob(task);
+        assertInvalidAgent();
+        assertThat(task.getStatus()).isEqualTo(TaskDto.STATUS_STOP);
+        verify(tasks, never()).start(any(TaskDto.class), any(), anyString());
+    }
+
+    @Test
+    void should_not_restart_offline_source() {
+        TaskDto task = addGroupTasks(1);
+        doAnswer(invocation -> {
+            task.setStatus(TaskDto.STATUS_STOP);
+            members = List.of("a");
+            when(workers.findAvailableAgentBySystem(any(List.class))).thenReturn(List.of(worker("b"), worker("c")));
+            return null;
+        }).when(tasks).pause(eq(task), eq(user), eq(false));
+        executeJob(task);
+        assertInvalidAgent();
+        verify(tasks, never()).start(any(TaskDto.class), any(), anyString());
+    }
+
+    @Test
+    void should_exclude_source_policy_tasks_from_preview_and_execution() {
+        for (String syncType : List.of(TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR)) {
+            taskData.clear();
+            TaskDto task = addGroupTasks(1);
+            task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            task.setAccessNodeProcessIdList(List.of());
+            task.setSyncType(syncType);
+            TaskRebalancePreviewVo preview = service.preview(user);
+            assertThat(preview.getMoveCount()).isZero();
+            assertThat(preview.getTasks().get(0).getMovable()).isFalse();
+            assertThat(preview.getTasks().get(0).getSchedulableStatus()).isEqualTo("SOURCE_AGENT_POLICY");
+            assertThat(preview.getTasks().get(0).getAllowedAgentIds()).isEmpty();
+            executeJob(task);
+        }
+        verify(tasks, never()).pause(any(TaskDto.class), any(), eq(false));
+        verify(tasks, never()).start(any(TaskDto.class), any(), anyString());
+    }
+
+    @Test
+    void should_not_swap_counts_in_already_balanced_distribution() {
+        addGroupTasks(4);
+        int index = 0;
+        for (TaskDto task : taskData.values()) {
+            task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            task.setAccessNodeProcessIdList(List.of());
+            task.setAgentId(index++ < 2 ? "c" : index == 3 ? "a" : "b");
+        }
+        assertThat(service.preview(user).getMoveCount()).isZero();
+    }
+
+    @Test
+    void should_not_swap_counts_for_odd_two_node_distribution() {
+        addGroupTasks(3);
+        int index = 0;
+        for (TaskDto task : taskData.values()) { task.setAgentId(index++ == 0 ? "a" : "b"); }
+        assertThat(service.preview(user).getMoveCount()).isZero();
+    }
+
+    private void mockAgentUpdates(TaskDto task, boolean changeMembersAfterMove) {
+        doAnswer(invocation -> {
+            task.setAgentId(invocation.<Update>getArgument(1).getUpdateObject()
+                    .get("$set", org.bson.Document.class).getString("agentId"));
+            if (changeMembersAfterMove && "b".equals(task.getAgentId())) { members = List.of("a"); }
+            return UpdateResult.acknowledged(1, 1L, null);
+        }).when(tasks).updateById(eq(task.getId()), any(Update.class), eq(user));
+    }
+
+    private void mockSourceStart(TaskDto task) {
+        doAnswer(invocation -> {
+            assertThat(task.getAgentId()).isEqualTo("a");
+            task.setStatus(TaskDto.STATUS_RUNNING);
+            return null;
+        }).when(tasks).start(eq(task), eq(user), eq("11"));
+    }
+
     private TaskRebalancePreviewVo changedPreview() {
         TaskRebalancePreviewVo preview = service.preview(user);
         preview.setTasks(preview.getTasks().stream().filter(item -> Boolean.TRUE.equals(item.getChanged())).toList());
@@ -335,11 +445,15 @@ class TaskRebalanceServiceIT {
     }
 
     private void executeJob(TaskDto task) {
+        executeJob(task, TaskRebalanceJobStatus.PENDING);
+    }
+
+    private void executeJob(TaskDto task, String status) {
         TaskRebalanceJobDto job = new TaskRebalanceJobDto();
         job.setId(new ObjectId());
         job.setTaskId(task.getId().toHexString());
         job.setRebalanceId(rebalanceId.toHexString());
-        job.setStatus(TaskRebalanceJobStatus.PENDING);
+        job.setStatus(status);
         job.setSourceAgentId("a");
         job.setTargetAgentId("b");
         when(jobs.findById(eq(job.getId()), eq(user))).thenReturn(job);
