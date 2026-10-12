@@ -33,6 +33,8 @@ public class TaskRebalanceRuleService {
             reject(item, "AGENT_OFFLINE", "Agent offline");
         } else if (!TaskDto.STATUS_RUNNING.equals(task.getStatus())) {
             reject(item, "STATUS_ERROR", "Task is not running");
+        } else if (isSourcePolicyTask(task)) {
+            reject(item, "SOURCE_AGENT_POLICY", "Source connection policy tasks cannot be rebalanced");
         } else if (isManuallySpecified(task)) {
             reject(item, "MANUAL_AGENT", "Task has specified agent");
         } else if (!isIncrementalStarted(task)) {
@@ -51,7 +53,13 @@ public class TaskRebalanceRuleService {
         return task != null
                 && TaskDto.STATUS_RUNNING.equals(task.getStatus())
                 && isIncrementalStarted(task)
-                && !isManuallySpecified(task);
+                && !isManuallySpecified(task)
+                && !isSourcePolicyTask(task);
+    }
+
+    private boolean isSourcePolicyTask(TaskDto task) {
+        return TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(task.getSyncType())
+                || TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType());
     }
 
     private void reject(TaskRebalancePreviewVo.TaskPreview item, String status, String reason) {
