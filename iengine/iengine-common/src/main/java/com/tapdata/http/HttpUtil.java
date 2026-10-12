@@ -433,6 +433,17 @@ public class HttpUtil {
 	}
 
 	/**
+	 * 打开远程文件响应流。调用方负责关闭返回的流。
+	 *
+	 * @param url     请求下载文件地址
+	 * @param timeout 连接和读取超时时间，单位毫秒，必须大于0
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url, int timeout) {
+		return HttpDownloader.openStream(url, timeout);
+	}
+
+	/**
 	 * 将Map形式的Form表单数据转换为Url参数形式，会自动url编码键和值
 	 *
 	 * @param paramMap 表单数据

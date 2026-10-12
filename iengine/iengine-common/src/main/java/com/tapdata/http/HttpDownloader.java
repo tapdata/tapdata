@@ -18,6 +18,7 @@ import java.nio.charset.Charset;
  * @since 5.6.4
  */
 public class HttpDownloader {
+	private static final int DEFAULT_OPEN_STREAM_TIMEOUT_MS = 30_000;
 
 	/**
 	 * 下载远程文本
@@ -62,7 +63,22 @@ public class HttpDownloader {
 	 * @return 文件数据流
 	 */
 	public static InputStream openStream(String url) {
-		final HttpResponse response = requestDownload(url, 0);
+		return openStream(url, DEFAULT_OPEN_STREAM_TIMEOUT_MS);
+	}
+
+	/**
+	 * 打开远程文件响应流。返回流关闭时会同时关闭HTTP响应和底层连接。
+	 *
+	 * @param url     请求下载文件地址
+	 * @param timeout 连接和读取超时时间，单位毫秒，必须大于0
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url, int timeout) {
+		if (timeout <= 0) {
+			throw new IllegalArgumentException("timeout must be greater than 0");
+		}
+
+		final HttpResponse response = requestDownload(url, timeout);
 		final InputStream body = response.bodyStream();
 		if (body == null) {
 			response.close();

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -46,6 +47,34 @@ class HttpUtilTest {
         try {
             assertThrows(HttpException.class,
                     () -> HttpUtil.openStream("http://127.0.0.1:" + server.getAddress().getPort() + "/missing"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void openStreamHonorsExplicitReadTimeout() throws Exception {
+        byte[] prefix = "partial".getBytes(StandardCharsets.UTF_8);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/stall", exchange -> {
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(prefix);
+                output.flush();
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        server.start();
+
+        try {
+            try (InputStream input = HttpUtil.openStream(
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/stall", 100)) {
+                byte[] actualPrefix = input.readNBytes(prefix.length);
+                assertArrayEquals(prefix, actualPrefix);
+                assertThrows(SocketTimeoutException.class, input::read);
+            }
         } finally {
             server.stop(0);
         }

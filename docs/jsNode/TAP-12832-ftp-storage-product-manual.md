@@ -60,9 +60,9 @@ storage.update("target-ftp", {
 | `action` | `String` | 固定为 `write` |
 | `target.path` | `String` | 目标文件路径 |
 | `contentType` | `String` | 内容处理类型；未传时默认为 `text`，忽略大小写 |
-| `content` | `String` 或可转字符串的值 | 文件内容，按 UTF-8 写入 |
+| `content` | `String` 或可转字符串的普通值 | 文件内容，按 UTF-8 写入；`byte[]`、`ByteArrayOutputStream` 和 `InputStream` 除外 |
 
-`contentType: "text"` 适用于文本、JSON、CSV 等字符内容。未传 `contentType` 时不会根据 `content` 的实际类型自动推断为二进制。
+`contentType: "text"` 适用于文本、JSON、CSV 等字符内容。未传 `contentType` 时不会根据 `content` 的实际类型自动推断为二进制；如果 `content` 是 Java `byte[]` 或 `ByteArrayOutputStream`，会抛出异常并提示使用 `contentType: "bytes"`，如果是 `InputStream`，会提示使用 `contentType: "stream"`。
 
 #### 3.2.2 HTTP 二进制文件同步
 
@@ -93,7 +93,7 @@ function process(record) {
 
 ##### stream 方式
 
-`httpUtil.openStream(url)` 返回 HTTP 响应的 Java `InputStream`。`contentType: "stream"` 会以流方式写入，适合不希望一次性加载完整文件的场景。
+`httpUtil.openStream(url)` 返回 HTTP 响应的 Java `InputStream`。默认连接超时和读取超时均为 30 秒；读取超时表示连续 30 秒没有读到数据，不是整个下载的总时限。也可以使用 `httpUtil.openStream(url, timeoutMs)` 指定连接和读取超时时间。`contentType: "stream"` 会以流方式写入，适合不希望一次性加载完整文件的场景。
 
 `storage.update` 不会自动关闭 `stream` 内容，JS 脚本必须在使用完成后关闭输入流，建议使用 `try/finally`：
 
@@ -295,12 +295,14 @@ var content = httpUtil.downloadBytes(record.url);
 | --- | --- | --- |
 | `url` | `String` | HTTP 或 HTTPS 文件地址 |
 
-返回完整的 Java `byte[]`。传给 `storage.update` 时必须设置 `contentType: "bytes"`，否则未传 `contentType` 会按默认 `text` 处理。
+返回完整的 Java `byte[]`。传给 `storage.update` 时必须设置 `contentType: "bytes"`，否则会抛出异常，不会将 Java 数组对象的 `toString()` 写入文件。
 
 ### 9.2 `httpUtil.openStream`
 
 ```javascript
 var input = httpUtil.openStream(record.url);
+// 或者指定连接和读取超时时间（毫秒）
+// var input = httpUtil.openStream(record.url, 60000);
 try {
   storage.update("target-ftp", {
     action: "write",
@@ -316,8 +318,9 @@ try {
 | 参数 | 类型 | 含义 |
 | --- | --- | --- |
 | `url` | `String` | HTTP 或 HTTPS 文件地址 |
+| `timeoutMs` | `int` | 可选；连接和读取超时时间，单位毫秒，必须大于 0；省略时为 30000 |
 
-返回 HTTP 响应体 `InputStream`。该流由 JS 脚本负责关闭，建议始终使用 `try/finally`，即使 FTP 写入失败也必须释放流。
+返回 HTTP 响应体 `InputStream`。读取超时按连续无数据时间计算，持续有数据传输时不会因为总耗时超过该值而中断。该流由 JS 脚本负责关闭，建议始终使用 `try/finally`，即使 FTP 写入失败也必须释放流。
 
 ### 9.3 使用说明
 

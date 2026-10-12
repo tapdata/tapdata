@@ -244,6 +244,18 @@ public final class StorageFacade {
     }
 
     private InputStream textContentStream(Object content) {
+        if (content instanceof byte[]) {
+            throw new StorageOperationException(
+                    "content is byte[]; set contentType to bytes");
+        }
+        if (content instanceof ByteArrayOutputStream) {
+            throw new StorageOperationException(
+                    "content is ByteArrayOutputStream; set contentType to bytes");
+        }
+        if (content instanceof InputStream) {
+            throw new StorageOperationException(
+                    "content is InputStream; set contentType to stream");
+        }
         return new ByteArrayInputStream(
                 String.valueOf(content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }

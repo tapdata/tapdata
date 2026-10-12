@@ -111,6 +111,44 @@ class StorageFacadeTest {
     }
 
     @Test
+    void updateWriteRejectsByteArrayWhenContentTypeDefaultsToText() {
+        StorageFacade facade = facade(new RecordingStorage(), null);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/1.bin"),
+                        "content", bytes("binary-content")),
+                map("overwrite", "overwrite")));
+    }
+
+    @Test
+    void updateWriteRejectsByteArrayOutputStreamWhenContentTypeDefaultsToText() throws IOException {
+        StorageFacade facade = facade(new RecordingStorage(), null);
+        ByteArrayOutputStream content = new ByteArrayOutputStream();
+        content.write(bytes("binary-content"));
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/1.bin"),
+                        "content", content),
+                map("overwrite", "overwrite")));
+    }
+
+    @Test
+    void updateWriteRejectsInputStreamWhenContentTypeDefaultsToText() throws IOException {
+        StorageFacade facade = facade(new RecordingStorage(), null);
+        CloseTrackingInputStream content = new CloseTrackingInputStream(bytes("binary-content"));
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/1.bin"),
+                        "content", content),
+                map("overwrite", "overwrite")));
+        assertFalse(content.closed);
+        content.close();
+    }
+
+    @Test
     void updateWriteRejectsUnsupportedContentType() {
         StorageFacade facade = facade(new RecordingStorage(), null);
 
