@@ -10,6 +10,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Owns the PDK resources shared by script and file-storage executors.
@@ -37,7 +38,7 @@ public final class PdkNodeResources implements AutoCloseable {
     private final CleanupAction associateRelease;
     private final CleanupAction tableReset;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private volatile ConnectorNode connectorNode;
+    private final AtomicReference<ConnectorNode> connectorNode = new AtomicReference<>();
 
     public PdkNodeResources(String tag,
                             String associateId,
@@ -92,11 +93,11 @@ public final class PdkNodeResources implements AutoCloseable {
     }
 
     public void setConnectorNode(ConnectorNode connectorNode) {
-        this.connectorNode = connectorNode;
+        this.connectorNode.set(connectorNode);
     }
 
     public ConnectorNode getConnectorNode() {
-        return connectorNode;
+        return connectorNode.get();
     }
 
     public String getAssociateId() {
@@ -110,7 +111,7 @@ public final class PdkNodeResources implements AutoCloseable {
         }
         if (stopConnector) {
             runSafely(() -> {
-                ConnectorNode node = connectorNode;
+                ConnectorNode node = connectorNode.get();
                 if (node != null) {
                     PDKInvocationMonitor.stop(node);
                     PDKInvocationMonitor.invoke(node, PDKMethod.STOP, node::connectorStop, tag);
