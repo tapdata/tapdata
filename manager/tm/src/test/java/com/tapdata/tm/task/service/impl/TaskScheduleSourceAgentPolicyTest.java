@@ -146,6 +146,7 @@ class TaskScheduleSourceAgentPolicyTest {
         task.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
         task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
         task.setAccessNodeProcessId("task-agent");
+        task.setAccessNodeProcessIdList(List.of("task-agent"));
         task.setAgentId("old-agent");
 
         LogCollectorNode logCollectorNode = new LogCollectorNode();
@@ -159,9 +160,6 @@ class TaskScheduleSourceAgentPolicyTest {
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("task-agent"));
-        Worker taskAgent = new Worker();
-        taskAgent.setProcessId("task-agent");
-        when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of(taskAgent));
         when(workerService.findByProcessId(anyString(), eq(user), any(String[].class))).thenReturn(new WorkerDto());
         when(workerService.getLimitTaskNum(any(WorkerDto.class), eq(user))).thenReturn(10);
         when(taskService.runningTaskNum(anyString(), eq(user))).thenReturn(0);
