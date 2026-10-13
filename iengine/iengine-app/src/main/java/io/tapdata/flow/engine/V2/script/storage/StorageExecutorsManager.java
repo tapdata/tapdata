@@ -123,29 +123,25 @@ public final class StorageExecutorsManager implements AutoCloseable {
         }
     }
 
-    public void invalidate(String connectionName, Throwable cause) {
-        if (connectionName == null) return;
+    public void invalidate(String connectionName, StorageExecutor failedExecutor, Throwable cause) {
+        if (connectionName == null || failedExecutor == null) return;
         String key = connectionName.trim();
-        CompletableFuture<StorageExecutor> future;
-        synchronized (this) {
-            future = executors.remove(key);
-        }
-        if (future == null) return;
-        if (!future.isDone()) {
-            future.whenComplete((executor, error) -> closeQuietly(executor));
-            future.completeExceptionally(closedError(key));
-            return;
-        }
-        if (future.isCompletedExceptionally()) return;
+        CompletableFuture<StorageExecutor> future = executors.get(key);
+        if (future == null || !future.isDone() || future.isCompletedExceptionally()) return;
+        StorageExecutor cachedExecutor;
         try {
-            closeQuietly(future.get());
+            cachedExecutor = future.get();
         } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
             logger.warn("Interrupted while closing file storage executor: {}", key);
+            return;
         } catch (ExecutionException e) {
             // Invalidation must not hide the original file operation failure.
             logger.warn("Error while closing file storage executor: {}", key, e);
+            return;
         }
+        if (cachedExecutor != failedExecutor || !executors.remove(key, future)) return;
+        closeQuietly(cachedExecutor);
     }
 
     @Override

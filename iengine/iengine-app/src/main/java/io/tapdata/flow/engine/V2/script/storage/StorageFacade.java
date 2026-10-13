@@ -67,7 +67,7 @@ public final class StorageFacade {
             }
             throw new StorageOperationException("Unsupported storage.update action: " + action);
         } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(targetConnectionName, throwable);
+            invalidateOnRemoteFailure(targetConnectionName, target, throwable);
             throw throwable;
         }
     }
@@ -81,7 +81,7 @@ public final class StorageFacade {
             TapFile file = executor.getStorage().getFile(executor.resolvePath(requiredPath(request, "path")));
             return file == null ? null : metadataMap(file);
         } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(connectionName, throwable);
+            invalidateOnRemoteFailure(connectionName, executor, throwable);
             throw throwable;
         }
     }
@@ -91,7 +91,7 @@ public final class StorageFacade {
         try {
             return executor.getStorage().isFileExist(executor.resolvePath(requiredPath(path, "path")));
         } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(connectionName, throwable);
+            invalidateOnRemoteFailure(connectionName, executor, throwable);
             throw throwable;
         }
     }
@@ -107,7 +107,7 @@ public final class StorageFacade {
         try {
             return executor.getStorage().delete(executor.resolvePath(requiredPath(request, "path")));
         } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(connectionName, throwable);
+            invalidateOnRemoteFailure(connectionName, executor, throwable);
             throw throwable;
         }
     }
@@ -174,9 +174,9 @@ public final class StorageFacade {
 
             return copyThroughTempFile(sourceStorage, resolvedSourcePath, targetStorage, resolvedTargetPath);
         } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(sourceConnectionName, throwable);
+            invalidateOnRemoteFailure(sourceConnectionName, sourceExecutor, throwable);
             if (!sourceConnectionName.equals(target.getConnectionName())) {
-                invalidateOnRemoteFailure(target.getConnectionName(), throwable);
+                invalidateOnRemoteFailure(target.getConnectionName(), target, throwable);
             }
             throw throwable;
         }
@@ -345,9 +345,11 @@ public final class StorageFacade {
         return result;
     }
 
-    private void invalidateOnRemoteFailure(String connectionName, Throwable throwable) {
-        if (connectionName != null && isRemoteFailure(throwable)) {
-            executorsManager.invalidate(connectionName, throwable);
+    private void invalidateOnRemoteFailure(String connectionName,
+                                           StorageExecutor executor,
+                                           Throwable throwable) {
+        if (connectionName != null && executor != null && isRemoteFailure(throwable)) {
+            executorsManager.invalidate(connectionName, executor, throwable);
         }
     }
 

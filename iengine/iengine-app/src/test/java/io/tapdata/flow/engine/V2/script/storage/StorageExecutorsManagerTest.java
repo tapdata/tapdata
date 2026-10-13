@@ -86,7 +86,7 @@ class StorageExecutorsManagerTest {
                 0L);
 
         assertSame(first, manager.getStorageExecutor("ftp-3"));
-        manager.invalidate("ftp-3", new IllegalStateException("remote failure"));
+        manager.invalidate("ftp-3", first, new IllegalStateException("remote failure"));
         assertEquals(1, first.closed.get());
         assertSame(second, manager.getStorageExecutor("ftp-3"));
         assertEquals(2, created.get());
@@ -177,7 +177,7 @@ class StorageExecutorsManagerTest {
 
         AtomicReference<Throwable> getterFailure = new AtomicReference<>();
         CountDownLatch getterDone = new CountDownLatch(1);
-        Thread invalidator = new Thread(() -> manager.invalidate("ftp-7", new IOException("remote")));
+        Thread invalidator = new Thread(() -> manager.invalidate("ftp-7", first, new IOException("remote")));
         invalidator.start();
         assertTrue(first.closeStarted.await(5, TimeUnit.SECONDS));
         Thread getter = new Thread(() -> {
@@ -199,6 +199,38 @@ class StorageExecutorsManagerTest {
             getter.join(5000);
             manager.close();
         }
+    }
+
+    @Test
+    void lateFailureFromOldExecutorDoesNotCloseRecreatedExecutor() throws Throwable {
+        FakeExecutor first = new FakeExecutor("ftp-late");
+        FakeExecutor second = new FakeExecutor("ftp-late");
+        AtomicInteger created = new AtomicInteger();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                name -> connection(name),
+                (name, connections) -> created.incrementAndGet() == 1 ? first : second,
+                0L);
+
+        assertSame(first, manager.getStorageExecutor("ftp-late"));
+        manager.invalidate("ftp-late", first, new IOException("first failure"));
+        assertSame(second, manager.getStorageExecutor("ftp-late"));
+
+        manager.invalidate("ftp-late", first, new IOException("late first failure"));
+
+        assertEquals(1, first.closed.get());
+        assertEquals(0, second.closed.get());
+        manager.close();
+        assertEquals(1, second.closed.get());
+    }
+
+    @Test
+    void lockedStorageOperationUsesExecutorStorage() throws Throwable {
+        FakeExecutor executor = new FakeExecutor("ftp-locked");
+
+        String result = executor.withStorageOperation(storage ->
+                storage == executor.getStorage() ? "same-storage" : "different-storage");
+
+        assertEquals("same-storage", result);
     }
 
     private static StorageExecutor get(StorageExecutorsManager manager, String name) {
