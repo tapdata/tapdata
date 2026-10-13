@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 final class PdkStorageExecutor implements StorageExecutor {
@@ -255,6 +256,8 @@ final class PdkStorageExecutor implements StorageExecutor {
     }
 
     private static final class PdkManagedFileStorage implements TapFileStorage {
+        private static final long DESTROY_WAIT_MILLIS = 5_000L;
+
         private final TapFileStorage delegate;
         private final String associateId;
         private final PdkStateMap stateMap;
@@ -262,6 +265,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         private final Log logger;
         private final boolean validateParentDirectory;
         private final AtomicBoolean destroyed = new AtomicBoolean();
+        private final AtomicBoolean resourcesReleased = new AtomicBoolean();
         private final Semaphore operationLock = new Semaphore(1, true);
 
         private PdkManagedFileStorage(TapFileStorage delegate,
@@ -288,27 +292,18 @@ final class PdkStorageExecutor implements StorageExecutor {
             if (!destroyed.compareAndSet(false, true)) {
                 return;
             }
-            Throwable failure = null;
-            operationLock.acquireUninterruptibly();
-            try {
-                delegate.destroy();
-            } catch (Throwable throwable) {
-                failure = throwable;
-            } finally {
-                operationLock.release();
-                releaseResources(associateId, stateMap, tapTableMap, logger);
+            if (tryAcquireForDestroy()) {
+                destroyAfterAcquire();
+                return;
             }
-            if (failure instanceof Exception) {
-                throw (Exception) failure;
-            }
-            if (failure != null) {
-                throw new RuntimeException("Destroy file storage failed", failure);
-            }
+            // TapFileStorage does not guarantee that destroy() is safe while an operation is in flight.
+            // Defer it until the operation releases the lock instead of introducing a concurrent close.
+            scheduleDeferredDestroy();
         }
 
         @Override
         public TapFile getFile(String path) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.getFile(path);
             } finally {
@@ -318,7 +313,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 delegate.readFile(path, consumer);
             } finally {
@@ -328,7 +323,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public InputStream readFile(String path) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return lockInputStream(delegate.readFile(path));
             } catch (Throwable throwable) {
@@ -339,7 +334,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public boolean isFileExist(String path) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.isFileExist(path);
             } finally {
@@ -349,7 +344,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public boolean move(String sourcePath, String destPath) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.move(sourcePath, destPath);
             } finally {
@@ -359,7 +354,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public boolean delete(String path) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.delete(path);
             } finally {
@@ -369,7 +364,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public TapFile saveFile(String path, InputStream is, boolean canReplace) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 if (validateParentDirectory) {
                     String parentPath = parentPath(path);
@@ -394,7 +389,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public OutputStream openFileOutputStream(String path, boolean append) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return lockOutputStream(delegate.openFileOutputStream(path, append));
             } catch (Throwable throwable) {
@@ -405,7 +400,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public boolean supportAppendData() {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.supportAppendData();
             } finally {
@@ -417,7 +412,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
                                         Collection<String> excludeRegs, boolean recursive, int batchSize,
                                         Consumer<List<TapFile>> consumer) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 delegate.getFilesInDirectory(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer);
             } finally {
@@ -427,7 +422,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public boolean isDirectoryExist(String path) throws Exception {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.isDirectoryExist(path);
             } finally {
@@ -437,7 +432,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public String getConnectInfo() {
-            operationLock.acquireUninterruptibly();
+            acquireOperation();
             try {
                 return delegate.getConnectInfo();
             } finally {
@@ -484,6 +479,72 @@ final class PdkStorageExecutor implements StorageExecutor {
         private void releaseStreamLock(AtomicBoolean released) {
             if (released.compareAndSet(false, true)) {
                 operationLock.release();
+            }
+        }
+
+        private void acquireOperation() {
+            if (destroyed.get()) {
+                throw new StorageOperationException("File storage is closed");
+            }
+            operationLock.acquireUninterruptibly();
+            if (destroyed.get()) {
+                operationLock.release();
+                throw new StorageOperationException("File storage is closed");
+            }
+        }
+
+        private boolean tryAcquireForDestroy() {
+            try {
+                return operationLock.tryAcquire(DESTROY_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+
+        private void destroyAfterAcquire() throws Exception {
+            Throwable failure = null;
+            try {
+                delegate.destroy();
+            } catch (Throwable throwable) {
+                failure = throwable;
+            } finally {
+                operationLock.release();
+                releaseResourcesOnce();
+            }
+            rethrowDestroyFailure(failure);
+        }
+
+        private void scheduleDeferredDestroy() {
+            Thread cleanup = new Thread(() -> {
+                operationLock.acquireUninterruptibly();
+                try {
+                    delegate.destroy();
+                } catch (Throwable throwable) {
+                    logWarn(logger, "Deferred file storage destroy failed: " + throwable.getMessage());
+                } finally {
+                    operationLock.release();
+                    releaseResourcesOnce();
+                }
+            }, "pdk-storage-destroy-" + associateId);
+            cleanup.setDaemon(true);
+            cleanup.start();
+            logWarn(logger, "File storage operation did not stop within " + DESTROY_WAIT_MILLIS
+                    + "ms; cleanup is deferred until the operation completes");
+        }
+
+        private void releaseResourcesOnce() {
+            if (resourcesReleased.compareAndSet(false, true)) {
+                releaseResources(associateId, stateMap, tapTableMap, logger);
+            }
+        }
+
+        private static void rethrowDestroyFailure(Throwable failure) throws Exception {
+            if (failure instanceof Exception) {
+                throw (Exception) failure;
+            }
+            if (failure != null) {
+                throw new RuntimeException("Destroy file storage failed", failure);
             }
         }
     }

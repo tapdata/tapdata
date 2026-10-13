@@ -5,6 +5,7 @@ import io.tapdata.file.TapFileStorage;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Constructor;
@@ -151,6 +152,83 @@ class PdkStorageExecutorTest {
         assertEquals(1, completed.get());
     }
 
+    @Test
+    void destroyDoesNotWaitIndefinitelyForBlockedOperation() throws Exception {
+        NonInterruptibleBlockingStorage delegate = new NonInterruptibleBlockingStorage();
+        TapFileStorage managed = newManagedStorage(delegate);
+        AtomicReference<Throwable> operationFailure = new AtomicReference<>();
+        AtomicReference<Throwable> destroyFailure = new AtomicReference<>();
+
+        Thread operation = new Thread(() -> {
+            try {
+                managed.getFile("/blocked");
+            } catch (Throwable throwable) {
+                operationFailure.set(throwable);
+            }
+        });
+        operation.start();
+        assertTrue(delegate.operationStarted.await(5, TimeUnit.SECONDS));
+
+        Thread destroy = new Thread(() -> {
+            try {
+                managed.destroy();
+            } catch (Throwable throwable) {
+                destroyFailure.set(throwable);
+            }
+        });
+        destroy.start();
+        destroy.join(7000);
+        assertFalse(destroy.isAlive());
+        assertEquals(0, delegate.destroyCalls.get());
+
+        delegate.release.countDown();
+        operation.join(5000);
+        assertTrue(delegate.destroyCalled.await(5, TimeUnit.SECONDS));
+        assertFalse(operation.isAlive());
+        assertEquals(1, delegate.destroyCalls.get());
+        assertTrue(operationFailure.get() instanceof IOException);
+        assertEquals(null, destroyFailure.get());
+    }
+
+    @Test
+    void managedStorageRejectsOperationsAfterDestroyStarts() throws Exception {
+        NonInterruptibleBlockingStorage delegate = new NonInterruptibleBlockingStorage();
+        TapFileStorage managed = newManagedStorage(delegate);
+        AtomicReference<Throwable> firstFailure = new AtomicReference<>();
+
+        Thread operation = new Thread(() -> {
+            try {
+                managed.getFile("/blocked");
+            } catch (Throwable throwable) {
+                firstFailure.set(throwable);
+            }
+        });
+        operation.start();
+        assertTrue(delegate.operationStarted.await(5, TimeUnit.SECONDS));
+
+        managed.destroy();
+
+        AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+        Thread secondOperation = new Thread(() -> {
+            try {
+                managed.getFile("/after-close");
+            } catch (Throwable throwable) {
+                secondFailure.set(throwable);
+            }
+        });
+        secondOperation.start();
+        secondOperation.join(5000);
+
+        delegate.release.countDown();
+        operation.join(5000);
+        assertTrue(delegate.destroyCalled.await(5, TimeUnit.SECONDS));
+
+        assertFalse(operation.isAlive());
+        assertFalse(secondOperation.isAlive());
+        assertTrue(firstFailure.get() instanceof IOException);
+        assertTrue(secondFailure.get() instanceof StorageOperationException);
+    }
+
     private static TapFileStorage newManagedStorage(TapFileStorage delegate) throws Exception {
         return newManagedStorage(delegate, "test");
     }
@@ -228,6 +306,47 @@ class PdkStorageExecutorTest {
                                                    Consumer<List<TapFile>> consumer) { consumer.accept(Collections.emptyList()); }
         @Override public boolean isDirectoryExist(String path) { return false; }
         @Override public String getConnectInfo() { return "stream"; }
+    }
+
+    private static final class NonInterruptibleBlockingStorage implements TapFileStorage {
+        private final CountDownLatch operationStarted = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+        private final CountDownLatch destroyCalled = new CountDownLatch(1);
+        private final AtomicInteger destroyCalls = new AtomicInteger();
+
+        @Override public void init(Map<String, Object> params) { }
+
+        @Override
+        public void destroy() {
+            destroyCalls.incrementAndGet();
+            destroyCalled.countDown();
+        }
+
+        @Override
+        public TapFile getFile(String path) throws IOException {
+            operationStarted.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", e);
+            }
+            throw new IOException("released");
+        }
+
+        @Override public void readFile(String path, Consumer<InputStream> consumer) { }
+        @Override public InputStream readFile(String path) { return null; }
+        @Override public boolean isFileExist(String path) { return false; }
+        @Override public boolean move(String sourcePath, String destPath) { return false; }
+        @Override public boolean delete(String path) { return false; }
+        @Override public TapFile saveFile(String path, InputStream is, boolean canReplace) { return null; }
+        @Override public OutputStream openFileOutputStream(String path, boolean append) { return null; }
+        @Override public boolean supportAppendData() { return false; }
+        @Override public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
+                                                   Collection<String> excludeRegs, boolean recursive, int batchSize,
+                                                   Consumer<List<TapFile>> consumer) { consumer.accept(Collections.emptyList()); }
+        @Override public boolean isDirectoryExist(String path) { return false; }
+        @Override public String getConnectInfo() { return "non-interruptible"; }
     }
 
     private static final class DirectoryAwareStorage implements TapFileStorage {
