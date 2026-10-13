@@ -118,7 +118,7 @@ public class ShareCdcUtil {
 					Connections conn = findConnection.apply(logCollecotrConnConfig.getConnectionId());
 					logCollecotrConnConfig.setNamespace(conn.getNamespace());
 				} catch (Exception e) {
-					logger.warn("Fill config namespace failed, key: " + logCollecotrConnConfig.getConnectionId(), e);
+					logger.warn("Fill config namespace failed, key: {}, error: {}", logCollecotrConnConfig.getConnectionId(), e.getMessage());
 				}
 			}
 		}
