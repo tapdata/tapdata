@@ -288,3 +288,56 @@ function process(record) {
 - `target-ftp/save_4.png` 创建成功且文件可以正常打开。
 - 文件内容与 HTTP 响应内容一致。
 - `input.close()` 被执行；HTTP 下载或 FTP 写入失败时，当前事件报错，不继续下游处理。
+
+## 九、场景 8：对象和数组必须显式序列化
+
+### 验证步骤
+
+1. 将 `content` 直接设置为 JS 对象或数组，不设置 `contentType`。
+2. 再将其改为 `JSON.stringify(content)` 后写入。
+
+### 预期结果
+
+- 直接传入对象/数组时，调用抛出异常，并提示使用 `JSON.stringify` 或显式二进制/流类型；不会写入 `[object Object]` 或数组的字符串表示。
+- 显式序列化后按 UTF-8 写入，文件内容可被 JSON 解析。
+
+## 十、场景 9：并发 `fail` 写入
+
+### 验证步骤
+
+使用两个并发事件向同一连接、同一路径执行：
+
+```javascript
+storage.update("target-ftp", {
+  action: "write",
+  target: { path: "out/concurrent.txt" },
+  content: "value"
+}, { overwrite: "fail" });
+```
+
+### 预期结果
+
+- 只有一个事件返回 `status: "written"`。
+- 另一个事件抛出目标已存在异常，不覆盖第一个事件写入的内容。
+
+## 十一、场景 10：schema deduction 只读模式
+
+### 预期结果
+
+- `write`、`copy`、`delete` 分别返回兼容的 `written`、`copied`、`true` 结果。
+- 不创建文件连接 executor，不执行远端写入、复制或删除。
+- 请求结构、路径和内容类型仍会校验；对象/数组 text 内容仍需 `JSON.stringify`。
+
+## 十二、场景 11：SFTP 验收
+
+使用与 FTP 场景等价的 SFTP 连接，且部署 `tapdata-connectors#906` 或更高版本。
+
+### 必测情况
+
+- 目标父目录不存在：写入明确失败，不能产生半成品目标文件。
+- 复制过程中断开 SFTP 数据/控制连接：当前事件失败，后续事件可以重新建连；源端故障不应销毁健康目标连接。
+- 停止任务时存在进行中的读写：任务停止最终完成，不能永久等待原始流关闭。
+
+### 预期结果
+
+上述异常均不会把未完成的文件操作当成成功事件写入下游；恢复连接后新的事件可重新执行。

@@ -60,9 +60,11 @@ storage.update("target-ftp", {
 | `action` | `String` | 固定为 `write` |
 | `target.path` | `String` | 目标文件路径 |
 | `contentType` | `String` | 内容处理类型；未传时默认为 `text`，忽略大小写 |
-| `content` | `String` 或可转字符串的普通值 | 文件内容，按 UTF-8 写入；`byte[]`、`ByteArrayOutputStream` 和 `InputStream` 除外 |
+| `content` | `String` 或普通标量值 | 文件内容，按 UTF-8 写入；Map、List、数组、`byte[]`、`ByteArrayOutputStream` 和 `InputStream` 不能按默认 text 静默转换 |
 
 `contentType: "text"` 适用于文本、JSON、CSV 等字符内容。未传 `contentType` 时不会根据 `content` 的实际类型自动推断为二进制；如果 `content` 是 Java `byte[]` 或 `ByteArrayOutputStream`，会抛出异常并提示使用 `contentType: "bytes"`，如果是 `InputStream`，会提示使用 `contentType: "stream"`。
+
+Map、List、Java 数组以及脚本对象/数组必须先显式序列化，例如 `JSON.stringify(value)`，再按 `text` 写入；或者根据实际数据使用 `bytes`/`stream`。引擎不会把这些对象通过 `toString()` 写入文件。
 
 #### 3.2.2 HTTP 二进制文件同步
 
@@ -168,6 +170,8 @@ storage.update("target-ftp", {
 | `overwrite` | 覆盖目标文件，写入返回 `written`，复制返回 `copied` |
 | `fail` | 目标文件存在时抛出异常 |
 
+同一文件连接上的 `fail`/`skip` 检查和写入在同一个执行器操作锁内完成；并发 `fail` 写入最多一个成功。`overwrite` 直接执行覆盖写，不额外进行一次门面层存在性查询。复制会在临时文件写完后再次在目标锁内检查 `fail`/`skip`，并在已知源文件长度与临时文件长度不一致时拒绝写入目标。
+
 ### 3.5 返回值
 
 ```javascript
@@ -183,6 +187,8 @@ storage.update("target-ftp", {
 | `status` | `written`、`copied` 或 `reused` |
 | `targetPath` | 实际目标文件路径 |
 | `bytes` | 目标文件大小；底层存储返回文件信息时提供 |
+
+schema deduction 使用的只读模式会校验请求结构和内容类型，但不创建文件连接执行器，也不触碰远端文件；`write`、`copy`、`delete` 分别返回兼容的 `written`、`copied`、`true` 结果。该模式的结果不代表远端文件已经发生变化。
 
 ## 4. `storage.find`
 
@@ -263,7 +269,7 @@ var deleted = storage.delete("Source-ftp", {
 - 使用 `httpUtil.downloadBytes` 获取 HTTP 二进制内容后，通过 `contentType: "bytes"` 写入文件连接。
 - 使用 `httpUtil.openStream` 获取 HTTP 输入流后，通过 `contentType: "stream"` 写入文件连接；输入流由脚本关闭。
 
-当前首要验证协议为 FTP。引擎已包含 `local`、`ftp`、`sftp`、`smb`、`s3fs`、`nfs`、`oss` 的现有 storage 映射；其他协议是否可用取决于对应连接器、PDK 和连接配置，需要单独验证。
+当前首要验证协议为 FTP。引擎已包含 `local`、`ftp`、`sftp`、`smb`、`s3fs`、`nfs`、`oss` 的现有 storage 映射；其他协议是否可用取决于对应连接器、PDK 和连接配置，需要单独验证。FTP 卡住的数据通道在等待 5 秒后依赖 connector 安全并发销毁；生产环境必须使用 `tapdata-connectors#906` 或更高版本配套的文件连接器。SFTP 也必须验证缺失父目录、中途断连和任务停止场景。
 
 ### 不支持
 
@@ -274,6 +280,7 @@ var deleted = storage.delete("Source-ftp", {
 - 将 FTP client、PDK 对象或连接凭据暴露给 JS；`InputStream` 只能由受控 helper（如 `httpUtil.openStream`）返回。
 - 将 URL、HTTP 响应对象或普通字符串自动识别为文件二进制内容；HTTP 内容必须由脚本先通过 `httpUtil.downloadBytes` 或 `httpUtil.openStream` 获取，再以 `bytes` 或 `stream` 类型传入。
 - 将 MIME 类型（例如 `image/png`）作为 `contentType`；`contentType` 表示内容处理方式，不表示文件 MIME 类型。
+- 不支持直接调用底层 `readFile(path)` 获取原始输入流或调用 `openFileOutputStream`；脚本只能使用回调式读取、`storage.update` 和受控的 HTTP 流输入。
 - FTP 操作与下游数据库写入之间的跨系统事务回滚。FTP 成功后下游数据库仍可能因自身原因写入失败。
 
 ## 9. `httpUtil` 文件下载方法

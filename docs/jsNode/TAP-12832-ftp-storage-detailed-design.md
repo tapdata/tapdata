@@ -12,6 +12,7 @@ TAP-12832 的目标是让增强 JS 节点能够按连接名称操作文件连接
 - 文件操作直接调用现有 `TapFileStorage` 方法；
 - common-lib 不新增文件 operation API，不增加 `FileStorageFunction`，不增加 `TapFileStorage.capabilities()`；
 - 文件操作的业务条件、是否执行、失败后的业务处理由用户 JS 决定；
+- schema deduction 使用的只读 facade 只校验请求并返回兼容结果，不创建 executor，不执行远端写操作；
 - 不维护按 Tapdata 事件增长的 Mongo ledger。
 
 ## 2. 代码分析结果
@@ -58,7 +59,7 @@ storage.update("target-ftp", data, options);
 | --- | --- |
 | 查询文件/目录 | `getFile(path)` |
 | 判断文件存在 | `isFileExist(path)` |
-| 读取文件 | `readFile(path, Consumer<InputStream>)` 或 `readFile(path)` |
+| 读取文件 | `readFile(path, Consumer<InputStream>)` |
 | 上传/覆盖 | `saveFile(path, InputStream, boolean)` |
 | 删除 | `delete(path)` |
 | 服务端移动 | `move(sourcePath, destPath)` |
@@ -140,8 +141,9 @@ void close();
 
 ```text
 ConcurrentMap<String, CompletableFuture<StorageExecutor>> executors
-ConcurrentMap<String, Failure> failures
 ```
+
+创建失败会移除未完成 future；失败重建由下一次调用触发，不在当前调用内隐式重放。
 
 作用域是一个 JS processor 节点实例。连接名 trim 后作为 key。
 
@@ -156,8 +158,9 @@ ConcurrentMap<String, Failure> failures
 
 #### 失效与关闭
 
-- 远端 I/O 异常时由 `StorageFacade` 调用 `invalidate(connectionName, cause)`；
-- 失效会从缓存移除并调用 `StorageExecutor.close()`；
+- 远端 I/O 异常时由 `StorageFacade` 调用 `invalidate(connectionName, failedExecutor, cause)`；
+- 只有缓存中仍是同一个 failed executor 时才会 compare-and-remove 并调用 `close()`，迟到的旧 executor 故障不会关闭新建的健康 executor；
+- copy 的源端读取故障只失效源 executor，目标端检查/写入故障只失效目标 executor；
 - 创建中的 executor 若在 manager 关闭期间完成，会被立即关闭而不会进入缓存；
 - manager 关闭时遍历并关闭所有已完成 executor；
 - executor 的销毁在移除缓存、释放 manager 监视器之后执行，避免 FTP I/O 卡住时阻塞其他连接的创建和节点关闭状态变更；
@@ -190,7 +193,7 @@ oss   -> io.tapdata.storage.oss.OssFileStorage
 - PDK state map/table map；
 - 幂等 destroy 标志。
 
-关闭顺序：
+脚本执行器关闭顺序：
 
 ```text
 delegate.destroy()
@@ -198,6 +201,8 @@ delegate.destroy()
   -> stateMap.reset
   -> tapTableMap.reset
 ```
+
+脚本执行器在 delegate 资源之前先执行 `connectorStop()`，然后按 `stateMap.reset -> releaseAssociateId -> tapTableMap.reset` 清理。文件 storage 未调用 `connectorInit`，因此不执行 `connectorStop`；其 delegate 销毁后保持原有的 `releaseAssociateId -> stateMap.reset -> tapTableMap.reset` 顺序。两种执行器共用幂等的 `PdkNodeResources` 持有者。
 
 若 builder 初始化失败，则释放 associateId 和 map；因为没有调用 `connectorInit`，失败路径不调用 `connectorStop`。
 
@@ -221,15 +226,14 @@ Map<String, Object> update(String connectionName,
 
 1. 解析 `target.path`；
 2. 解析 `data.contentType`；未传时默认为 `TEXT`，类型值忽略大小写；
-3. 按 `contentType` 读取 `content`：
+3. 按 `contentType` 校验并读取 `content`：
    - `TEXT`：将内容转为字符串并按 UTF-8 写入；
    - `BYTES`：接受 Java `byte[]`、`ByteArrayOutputStream` 或 GraalJS 转换后的 `List<Number>`，恢复为原始 `byte[]`；
    - `STREAM`：要求 `content` 为 `InputStream`，直接流式写入；
-4. 查询目标是否存在；
-5. 按 `overwrite` 处理：skip/fail/overwrite；
-6. 用 `ByteArrayInputStream` 或用户提供的输入流调用 `saveFile`；
-7. 仅关闭引擎为 `TEXT`/`BYTES` 创建的输入流；`STREAM` 输入流由 JS 脚本负责关闭；
-8. 返回 `status`、`targetPath`、文件大小（若 storage 返回元数据）。
+4. `fail`/`skip` 在同一 executor 操作锁内检查目标并保存；并发 `fail` 写入最多一个成功；`overwrite` 在锁内直接保存，不做额外的 facade 存在性查询；
+5. 用 `ByteArrayInputStream` 或用户提供的输入流调用 `saveFile`；
+6. 仅关闭引擎为 `TEXT`/`BYTES` 创建的输入流；`STREAM` 输入流由 JS 脚本负责关闭；
+7. 返回 `status`、`targetPath`、文件大小（若 storage 返回元数据）。
 
 `contentType` 由引擎侧 `StorageContentType` 枚举解析，固定支持 `text`、`bytes`、`stream` 三种值；未知值直接抛出 `StorageOperationException`，不会回退为字符串写入。
 
@@ -251,11 +255,12 @@ Map<String, Object> update(String connectionName,
 
 1. 获取 target executor；
 2. 获取 source executor；source 可以与 target 相同；
-3. 按 overwrite 处理目标文件；
+3. 对 `skip`/`fail` 可先做一次目标预检查；`overwrite` 不做 facade 层存在性查询；
 4. 用 source `getFile` 确认源文件存在；
 5. 无论 source 和 target 是否为同一 storage 实例，先通过 `source.readFile(callback)` 写入 `Files.createTempFile`，源端读锁释放后再从临时文件调用 target `saveFile`，不把完整文件载入 JS 或 Java byte[]；
-6. finally 删除本地临时文件；
-7. 返回 copied/reused 结果。
+6. 若源文件长度元数据已知，临时文件长度必须完全匹配，否则不调用 target `saveFile`；
+7. 在目标 executor 锁内重新检查 `skip`/`fail` 并保存，finally 删除本地临时文件；
+8. 返回 copied/reused 结果。
 
 FTP/SFTP storage 的底层连接存在单连接 I/O 锁。跨连接复制如果在源读锁内直接进入目标写锁，两个线程执行 A→B 和 B→A 时可能形成锁反转；统一使用本地临时文件先读后写，保证任一时刻只持有一个远端 storage 的操作锁。
 
@@ -281,18 +286,18 @@ FTP/SFTP storage 的底层连接存在单连接 I/O 锁。跨连接复制如果�
 | --- | --- |
 | 初始化中 connect/login/模式设置失败时 client 可能半初始化 | 使用局部 client 和统一清理，失败时 disconnect |
 | destroy 重复调用或 logout 异常处理不完整 | closeClient 统一 logout/disconnect，destroy 可重复调用 |
-| `retrieveFileStream` 读完只 close 不能保证 FTP pending command 完成 | 回调式读取 finally close + completePendingCommand；raw stream 用受管 `ManagedInputStream` 在 close 中完成一次 pending command |
-| `storeFileStream/appendFileStream` 输出流关闭边界不明确 | `ManagedOutputStream` 负责幂等 close、pending command 和锁释放 |
-| FTPClient 包含 current working directory 等共享状态 | storage 内部用公平 Semaphore 串行化有状态 I/O |
+| `retrieveFileStream` 读完只 close 不能保证 FTP pending command 完成 | 回调式读取 finally close + completePendingCommand；JS storage 不暴露 raw stream |
+| `storeFileStream/appendFileStream` 输出流关闭边界不明确 | `saveFile` 统一负责写入和关闭；JS storage 不暴露 raw output stream |
+| FTPClient 包含 current working directory 等共享状态 | storage 内部用公平 ReentrantLock 串行化有状态 I/O |
 | 编码、timeout、host/port 等配置缺省或非法 | 在 `FtpConfig`/初始化路径归一化和校验 |
 
 ### 6.2 SFTP 和文件 Connector：已保留的修复
 
-- SFTP 用受管输入/输出流关闭时释放 `ReentrantLock`；
+- SFTP 使用回调式读取和 `saveFile`；原始 `readFile(path)` 与 `openFileOutputStream` 在 managed wrapper 中明确不支持，避免调用方跨线程关闭导致锁泄漏；
 - 初始化失败时关闭 channel/session；
 - `FileConnector.onStop` 分别清理 merge executor、writer 和 storage，清理异常不阻断其他资源；
 - CSV/JSON/Excel discovery 的异常、空文件和提前返回路径执行 storage destroy；
-- 这些修复与 JS storage 共用同一批文件存储实现，因此保留在 Connector 分支。
+- 这些修复与 JS storage 共用同一批文件存储实现，因此保留在 Connector 分支。FTP 卡住的数据通道等待 5 秒后依赖 `tapdata-connectors#906` 或更高版本的安全并发 destroy；非 FTP 仍等待当前操作释放锁后延迟回收。
 
 ### 6.3 Local/SMB/OSS/S3FS：本次补充的明确修复
 
@@ -348,10 +353,10 @@ OSS 原实现调用 `doesObjectExist` 后无条件返回 true；S3FS 原实现�
 引擎模块：
 
 ```text
-本次 contentType 及并发修复验证：
-StorageFacadeTest: 16 passed, 0 failed
-PdkStorageExecutorTest: 3 passed, 0 failed
-StorageExecutorsManagerTest: 7 passed, 0 failed
+本次 contentType、并发和生命周期修复验证：
+StorageFacadeTest: 26 passed, 0 failed
+PdkStorageExecutorTest: 12 passed, 0 failed
+StorageExecutorsManagerTest: 9 passed, 0 failed
 ```
 
 覆盖：

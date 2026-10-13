@@ -188,14 +188,13 @@ var removed = storage.delete("target-ftp", { path: "out/a.json" }, null);
 
 - `init` 对 connect/login/编码/模式/二进制类型失败做 partial client 清理；
 - `destroy` 处理 logout/disconnect，且可重复调用；
-- `readFile(path)` 返回受管输入流，关闭时完成一次 `completePendingCommand` 并释放串行 I/O 锁；
-- `openFileOutputStream` 的 close 幂等，并在关闭时完成 pending command；
+- JS storage 不暴露 `readFile(path)` 返回的 raw 输入流或 `openFileOutputStream`；统一使用回调式读取和 `saveFile`，避免跨线程关闭造成锁泄漏；
 - storage 内部用串行边界保护 FTPClient 的有状态操作；
 - FTPS 配置未被伪装成普通 FTP，仍按现有实现边界处理。
 
 ### 6.2 SFTP 和 Connector 生命周期
 
-- SFTP 输入/输出流关闭时释放操作锁；初始化失败会断开 channel/session；
+- SFTP 使用回调式读取和 `saveFile`；初始化失败会断开 channel/session；
 - FileConnector 的停止流程保证 writer、merge executor、storage 分别进入清理路径；
 - CSV/JSON/Excel discovery 的 storage 在异常和提前返回路径释放；
 - 文件 Connector 的既有生命周期修复保留，不因移除 `FileStorageFunction` 注册而回退。

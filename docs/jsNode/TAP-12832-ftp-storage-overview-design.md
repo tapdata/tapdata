@@ -93,7 +93,7 @@ connectionName -> CompletableFuture<StorageExecutor>
 
 首次访问时按连接名查询 `Connections`，用 `ConnectionUtil.getDatabaseType` 和 `PdkUtil.createNode` 获取对应 PDK classloader，再用现有 `TapFileStorageBuilder` 创建一个 storage。`build()` 会执行 storage 的实际 `init(params)`，因此是实际连接初始化点。
 
-同一连接并发首次访问共享一个 future，只有一个调用执行创建；后续事件复用同一个 executor，不会每条事件重新创建 PDK/FTP 连接。远端 I/O 异常会使 executor 失效并关闭，下一次调用重新创建。JS processor 关闭时关闭所有 executor、storage 和 PDK 运行时资源。
+同一连接并发首次访问共享一个 future，只有一个调用执行创建；后续事件复用同一个 executor，不会每条事件重新创建 PDK/FTP 连接。远端 I/O 异常会按 failed executor 身份失效，迟到的旧连接故障不会关闭新连接；copy 源端和目标端分别归属失效。JS processor 关闭时关闭所有 executor、storage 和 PDK 运行时资源。
 
 `PdkUtil.createNode` 在这条路径中只用于加载 PDK/classloader，不执行 `connectorInit`，也不获取或注册文件能力函数，因此一个 executor 只持有一个实际 `TapFileStorage`。
 
@@ -117,8 +117,8 @@ TAP-12832 首先验收 FTP。其他协议是否可用还取决于对应 PDK 是�
 
 本需求同时修复了已经从源码确认的资源问题：
 
-- FTP 初始化失败清理半初始化 client，`destroy` 可重复调用；受管输入/输出流关闭时完成 FTP pending command 并释放 I/O 边界。
-- SFTP 初始化失败关闭 channel/session，输入/输出流关闭时释放操作锁。
+- FTP 初始化失败清理半初始化 client，`destroy` 可重复调用；JS storage 通过回调式读取和 `saveFile` 完成文件操作，原始流接口不暴露。
+- SFTP 初始化失败关闭 channel/session；JS storage 使用回调式读取和 `saveFile`，避免调用方跨线程关闭原始流导致锁泄漏。
 - FileConnector 的既有停止清理保持有效，writer、merge executor、storage 分别进入清理路径。
 - Local、SMB 的 `saveFile` 输出流改为异常安全关闭。
 - OSS、S3FS 的对象流关闭，存在性判断返回真实结果，不再使用 `InputStream.available()` 作为远端文件总长度。
@@ -131,6 +131,7 @@ TAP-12832 首先验收 FTP。其他协议是否可用还取决于对应 PDK 是�
 - 不在 JS 节点为每条 Tapdata 事件写 `file_operation_ledger`。
 - 不自动实现业务幂等、业务重试、跨重启恢复或“临时文件后发布”的原子语义。
 - 不把 PDK 节点、FTP client 或凭据暴露给 JS；`InputStream` 仅由受控 helper（如 `httpUtil.openStream`）返回。
+- 不在 `PdkManagedFileStorage` 中返回 raw `readFile(path)` 或 `openFileOutputStream`；脚本只能使用门面 API 和受控 HTTP 输入流。
 - 不为本需求新增公共 DTO、能力枚举、错误码或 `FileStorageFunction`。
 
 缓存、失效和资源释放属于连接运行时管理，不是业务幂等。是否重复调用、失败后如何处理由用户 JS 或上层任务错误策略决定。
