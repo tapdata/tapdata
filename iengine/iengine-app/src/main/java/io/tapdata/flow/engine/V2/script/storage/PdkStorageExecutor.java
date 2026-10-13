@@ -82,6 +82,10 @@ final class PdkStorageExecutor implements StorageExecutor {
 
     @Override
     public String resolvePath(String path) {
+        return resolvePath(rootPath, path);
+    }
+
+    static String resolvePath(String rootPath, String path) {
         if (path == null || path.trim().isEmpty()) {
             throw new StorageOperationException("File path is required");
         }
@@ -91,6 +95,9 @@ final class PdkStorageExecutor implements StorageExecutor {
         }
         if (value.contains("://") || containsParentSegment(value) || containsControlCharacter(value)) {
             throw new StorageOperationException("File path is not allowed: " + path);
+        }
+        if (isDirectoryRoot(value)) {
+            throw new StorageOperationException("File path must not be the directory root: " + path);
         }
         String root = rootPath == null ? "" : rootPath.trim();
         if (root.isEmpty() || "/".equals(root)) {
@@ -200,6 +207,15 @@ final class PdkStorageExecutor implements StorageExecutor {
             }
         }
         return false;
+    }
+
+    private static boolean isDirectoryRoot(String path) {
+        for (String segment : path.split("/", -1)) {
+            if (!segment.isEmpty() && !".".equals(segment)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean containsControlCharacter(String path) {

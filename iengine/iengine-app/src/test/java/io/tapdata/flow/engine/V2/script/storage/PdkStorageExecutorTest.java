@@ -40,6 +40,25 @@ class PdkStorageExecutorTest {
     }
 
     @Test
+    void resolvePathRejectsConfiguredRootItself() {
+        for (String root : List.of("", "/", "/data")) {
+            for (String path : List.of("/", "//", ".", "./", "///./")) {
+                StorageOperationException error = assertThrows(StorageOperationException.class,
+                        () -> PdkStorageExecutor.resolvePath(root, path));
+                assertTrue(error.getMessage().contains("directory root"),
+                        () -> "root: " + root + ", path: " + path);
+            }
+        }
+    }
+
+    @Test
+    void resolvePathRejectsParentSegmentsButKeepsNestedCurrentSegments() {
+        assertThrows(StorageOperationException.class,
+                () -> PdkStorageExecutor.resolvePath("/data", "a/../b"));
+        assertEquals("/data/a/./b", PdkStorageExecutor.resolvePath("/data", "a/./b"));
+    }
+
+    @Test
     void managedStorageSerializesConcurrentOperations() throws Exception {
         BlockingStorage delegate = new BlockingStorage();
         TapFileStorage managed = newManagedStorage(delegate);
