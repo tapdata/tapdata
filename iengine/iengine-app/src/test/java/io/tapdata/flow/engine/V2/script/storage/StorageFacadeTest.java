@@ -15,8 +15,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -48,7 +50,7 @@ class StorageFacadeTest {
     }
 
     @Test
-    void readOnlyFacadeRejectsMutationsBeforeCreatingExecutor() {
+    void readOnlyFacadeReturnsMutationShapesWithoutCreatingExecutor() throws Throwable {
         AtomicInteger created = new AtomicInteger();
         StorageExecutorsManager manager = new StorageExecutorsManager(
                 StorageFacadeTest::connection,
@@ -59,19 +61,21 @@ class StorageFacadeTest {
                 0L);
         StorageFacade facade = StorageFacade.readOnly(manager);
 
-        StorageOperationException writeFailure = assertThrows(StorageOperationException.class,
-                () -> facade.update("target-ftp",
-                        map("action", "write", "target", map("path", "/out/1.txt"), "content", "data"),
-                        map("overwrite", "overwrite")));
-        assertEquals("File storage write operations are disabled during schema deduction", writeFailure.getMessage());
+        Map<String, Object> writeResult = facade.update("target-ftp",
+                map("action", "write", "target", map("path", "/out/1.txt"), "content", "data"),
+                map("overwrite", "overwrite"));
+        assertEquals("written", writeResult.get("status"));
+        assertEquals("/out/1.txt", writeResult.get("targetPath"));
 
-        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+        Map<String, Object> copyResult = facade.update("target-ftp",
                 map("action", "copy",
                         "source", map("connection", "source-ftp", "path", "/in/1.txt"),
                         "target", map("path", "/out/1.txt")),
-                map("overwrite", "overwrite")));
-        assertThrows(StorageOperationException.class, () -> facade.delete("target-ftp",
-                map("path", "/out/1.txt"), null));
+                map("overwrite", "overwrite"));
+        assertEquals("copied", copyResult.get("status"));
+        assertEquals("/out/1.txt", copyResult.get("targetPath"));
+
+        assertTrue(facade.delete("target-ftp", map("path", "/out/1.txt"), null));
         assertEquals(0, created.get());
     }
 
@@ -100,18 +104,47 @@ class StorageFacadeTest {
     }
 
     @Test
-    void updateWriteDefaultsToTextWithoutInferringBinaryContent() throws Throwable {
+    void updateWriteRejectsJsListInTextMode() {
         RecordingStorage targetStorage = new RecordingStorage();
         StorageFacade facade = facade(targetStorage, null);
 
-        facade.update("target-ftp",
+        StorageOperationException error = assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
                 map("action", "write",
                         "target", map("path", "/out/default.txt"),
                         "content", List.of(65, 66)),
-                map("overwrite", "overwrite"));
+                map("overwrite", "overwrite")));
 
-        assertEquals("[65, 66]",
-                new String(targetStorage.files.get("/out/default.txt"), StandardCharsets.UTF_8));
+        assertTrue(error.getMessage().contains("JSON.stringify"));
+    }
+
+    @Test
+    void updateWriteRejectsJsMapInTextMode() {
+        StorageFacade facade = facade(new RecordingStorage(), null);
+
+        StorageOperationException error = assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write",
+                        "target", map("path", "/out/default.json"),
+                        "content", map("id", 1)),
+                map("overwrite", "overwrite")));
+
+        assertTrue(error.getMessage().contains("JSON.stringify"));
+    }
+
+    @Test
+    void updateWriteUsesLocaleRootForActionAndOverwrite() throws Throwable {
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            StorageFacade facade = facade(new RecordingStorage(), null);
+
+            Map<String, Object> result = facade.update("target-ftp",
+                    map("action", "WRITE", "target", map("path", "/out/locale.txt"), "content", "data"),
+                    map("overwrite", "OVERWRITE"));
+
+            assertEquals("written", result.get("status"));
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test
@@ -284,13 +317,18 @@ class StorageFacadeTest {
     void wrappedRemoteCopyFailureInvalidatesCachedExecutors() throws Throwable {
         RecordingStorage sourceStorage = new RecordingStorage();
         sourceStorage.files.put("/in/1.txt", bytes("source"));
+        AtomicInteger sourceCreated = new AtomicInteger();
+        AtomicReference<FakeExecutor> sourceExecutor = new AtomicReference<>();
         AtomicInteger targetCreated = new AtomicInteger();
         RecordingStorage recoveredTarget = new RecordingStorage();
         StorageExecutorsManager manager = new StorageExecutorsManager(
                 StorageFacadeTest::connection,
                 (name, connections) -> {
                     if ("source-ftp".equals(name)) {
-                        return new FakeExecutor(name, sourceStorage);
+                        FakeExecutor executor = new FakeExecutor(name, sourceStorage);
+                        sourceExecutor.compareAndSet(null, executor);
+                        sourceCreated.incrementAndGet();
+                        return executor;
                     }
                     return new FakeExecutor(name,
                             targetCreated.getAndIncrement() == 0 ? new FailingSaveStorage() : recoveredTarget);
@@ -305,7 +343,44 @@ class StorageFacadeTest {
                 map("overwrite", "overwrite")));
 
         assertFalse(facade.exists("target-ftp", "/out/1.txt"));
+        Map<String, Object> result = facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite"));
+
+        assertEquals("copied", result.get("status"));
+        assertEquals(1, sourceCreated.get());
+        assertEquals(0, sourceExecutor.get().closed.get());
         assertEquals(2, targetCreated.get());
+        manager.close();
+    }
+
+    @Test
+    void sourceCreationFailureDoesNotInvalidateHealthyTargetExecutor() throws Throwable {
+        FakeExecutor target = new FakeExecutor("target-ftp", new RecordingStorage());
+        AtomicInteger targetCreated = new AtomicInteger();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> {
+                    if ("source-ftp".equals(name)) {
+                        throw new IOException("source login failed");
+                    }
+                    targetCreated.incrementAndGet();
+                    return target;
+                },
+                0L);
+        StorageFacade facade = new StorageFacade(manager);
+
+        assertThrows(IOException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite")));
+
+        assertSame(target, manager.getStorageExecutor("target-ftp"));
+        assertEquals(1, targetCreated.get());
+        assertEquals(0, target.closed.get());
         manager.close();
     }
 
@@ -415,6 +490,7 @@ class StorageFacadeTest {
     private static final class FakeExecutor implements StorageExecutor {
         private final String name;
         private final TapFileStorage storage;
+        private final AtomicInteger closed = new AtomicInteger();
 
         private FakeExecutor(String name, TapFileStorage storage) {
             this.name = name;
@@ -438,6 +514,7 @@ class StorageFacadeTest {
 
         @Override
         public void close() {
+            closed.incrementAndGet();
         }
     }
 

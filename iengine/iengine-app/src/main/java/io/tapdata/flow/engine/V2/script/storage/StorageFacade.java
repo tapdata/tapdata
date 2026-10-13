@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,9 +26,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
  * connector API.</p>
  */
 public final class StorageFacade {
-
-    private static final String READ_ONLY_ERROR =
-            "File storage write operations are disabled during schema deduction";
 
     private final StorageExecutorsManager executorsManager;
     private final boolean readOnly;
@@ -53,23 +51,23 @@ public final class StorageFacade {
                                       Map<String, Object> options) throws Throwable {
         Map<String, Object> request = requiredMap(data, "data");
         Map<String, Object> operationOptions = options == null ? Collections.emptyMap() : options;
-        String action = stringValue(request, "action", "write").toLowerCase();
-        if (readOnly && ("copy".equals(action) || "write".equals(action))) {
-            throw new StorageOperationException(READ_ONLY_ERROR);
+        String action = stringValue(request, "action", "write").toLowerCase(Locale.ROOT);
+        if (readOnly) {
+            return readOnlyUpdate(action, request);
         }
         StorageExecutor target = executor(targetConnectionName);
-        try {
-            if ("copy".equals(action)) {
-                return copy(target, request, operationOptions);
-            }
-            if ("write".equals(action)) {
-                return write(target, request, operationOptions);
-            }
-            throw new StorageOperationException("Unsupported storage.update action: " + action);
-        } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(targetConnectionName, target, throwable);
-            throw throwable;
+        if ("copy".equals(action)) {
+            return copy(target, request, operationOptions);
         }
+        if ("write".equals(action)) {
+            try {
+                return write(target, request, operationOptions);
+            } catch (Throwable throwable) {
+                invalidateOnRemoteFailure(targetConnectionName, target, throwable);
+                throw throwable;
+            }
+        }
+        throw new StorageOperationException("Unsupported storage.update action: " + action);
     }
 
     public Map<String, Object> find(String connectionName,
@@ -101,7 +99,8 @@ public final class StorageFacade {
                           Map<String, Object> options) throws Throwable {
         Map<String, Object> request = requiredMap(data, "data");
         if (readOnly) {
-            throw new StorageOperationException(READ_ONLY_ERROR);
+            requiredPath(request, "path");
+            return true;
         }
         StorageExecutor executor = executor(connectionName);
         try {
@@ -122,6 +121,7 @@ public final class StorageFacade {
         }
         StorageContentType contentType = StorageContentType.fromValue(
                 request.get("contentType") == null ? null : String.valueOf(request.get("contentType")));
+        validateContent(content, contentType);
 
         TapFileStorage storage = target.getStorage();
         String overwriteMode = overwriteMode(options);
@@ -156,47 +156,58 @@ public final class StorageFacade {
         StorageExecutor sourceExecutor = executor(sourceConnectionName);
         String resolvedSourcePath = sourceExecutor.resolvePath(sourcePath);
         String resolvedTargetPath = target.resolvePath(targetPath);
+        TapFileStorage targetStorage = target.getStorage();
+        String overwriteMode = overwriteMode(options);
+        boolean targetExists;
         try {
-            TapFileStorage sourceStorage = sourceExecutor.getStorage();
-            TapFileStorage targetStorage = target.getStorage();
-            String overwriteMode = overwriteMode(options);
-            boolean targetExists = targetStorage.isFileExist(resolvedTargetPath);
+            targetExists = targetStorage.isFileExist(resolvedTargetPath);
             if (targetExists && "fail".equals(overwriteMode)) {
                 throw new StorageOperationException("Target file already exists: " + resolvedTargetPath);
             }
             if (targetExists && "skip".equals(overwriteMode)) {
                 return result("reused", targetStorage.getFile(resolvedTargetPath), resolvedTargetPath);
             }
-            TapFile sourceFile = sourceStorage.getFile(resolvedSourcePath);
-            if (sourceFile == null || sourceFile.getType() == null || sourceFile.getType() != TapFile.TYPE_FILE) {
-                throw new StorageOperationException("Source file does not exist: " + resolvedSourcePath);
-            }
-
-            return copyThroughTempFile(sourceStorage, resolvedSourcePath, targetStorage, resolvedTargetPath);
         } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(sourceConnectionName, sourceExecutor, throwable);
-            if (!sourceConnectionName.equals(target.getConnectionName())) {
-                invalidateOnRemoteFailure(target.getConnectionName(), target, throwable);
-            }
+            invalidateOnRemoteFailure(target.getConnectionName(), target, throwable);
             throw throwable;
         }
+
+        TapFile sourceFile;
+        try {
+            sourceFile = sourceExecutor.getStorage().getFile(resolvedSourcePath);
+        } catch (Throwable throwable) {
+            invalidateOnRemoteFailure(sourceConnectionName, sourceExecutor, throwable);
+            throw throwable;
+        }
+        if (sourceFile == null || sourceFile.getType() == null || sourceFile.getType() != TapFile.TYPE_FILE) {
+            throw new StorageOperationException("Source file does not exist: " + resolvedSourcePath);
+        }
+
+        return copyThroughTempFile(sourceExecutor, resolvedSourcePath, target, resolvedTargetPath);
     }
 
-    private Map<String, Object> copyThroughTempFile(TapFileStorage sourceStorage,
+    private Map<String, Object> copyThroughTempFile(StorageExecutor sourceExecutor,
                                                      String sourcePath,
-                                                     TapFileStorage targetStorage,
+                                                     StorageExecutor targetExecutor,
                                                      String targetPath) throws Exception {
+        TapFileStorage sourceStorage = sourceExecutor.getStorage();
+        TapFileStorage targetStorage = targetExecutor.getStorage();
         Path tempFile = Files.createTempFile("tapdata-js-storage-", UUID.randomUUID().toString());
         try {
             AtomicBoolean readCallbackInvoked = new AtomicBoolean();
-            sourceStorage.readFile(sourcePath, input -> {
-                readCallbackInvoked.set(true);
-                try (InputStream sourceInput = input) {
-                    Files.copy(sourceInput, tempFile, REPLACE_EXISTING);
-                } catch (Exception e) {
-                    throw new StorageOperationException("Read source file failed: " + sourcePath, e);
-                }
-            });
+            try {
+                sourceStorage.readFile(sourcePath, input -> {
+                    readCallbackInvoked.set(true);
+                    try (InputStream sourceInput = input) {
+                        Files.copy(sourceInput, tempFile, REPLACE_EXISTING);
+                    } catch (Exception e) {
+                        throw new StorageOperationException("Read source file failed: " + sourcePath, e);
+                    }
+                });
+            } catch (Throwable throwable) {
+                invalidateOnRemoteFailure(sourceExecutor.getConnectionName(), sourceExecutor, throwable);
+                throw throwable;
+            }
             if (!readCallbackInvoked.get()) {
                 throw new StorageOperationException("Source file could not be read: " + sourcePath);
             }
@@ -204,8 +215,11 @@ public final class StorageFacade {
             try (InputStream targetInput = Files.newInputStream(tempFile)) {
                 try {
                     saved = targetStorage.saveFile(targetPath, targetInput, true);
-                } catch (Exception e) {
-                    throw new StorageOperationException("Copy file failed: " + sourcePath, e);
+                } catch (Throwable throwable) {
+                    StorageOperationException failure = new StorageOperationException(
+                            "Copy file failed: " + sourcePath, throwable);
+                    invalidateOnRemoteFailure(targetExecutor.getConnectionName(), targetExecutor, failure);
+                    throw failure;
                 }
             }
             return result("copied", saved, targetPath);
@@ -247,7 +261,7 @@ public final class StorageFacade {
     }
 
     private String overwriteMode(Map<String, Object> options) {
-        String mode = stringValue(options, "overwrite", "skip").toLowerCase();
+        String mode = stringValue(options, "overwrite", "skip").toLowerCase(Locale.ROOT);
         if (!"skip".equals(mode) && !"overwrite".equals(mode) && !"fail".equals(mode)) {
             throw new StorageOperationException("overwrite must be skip, overwrite or fail");
         }
@@ -262,7 +276,46 @@ public final class StorageFacade {
         };
     }
 
-    private InputStream textContentStream(Object content) {
+    private Map<String, Object> readOnlyUpdate(String action,
+                                                Map<String, Object> request) {
+        if ("write".equals(action)) {
+            String targetPath = requiredPath(targetPath(request), "path");
+            Object content = request.get("content");
+            if (content == null) {
+                throw new StorageOperationException("storage.update write requires content");
+            }
+            StorageContentType contentType = StorageContentType.fromValue(
+                    request.get("contentType") == null ? null : String.valueOf(request.get("contentType")));
+            validateContent(content, contentType);
+            return readOnlyResult("written", targetPath);
+        }
+        if ("copy".equals(action)) {
+            Map<String, Object> source = requiredMap(request.get("source"), "source");
+            requiredPath(source, "connection");
+            requiredPath(source, "path");
+            String targetPath = requiredPath(
+                    requiredMap(request.get("target"), "target"), "path");
+            return readOnlyResult("copied", targetPath);
+        }
+        throw new StorageOperationException("Unsupported storage.update action: " + action);
+    }
+
+    private Map<String, Object> readOnlyResult(String status, String targetPath) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", status);
+        result.put("targetPath", targetPath);
+        return result;
+    }
+
+    private void validateContent(Object content, StorageContentType contentType) {
+        switch (contentType) {
+            case TEXT -> validateTextContent(content);
+            case BYTES -> toBytes(content);
+            case STREAM -> streamContentStream(content);
+        }
+    }
+
+    private void validateTextContent(Object content) {
         if (content instanceof byte[]) {
             throw new StorageOperationException(
                     "content is byte[]; set contentType to bytes");
@@ -275,6 +328,14 @@ public final class StorageFacade {
             throw new StorageOperationException(
                     "content is InputStream; set contentType to stream");
         }
+        if (content instanceof Map || content instanceof List || content.getClass().isArray()) {
+            throw new StorageOperationException(
+                    "content is an object or array; serialize it with JSON.stringify or set contentType explicitly");
+        }
+    }
+
+    private InputStream textContentStream(Object content) {
+        validateTextContent(content);
         return new ByteArrayInputStream(
                 String.valueOf(content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
