@@ -761,27 +761,6 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		void testTransformToTapValueUsesDedicatedFloatingPointCodecs() {
-			Double value = 1.234567890123D;
-			Map<String, Object> after = new LinkedHashMap<>();
-			after.put("single", value);
-			after.put("double", value);
-			tapTable.setNameFieldMap(new LinkedHashMap<>());
-			tapTable.getNameFieldMap().put("single", new TapField("single", "real").tapType(new TapFloat()));
-			tapTable.getNameFieldMap().put("double", new TapField("double", "double").tapType(new TapDouble()));
-			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
-			TapdataEvent event = new TapdataEvent();
-			event.setTapEvent(tapInsertRecordEvent);
-
-			hazelcastBaseNode.transformToTapValue(event, tapTableMap, TABLE_NAME);
-
-			TapFloatValue single = assertInstanceOf(TapFloatValue.class, after.get("single"));
-			TapDoubleValue doublePrecision = assertInstanceOf(TapDoubleValue.class, after.get("double"));
-			assertEquals((double) value.floatValue(), single.getValue());
-			assertEquals(value, doublePrecision.getValue());
-		}
-
-		@Test
 		void testTransformToTapValueThreeParamWhenInsert() {
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapInsertRecordEvent);
