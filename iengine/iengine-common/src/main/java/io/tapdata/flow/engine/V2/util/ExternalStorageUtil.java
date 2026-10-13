@@ -214,6 +214,26 @@ public class ExternalStorageUtil {
 		}
 	}
 
+	@Nullable
+	private static Connections getFirstAvailableConnection(
+			List<String> connectionIds,
+			@NotNull ClientMongoOperator clientMongoOperator
+	) {
+		if (CollectionUtils.isEmpty(connectionIds)) {
+			return null;
+		}
+		for (String connectionId : connectionIds) {
+			Query connQuery = Query.query(where("_id").is(connectionId));
+			connQuery.fields().include("_id").include("shareCDCExternalStorageId");
+			Connections connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			if (connection != null) {
+				return connection;
+			}
+			logger.warn("Skip missing log collector connection when loading external storage, id: {}", connectionId);
+		}
+		return null;
+	}
+
 	public static Map<String, ExternalStorageDto> getExternalStorageMap(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
 		Map<String, ExternalStorageDto> externalStorageDtoMap = new HashMap<>();
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
@@ -242,16 +262,7 @@ public class ExternalStorageUtil {
 				if (logCollectorNode instanceof LogCollectorNode) {
 					List<String> connectionIds = ((LogCollectorNode) logCollectorNode).getConnectionIds();
 					if (CollectionUtils.isNotEmpty(connectionIds)) {
-						Connections connection = null;
-						for (String connectionId : connectionIds) {
-							Query connQuery = Query.query(where("_id").is(connectionId));
-							connQuery.fields().include("_id").include("shareCDCExternalStorageId");
-							connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-							if (connection != null) {
-								break;
-							}
-							logger.warn("Skip missing log collector connection when loading external storage, id: {}", connectionId);
-						}
+						Connections connection = getFirstAvailableConnection(connectionIds, clientMongoOperator);
 						if (connection != null) {
 							String shareCDCExternalStorageId = connection.getShareCDCExternalStorageId();
 							if (StringUtils.isNotBlank(shareCDCExternalStorageId)) {
@@ -464,10 +475,7 @@ public class ExternalStorageUtil {
 			// Get the external storage config of the pre-log-collector node
 			List<String> connectionIds = ((LogCollectorNode) logCollectorNode).getConnectionIds();
 			if (CollectionUtils.isNotEmpty(connectionIds)) {
-				String connectionId = connectionIds.get(0);
-				Query connQuery = Query.query(Criteria.where("_id").is(connectionId));
-				connQuery.fields().include("_id").include("shareCDCExternalStorageId");
-				Connections logCollectorNodeConn = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+				Connections logCollectorNodeConn = getFirstAvailableConnection(connectionIds, clientMongoOperator);
 				if (null != logCollectorNodeConn && StringUtils.isNotBlank(logCollectorNodeConn.getShareCDCExternalStorageId())) {
 					externalStorageDto = externalStorageDtoMap.get(logCollectorNodeConn.getShareCDCExternalStorageId());
 					if (null != externalStorageDto) {
@@ -495,10 +503,7 @@ public class ExternalStorageUtil {
 			// Get the external storage config of the pre-log-collector node
 			List<String> connectionIds = ((LogCollectorNode) logCollectorNode).getConnectionIds();
 			if (CollectionUtils.isNotEmpty(connectionIds)) {
-				String connectionId = connectionIds.get(0);
-				Query connQuery = Query.query(Criteria.where("_id").is(connectionId));
-				connQuery.fields().include("_id").include("shareCDCExternalStorageId");
-				Connections logCollectorNodeConn = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+				Connections logCollectorNodeConn = getFirstAvailableConnection(connectionIds, clientMongoOperator);
 				if (null != logCollectorNodeConn && StringUtils.isNotBlank(logCollectorNodeConn.getShareCDCExternalStorageId())) {
 					Query query = Query.query(where("_id").is(logCollectorNodeConn.getShareCDCExternalStorageId()));
 					externalStorageDto = clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
