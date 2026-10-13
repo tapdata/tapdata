@@ -125,6 +125,26 @@ class StorageFacadeTest {
     }
 
     @Test
+    void readOnlyFacadeStillValidatesPathSafetyWithoutCreatingExecutor() {
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> {
+                    throw new AssertionError("read-only validation must not create an executor");
+                },
+                0L);
+        StorageFacade facade = StorageFacade.readOnly(manager);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "write", "target", map("path", "../escape"), "content", "data"), null));
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "https://example/file"),
+                        "target", map("path", "/out/file")), null));
+        assertThrows(StorageOperationException.class, () -> facade.delete("target-ftp",
+                map("path", "../escape"), null));
+    }
+
+    @Test
     void readOnlyFacadeKeepsReadOperationsAvailable() throws Throwable {
         RecordingStorage storage = new RecordingStorage();
         storage.files.put("/out/1.txt", bytes("data"));

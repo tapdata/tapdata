@@ -99,7 +99,7 @@ public final class StorageFacade {
                           Map<String, Object> options) throws Throwable {
         Map<String, Object> request = requiredMap(data, "data");
         if (readOnly) {
-            requiredPath(request, "path");
+            validatedReadOnlyPath(request.get("path"), "path");
             return true;
         }
         StorageExecutor executor = executor(connectionName);
@@ -283,6 +283,12 @@ public final class StorageFacade {
         return String.valueOf(value);
     }
 
+    private String validatedReadOnlyPath(Object value, String name) {
+        String path = requiredPath(value, name);
+        PdkStorageExecutor.resolvePath("", path);
+        return path;
+    }
+
     private String stringValue(Map<String, Object> map, String key, String defaultValue) {
         Object value = map.get(key);
         return value == null ? defaultValue : String.valueOf(value);
@@ -307,7 +313,7 @@ public final class StorageFacade {
     private Map<String, Object> readOnlyUpdate(String action,
                                                 Map<String, Object> request) {
         if ("write".equals(action)) {
-            String targetPath = requiredPath(targetPath(request), "path");
+            String targetPath = validatedReadOnlyPath(targetPath(request).get("path"), "path");
             Object content = request.get("content");
             if (content == null) {
                 throw new StorageOperationException("storage.update write requires content");
@@ -320,9 +326,9 @@ public final class StorageFacade {
         if ("copy".equals(action)) {
             Map<String, Object> source = requiredMap(request.get("source"), "source");
             requiredPath(source, "connection");
-            requiredPath(source, "path");
-            String targetPath = requiredPath(
-                    requiredMap(request.get("target"), "target"), "path");
+            validatedReadOnlyPath(source.get("path"), "path");
+            String targetPath = validatedReadOnlyPath(
+                    requiredMap(request.get("target"), "target").get("path"), "path");
             return readOnlyResult("copied", targetPath);
         }
         throw new StorageOperationException("Unsupported storage.update action: " + action);
