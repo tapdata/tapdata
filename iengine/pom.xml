@@ -172,7 +172,7 @@
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
         <!-- Verified PR build includes the legacy numeric passthrough fix from common-lib b09e683. -->
-        <tapdata-api.version>2.0.11-pr3504-b09e683-SNAPSHOT</tapdata-api.version>
+        <tapdata-api.version>2.0.11-SNAPSHOT</tapdata-api.version>
         <modules-api.version>2.11-SNAPSHOT</modules-api.version>
         <websocket-client-module.version>2.11-SNAPSHOT</websocket-client-module.version>
         <service-skeleton-module.version>2.11-SNAPSHOT</service-skeleton-module.version>
