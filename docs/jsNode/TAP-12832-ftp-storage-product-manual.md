@@ -170,7 +170,7 @@ storage.update("target-ftp", {
 | `overwrite` | 覆盖目标文件，写入返回 `written`，复制返回 `copied` |
 | `fail` | 目标文件存在时抛出异常 |
 
-同一文件连接上的 `fail`/`skip` 检查和写入在同一个执行器操作锁内完成；并发 `fail` 写入最多一个成功。`overwrite` 直接执行覆盖写，不额外进行一次门面层存在性查询。复制会在临时文件写完后再次在目标锁内检查 `fail`/`skip`，并在已知源文件长度与临时文件长度不一致时拒绝写入目标。
+同一个 JS 节点内，`fail`/`skip` 检查和写入在同一个执行器操作锁内完成；因此该节点内的并发 `fail` 写入最多一个成功。多个 JS 节点或多个任务写同一连接时不提供跨节点的并发协调保证。`overwrite` 直接执行覆盖写，不额外进行一次门面层存在性查询。复制会在临时文件写完后再次在目标锁内检查 `fail`/`skip`，并在已知源文件长度与临时文件长度不一致时拒绝写入目标。
 
 ### 3.5 返回值
 
@@ -269,7 +269,7 @@ var deleted = storage.delete("Source-ftp", {
 - 使用 `httpUtil.downloadBytes` 获取 HTTP 二进制内容后，通过 `contentType: "bytes"` 写入文件连接。
 - 使用 `httpUtil.openStream` 获取 HTTP 输入流后，通过 `contentType: "stream"` 写入文件连接；输入流由脚本关闭。
 
-当前首要验证协议为 FTP。引擎已包含 `local`、`ftp`、`sftp`、`smb`、`s3fs`、`nfs`、`oss` 的现有 storage 映射；其他协议是否可用取决于对应连接器、PDK 和连接配置，需要单独验证。FTP 卡住的数据通道在等待 5 秒后依赖 connector 安全并发销毁；生产环境必须使用 `tapdata-connectors#906` 或更高版本配套的文件连接器。SFTP 也必须验证缺失父目录、中途断连和任务停止场景。
+当前首要验证协议为 FTP。引擎已包含 `local`、`ftp`、`sftp`、`smb`、`s3fs`、`nfs`、`oss` 的现有 storage 映射；其他协议是否可用取决于对应连接器、PDK 和连接配置，需要单独验证。FTP 操作锁等待 5 秒超时后，关闭调用方会把 connector destroy 放入 daemon 后台线程；connector 能够强制打断已登记的 RETR 读流，LIST/STOR 等未登记操作的底层销毁可能继续后台等待。生产环境必须使用 `tapdata-connectors#906` 或更高版本配套的文件连接器。SFTP 也必须验证缺失父目录、中途断连和任务停止场景。
 
 ### 不支持
 

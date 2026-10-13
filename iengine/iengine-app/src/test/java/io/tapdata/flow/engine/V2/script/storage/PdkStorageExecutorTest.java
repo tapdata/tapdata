@@ -209,6 +209,53 @@ class PdkStorageExecutorTest {
     }
 
     @Test
+    void ftpDestroyDoesNotBlockCallerWhenDelegateDestroyBlocks() throws Exception {
+        BlockingDestroyStorage delegate = new BlockingDestroyStorage();
+        AtomicInteger resourceReleases = new AtomicInteger();
+        PdkNodeResources resources = new PdkNodeResources(
+                "test", resourceReleases::incrementAndGet, () -> { }, () -> { });
+        TapFileStorage managed = newManagedStorage(delegate, "ftp", resources);
+        AtomicReference<Throwable> operationFailure = new AtomicReference<>();
+
+        Thread operation = new Thread(() -> {
+            try {
+                managed.getFile("/blocked");
+            } catch (Throwable throwable) {
+                operationFailure.set(throwable);
+            }
+        });
+        Thread destroy = new Thread(() -> {
+            try {
+                managed.destroy();
+            } catch (Throwable throwable) {
+                throw new AssertionError(throwable);
+            }
+        });
+        operation.start();
+        assertTrue(delegate.operationStarted.await(5, TimeUnit.SECONDS));
+
+        try {
+            destroy.start();
+            destroy.join(7000);
+
+            assertFalse(destroy.isAlive());
+            assertTrue(delegate.destroyStarted.await(1, TimeUnit.SECONDS));
+            assertEquals(0, resourceReleases.get());
+        } finally {
+            delegate.releaseOperation.countDown();
+            delegate.releaseDestroy.countDown();
+            operation.join(5000);
+            destroy.join(5000);
+        }
+
+        assertFalse(operation.isAlive());
+        assertFalse(destroy.isAlive());
+        assertTrue(operationFailure.get() instanceof IOException);
+        assertTrue(delegate.destroyFinished.await(5, TimeUnit.SECONDS));
+        assertEquals(1, resourceReleases.get());
+    }
+
+    @Test
     void pdkNodeResourcesCloseIsIdempotent() {
         AtomicInteger stateResets = new AtomicInteger();
         AtomicInteger associateReleases = new AtomicInteger();
@@ -271,11 +318,16 @@ class PdkStorageExecutorTest {
     }
 
     private static TapFileStorage newManagedStorage(TapFileStorage delegate, String protocol) throws Exception {
+        return newManagedStorage(delegate, protocol,
+                new PdkNodeResources("test", () -> { }, () -> { }, () -> { }));
+    }
+
+    private static TapFileStorage newManagedStorage(TapFileStorage delegate,
+                                                    String protocol,
+                                                    PdkNodeResources resources) throws Exception {
         Class<?> managedClass = Class.forName(PdkStorageExecutor.class.getName() + "$PdkManagedFileStorage");
         Constructor<?> constructor = managedClass.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        PdkNodeResources resources = new PdkNodeResources(
-                "test", () -> { }, () -> { }, () -> { });
         return (TapFileStorage) constructor.newInstance(delegate, resources, null, protocol);
     }
 
@@ -386,6 +438,52 @@ class PdkStorageExecutorTest {
                                                    Consumer<List<TapFile>> consumer) { consumer.accept(Collections.emptyList()); }
         @Override public boolean isDirectoryExist(String path) { return false; }
         @Override public String getConnectInfo() { return "non-interruptible"; }
+    }
+
+    private static final class BlockingDestroyStorage implements TapFileStorage {
+        private final CountDownLatch operationStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseOperation = new CountDownLatch(1);
+        private final CountDownLatch destroyStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseDestroy = new CountDownLatch(1);
+        private final CountDownLatch destroyFinished = new CountDownLatch(1);
+
+        @Override public void init(Map<String, Object> params) { }
+
+        @Override
+        public void destroy() throws InterruptedException {
+            destroyStarted.countDown();
+            try {
+                releaseDestroy.await();
+            } finally {
+                destroyFinished.countDown();
+            }
+        }
+
+        @Override
+        public TapFile getFile(String path) throws IOException {
+            operationStarted.countDown();
+            try {
+                releaseOperation.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", e);
+            }
+            throw new IOException("released");
+        }
+
+        @Override public void readFile(String path, Consumer<InputStream> consumer) { }
+        @Override public InputStream readFile(String path) { return null; }
+        @Override public boolean isFileExist(String path) { return false; }
+        @Override public boolean move(String sourcePath, String destPath) { return false; }
+        @Override public boolean delete(String path) { return false; }
+        @Override public TapFile saveFile(String path, InputStream is, boolean canReplace) { return null; }
+        @Override public OutputStream openFileOutputStream(String path, boolean append) { return null; }
+        @Override public boolean supportAppendData() { return false; }
+        @Override public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
+                                                   Collection<String> excludeRegs, boolean recursive, int batchSize,
+                                                   Consumer<List<TapFile>> consumer) { consumer.accept(Collections.emptyList()); }
+        @Override public boolean isDirectoryExist(String path) { return false; }
+        @Override public String getConnectInfo() { return "blocking-destroy"; }
     }
 
     private static final class DirectoryAwareStorage implements TapFileStorage {

@@ -281,7 +281,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             if (forceDestroyOnTimeout) {
                 logWarn(logger, "FTP file storage operation did not stop within " + DESTROY_WAIT_MILLIS
                         + "ms; forcing connector destroy");
-                destroyWithoutAcquire();
+                scheduleForcedDestroy();
                 return;
             }
             // TapFileStorage does not guarantee that destroy() is safe while an operation is in flight.
@@ -470,6 +470,18 @@ final class PdkStorageExecutor implements StorageExecutor {
                 releaseResourcesOnce();
             }
             rethrowDestroyFailure(failure);
+        }
+
+        private void scheduleForcedDestroy() {
+            Thread cleanup = new Thread(() -> {
+                try {
+                    destroyWithoutAcquire();
+                } catch (Throwable throwable) {
+                    logWarn(logger, "Forced FTP file storage destroy failed: " + throwable.getMessage());
+                }
+            }, "pdk-storage-force-destroy-" + nodeResources.getAssociateId());
+            cleanup.setDaemon(true);
+            cleanup.start();
         }
 
         private void scheduleDeferredDestroy() {

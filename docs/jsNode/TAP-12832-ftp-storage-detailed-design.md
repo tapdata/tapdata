@@ -297,7 +297,7 @@ FTP/SFTP storage 的底层连接存在单连接 I/O 锁。跨连接复制如果�
 - 初始化失败时关闭 channel/session；
 - `FileConnector.onStop` 分别清理 merge executor、writer 和 storage，清理异常不阻断其他资源；
 - CSV/JSON/Excel discovery 的异常、空文件和提前返回路径执行 storage destroy；
-- 这些修复与 JS storage 共用同一批文件存储实现，因此保留在 Connector 分支。FTP 卡住的数据通道等待 5 秒后依赖 `tapdata-connectors#906` 或更高版本的安全并发 destroy；非 FTP 仍等待当前操作释放锁后延迟回收。
+- 这些修复与 JS storage 共用同一批文件存储实现，因此保留在 Connector 分支。FTP 操作锁等待 5 秒超时后，关闭调用方把 connector destroy 放入 daemon 后台线程；connector 能够强制打断已登记的 RETR 读流，LIST/STOR 等未登记操作的底层销毁可能继续后台等待。该行为依赖 `tapdata-connectors#906` 或更高版本；非 FTP 仍等待当前操作释放锁后延迟回收。
 
 ### 6.3 Local/SMB/OSS/S3FS：本次补充的明确修复
 
