@@ -169,6 +169,21 @@ import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 
 public class HazelcastTaskServiceTest {
+    @Test
+    void firstAvailableConnectionSkipsMissingConnection() {
+        ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+        HazelcastTaskService service = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
+        Connections expected = new Connections();
+        expected.setId("existing");
+
+        doThrow(new RuntimeException("Cannot find connection by id(missing)"))
+                .when(service).getConnection("missing");
+        doReturn(expected).when(service).getConnection("existing");
+
+        assertSame(expected, ReflectionTestUtils.invokeMethod(service, "getFirstAvailableConnection",
+                List.of("missing", "existing")));
+    }
+
     @Nested
     class InitCacheInvalidationServiceTest {
         @Test

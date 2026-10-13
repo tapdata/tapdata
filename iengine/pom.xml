@@ -171,7 +171,7 @@
         <mockito.version>4.11.0</mockito.version>
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
-        <!-- Verified PR build includes the legacy numeric passthrough fix from common-lib b09e683. -->
+        <!-- Numeric passthrough behavior depends on the shared tapdata-api snapshot. -->
         <tapdata-api.version>2.0.11-SNAPSHOT</tapdata-api.version>
         <modules-api.version>2.11-SNAPSHOT</modules-api.version>
         <websocket-client-module.version>2.11-SNAPSHOT</websocket-client-module.version>

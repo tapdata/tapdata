@@ -4,8 +4,12 @@ import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.config.PersistenceRocksDBConfig;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.OsUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.error.ExternalStorageExCode_26;
 import io.tapdata.exception.TapCodeException;
 import org.junit.jupiter.api.DisplayName;
@@ -19,11 +23,39 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 class ExternalStorageUtilTest {
+
+    @Test
+    void getExternalStorageMapSkipsMissingFirstLogCollectorConnection() {
+        HttpClientMongoOperator mongoOperator = mock(HttpClientMongoOperator.class);
+        TaskDto taskDto = new TaskDto();
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+        LogCollectorNode logCollectorNode = new LogCollectorNode();
+        logCollectorNode.setConnectionIds(List.of("missing", "existing"));
+        DAG dag = mock(DAG.class);
+        when(dag.getNodes()).thenReturn(List.of(logCollectorNode));
+        taskDto.setDag(dag);
+
+        Connections existingConnection = new Connections();
+        existingConnection.setShareCDCExternalStorageId("storage-id");
+        when(mongoOperator.findOne(any(Query.class), eq(ConnectorConstant.CONNECTION_COLLECTION), eq(Connections.class)))
+                .thenReturn(null, existingConnection);
+
+        ExternalStorageDto storage = new ExternalStorageDto();
+        storage.setId(new org.bson.types.ObjectId());
+        storage.setName("shared-storage");
+        when(mongoOperator.find(any(Query.class), eq(ConnectorConstant.EXTERNAL_STORAGE_COLLECTION), eq(ExternalStorageDto.class)))
+                .thenReturn(List.of(storage));
+
+        assertEquals(storage, ExternalStorageUtil.getExternalStorageMap(taskDto, mongoOperator)
+                .get(storage.getId().toHexString()));
+    }
 
     @Test
      void getRocksDBConfigTest(){

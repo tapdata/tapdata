@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 public class ShareCdcUtil {
 
 	private static final Logger logger = LogManager.getLogger(ShareCdcUtil.class);
+	private static final String CONNECTION_NOT_FOUND_PREFIX = "Cannot find connection by id(";
 	private static final String SHARE_CDC_KEY_PREFIX = "SHARE_CDC_";
 	private static final char NAMESPACE_DELIMITER = '.';
 
@@ -114,14 +115,29 @@ public class ShareCdcUtil {
 		Map<String, LogCollecotrConnConfig> connConfigs = logCollectorNode.getLogCollectorConnConfigs();
 		if (null != connConfigs && !connConfigs.isEmpty()) {
 			for (LogCollecotrConnConfig logCollecotrConnConfig : connConfigs.values()) {
+				Connections conn;
 				try {
-					Connections conn = findConnection.apply(logCollecotrConnConfig.getConnectionId());
-					logCollecotrConnConfig.setNamespace(conn.getNamespace());
-				} catch (Exception e) {
-					logger.warn("Fill config namespace failed, key: {}, error: {}", logCollecotrConnConfig.getConnectionId(), e.getMessage());
+					conn = findConnection.apply(logCollecotrConnConfig.getConnectionId());
+				} catch (RuntimeException e) {
+					if (!isConnectionNotFound(e)) {
+						throw e;
+					}
+					logger.warn("Skip missing connection when filling config namespace, key: {}, error: {}\n{}",
+							logCollecotrConnConfig.getConnectionId(), e.getMessage(), Log4jUtil.getStackString(e));
+					continue;
 				}
+				if (conn == null) {
+					logger.warn("Skip missing connection when filling config namespace, key: {}",
+							logCollecotrConnConfig.getConnectionId());
+					continue;
+				}
+				logCollecotrConnConfig.setNamespace(conn.getNamespace());
 			}
 		}
+	}
+
+	private static boolean isConnectionNotFound(RuntimeException exception) {
+		return exception.getMessage() != null && exception.getMessage().startsWith(CONNECTION_NOT_FOUND_PREFIX);
 	}
 
 	public static List<ConnectionConfigWithTables> connectionConfigWithTables(Node<?> node, Function<Collection<String>, List<Connections>> findConnections) {

@@ -242,13 +242,21 @@ public class ExternalStorageUtil {
 				if (logCollectorNode instanceof LogCollectorNode) {
 					List<String> connectionIds = ((LogCollectorNode) logCollectorNode).getConnectionIds();
 					if (CollectionUtils.isNotEmpty(connectionIds)) {
-						String connectionId = connectionIds.get(0);
-						Query connQuery = Query.query(where("_id").is(connectionId));
-						connQuery.fields().include("_id").include("shareCDCExternalStorageId");
-						Connections connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-						String shareCDCExternalStorageId = connection.getShareCDCExternalStorageId();
-						if (StringUtils.isNotBlank(shareCDCExternalStorageId)) {
-							ids.add(shareCDCExternalStorageId);
+						Connections connection = null;
+						for (String connectionId : connectionIds) {
+							Query connQuery = Query.query(where("_id").is(connectionId));
+							connQuery.fields().include("_id").include("shareCDCExternalStorageId");
+							connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+							if (connection != null) {
+								break;
+							}
+							logger.warn("Skip missing log collector connection when loading external storage, id: {}", connectionId);
+						}
+						if (connection != null) {
+							String shareCDCExternalStorageId = connection.getShareCDCExternalStorageId();
+							if (StringUtils.isNotBlank(shareCDCExternalStorageId)) {
+								ids.add(shareCDCExternalStorageId);
+							}
 						}
 					}
 				}

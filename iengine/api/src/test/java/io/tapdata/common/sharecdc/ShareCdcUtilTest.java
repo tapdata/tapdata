@@ -1,6 +1,9 @@
 package io.tapdata.common.sharecdc;
 
 import com.google.common.collect.Lists;
+import com.tapdata.entity.Connections;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.bson.types.ObjectId;
@@ -74,6 +77,61 @@ class ShareCdcUtilTest {
 		void testJoinNamespaces() {
 			assertNotEquals(ShareCdcUtil.joinNamespaces(Lists.newArrayList("db.schema", "table")), ShareCdcUtil.joinNamespaces(Lists.newArrayList("db", "schema.table")));
 		}
+	}
+
+	@Test
+	void fillConfigNamespaceSkipsMissingConnectionsAndFillsRemainingConfigs() {
+		LogCollectorNode node = new LogCollectorNode();
+		LogCollecotrConnConfig missing = new LogCollecotrConnConfig();
+		missing.setConnectionId("missing");
+		LogCollecotrConnConfig existing = new LogCollecotrConnConfig();
+		existing.setConnectionId("existing");
+		LogCollecotrConnConfig missingMiddle = new LogCollecotrConnConfig();
+		missingMiddle.setConnectionId("missing-middle");
+		LogCollecotrConnConfig last = new LogCollecotrConnConfig();
+		last.setConnectionId("last");
+		Map<String, LogCollecotrConnConfig> configs = new LinkedHashMap<>();
+		configs.put("missing", missing);
+		configs.put("existing", existing);
+		configs.put("missing-middle", missingMiddle);
+		configs.put("last", last);
+		node.setLogCollectorConnConfigs(configs);
+
+		Connections existingConnection = new Connections();
+		existingConnection.setNamespace(List.of("db", "schema"));
+		Connections lastConnection = new Connections();
+		lastConnection.setNamespace(List.of("db2"));
+		Function<String, Connections> findConnection = id -> switch (id) {
+			case "missing" -> null;
+			case "existing" -> existingConnection;
+			case "missing-middle" -> null;
+			case "last" -> lastConnection;
+			default -> throw new IllegalArgumentException("unexpected connection id: " + id);
+		};
+
+		ShareCdcUtil.fillConfigNamespace(node, findConnection);
+
+		assertNull(missing.getNamespace());
+		assertEquals(List.of("db", "schema"), existing.getNamespace());
+		assertNull(missingMiddle.getNamespace());
+		assertEquals(List.of("db2"), last.getNamespace());
+	}
+
+	@Test
+	void fillConfigNamespaceRethrowsConnectionLookupFailures() {
+		LogCollectorNode node = new LogCollectorNode();
+		LogCollecotrConnConfig config = new LogCollecotrConnConfig();
+		config.setConnectionId("existing");
+		node.setLogCollectorConnConfigs(Map.of("existing", config));
+
+		RuntimeException lookupFailure = new RuntimeException("Mongo lookup failed");
+
+		RuntimeException actual = assertThrows(RuntimeException.class,
+				() -> ShareCdcUtil.fillConfigNamespace(node, id -> {
+					throw lookupFailure;
+				}));
+
+		assertSame(lookupFailure, actual);
 	}
 
 }

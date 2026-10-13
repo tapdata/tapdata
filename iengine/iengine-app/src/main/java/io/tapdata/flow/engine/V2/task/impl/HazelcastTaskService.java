@@ -22,6 +22,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
@@ -482,8 +483,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 					tableNode = node instanceof TableNode ? (TableNode) node : null;
 				} else if (node.isLogCollectorNode()) {
 					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
-					String connectionId = logCollectorNode.getConnectionIds().get(0);
-					connection = getConnection(connectionId);
+					connection = getFirstAvailableConnection(logCollectorNode.getConnectionIds());
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 
 					ShareCdcUtil.fillConfigNamespace(logCollectorNode, this::getConnection);
@@ -1149,6 +1149,35 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	public Connections getConnection(String connectionId) {
 		return ConnectionUtil.getConnection(connectionId, null);
+	}
+
+	private Connections getFirstAvailableConnection(List<String> connectionIds) {
+		if (CollectionUtils.isEmpty(connectionIds)) {
+			throw new RuntimeException("Cannot find any available connection by ids " + connectionIds);
+		}
+
+		RuntimeException lastMissingConnection = null;
+		for (String connectionId : connectionIds) {
+			try {
+				Connections connection = getConnection(connectionId);
+				if (connection != null) {
+					return connection;
+				}
+				logger.warn("Skip missing log collector connection, id: {}", connectionId);
+			} catch (RuntimeException e) {
+				if (!isConnectionNotFound(e)) {
+					throw e;
+				}
+				lastMissingConnection = e;
+				logger.warn("Skip missing log collector connection, id: {}, error: {}\n{}",
+						connectionId, e.getMessage(), Log4jUtil.getStackString(e));
+			}
+		}
+		throw new RuntimeException("Cannot find any available connection by ids " + connectionIds, lastMissingConnection);
+	}
+
+	private boolean isConnectionNotFound(RuntimeException exception) {
+		return exception.getMessage() != null && exception.getMessage().startsWith("Cannot find connection by id(");
 	}
 
 	protected TaskConfig getTaskConfig(TaskDto taskDto) {
