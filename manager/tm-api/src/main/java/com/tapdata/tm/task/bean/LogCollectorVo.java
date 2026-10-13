@@ -34,6 +34,10 @@ public class LogCollectorVo {
     private Date logTime;
     /** 保留的时长 单位 （天） 默认3天*/
     private Integer storageTime = 3;
+    private String accessNodeType;
+    private String accessNodeProcessId;
+    private String priorityProcessId;
+    private Boolean sourceAgentPolicyInherited;
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)

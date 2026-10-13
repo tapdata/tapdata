@@ -47,6 +47,27 @@ class CustomMongoConfigTest {
     MongoCollection<Document> backupCollection;
     MongoCursor<Document> mongoCursor;
     
+    @Test
+    @org.junit.jupiter.api.DisplayName("MongoDB新版本保留capped容量和条数映射")
+    void modernStatisticsPreserveCappedConfiguration() {
+        when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
+        when(mongoDatabase.runCommand(new Document("buildInfo", 1)))
+                .thenReturn(new Document("version", "8.0.32"));
+        when(mongoDatabase.getCollection("testCollection")).thenReturn(mongoCollection);
+        com.mongodb.client.AggregateIterable<Document> aggregate = mock(com.mongodb.client.AggregateIterable.class);
+        when(mongoCollection.aggregate(anyList())).thenReturn(aggregate);
+        when(aggregate.iterator()).thenReturn(mongoCursor);
+        when(mongoCursor.hasNext()).thenReturn(true, false);
+        when(mongoCursor.next()).thenReturn(new Document("storageStats",
+                new Document("capped", true).append("maxSize", 1048576L).append("max", 100L)));
+        CustomMongoConfig.CollectionStats result = customMongoConfig.getCollectionStats("testCollection");
+        Assertions.assertTrue(result.isCapped());
+        Assertions.assertEquals(1048576L, result.getMaxSize());
+        Assertions.assertEquals(100L, result.getMax());
+        verify(mongoCursor).close();
+        verify(mongoDatabase, never()).runCommand(new Document("collStats", "testCollection"));
+    }
+
     @BeforeEach
     void init() {
         mongoTemplate = mock(MongoTemplate.class);
