@@ -185,7 +185,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			);
 			this.storageExecutorsManager = new StorageExecutorsManager(scriptLogger, clientMongoOperator,
 					jetContext.hazelcastInstance(), node.getTaskId(), node.getId());
-			this.storageFacade = new StorageFacade(storageExecutorsManager);
+			this.storageFacade = processorBaseContext.getTaskDto().isDeduceSchemaTask()
+					? StorageFacade.readOnly(storageExecutorsManager)
+					: new StorageFacade(storageExecutorsManager);
 			String nodeId = node.getId();
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);

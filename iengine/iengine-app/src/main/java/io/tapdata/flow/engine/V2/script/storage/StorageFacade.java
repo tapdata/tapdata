@@ -26,13 +26,26 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
  */
 public final class StorageFacade {
 
+    private static final String READ_ONLY_ERROR =
+            "File storage write operations are disabled during schema deduction";
+
     private final StorageExecutorsManager executorsManager;
+    private final boolean readOnly;
 
     public StorageFacade(StorageExecutorsManager executorsManager) {
+        this(executorsManager, false);
+    }
+
+    public static StorageFacade readOnly(StorageExecutorsManager executorsManager) {
+        return new StorageFacade(executorsManager, true);
+    }
+
+    private StorageFacade(StorageExecutorsManager executorsManager, boolean readOnly) {
         if (executorsManager == null) {
             throw new IllegalArgumentException("executorsManager is required");
         }
         this.executorsManager = executorsManager;
+        this.readOnly = readOnly;
     }
 
     public Map<String, Object> update(String targetConnectionName,
@@ -41,6 +54,9 @@ public final class StorageFacade {
         Map<String, Object> request = requiredMap(data, "data");
         Map<String, Object> operationOptions = options == null ? Collections.emptyMap() : options;
         String action = stringValue(request, "action", "write").toLowerCase();
+        if (readOnly && ("copy".equals(action) || "write".equals(action))) {
+            throw new StorageOperationException(READ_ONLY_ERROR);
+        }
         StorageExecutor target = executor(targetConnectionName);
         try {
             if ("copy".equals(action)) {
@@ -84,6 +100,9 @@ public final class StorageFacade {
                           Map<String, Object> data,
                           Map<String, Object> options) throws Throwable {
         Map<String, Object> request = requiredMap(data, "data");
+        if (readOnly) {
+            throw new StorageOperationException(READ_ONLY_ERROR);
+        }
         StorageExecutor executor = executor(connectionName);
         try {
             return executor.getStorage().delete(executor.resolvePath(requiredPath(request, "path")));

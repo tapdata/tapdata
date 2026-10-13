@@ -48,6 +48,49 @@ class StorageFacadeTest {
     }
 
     @Test
+    void readOnlyFacadeRejectsMutationsBeforeCreatingExecutor() {
+        AtomicInteger created = new AtomicInteger();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> {
+                    created.incrementAndGet();
+                    return new FakeExecutor(name, new RecordingStorage());
+                },
+                0L);
+        StorageFacade facade = StorageFacade.readOnly(manager);
+
+        StorageOperationException writeFailure = assertThrows(StorageOperationException.class,
+                () -> facade.update("target-ftp",
+                        map("action", "write", "target", map("path", "/out/1.txt"), "content", "data"),
+                        map("overwrite", "overwrite")));
+        assertEquals("File storage write operations are disabled during schema deduction", writeFailure.getMessage());
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite")));
+        assertThrows(StorageOperationException.class, () -> facade.delete("target-ftp",
+                map("path", "/out/1.txt"), null));
+        assertEquals(0, created.get());
+    }
+
+    @Test
+    void readOnlyFacadeKeepsReadOperationsAvailable() throws Throwable {
+        RecordingStorage storage = new RecordingStorage();
+        storage.files.put("/out/1.txt", bytes("data"));
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> new FakeExecutor(name, storage),
+                0L);
+        StorageFacade facade = StorageFacade.readOnly(manager);
+
+        assertTrue(facade.exists("target-ftp", "/out/1.txt"));
+        assertEquals("/out/1.txt",
+                facade.find("target-ftp", map("path", "/out/1.txt"), null).get("path"));
+    }
+
+    @Test
     void contentTypeDefaultsToTextAndParsesCaseInsensitively() {
         assertSame(StorageContentType.TEXT, StorageContentType.fromValue(null));
         assertSame(StorageContentType.TEXT, StorageContentType.fromValue(""));
