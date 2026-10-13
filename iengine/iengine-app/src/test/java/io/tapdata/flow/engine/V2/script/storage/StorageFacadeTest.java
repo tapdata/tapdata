@@ -50,6 +50,51 @@ class StorageFacadeTest {
     }
 
     @Test
+    void concurrentFailWritesAllowOnlyOneWinner() throws Exception {
+        GateStorage storage = new GateStorage();
+        StorageExecutorsManager manager = new StorageExecutorsManager(
+                StorageFacadeTest::connection,
+                (name, connections) -> new GateExecutor(name, storage),
+                0L);
+        StorageFacade facade = new StorageFacade(manager);
+        CyclicBarrier start = new CyclicBarrier(2);
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        try {
+            Future<Object> first = workers.submit(() -> writeAfterBarrier(facade, start, "first"));
+            Future<Object> second = workers.submit(() -> writeAfterBarrier(facade, start, "second"));
+
+            Object firstResult = first.get(5, TimeUnit.SECONDS);
+            Object secondResult = second.get(5, TimeUnit.SECONDS);
+            long successes = List.of(firstResult, secondResult).stream()
+                    .filter(Map.class::isInstance)
+                    .count();
+            long failures = List.of(firstResult, secondResult).stream()
+                    .filter(StorageOperationException.class::isInstance)
+                    .count();
+
+            assertEquals(1, successes);
+            assertEquals(1, failures);
+            assertTrue(storage.files.containsKey("/out/race.txt"));
+            assertTrue(storage.files.get("/out/race.txt").length > 0);
+        } finally {
+            workers.shutdownNow();
+            manager.close();
+        }
+    }
+
+    @Test
+    void overwriteDoesNotPerformFacadeExistenceCheck() throws Throwable {
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, null);
+
+        facade.update("target-ftp",
+                map("action", "write", "target", map("path", "/out/overwrite.txt"), "content", "data"),
+                map("overwrite", "overwrite"));
+
+        assertEquals(0, targetStorage.existenceChecks.get());
+    }
+
+    @Test
     void readOnlyFacadeReturnsMutationShapesWithoutCreatingExecutor() throws Throwable {
         AtomicInteger created = new AtomicInteger();
         StorageExecutorsManager manager = new StorageExecutorsManager(
@@ -251,6 +296,24 @@ class StorageFacadeTest {
 
         assertEquals("copied", result.get("status"));
         assertEquals("source", new String(targetStorage.files.get("/out/1.txt"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void updateCopyRejectsTruncatedTemporaryFileBeforeSavingTarget() {
+        RecordingStorage sourceStorage = new RecordingStorage();
+        sourceStorage.files.put("/in/1.txt", bytes("source"));
+        sourceStorage.reportedLength = 100L;
+        RecordingStorage targetStorage = new RecordingStorage();
+        StorageFacade facade = facade(targetStorage, sourceStorage);
+
+        assertThrows(StorageOperationException.class, () -> facade.update("target-ftp",
+                map("action", "copy",
+                        "source", map("connection", "source-ftp", "path", "/in/1.txt"),
+                        "target", map("path", "/out/1.txt")),
+                map("overwrite", "overwrite")));
+
+        assertEquals(0, targetStorage.saveCalls.get());
+        assertFalse(targetStorage.files.containsKey("/out/1.txt"));
     }
 
     @Test
@@ -465,6 +528,19 @@ class StorageFacadeTest {
         return value.getBytes(StandardCharsets.UTF_8);
     }
 
+    private static Object writeAfterBarrier(StorageFacade facade,
+                                            CyclicBarrier start,
+                                            String value) {
+        try {
+            start.await(5, TimeUnit.SECONDS);
+            return facade.update("target-ftp",
+                    map("action", "write", "target", map("path", "/out/race.txt"), "content", value),
+                    map("overwrite", "fail"));
+        } catch (Throwable throwable) {
+            return throwable;
+        }
+    }
+
     private static final class CloseTrackingInputStream extends ByteArrayInputStream {
         private boolean closed;
 
@@ -491,6 +567,7 @@ class StorageFacadeTest {
         private final String name;
         private final TapFileStorage storage;
         private final AtomicInteger closed = new AtomicInteger();
+        private final ReentrantLock operationLock = new ReentrantLock();
 
         private FakeExecutor(String name, TapFileStorage storage) {
             this.name = name;
@@ -510,6 +587,16 @@ class StorageFacadeTest {
         @Override
         public String resolvePath(String path) {
             return path;
+        }
+
+        @Override
+        public <T> T withStorageOperation(StorageOperation<T> operation) throws Exception {
+            operationLock.lock();
+            try {
+                return operation.apply(storage);
+            } finally {
+                operationLock.unlock();
+            }
         }
 
         @Override
@@ -577,6 +664,9 @@ class StorageFacadeTest {
         protected final java.util.Set<String> directories = new java.util.HashSet<>();
         protected final java.util.Set<String> readWithoutCallback = new java.util.HashSet<>();
         protected boolean returnNullOnSave;
+        protected Long reportedLength;
+        protected final AtomicInteger existenceChecks = new AtomicInteger();
+        protected final AtomicInteger saveCalls = new AtomicInteger();
 
         @Override
         public void init(Map<String, Object> params) {
@@ -593,7 +683,8 @@ class StorageFacadeTest {
             }
             byte[] content = files.get(path);
             if (content == null) return null;
-            return new TapFile().type(TapFile.TYPE_FILE).path(path).length((long) content.length).lastModified(0L);
+            long length = reportedLength == null ? content.length : reportedLength;
+            return new TapFile().type(TapFile.TYPE_FILE).path(path).length(length).lastModified(0L);
         }
 
         @Override
@@ -611,6 +702,7 @@ class StorageFacadeTest {
 
         @Override
         public boolean isFileExist(String path) {
+            existenceChecks.incrementAndGet();
             return files.containsKey(path);
         }
 
@@ -629,6 +721,7 @@ class StorageFacadeTest {
 
         @Override
         public TapFile saveFile(String path, InputStream inputStream, boolean canReplace) throws Exception {
+            saveCalls.incrementAndGet();
             if (files.containsKey(path) && !canReplace) return getFile(path);
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[128];
@@ -667,6 +760,65 @@ class StorageFacadeTest {
         @Override
         public TapFile saveFile(String path, InputStream inputStream, boolean canReplace) throws IOException {
             throw new IOException("remote write failed");
+        }
+    }
+
+    private static final class GateStorage extends RecordingStorage {
+        private final ThreadLocal<Boolean> atomicOperation = ThreadLocal.withInitial(() -> false);
+        private final CyclicBarrier nonAtomicSaveBarrier = new CyclicBarrier(2);
+
+        private void setAtomicOperation(boolean value) {
+            atomicOperation.set(value);
+        }
+
+        @Override
+        public TapFile saveFile(String path, InputStream inputStream, boolean canReplace) throws Exception {
+            if (!atomicOperation.get()) {
+                nonAtomicSaveBarrier.await(2, TimeUnit.SECONDS);
+            }
+            return super.saveFile(path, inputStream, canReplace);
+        }
+    }
+
+    private static final class GateExecutor implements StorageExecutor {
+        private final String name;
+        private final GateStorage storage;
+        private final ReentrantLock operationLock = new ReentrantLock();
+
+        private GateExecutor(String name, GateStorage storage) {
+            this.name = name;
+            this.storage = storage;
+        }
+
+        @Override
+        public String getConnectionName() {
+            return name;
+        }
+
+        @Override
+        public TapFileStorage getStorage() {
+            return storage;
+        }
+
+        @Override
+        public String resolvePath(String path) {
+            return path;
+        }
+
+        @Override
+        public <T> T withStorageOperation(StorageOperation<T> operation) throws Exception {
+            operationLock.lock();
+            storage.setAtomicOperation(true);
+            try {
+                return operation.apply(storage);
+            } finally {
+                storage.setAtomicOperation(false);
+                operationLock.unlock();
+            }
+        }
+
+        @Override
+        public void close() {
         }
     }
 }

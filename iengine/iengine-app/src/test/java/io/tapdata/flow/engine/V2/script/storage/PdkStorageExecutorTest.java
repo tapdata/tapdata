@@ -122,34 +122,15 @@ class PdkStorageExecutorTest {
     }
 
     @Test
-    void managedInputStreamCanBeClosedByAnotherThread() throws Exception {
+    void managedRawStreamsAreUnsupportedWithoutHoldingLock() throws Exception {
         StreamStorage delegate = new StreamStorage();
         TapFileStorage managed = newManagedStorage(delegate);
-        InputStream input = managed.readFile("/stream");
-        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
-        AtomicInteger completed = new AtomicInteger();
+        assertThrows(UnsupportedOperationException.class, () -> managed.readFile("/stream"));
+        assertThrows(UnsupportedOperationException.class,
+                () -> managed.openFileOutputStream("/stream", false));
 
-        Thread operation = new Thread(() -> {
-            getFile(managed, "/after-stream");
-            completed.incrementAndGet();
-        });
-        operation.setDaemon(true);
-        operation.start();
-        assertFalse(delegate.getFileEntered.await(200, TimeUnit.MILLISECONDS));
-
-        Thread closer = new Thread(() -> {
-            try {
-                input.close();
-            } catch (Throwable throwable) {
-                closeFailure.set(throwable);
-            }
-        });
-        closer.start();
-        closer.join(5000);
-        operation.join(5000);
-
-        assertTrue(closeFailure.get() == null, () -> "stream close failed: " + closeFailure.get());
-        assertEquals(1, completed.get());
+        managed.getFile("/after-stream");
+        assertTrue(delegate.getFileEntered.await(5, TimeUnit.SECONDS));
     }
 
     @Test

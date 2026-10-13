@@ -21,17 +21,16 @@ import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 
 import java.io.InputStream;
-import java.io.FilterInputStream;
-import java.io.FilterOutputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 final class PdkStorageExecutor implements StorageExecutor {
@@ -84,6 +83,11 @@ final class PdkStorageExecutor implements StorageExecutor {
     @Override
     public String resolvePath(String path) {
         return resolvePath(rootPath, path);
+    }
+
+    @Override
+    public <T> T withStorageOperation(StorageOperation<T> operation) throws Exception {
+        return ((PdkManagedFileStorage) storage).withStorageOperation(operation);
     }
 
     static String resolvePath(String rootPath, String path) {
@@ -168,7 +172,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         if (protocol == null || protocol.trim().isEmpty()) {
             throw new StorageOperationException("File connection protocol is required: " + connections.getName());
         }
-        return protocol.trim().toLowerCase();
+        return protocol.trim().toLowerCase(Locale.ROOT);
     }
 
     private static String value(Map<String, Object> config, String key, String defaultValue) {
@@ -266,7 +270,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         private final boolean validateParentDirectory;
         private final AtomicBoolean destroyed = new AtomicBoolean();
         private final AtomicBoolean resourcesReleased = new AtomicBoolean();
-        private final Semaphore operationLock = new Semaphore(1, true);
+        private final ReentrantLock operationLock = new ReentrantLock(true);
 
         private PdkManagedFileStorage(TapFileStorage delegate,
                                       String associateId,
@@ -307,7 +311,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.getFile(path);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -317,19 +321,14 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 delegate.readFile(path, consumer);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
         @Override
         public InputStream readFile(String path) throws Exception {
-            acquireOperation();
-            try {
-                return lockInputStream(delegate.readFile(path));
-            } catch (Throwable throwable) {
-                operationLock.release();
-                throw throwable;
-            }
+            throw new UnsupportedOperationException(
+                    "Raw readFile streams are not supported; use callback-based readFile");
         }
 
         @Override
@@ -338,7 +337,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.isFileExist(path);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -348,7 +347,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.move(sourcePath, destPath);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -358,7 +357,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.delete(path);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -375,7 +374,7 @@ final class PdkStorageExecutor implements StorageExecutor {
                 }
                 return delegate.saveFile(path, is, canReplace);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -389,13 +388,8 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         @Override
         public OutputStream openFileOutputStream(String path, boolean append) throws Exception {
-            acquireOperation();
-            try {
-                return lockOutputStream(delegate.openFileOutputStream(path, append));
-            } catch (Throwable throwable) {
-                operationLock.release();
-                throw throwable;
-            }
+            throw new UnsupportedOperationException(
+                    "Raw output streams are not supported; use saveFile");
         }
 
         @Override
@@ -404,7 +398,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.supportAppendData();
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -416,7 +410,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 delegate.getFilesInDirectory(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -426,7 +420,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.isDirectoryExist(path);
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
@@ -436,49 +430,16 @@ final class PdkStorageExecutor implements StorageExecutor {
             try {
                 return delegate.getConnectInfo();
             } finally {
-                operationLock.release();
+                operationLock.unlock();
             }
         }
 
-        private InputStream lockInputStream(InputStream input) {
-            if (input == null) {
-                operationLock.release();
-                return null;
-            }
-            AtomicBoolean released = new AtomicBoolean();
-            return new FilterInputStream(input) {
-                @Override
-                public void close() throws java.io.IOException {
-                    try {
-                        super.close();
-                    } finally {
-                        releaseStreamLock(released);
-                    }
-                }
-            };
-        }
-
-        private OutputStream lockOutputStream(OutputStream output) {
-            if (output == null) {
-                operationLock.release();
-                return null;
-            }
-            AtomicBoolean released = new AtomicBoolean();
-            return new FilterOutputStream(output) {
-                @Override
-                public void close() throws java.io.IOException {
-                    try {
-                        super.close();
-                    } finally {
-                        releaseStreamLock(released);
-                    }
-                }
-            };
-        }
-
-        private void releaseStreamLock(AtomicBoolean released) {
-            if (released.compareAndSet(false, true)) {
-                operationLock.release();
+        private <T> T withStorageOperation(StorageOperation<T> operation) throws Exception {
+            acquireOperation();
+            try {
+                return operation.apply(this);
+            } finally {
+                operationLock.unlock();
             }
         }
 
@@ -486,16 +447,16 @@ final class PdkStorageExecutor implements StorageExecutor {
             if (destroyed.get()) {
                 throw new StorageOperationException("File storage is closed");
             }
-            operationLock.acquireUninterruptibly();
+            operationLock.lock();
             if (destroyed.get()) {
-                operationLock.release();
+                operationLock.unlock();
                 throw new StorageOperationException("File storage is closed");
             }
         }
 
         private boolean tryAcquireForDestroy() {
             try {
-                return operationLock.tryAcquire(DESTROY_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+                return operationLock.tryLock(DESTROY_WAIT_MILLIS, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return false;
@@ -509,7 +470,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             } catch (Throwable throwable) {
                 failure = throwable;
             } finally {
-                operationLock.release();
+                operationLock.unlock();
                 releaseResourcesOnce();
             }
             rethrowDestroyFailure(failure);
@@ -517,13 +478,13 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         private void scheduleDeferredDestroy() {
             Thread cleanup = new Thread(() -> {
-                operationLock.acquireUninterruptibly();
+                operationLock.lock();
                 try {
                     delegate.destroy();
                 } catch (Throwable throwable) {
                     logWarn(logger, "Deferred file storage destroy failed: " + throwable.getMessage());
                 } finally {
-                    operationLock.release();
+                operationLock.unlock();
                     releaseResourcesOnce();
                 }
             }, "pdk-storage-destroy-" + associateId);

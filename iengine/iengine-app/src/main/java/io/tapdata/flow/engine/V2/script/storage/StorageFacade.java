@@ -123,25 +123,28 @@ public final class StorageFacade {
                 request.get("contentType") == null ? null : String.valueOf(request.get("contentType")));
         validateContent(content, contentType);
 
-        TapFileStorage storage = target.getStorage();
         String overwriteMode = overwriteMode(options);
-        boolean exists = storage.isFileExist(path);
-        if (exists && "fail".equals(overwriteMode)) {
-            throw new StorageOperationException("Target file already exists: " + path);
-        }
-        if (exists && "skip".equals(overwriteMode)) {
-            return result("reused", null, path);
-        }
+        return target.withStorageOperation(storage -> {
+            if (!"overwrite".equals(overwriteMode)) {
+                boolean exists = storage.isFileExist(path);
+                if (exists && "fail".equals(overwriteMode)) {
+                    throw new StorageOperationException("Target file already exists: " + path);
+                }
+                if (exists && "skip".equals(overwriteMode)) {
+                    return result("reused", null, path);
+                }
+            }
 
-        InputStream input = contentStream(content, contentType);
-        if (contentType.isCallerOwned()) {
-            TapFile saved = storage.saveFile(path, input, true);
-            return result("written", saved, path);
-        }
-        try (input) {
-            TapFile saved = storage.saveFile(path, input, true);
-            return result("written", saved, path);
-        }
+            InputStream input = contentStream(content, contentType);
+            if (contentType.isCallerOwned()) {
+                TapFile saved = storage.saveFile(path, input, true);
+                return result("written", saved, path);
+            }
+            try (input) {
+                TapFile saved = storage.saveFile(path, input, true);
+                return result("written", saved, path);
+            }
+        });
     }
 
     private Map<String, Object> copy(StorageExecutor target,
@@ -156,20 +159,27 @@ public final class StorageFacade {
         StorageExecutor sourceExecutor = executor(sourceConnectionName);
         String resolvedSourcePath = sourceExecutor.resolvePath(sourcePath);
         String resolvedTargetPath = target.resolvePath(targetPath);
-        TapFileStorage targetStorage = target.getStorage();
         String overwriteMode = overwriteMode(options);
-        boolean targetExists;
-        try {
-            targetExists = targetStorage.isFileExist(resolvedTargetPath);
-            if (targetExists && "fail".equals(overwriteMode)) {
-                throw new StorageOperationException("Target file already exists: " + resolvedTargetPath);
+        if (!"overwrite".equals(overwriteMode)) {
+            try {
+                Map<String, Object> earlyResult = target.withStorageOperation(storage -> {
+                    boolean targetExists = storage.isFileExist(resolvedTargetPath);
+                    if (!targetExists) {
+                        return null;
+                    }
+                    if ("fail".equals(overwriteMode)) {
+                        throw new StorageOperationException(
+                                "Target file already exists: " + resolvedTargetPath);
+                    }
+                    return result("reused", storage.getFile(resolvedTargetPath), resolvedTargetPath);
+                });
+                if (earlyResult != null) {
+                    return earlyResult;
+                }
+            } catch (Throwable throwable) {
+                invalidateOnRemoteFailure(target.getConnectionName(), target, throwable);
+                throw throwable;
             }
-            if (targetExists && "skip".equals(overwriteMode)) {
-                return result("reused", targetStorage.getFile(resolvedTargetPath), resolvedTargetPath);
-            }
-        } catch (Throwable throwable) {
-            invalidateOnRemoteFailure(target.getConnectionName(), target, throwable);
-            throw throwable;
         }
 
         TapFile sourceFile;
@@ -183,15 +193,17 @@ public final class StorageFacade {
             throw new StorageOperationException("Source file does not exist: " + resolvedSourcePath);
         }
 
-        return copyThroughTempFile(sourceExecutor, resolvedSourcePath, target, resolvedTargetPath);
+        return copyThroughTempFile(sourceExecutor, resolvedSourcePath, sourceFile,
+                target, resolvedTargetPath, overwriteMode);
     }
 
     private Map<String, Object> copyThroughTempFile(StorageExecutor sourceExecutor,
                                                      String sourcePath,
+                                                     TapFile sourceFile,
                                                      StorageExecutor targetExecutor,
-                                                     String targetPath) throws Exception {
+                                                     String targetPath,
+                                                     String overwriteMode) throws Throwable {
         TapFileStorage sourceStorage = sourceExecutor.getStorage();
-        TapFileStorage targetStorage = targetExecutor.getStorage();
         Path tempFile = Files.createTempFile("tapdata-js-storage-", UUID.randomUUID().toString());
         try {
             AtomicBoolean readCallbackInvoked = new AtomicBoolean();
@@ -211,18 +223,34 @@ public final class StorageFacade {
             if (!readCallbackInvoked.get()) {
                 throw new StorageOperationException("Source file could not be read: " + sourcePath);
             }
-            TapFile saved;
-            try (InputStream targetInput = Files.newInputStream(tempFile)) {
-                try {
-                    saved = targetStorage.saveFile(targetPath, targetInput, true);
-                } catch (Throwable throwable) {
-                    StorageOperationException failure = new StorageOperationException(
-                            "Copy file failed: " + sourcePath, throwable);
-                    invalidateOnRemoteFailure(targetExecutor.getConnectionName(), targetExecutor, failure);
-                    throw failure;
-                }
+            Long sourceLength = sourceFile.getLength();
+            if (sourceLength != null && Files.size(tempFile) != sourceLength) {
+                throw new StorageOperationException("Copied source file length does not match metadata: " + sourcePath);
             }
-            return result("copied", saved, targetPath);
+            try {
+                return targetExecutor.withStorageOperation(targetStorage -> {
+                    if (!"overwrite".equals(overwriteMode)) {
+                        boolean targetExists = targetStorage.isFileExist(targetPath);
+                        if (targetExists && "fail".equals(overwriteMode)) {
+                            throw new StorageOperationException("Target file already exists: " + targetPath);
+                        }
+                        if (targetExists && "skip".equals(overwriteMode)) {
+                            return result("reused", targetStorage.getFile(targetPath), targetPath);
+                        }
+                    }
+                    try (InputStream targetInput = Files.newInputStream(tempFile)) {
+                        TapFile saved = targetStorage.saveFile(targetPath, targetInput, true);
+                        return result("copied", saved, targetPath);
+                    } catch (StorageOperationException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new StorageOperationException("Copy file failed: " + sourcePath, e);
+                    }
+                });
+            } catch (Throwable throwable) {
+                invalidateOnRemoteFailure(targetExecutor.getConnectionName(), targetExecutor, throwable);
+                throw throwable;
+            }
         } finally {
             Files.deleteIfExists(tempFile);
         }
