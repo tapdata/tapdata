@@ -13,10 +13,10 @@ import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.file.TapFileStorageBuilder;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.script.PdkNodeResources;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 
@@ -144,6 +144,8 @@ final class PdkStorageExecutor implements StorageExecutor {
         PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
         TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("StorageExecutor", tag);
         PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
+        PdkNodeResources resources = new PdkNodeResources(
+                tag, associateId, stateMap, tapTableMap, scriptLogger, false);
         try {
             // createNode loads the PDK and provides its class loader. It does not
             // initialize the connector, so the file storage is the only remote
@@ -156,9 +158,10 @@ final class PdkStorageExecutor implements StorageExecutor {
                     .withStorageClassName(storageClass)
                     .withParams(connections.getConfig())
                     .build();
-            return new PdkManagedFileStorage(delegate, associateId, stateMap, tapTableMap, scriptLogger, protocol);
+            resources.setConnectorNode(connectorNode);
+            return new PdkManagedFileStorage(delegate, resources, scriptLogger, protocol);
         } catch (Throwable throwable) {
-            releaseResources(associateId, stateMap, tapTableMap, scriptLogger);
+            resources.close();
             if (throwable instanceof StorageOperationException) {
                 throw (StorageOperationException) throwable;
             }
@@ -232,27 +235,6 @@ final class PdkStorageExecutor implements StorageExecutor {
         return false;
     }
 
-    private static void releaseResources(String associateId,
-                                         PdkStateMap stateMap,
-                                         TapTableMap<String, TapTable> tapTableMap,
-                                         Log logger) {
-        try {
-            PDKIntegration.releaseAssociateId(associateId);
-        } catch (Throwable throwable) {
-            logWarn(logger, "Release PDK file connector failed: " + throwable.getMessage());
-        }
-        try {
-            stateMap.reset();
-        } catch (Throwable throwable) {
-            logWarn(logger, "Reset PDK file state failed: " + throwable.getMessage());
-        }
-        try {
-            tapTableMap.reset();
-        } catch (Throwable throwable) {
-            logWarn(logger, "Reset PDK file table map failed: " + throwable.getMessage());
-        }
-    }
-
     private static void logWarn(Log logger, String message) {
         if (logger != null) {
             logger.warn(message);
@@ -263,9 +245,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         private static final long DESTROY_WAIT_MILLIS = 5_000L;
 
         private final TapFileStorage delegate;
-        private final String associateId;
-        private final PdkStateMap stateMap;
-        private final TapTableMap<String, TapTable> tapTableMap;
+        private final PdkNodeResources nodeResources;
         private final Log logger;
         private final boolean validateParentDirectory;
         private final boolean forceDestroyOnTimeout;
@@ -274,15 +254,11 @@ final class PdkStorageExecutor implements StorageExecutor {
         private final ReentrantLock operationLock = new ReentrantLock(true);
 
         private PdkManagedFileStorage(TapFileStorage delegate,
-                                      String associateId,
-                                      PdkStateMap stateMap,
-                                      TapTableMap<String, TapTable> tapTableMap,
+                                      PdkNodeResources nodeResources,
                                       Log logger,
                                       String protocol) {
             this.delegate = delegate;
-            this.associateId = associateId;
-            this.stateMap = stateMap;
-            this.tapTableMap = tapTableMap;
+            this.nodeResources = nodeResources;
             this.logger = logger;
             this.validateParentDirectory = "ftp".equalsIgnoreCase(protocol);
             this.forceDestroyOnTimeout = this.validateParentDirectory;
@@ -507,7 +483,7 @@ final class PdkStorageExecutor implements StorageExecutor {
                 operationLock.unlock();
                     releaseResourcesOnce();
                 }
-            }, "pdk-storage-destroy-" + associateId);
+            }, "pdk-storage-destroy-" + nodeResources.getAssociateId());
             cleanup.setDaemon(true);
             cleanup.start();
             logWarn(logger, "File storage operation did not stop within " + DESTROY_WAIT_MILLIS
@@ -516,7 +492,7 @@ final class PdkStorageExecutor implements StorageExecutor {
 
         private void releaseResourcesOnce() {
             if (resourcesReleased.compareAndSet(false, true)) {
-                releaseResources(associateId, stateMap, tapTableMap, logger);
+                nodeResources.close();
             }
         }
 

@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.script.storage;
 
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
+import io.tapdata.flow.engine.V2.script.PdkNodeResources;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -208,6 +209,25 @@ class PdkStorageExecutorTest {
     }
 
     @Test
+    void pdkNodeResourcesCloseIsIdempotent() {
+        AtomicInteger stateResets = new AtomicInteger();
+        AtomicInteger associateReleases = new AtomicInteger();
+        AtomicInteger tableResets = new AtomicInteger();
+        PdkNodeResources resources = new PdkNodeResources(
+                "test",
+                stateResets::incrementAndGet,
+                associateReleases::incrementAndGet,
+                tableResets::incrementAndGet);
+
+        resources.close();
+        resources.close();
+
+        assertEquals(1, stateResets.get());
+        assertEquals(1, associateReleases.get());
+        assertEquals(1, tableResets.get());
+    }
+
+    @Test
     void managedStorageRejectsOperationsAfterDestroyStarts() throws Exception {
         NonInterruptibleBlockingStorage delegate = new NonInterruptibleBlockingStorage();
         TapFileStorage managed = newManagedStorage(delegate);
@@ -254,7 +274,9 @@ class PdkStorageExecutorTest {
         Class<?> managedClass = Class.forName(PdkStorageExecutor.class.getName() + "$PdkManagedFileStorage");
         Constructor<?> constructor = managedClass.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        return (TapFileStorage) constructor.newInstance(delegate, "test", null, null, null, protocol);
+        PdkNodeResources resources = new PdkNodeResources(
+                "test", () -> { }, () -> { }, () -> { });
+        return (TapFileStorage) constructor.newInstance(delegate, resources, null, protocol);
     }
 
     private static void getFile(TapFileStorage storage, String path) {
