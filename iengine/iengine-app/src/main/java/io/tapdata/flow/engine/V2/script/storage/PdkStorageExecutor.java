@@ -151,7 +151,7 @@ final class PdkStorageExecutor implements StorageExecutor {
                     .withStorageClassName(storageClass)
                     .withParams(connections.getConfig())
                     .build();
-            return new PdkManagedFileStorage(delegate, associateId, stateMap, tapTableMap, scriptLogger);
+            return new PdkManagedFileStorage(delegate, associateId, stateMap, tapTableMap, scriptLogger, protocol);
         } catch (Throwable throwable) {
             releaseResources(associateId, stateMap, tapTableMap, scriptLogger);
             if (throwable instanceof StorageOperationException) {
@@ -260,6 +260,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         private final PdkStateMap stateMap;
         private final TapTableMap<String, TapTable> tapTableMap;
         private final Log logger;
+        private final boolean validateParentDirectory;
         private final AtomicBoolean destroyed = new AtomicBoolean();
         private final Semaphore operationLock = new Semaphore(1, true);
 
@@ -267,12 +268,14 @@ final class PdkStorageExecutor implements StorageExecutor {
                                       String associateId,
                                       PdkStateMap stateMap,
                                       TapTableMap<String, TapTable> tapTableMap,
-                                      Log logger) {
+                                      Log logger,
+                                      String protocol) {
             this.delegate = delegate;
             this.associateId = associateId;
             this.stateMap = stateMap;
             this.tapTableMap = tapTableMap;
             this.logger = logger;
+            this.validateParentDirectory = "ftp".equalsIgnoreCase(protocol);
         }
 
         @Override
@@ -368,10 +371,25 @@ final class PdkStorageExecutor implements StorageExecutor {
         public TapFile saveFile(String path, InputStream is, boolean canReplace) throws Exception {
             operationLock.acquireUninterruptibly();
             try {
+                if (validateParentDirectory) {
+                    String parentPath = parentPath(path);
+                    if (!delegate.isDirectoryExist(parentPath)) {
+                        throw new StorageOperationException(
+                                "Parent directory does not exist: " + parentPath);
+                    }
+                }
                 return delegate.saveFile(path, is, canReplace);
             } finally {
                 operationLock.release();
             }
+        }
+
+        private static String parentPath(String path) {
+            int separator = path.lastIndexOf('/');
+            if (separator <= 0) {
+                return "/";
+            }
+            return path.substring(0, separator);
         }
 
         @Override

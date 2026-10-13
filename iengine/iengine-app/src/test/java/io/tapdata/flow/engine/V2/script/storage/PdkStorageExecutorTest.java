@@ -59,6 +59,45 @@ class PdkStorageExecutorTest {
     }
 
     @Test
+    void managedFtpStorageRejectsMissingParentBeforeSave() throws Exception {
+        DirectoryAwareStorage delegate = new DirectoryAwareStorage(false);
+        TapFileStorage managed = newManagedStorage(delegate, "ftp");
+
+        StorageOperationException error = assertThrows(StorageOperationException.class,
+                () -> managed.saveFile("/out/2026-10-12/a.csv",
+                        new ByteArrayInputStream("today".getBytes()), true));
+
+        assertEquals("Parent directory does not exist: /out/2026-10-12", error.getMessage());
+        assertEquals(0, delegate.saveCalls.get());
+    }
+
+    @Test
+    void managedFtpStorageSavesWhenParentExists() throws Exception {
+        DirectoryAwareStorage delegate = new DirectoryAwareStorage(true);
+        TapFileStorage managed = newManagedStorage(delegate, "ftp");
+
+        TapFile saved = managed.saveFile("/out/2026-10-12/a.csv",
+                new ByteArrayInputStream("today".getBytes()), true);
+
+        assertEquals(TapFile.TYPE_FILE, saved.getType());
+        assertEquals(1, delegate.directoryChecks.get());
+        assertEquals(1, delegate.saveCalls.get());
+    }
+
+    @Test
+    void managedNonFtpStorageDoesNotRequireParentDirectoryCheck() throws Exception {
+        DirectoryAwareStorage delegate = new DirectoryAwareStorage(false);
+        TapFileStorage managed = newManagedStorage(delegate, "s3fs");
+
+        TapFile saved = managed.saveFile("/out/2026-10-12/a.csv",
+                new ByteArrayInputStream("today".getBytes()), true);
+
+        assertEquals(TapFile.TYPE_FILE, saved.getType());
+        assertEquals(1, delegate.saveCalls.get());
+        assertEquals(0, delegate.directoryChecks.get());
+    }
+
+    @Test
     void managedStorageSerializesConcurrentOperations() throws Exception {
         BlockingStorage delegate = new BlockingStorage();
         TapFileStorage managed = newManagedStorage(delegate);
@@ -113,10 +152,14 @@ class PdkStorageExecutorTest {
     }
 
     private static TapFileStorage newManagedStorage(TapFileStorage delegate) throws Exception {
+        return newManagedStorage(delegate, "test");
+    }
+
+    private static TapFileStorage newManagedStorage(TapFileStorage delegate, String protocol) throws Exception {
         Class<?> managedClass = Class.forName(PdkStorageExecutor.class.getName() + "$PdkManagedFileStorage");
         Constructor<?> constructor = managedClass.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        return (TapFileStorage) constructor.newInstance(delegate, "test", null, null, null);
+        return (TapFileStorage) constructor.newInstance(delegate, "test", null, null, null, protocol);
     }
 
     private static void getFile(TapFileStorage storage, String path) {
@@ -185,5 +228,44 @@ class PdkStorageExecutorTest {
                                                    Consumer<List<TapFile>> consumer) { consumer.accept(Collections.emptyList()); }
         @Override public boolean isDirectoryExist(String path) { return false; }
         @Override public String getConnectInfo() { return "stream"; }
+    }
+
+    private static final class DirectoryAwareStorage implements TapFileStorage {
+        private final boolean parentExists;
+        private final AtomicInteger directoryChecks = new AtomicInteger();
+        private final AtomicInteger saveCalls = new AtomicInteger();
+
+        private DirectoryAwareStorage(boolean parentExists) {
+            this.parentExists = parentExists;
+        }
+
+        @Override public void init(Map<String, Object> params) { }
+        @Override public void destroy() { }
+        @Override public TapFile getFile(String path) { return null; }
+        @Override public void readFile(String path, Consumer<InputStream> consumer) { }
+        @Override public InputStream readFile(String path) { return null; }
+        @Override public boolean isFileExist(String path) { return false; }
+        @Override public boolean move(String sourcePath, String destPath) { return false; }
+        @Override public boolean delete(String path) { return false; }
+
+        @Override
+        public TapFile saveFile(String path, InputStream is, boolean canReplace) {
+            saveCalls.incrementAndGet();
+            return new TapFile().type(TapFile.TYPE_FILE).path(path).length(5L).lastModified(0L);
+        }
+
+        @Override public OutputStream openFileOutputStream(String path, boolean append) { return null; }
+        @Override public boolean supportAppendData() { return false; }
+        @Override public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs,
+                                                   Collection<String> excludeRegs, boolean recursive, int batchSize,
+                                                   Consumer<List<TapFile>> consumer) { consumer.accept(Collections.emptyList()); }
+
+        @Override
+        public boolean isDirectoryExist(String path) {
+            directoryChecks.incrementAndGet();
+            return parentExists;
+        }
+
+        @Override public String getConnectInfo() { return "directory-aware"; }
     }
 }
