@@ -172,6 +172,42 @@ class PdkStorageExecutorTest {
     }
 
     @Test
+    void ftpDestroyForcesDelegateAfterTimeout() throws Exception {
+        NonInterruptibleBlockingStorage delegate = new NonInterruptibleBlockingStorage();
+        TapFileStorage managed = newManagedStorage(delegate, "ftp");
+        AtomicReference<Throwable> operationFailure = new AtomicReference<>();
+
+        Thread operation = new Thread(() -> {
+            try {
+                managed.getFile("/blocked");
+            } catch (Throwable throwable) {
+                operationFailure.set(throwable);
+            }
+        });
+        operation.start();
+        assertTrue(delegate.operationStarted.await(5, TimeUnit.SECONDS));
+
+        Thread destroy = new Thread(() -> {
+            try {
+                managed.destroy();
+            } catch (Throwable throwable) {
+                throw new AssertionError(throwable);
+            }
+        });
+        destroy.start();
+        destroy.join(7000);
+
+        assertFalse(destroy.isAlive());
+        assertTrue(delegate.destroyCalled.await(1, TimeUnit.SECONDS));
+        assertEquals(1, delegate.destroyCalls.get());
+
+        delegate.release.countDown();
+        operation.join(5000);
+        assertFalse(operation.isAlive());
+        assertTrue(operationFailure.get() instanceof IOException);
+    }
+
+    @Test
     void managedStorageRejectsOperationsAfterDestroyStarts() throws Exception {
         NonInterruptibleBlockingStorage delegate = new NonInterruptibleBlockingStorage();
         TapFileStorage managed = newManagedStorage(delegate);

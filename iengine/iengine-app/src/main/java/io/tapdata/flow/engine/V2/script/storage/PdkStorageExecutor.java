@@ -268,6 +268,7 @@ final class PdkStorageExecutor implements StorageExecutor {
         private final TapTableMap<String, TapTable> tapTableMap;
         private final Log logger;
         private final boolean validateParentDirectory;
+        private final boolean forceDestroyOnTimeout;
         private final AtomicBoolean destroyed = new AtomicBoolean();
         private final AtomicBoolean resourcesReleased = new AtomicBoolean();
         private final ReentrantLock operationLock = new ReentrantLock(true);
@@ -284,6 +285,7 @@ final class PdkStorageExecutor implements StorageExecutor {
             this.tapTableMap = tapTableMap;
             this.logger = logger;
             this.validateParentDirectory = "ftp".equalsIgnoreCase(protocol);
+            this.forceDestroyOnTimeout = this.validateParentDirectory;
         }
 
         @Override
@@ -298,6 +300,12 @@ final class PdkStorageExecutor implements StorageExecutor {
             }
             if (tryAcquireForDestroy()) {
                 destroyAfterAcquire();
+                return;
+            }
+            if (forceDestroyOnTimeout) {
+                logWarn(logger, "FTP file storage operation did not stop within " + DESTROY_WAIT_MILLIS
+                        + "ms; forcing connector destroy");
+                destroyWithoutAcquire();
                 return;
             }
             // TapFileStorage does not guarantee that destroy() is safe while an operation is in flight.
@@ -471,6 +479,18 @@ final class PdkStorageExecutor implements StorageExecutor {
                 failure = throwable;
             } finally {
                 operationLock.unlock();
+                releaseResourcesOnce();
+            }
+            rethrowDestroyFailure(failure);
+        }
+
+        private void destroyWithoutAcquire() throws Exception {
+            Throwable failure = null;
+            try {
+                delegate.destroy();
+            } catch (Throwable throwable) {
+                failure = throwable;
+            } finally {
                 releaseResourcesOnce();
             }
             rethrowDestroyFailure(failure);
