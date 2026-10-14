@@ -21,6 +21,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.fieldorigin.service.FieldOriginService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
@@ -39,6 +40,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -80,6 +82,9 @@ public class TransformSchemaService {
     private AgentGroupService agentGroupService;
     @Autowired
     private MetadataInstancesCompareService metadataInstancesCompareService;
+    @Autowired
+    @Lazy
+    private FieldOriginService fieldOriginService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
@@ -526,8 +531,9 @@ public class TransformSchemaService {
 
         ldpService.afterLdpTask(taskId, user);
 
-
-
+        if (!saveHistory && null != fieldOriginService) {
+            fieldOriginService.rebuildAsync(taskId);
+        }
     }
 
     protected void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {
