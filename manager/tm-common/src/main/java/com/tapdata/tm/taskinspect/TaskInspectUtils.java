@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -19,7 +21,31 @@ import java.util.function.BooleanSupplier;
 public interface TaskInspectUtils {
     String MODULE_NAME = "TaskInspect";
 
-    ExecutorService executorService = Executors.newFixedThreadPool(Integer.MAX_VALUE);
+    int DEFAULT_CORE_POOL_SIZE = 0;
+    int DEFAULT_MAX_POOL_SIZE = Integer.MAX_VALUE;
+    long DEFAULT_KEEP_ALIVE_SECONDS = 60L;
+
+    /**
+     * TaskInspect jobs are long-lived while a task is running. Use direct
+     * handoff instead of queueing them behind other long-lived jobs. Workers
+     * are reclaimed after the job exits and remains idle for the keep-alive
+     * period; task lifecycle code is responsible for stopping the job.
+     */
+    ExecutorService executorService = createExecutor();
+
+    static ExecutorService createExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            DEFAULT_CORE_POOL_SIZE,
+            DEFAULT_MAX_POOL_SIZE,
+            DEFAULT_KEEP_ALIVE_SECONDS,
+            TimeUnit.SECONDS,
+            new SynchronousQueue<>(),
+            Executors.defaultThreadFactory(),
+            new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
 
     static void close(AutoCloseable... closeableArr) throws Exception {
         AtomicReference<Exception> error = new AtomicReference<>(null);
