@@ -20,9 +20,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import org.jetbrains.annotations.NotNull;
@@ -109,26 +107,19 @@ public class ScriptExecutorsManager {
 
 	public static class ScriptExecutor {
 
-		private final ConnectorNode connectorNode;
-
 		private final String TAG;
 
-		private final String associateId;
+		private final PdkNodeResources nodeResources;
 		private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
-
-		private final TapTableMap<String, TapTable> tapTableMap;
 
 		private final Log scriptLogger;
 
 		private final boolean trialRun;
-		private PdkStateMap pdkStateMap;
 
 		private ScriptExecutor() {
-			this.connectorNode = null;
 			this.TAG = null;
-			this.associateId = null;
+			this.nodeResources = null;
 			this.executeCommandFunctionSupplier = null;
-			this.tapTableMap = null;
 			this.scriptLogger = null;
 			this.trialRun = false;
 		}
@@ -140,30 +131,39 @@ public class ScriptExecutorsManager {
 
 			Map<String, Object> connectionConfig = connections.getConfig();
 			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-			pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
+			PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
 			PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
-			this.tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
+			TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
 			PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
-			this.associateId = this.getClass().getSimpleName() + "-" + connections.getName() + "-" + UUIDGenerator.uuid();
-			this.connectorNode = PdkUtil.createNode(TAG,
-					databaseType,
-					clientMongoOperator,
-					associateId,
-					connectionConfig,
-					pdkTableMap,
-					pdkStateMap,
-					globalStateMap,
-					InstanceFactory.instance(LogFactory.class).getLog()
-			);
-
+			String associateId = this.getClass().getSimpleName() + "-" + connections.getName() + "-" + UUIDGenerator.uuid();
+			PdkNodeResources resources = new PdkNodeResources(
+					TAG, associateId, pdkStateMap, tapTableMap, scriptLogger, true);
 			try {
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
-			} catch (Exception e) {
-				throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
-			}
+				ConnectorNode connectorNode = PdkUtil.createNode(TAG,
+						databaseType,
+						clientMongoOperator,
+						associateId,
+						connectionConfig,
+						pdkTableMap,
+						pdkStateMap,
+						globalStateMap,
+						InstanceFactory.instance(LogFactory.class).getLog()
+				);
+				resources.setConnectorNode(connectorNode);
 
-			ConnectorFunctions connectorFunctions = this.connectorNode.getConnectorFunctions();
-			this.executeCommandFunctionSupplier = connectorFunctions::getExecuteCommandFunction;
+				try {
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
+				} catch (Exception e) {
+					throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+				}
+
+				ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+				this.nodeResources = resources;
+				this.executeCommandFunctionSupplier = connectorFunctions::getExecuteCommandFunction;
+			} catch (RuntimeException e) {
+				resources.close();
+				throw e;
+			}
 
 		}
 
@@ -228,14 +228,15 @@ public class ScriptExecutorsManager {
 		}
 
 		private <T> void pdkExecute(String command, Map<String, Object> executeObj, ExecuteResult<T> executeResult) throws Throwable {
+			ConnectorNode connectorNode = nodeResources.getConnectorNode();
 			ExecuteCommandFunction executeCommandFunction = this.executeCommandFunctionSupplier.get();
 			if (executeCommandFunction == null) {
-				TapNodeSpecification specification = this.connectorNode.getConnectorContext().getSpecification();
+				TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
 				String tag = specification.getName() + "-" + specification.getVersion();
 				throw new RuntimeException("pdk [" + tag + "] not support execute command");
 			}
 			TapExecuteCommand executeCommand = getTapExecuteCommand(command, executeObj);
-			executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, e -> {
+			executeCommandFunction.execute(connectorNode.getConnectorContext(), executeCommand, e -> {
 
 				if (e.getError() != null) {
 					executeResult.setError(e.getError());
@@ -260,26 +261,9 @@ public class ScriptExecutorsManager {
 
 
 		public void close() {
-
-			CommonUtils.handleAnyError(() -> {
-				Optional.ofNullable(connectorNode)
-						.ifPresent(connectorNode -> {
-							PDKInvocationMonitor.stop(connectorNode);
-							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
-						});
-				if (null != pdkStateMap) {
-					pdkStateMap.reset();
-				}
-				scriptLogger.info("PDK connector node stopped: " + associateId);
-			}, err -> scriptLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId)));
-			CommonUtils.handleAnyError(() -> {
-				Optional.ofNullable(connectorNode).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
-				scriptLogger.info("PDK connector node released: " + associateId);
-			}, err -> scriptLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId)));
-			CommonUtils.handleAnyError(() -> {
-				Optional.ofNullable(tapTableMap).ifPresent(TapTableMap::reset);
-				scriptLogger.info(String.format("[%s] schema data cleaned", TAG));
-			}, err -> scriptLogger.warn(String.format("Clean [%s] schema data failed: %s", TAG, err.getMessage())));
+			if (nodeResources != null) {
+				nodeResources.close();
+			}
 		}
 
 	}
