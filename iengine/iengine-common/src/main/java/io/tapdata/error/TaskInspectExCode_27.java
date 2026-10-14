@@ -39,4 +39,14 @@ public interface TaskInspectExCode_27 {
 
 	@TapExCode
 	String AUTO_RECOVERY_NOT_FOUND_RECOVERY_TYPE = "27010";
+
+	@TapExCode(
+		describe = "Custom query configuration is missing for custom query inspection"
+	)
+	String INSPECT_CUSTOM_QUERY_CONFIG_MISSING = "27011";
+
+	@TapExCode(
+		describe = "Query result exceeds the maximum row limit"
+	)
+	String INSPECT_RESULT_EXCEEDS_LIMIT = "27012";
 }

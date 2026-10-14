@@ -6,6 +6,8 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -36,6 +38,12 @@ public class InspectTask implements Serializable {
 
 	private InspectDataSource source;
 	private InspectDataSource target;
+
+	/** Maps source result column names to target result column names. */
+	private Map<String, String> fieldMapping;
+
+	/** Result columns used to deterministically order multi-row custom_query results. */
+	private List<String> sortFields;
 
 	private InspectLimit limit;
 
