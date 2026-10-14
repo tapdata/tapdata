@@ -24,10 +24,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -40,6 +43,118 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 
 class TaskScheduleSourceAgentPolicyTest {
+
+    @Test
+    void normalTaskReturnsOriginalTaskWithoutReadingSourceAgentPolicy() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+
+        TaskDto task = new TaskDto();
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+
+        assertSame(task, result);
+        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+    }
+
+    @Test
+    void sourceAgentPolicyReturnsOriginalTaskWhenDataSourceServiceIsUnavailable() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        TaskDto task = logCollectorTask(new ObjectId().toHexString());
+
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+
+        assertSame(task, result);
+    }
+
+    @Test
+    void sourceAgentPolicyReturnsOriginalTaskWhenTaskHasNoSourceConnection() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        TaskDto task = logCollectorTask();
+
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+
+        assertSame(task, result);
+        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+    }
+
+    @Test
+    void sourceAgentPolicyReturnsOriginalTaskWhenSourceConnectionCannotBeFound() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        String connectionId = new ObjectId().toHexString();
+        TaskDto task = logCollectorTask(connectionId);
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+                .thenReturn(List.of());
+
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+
+        assertSame(task, result);
+        verify(dataSourceService).findInfoByConnectionIdList(eq(List.of(connectionId)));
+    }
+
+    @Test
+    void inheritedSourceAgentPolicyCopiesConnectionPolicyAndClearsStaleAgent() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        String connectionId = new ObjectId().toHexString();
+        TaskDto task = logCollectorTask(connectionId);
+        task.setAgentId("stale-agent");
+        task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        task.setAttrs(Map.of(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED, true));
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+                .thenReturn(List.of(sourceConnection(connectionId, "source-agent")));
+
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+
+        assertNotSame(task, result);
+        assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), result.getAccessNodeType());
+        assertEquals("source-agent", result.getAccessNodeProcessId());
+        assertNull(result.getAgentId());
+        assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), task.getAccessNodeType());
+        assertEquals("stale-agent", task.getAgentId());
+    }
+
+    @Test
+    void explicitTaskAgentPolicyOverrideReturnsOriginalTaskWithoutReadingSourceConnection() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        TaskDto task = logCollectorTask(new ObjectId().toHexString());
+        task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+        task.setAccessNodeProcessId("task-agent");
+
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+
+        assertSame(task, result);
+        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+    }
+
+    @Test
+    void conflictingInheritedSourceAgentPoliciesThrowSourceAgentConflict() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        String firstConnectionId = new ObjectId().toHexString();
+        String secondConnectionId = new ObjectId().toHexString();
+        TaskDto task = logCollectorTask(firstConnectionId, secondConnectionId);
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
+                .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a", "orders"),
+                        sourceConnection(secondConnectionId, "agent-b", "users")));
+
+        BizException exception = assertThrows(BizException.class,
+                () -> ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class)));
+
+        assertEquals("Task.SourceAgentConflict", exception.getErrorCode());
+        assertTrue(exception.getMessage().contains("orders"));
+        assertTrue(exception.getMessage().contains("users"));
+    }
 
     @Test
     void sharedMiningTaskUsesSourceAgentPolicyWithoutChangingTaskPolicy() {
@@ -83,7 +198,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "agent-a")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("agent-a"));
@@ -179,7 +294,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto scheduledTaskDto = (TaskDto) scheduledTask.getValue();
         assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), scheduledTaskDto.getAccessNodeType());
         assertEquals("task-agent", scheduledTaskDto.getAccessNodeProcessId());
-        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList(), eq(user), any(String[].class));
+        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
         assertEquals("task-agent", task.getAgentId());
     }
 
@@ -225,7 +340,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "source-agent", "source")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("source-agent"));
@@ -285,7 +400,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of());
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user))).thenReturn(List.of());
         when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of());
@@ -348,7 +463,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
                 .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a", "orders"),
                         sourceConnection(secondConnectionId, "agent-b", "users")));
 
@@ -402,7 +517,7 @@ class TaskScheduleSourceAgentPolicyTest {
 
         service.cloudTaskLimitNum(task, user, true);
 
-        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList(), eq(user), any(String[].class));
+        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
     }
 
     @Test
@@ -447,7 +562,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId)), eq(user), any(String[].class)))
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "heartbeat-agent")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("heartbeat-agent"));
@@ -476,6 +591,19 @@ class TaskScheduleSourceAgentPolicyTest {
         assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), task.getAccessNodeType());
         assertNull(task.getAccessNodeProcessId());
         assertEquals("heartbeat-agent", task.getAgentId());
+    }
+
+    private TaskDto logCollectorTask(String... connectionIds) {
+        TaskDto task = new TaskDto();
+        task.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+        task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
+        LogCollectorNode source = new LogCollectorNode();
+        source.setConnectionIds(List.of(connectionIds));
+        DAG dag = mock(DAG.class);
+        when(dag.getSources()).thenReturn(List.of((Node) source));
+        task.setDag(dag);
+        return task;
     }
 
     private DataSourceConnectionDto sourceConnection(String connectionId, String processId) {
