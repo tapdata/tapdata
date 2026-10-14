@@ -514,6 +514,17 @@ class StorageFacadeTest {
     }
 
     @Test
+    void deleteRejectsDirectoriesBeforeCallingStorage() {
+        RecordingStorage storage = new RecordingStorage();
+        storage.directories.add("/out");
+        StorageFacade facade = facade(storage, null);
+
+        assertThrows(StorageOperationException.class,
+                () -> facade.delete("target-ftp", map("path", "/out"), null));
+        assertEquals(0, storage.deleteCalls.get());
+    }
+
+    @Test
     void unsupportedUpdateActionFailsInsideEngine() {
         StorageFacade facade = facade(new RecordingStorage(), null);
 
@@ -687,6 +698,7 @@ class StorageFacadeTest {
         protected Long reportedLength;
         protected final AtomicInteger existenceChecks = new AtomicInteger();
         protected final AtomicInteger saveCalls = new AtomicInteger();
+        protected final AtomicInteger deleteCalls = new AtomicInteger();
 
         @Override
         public void init(Map<String, Object> params) {
@@ -736,6 +748,7 @@ class StorageFacadeTest {
 
         @Override
         public boolean delete(String path) {
+            deleteCalls.incrementAndGet();
             return files.remove(path) != null;
         }
 

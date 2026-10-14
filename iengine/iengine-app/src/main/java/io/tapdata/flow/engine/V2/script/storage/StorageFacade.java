@@ -103,8 +103,15 @@ public final class StorageFacade {
             return true;
         }
         StorageExecutor executor = executor(connectionName);
+        String path = executor.resolvePath(requiredPath(request, "path"));
         try {
-            return executor.getStorage().delete(executor.resolvePath(requiredPath(request, "path")));
+            return executor.withStorageOperation(storage -> {
+                TapFile file = storage.getFile(path);
+                if (file != null && file.getType() != null && file.getType() == TapFile.TYPE_DIRECTORY) {
+                    throw new StorageOperationException("Cannot delete directory: " + path);
+                }
+                return storage.delete(path);
+            });
         } catch (Throwable throwable) {
             invalidateOnRemoteFailure(connectionName, executor, throwable);
             throw throwable;

@@ -79,4 +79,29 @@ class HttpUtilTest {
             server.stop(0);
         }
     }
+
+    @Test
+    void downloadBytesHonorsExplicitReadTimeout() throws Exception {
+        byte[] prefix = "partial".getBytes(StandardCharsets.UTF_8);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/stall-bytes", exchange -> {
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(prefix);
+                output.flush();
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        server.start();
+
+        try {
+            assertThrows(HttpException.class,
+                    () -> HttpUtil.downloadBytes(
+                            "http://127.0.0.1:" + server.getAddress().getPort() + "/stall-bytes", 100));
+        } finally {
+            server.stop(0);
+        }
+    }
 }

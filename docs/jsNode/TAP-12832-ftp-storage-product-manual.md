@@ -72,7 +72,7 @@ HTTP 图片、压缩包等二进制文件不能按默认 `text` 类型写入，�
 
 ##### bytes 方式
 
-`httpUtil.downloadBytes(url)` 将 HTTP 响应完整读取为 Java `byte[]`。`contentType: "bytes"` 会按原始字节写入，不进行字符集转换。该方式会将整个文件加载到内存，适合文件大小可控的场景：
+`httpUtil.downloadBytes(url)` 将 HTTP 响应完整读取为 Java `byte[]`，默认连接超时和读取超时均为 30 秒；读取超时表示连续 30 秒没有读到数据，不是整个下载的总时限。也可以使用 `httpUtil.downloadBytes(url, timeoutMs)` 指定连接和读取超时时间。`contentType: "bytes"` 会按原始字节写入，不进行字符集转换。该方式会将整个文件加载到内存，适合文件大小可控的场景：
 
 ```javascript
 function process(record) {
@@ -261,7 +261,7 @@ var deleted = storage.delete("Source-ftp", {
 ### 支持
 
 - 增强 JS 中按连接名称操作文件连接。
-- FTP 文件写入、单文件复制、查询、存在性判断和删除。
+- FTP 文件写入、单文件复制、查询、存在性判断和删除；`storage.delete` 只允许删除文件，目录会被拒绝。
 - FTP 到 FTP、文件连接到文件连接的单文件复制。
 - 按事件逻辑决定是否执行文件操作。
 - 试运行/预览也会真实执行 `storage` 的写入、复制和删除，不会自动跳过远端文件操作。

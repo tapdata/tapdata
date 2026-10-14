@@ -268,7 +268,7 @@ FTP/SFTP storage 的底层连接存在单连接 I/O 锁。跨连接复制如果�
 
 - `find(name, {path}, options)`：调用 `getFile`，返回 path、length/size、lastModified、directory；不存在返回 null；
 - `exists(name, path)`：调用 `isFileExist`；目录不是文件；
-- `delete(name, {path}, options)`：调用 `delete`，返回底层布尔结果。
+- `delete(name, {path}, options)`：先在同一 storage 操作锁内确认目标不是目录，再调用 `delete`；目录直接抛出 `StorageOperationException`，不依赖具体连接器对目录的处理行为。
 
 ### 5.3 错误和失效
 

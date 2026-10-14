@@ -18,7 +18,7 @@ import java.nio.charset.Charset;
  * @since 5.6.4
  */
 public class HttpDownloader {
-	private static final int DEFAULT_OPEN_STREAM_TIMEOUT_MS = 30_000;
+	private static final int DEFAULT_TIMEOUT_MS = 30_000;
 
 	/**
 	 * 下载远程文本
@@ -41,7 +41,7 @@ public class HttpDownloader {
 	 * @return 文件数据
 	 */
 	public static byte[] downloadBytes(String url) {
-		return downloadBytes(url, 0);
+		return downloadBytes(url, DEFAULT_TIMEOUT_MS);
 	}
 
 	/**
@@ -63,7 +63,7 @@ public class HttpDownloader {
 	 * @return 文件数据流
 	 */
 	public static InputStream openStream(String url) {
-		return openStream(url, DEFAULT_OPEN_STREAM_TIMEOUT_MS);
+		return openStream(url, DEFAULT_TIMEOUT_MS);
 	}
 
 	/**
