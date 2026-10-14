@@ -43,7 +43,9 @@ public class ScriptExecutorsManagerTest extends BaseTest {
 			ScriptExecutorsManager.ScriptExecutor scriptExecutor = mock(ScriptExecutorsManager.ScriptExecutor.class);
 			doCallRealMethod().when(scriptExecutor).close();
 			PdkStateMap pdkStateMap = mock(PdkStateMap.class);
-			ReflectionTestUtils.setField(scriptExecutor, "pdkStateMap", pdkStateMap);
+			PdkNodeResources nodeResources = new PdkNodeResources(
+					"test", pdkStateMap::reset, () -> { }, () -> { });
+			ReflectionTestUtils.setField(scriptExecutor, "nodeResources", nodeResources);
 			ReflectionTestUtils.setField(scriptExecutor, "scriptLogger", log);
 
 			scriptExecutor.close();
