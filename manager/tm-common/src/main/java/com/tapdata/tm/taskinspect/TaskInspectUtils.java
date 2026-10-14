@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,16 +25,15 @@ import java.util.function.BooleanSupplier;
 public interface TaskInspectUtils {
     String MODULE_NAME = "TaskInspect";
 
-    int DEFAULT_CORE_POOL_SIZE = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
-    int DEFAULT_MAX_POOL_SIZE = Math.max(DEFAULT_CORE_POOL_SIZE, Math.min(64, Runtime.getRuntime().availableProcessors() * 2));
-    int DEFAULT_QUEUE_CAPACITY = 1024;
+    int DEFAULT_CORE_POOL_SIZE = 0;
+    int DEFAULT_MAX_POOL_SIZE = Integer.MAX_VALUE;
     long DEFAULT_KEEP_ALIVE_SECONDS = 60L;
 
     /**
-     * TaskInspect work is asynchronous, but it must not create one permanent
-     * native thread for every task start.  The old Integer.MAX_VALUE fixed
-     * pool created a new core worker for every submitted task and never
-     * reclaimed idle workers.
+     * TaskInspect jobs are long-lived while a task is running. Use direct
+     * handoff instead of queueing them behind other long-lived jobs. Workers
+     * are reclaimed after the job exits and remains idle for the keep-alive
+     * period; task lifecycle code is responsible for stopping the job.
      */
     ExecutorService executorService = createExecutor();
 
@@ -44,7 +43,7 @@ public interface TaskInspectUtils {
             DEFAULT_MAX_POOL_SIZE,
             DEFAULT_KEEP_ALIVE_SECONDS,
             TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(DEFAULT_QUEUE_CAPACITY),
+            new SynchronousQueue<>(),
             Executors.defaultThreadFactory(),
             new ThreadPoolExecutor.CallerRunsPolicy()
         );

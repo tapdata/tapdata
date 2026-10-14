@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
@@ -129,13 +130,13 @@ class TaskInspectUtilsTest {
     class submitTest {
 
         @Test
-        void testExecutorIsBoundedAndReclaimsCoreWorkers() {
+        void testExecutorUsesDirectHandoffAndIdleReaping() {
             ThreadPoolExecutor executor = assertInstanceOf(ThreadPoolExecutor.class, TaskInspectUtils.executorService);
 
-            assertTrue(executor.getCorePoolSize() <= TaskInspectUtils.DEFAULT_CORE_POOL_SIZE);
-            assertTrue(executor.getMaximumPoolSize() <= TaskInspectUtils.DEFAULT_MAX_POOL_SIZE);
+            assertEquals(TaskInspectUtils.DEFAULT_CORE_POOL_SIZE, executor.getCorePoolSize());
+            assertEquals(TaskInspectUtils.DEFAULT_MAX_POOL_SIZE, executor.getMaximumPoolSize());
             assertTrue(executor.allowsCoreThreadTimeOut());
-            assertEquals(TaskInspectUtils.DEFAULT_QUEUE_CAPACITY, executor.getQueue().size() + executor.getQueue().remainingCapacity());
+            assertInstanceOf(SynchronousQueue.class, executor.getQueue());
         }
 
         @Test
