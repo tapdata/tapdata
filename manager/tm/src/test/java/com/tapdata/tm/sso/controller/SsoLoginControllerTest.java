@@ -2,6 +2,7 @@ package com.tapdata.tm.sso.controller;
 
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.sso.dto.AuthnRequestResult;
 import com.tapdata.tm.sso.dto.InboundLogout;
 import com.tapdata.tm.sso.dto.LogoutRedirectResult;
@@ -20,6 +21,7 @@ import com.tapdata.tm.user.entity.User;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -333,6 +335,61 @@ void acsValidationFailure() throws Exception {
 
         verify(samlSessionService).terminateByAccessToken("tok-1");
         assertEquals("https://tapdata/app", response.getRedirectedUrl());
+    }
+
+    @Test
+    @DisplayName("POST logout reads the Bearer token, terminates the session and returns the IdP SLO URL")
+    void postLogoutReturnsIdpRedirect() {
+        when(samlConfigService.getConfig()).thenReturn(
+                SamlConfig.builder().enabled(true).idpSloUrl("https://idp/slo").build());
+        when(mongoTemplate.findOne(any(), eq(SsoSession.class)))
+                .thenReturn(session("tok-1", "user@x", "idx-1"));
+        when(samlLogoutService.buildLogoutRequest(any(), eq("user@x"), eq("idx-1"), eq("/#/login")))
+                .thenReturn(new LogoutRedirectResult("https://idp/slo?SAMLRequest=abc", "_lr-1"));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/sso/saml/logout");
+        request.addHeader("Authorization", "Bearer tok-1");
+
+        ResponseMessage<Map<String, String>> result = controller.startLogout(Map.of("relayState", "/#/login"), request);
+
+        verify(samlSessionService).terminateByAccessToken("tok-1");
+        assertEquals("https://idp/slo?SAMLRequest=abc", result.getData().get("redirectUrl"));
+    }
+
+    @Test
+    @DisplayName("POST logout without a token skips termination and returns the post-logout page")
+    void postLogoutWithoutToken() {
+        when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().enabled(true).build());
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/sso/saml/logout");
+
+        ResponseMessage<Map<String, String>> result = controller.startLogout(Map.of("relayState", "/#/login"), request);
+
+        verify(samlSessionService, never()).terminateByAccessToken(anyString());
+        assertEquals("/#/login", result.getData().get("redirectUrl"));
+    }
+
+    @Test
+    @DisplayName("POST logout rejects an off-site RelayState")
+    void postLogoutRejectsUnsafeRelayState() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/sso/saml/logout");
+        request.addHeader("Authorization", "Bearer tok-1");
+
+        ResponseMessage<Map<String, String>> result = controller.startLogout(Map.of("relayState", "//evil.example"), request);
+
+        verify(samlSessionService, never()).terminateByAccessToken(anyString());
+        assertEquals("IllegalArgument", result.getCode());
+    }
+
+    @Test
+    @DisplayName("Legacy GET logout ignores the URL access_token when url-token-mode is REJECT")
+    void getLogoutIgnoresUrlTokenWhenRejected() throws Exception {
+        ReflectionTestUtils.setField(controller, "urlTokenModeValue", "REJECT");
+        when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().enabled(true).build());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        controller.logout("tok-1", "/#/login", response);
+
+        verify(samlSessionService, never()).terminateByAccessToken(anyString());
+        assertEquals("/#/login", response.getRedirectedUrl());
     }
 
     @Test

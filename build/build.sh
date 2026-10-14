@@ -205,10 +205,29 @@ make_docker() {
   trap "docker buildx rm '$builder_name' >/dev/null 2>&1 || true; rm -rf './docker-assets'" EXIT
 
   info ">> Install QEMU..."
-  docker run --privileged --rm tonistiigi/binfmt --install all
+  binfmt_image="${TAPDATA_BINFMT_IMAGE:-harbor.internal.tapdata.io/tapdata/binfmt@sha256:c471bf7fc0187fcc477eb8baaaff0034adb554e303a61a5d3f1bba8bfe1710ca}"
+  buildkit_image="${TAPDATA_BUILDKIT_IMAGE:-harbor.internal.tapdata.io/tapdata/buildkit@sha256:cdf74e1ebe801ea3b51b01182f49372f4ec4e1817ecfbc55117397bbfad5a77f}"
+  # Keep bootstrap tools inside Harbor; fail before building if prerequisites fail.
+  for tool_image in "$binfmt_image" "$buildkit_image"; do
+    pulled=false
+    for attempt in 1 2 3; do
+      info ">> pull build tool $tool_image (attempt $attempt/3)"
+      if timeout --kill-after=10s 180s docker pull "$tool_image"; then
+        pulled=true
+        break
+      fi
+      if [[ $attempt -lt 3 ]]; then sleep 5; fi
+    done
+    if [[ $pulled != true ]]; then
+      info ">> Build tool pull failed: $tool_image"
+      return 1
+    fi
+  done
+  timeout --kill-after=10s 120s docker run --pull=never --privileged --rm "$binfmt_image" --install all || return "$?"
   info ">> create isolated builder: $builder_name"
-  docker buildx create --name "$builder_name" --driver docker-container --use
-  docker buildx inspect "$builder_name" --bootstrap
+  docker buildx create --name "$builder_name" --driver docker-container \
+    --driver-opt "image=$buildkit_image" --use || return "$?"
+  timeout --kill-after=10s 180s docker buildx inspect "$builder_name" --bootstrap || return "$?"
 
   info ">> registry cache: $cache_ref"
   info ">> building..."

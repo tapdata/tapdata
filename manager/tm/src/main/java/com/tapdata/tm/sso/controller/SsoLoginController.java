@@ -6,6 +6,9 @@ import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.security.AccessTokenResolution;
+import com.tapdata.tm.base.security.AccessTokenResolver;
+import com.tapdata.tm.base.security.UrlTokenMode;
 import com.tapdata.tm.sso.dto.AuthnRequestResult;
 import com.tapdata.tm.sso.dto.InboundLogout;
 import com.tapdata.tm.sso.dto.LogoutRedirectResult;
@@ -27,10 +30,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -43,6 +48,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 
 /**
  * Browser-facing SAML SSO endpoints: SP-Initiated login (redirect to the IdP) and
@@ -74,6 +80,10 @@ public class SsoLoginController extends BaseController {
     private AccessTokenService accessTokenService;
     private UserService userService;
     private MongoTemplate mongoTemplate;
+
+    @Setter(AccessLevel.NONE)
+    @Value("${security.auth.url-token-mode:COMPAT}")
+    private String urlTokenModeValue = "COMPAT";
 
     @Operation(summary = "Whether SAML SSO login is enabled (for showing the login button)")
     @GetMapping("/enabled")
@@ -164,7 +174,29 @@ public class SsoLoginController extends BaseController {
         }
     }
 
-    @Operation(summary = "Start SP-Initiated Single Logout (redirect LogoutRequest to IdP)")
+    /**
+     * Start SP-Initiated Single Logout from the SPA. The access token travels in the
+     * Authorization header, never in the URL (TAP-11883); the response carries the URL
+     * the browser should navigate to next (the IdP SLO endpoint, or the post-logout page).
+     */
+    @Operation(summary = "Start SP-Initiated Single Logout; returns the URL the browser navigates to next")
+    @PostMapping("/logout")
+    public ResponseMessage<Map<String, String>> startLogout(@RequestBody(required = false) Map<String, String> body,
+                                                            HttpServletRequest request) {
+        String relayState = body == null ? null : body.get("relayState");
+        if (!isSafeLocalRedirect(relayState)) {
+            return failed("IllegalArgument", "Invalid RelayState");
+        }
+        AccessTokenResolution resolution = AccessTokenResolver.resolve(request, UrlTokenMode.from(urlTokenModeValue), false);
+        String accessToken = resolution.isFound() ? resolution.getToken() : null;
+        return success(Map.of("redirectUrl", terminateAndBuildLogoutRedirect(accessToken, relayState)));
+    }
+
+    /**
+     * COMPAT: legacy SPA builds navigate here with {@code ?access_token=}. New clients use
+     * {@code POST /logout}; the query token is ignored once url-token-mode is REJECT.
+     */
+    @Operation(summary = "Start SP-Initiated Single Logout (redirect LogoutRequest to IdP)", deprecated = true)
     @GetMapping("/logout")
     public void logout(@RequestParam(value = "access_token", required = false) String accessToken,
                        @RequestParam(value = "relayState", required = false) String relayState,
@@ -173,6 +205,13 @@ public class SsoLoginController extends BaseController {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid RelayState");
             return;
         }
+        if (!UrlTokenMode.from(urlTokenModeValue).acceptsUrlToken()) {
+            accessToken = null;
+        }
+        response.sendRedirect(terminateAndBuildLogoutRedirect(accessToken, relayState));
+    }
+
+    private String terminateAndBuildLogoutRedirect(String accessToken, String relayState) {
         SamlConfig config = samlConfigService.getConfig();
         SsoSession session = findSessionByAccessToken(accessToken);
 
@@ -186,16 +225,15 @@ public class SsoLoginController extends BaseController {
                 && StringUtils.isNotBlank(config.getIdpSloUrl()) && session != null
                 && StringUtils.isNotBlank(session.getNameId());
         if (!canReachIdp) {
-            response.sendRedirect(buildPostLogoutRedirect(config, relayState));
-            return;
+            return buildPostLogoutRedirect(config, relayState);
         }
         try {
             LogoutRedirectResult result = samlLogoutService.buildLogoutRequest(
                     config, session.getNameId(), session.getSessionIndex(), relayState);
-            response.sendRedirect(result.getRedirectUrl());
+            return result.getRedirectUrl();
         } catch (Exception e) {
             log.warn("SP-Initiated SLO could not build LogoutRequest, completing locally: {}", e.getMessage());
-            response.sendRedirect(buildPostLogoutRedirect(config, relayState));
+            return buildPostLogoutRedirect(config, relayState);
         }
     }
 

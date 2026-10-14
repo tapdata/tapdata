@@ -85,6 +85,8 @@ import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
+import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
@@ -202,6 +204,7 @@ import org.jetbrains.annotations.NotNull;
 import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
@@ -351,6 +354,8 @@ public class TaskServiceImpl extends TaskService{
     private UserLogService userLogService;
     private MessageQueueServiceImpl messageQueueService;
     private UserService userService;
+    private AlarmReceiverTransfer alarmReceiverTransfer;
+    private AlarmReceiverAccess alarmReceiverAccess;
     private DisruptorService disruptorService;
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
@@ -453,6 +458,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto create(TaskDto taskDto, UserDetail user) {
         //新增任务校验
         taskDto.setStatus(TaskDto.STATUS_EDIT);
+        restrictNewTaskAlarmReceivers(taskDto, user);
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
@@ -775,7 +781,135 @@ public class TaskServiceImpl extends TaskService{
         if(CollectionUtils.isEmpty(taskDto.getLdpNewTables())){
             taskDto.setLdpNewTables(null);
         }
+        if (!Boolean.TRUE.equals(importTask) && oldTaskDto != null) {
+            taskDto.setAlarmReceivers(oldTaskDto.getAlarmReceivers());
+            taskDto.setEmailReceivers(oldTaskDto.getEmailReceivers());
+        } else if (!Boolean.TRUE.equals(importTask)) {
+            restrictNewTaskAlarmReceivers(taskDto, user);
+        }
         return null;
+    }
+
+    /**
+     * 项目导入其余配置一致时仍写入告警字段，不改变任务状态。
+     */
+    public void patchImportedAlarm(TaskDto imported, UserDetail user) {
+        if (imported == null || imported.getId() == null) {
+            return;
+        }
+        TaskDto existing = findById(imported.getId());
+        if (existing == null || TaskConfigCompareUtil.isAlarmConfigEqual(imported, existing)) {
+            return;
+        }
+        Update update = new Update();
+        copyAlarmField(update, "alarmSettings", imported.getAlarmSettings());
+        copyAlarmField(update, "alarmRules", imported.getAlarmRules());
+        copyAlarmField(update, "emailReceivers", imported.getEmailReceivers());
+        copyAlarmField(update, "alarmReceivers", imported.getAlarmReceivers());
+        update(Query.query(Criteria.where("_id").is(imported.getId())), update);
+        writeImportedAlarmReceiverAudit(existing, imported, user);
+    }
+
+    /**
+     * 项目导入前把接收人映射到当前环境。映射不到的条目丢弃并返回警告，不中断整批导入。
+     */
+    public List<String> prepareImportedAlarmReceivers(TaskDto imported) {
+        return alarmReceiverTransfer.remapForImport(imported);
+    }
+
+    /**
+     * 导入映射完以后，USER / USER_GROUP 也要过范围校验：相对<b>实际写入目标</b>当前列表新增、且不在导入者范围内的条目丢弃并返回警告。
+     * 基准必须就是这次导入要覆盖的任务，不能按包里的 _id 去查：import_as_copy 命中 _id 时会换新 id 写成导入者自己的新任务，
+     * replace 写入的是同名任务，按 _id 做差就能借到别人任务上的引用。
+     */
+    public List<String> restrictImportedAlarmReceivers(TaskDto imported, UserDetail user, ImportModeEnum importMode) {
+        if (alarmReceiverAccess == null || imported == null || CollectionUtils.isEmpty(imported.getAlarmReceivers())) {
+            return new ArrayList<>();
+        }
+        TaskDto target = findImportOverwriteTarget(imported, user, importMode);
+        return describeDroppedReceivers(alarmReceiverAccess.retainInScope(user, imported,
+                target == null ? null : target.getAlarmReceivers()));
+    }
+
+    /**
+     * 这次导入会覆盖的已有任务，查询条件与 batchImport 各模式选择覆盖目标时一致（同样按调用者可见范围 findOne）：
+     * GROUP_IMPORT 按 _id，REPLACE / REUSE_EXISTING 按名称；其余模式以及没命中时都是新任务，返回 null。
+     */
+    protected TaskDto findImportOverwriteTarget(TaskDto imported, UserDetail user, ImportModeEnum importMode) {
+        Criteria criteria;
+        if (ImportModeEnum.GROUP_IMPORT.equals(importMode)) {
+            if (imported.getId() == null) {
+                return null;
+            }
+            criteria = Criteria.where("_id").is(imported.getId());
+        } else if (ImportModeEnum.REPLACE.equals(importMode) || ImportModeEnum.REUSE_EXISTING.equals(importMode)) {
+            criteria = Criteria.where("name").is(imported.getName());
+        } else {
+            return null;
+        }
+        Query query = new Query(criteria.and(IS_DELETED).ne(true));
+        query.fields().include("_id", "alarmReceivers");
+        return findOne(query, user);
+    }
+
+    /**
+     * 新建任务（POST、confirm 新建、复制）不回填旧值，请求体里的 USER / USER_GROUP 必须在调用者范围内，越界的直接去掉。
+     */
+    protected void restrictNewTaskAlarmReceivers(TaskDto taskDto, UserDetail user) {
+        if (alarmReceiverAccess == null || taskDto == null || CollectionUtils.isEmpty(taskDto.getAlarmReceivers())) {
+            return;
+        }
+        List<String> dropped = describeDroppedReceivers(alarmReceiverAccess.retainInScope(user, taskDto, null));
+        if (!dropped.isEmpty()) {
+            log.warn("Alarm receivers out of caller scope dropped on new task, name={}, dropped={}", taskDto.getName(), dropped);
+        }
+    }
+
+    private static List<String> describeDroppedReceivers(List<AlarmReceiver> dropped) {
+        List<String> warnings = new ArrayList<>();
+        if (dropped != null) {
+            for (AlarmReceiver receiver : dropped) {
+                warnings.add("Alarm receiver " + receiver.getType() + ":" + receiver.getId() + " is out of your directory scope, dropped");
+            }
+        }
+        return warnings;
+    }
+
+    @Autowired
+    @Lazy
+    public void setAlarmReceiverAccess(AlarmReceiverAccess alarmReceiverAccess) {
+        this.alarmReceiverAccess = alarmReceiverAccess;
+    }
+
+    /** 整条覆盖前读出旧接收人，覆盖后才能写出 before/after 审计 */
+    protected TaskDto findAlarmReceiversForAudit(ObjectId taskId) {
+        return taskId == null ? null : findByTaskId(taskId, "name", "alarmReceivers", "emailReceivers");
+    }
+
+    protected void writeImportedAlarmReceiverAudit(TaskDto existing, TaskDto imported, UserDetail user) {
+        if (userLogService == null || user == null || existing == null || imported == null || imported.getId() == null) {
+            return;
+        }
+        if (TaskConfigCompareUtil.isAlarmReceiverEqual(existing, imported)) {
+            return;
+        }
+        try {
+            Map<String, Object> diff = new LinkedHashMap<>();
+            diff.put("before", existing.getAlarmReceivers() != null ? existing.getAlarmReceivers() : existing.getEmailReceivers());
+            diff.put("after", imported.getAlarmReceivers() != null ? imported.getAlarmReceivers() : imported.getEmailReceivers());
+            userLogService.addUserLog(Modular.ALARM_RECEIVER, Operation.UPDATE, user, imported.getId().toHexString(),
+                    imported.getName() != null ? imported.getName() : existing.getName(), "import", JSON.toJSONString(diff));
+        } catch (Exception ex) {
+            log.warn("failed to write imported alarm receiver audit, taskId={}", imported.getId(), ex);
+        }
+    }
+
+    private void copyAlarmField(Update update, String field, Object value) {
+        if (value == null) {
+            update.unset(field);
+        } else {
+            update.set(field, value);
+        }
     }
 
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
@@ -3757,6 +3891,7 @@ public class TaskServiceImpl extends TaskService{
      * @param tags 标签列表
      * @param conMap 连接映射
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> batchImport(List<TaskDto> taskDtos, UserDetail user, ImportModeEnum importMode, List<String> tags,
                            Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap,
                            Map<String, String> nodeMap, List<String> resetTaskList) {
@@ -3775,6 +3910,14 @@ public class TaskServiceImpl extends TaskService{
         for (TaskDto taskDto : taskDtos) {
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
+               // 所有导入路径（patch 与整条覆盖）都先映射接收人；映射不到的只记警告，不中断本批
+               List<String> alarmWarnings = new ArrayList<>(prepareImportedAlarmReceivers(taskDto));
+               alarmWarnings.addAll(restrictImportedAlarmReceivers(taskDto, user, importMode));
+               if (CollectionUtils.isNotEmpty(alarmWarnings) && taskDto.getId() != null) {
+                   log.warn("Imported task alarm receivers partially mapped, taskId={}, warnings={}", taskDto.getId(), alarmWarnings);
+                   ((Map<String, List<String>>) importResult.computeIfAbsent(IMPORT_WARNINGS_KEY, k -> new HashMap<String, List<String>>()))
+                           .put(taskDto.getId().toHexString(), alarmWarnings);
+               }
 
                // 目标环境该任务已被删除时，删除本身就是一种变更：必须导入并把记录从删除态拉回来，
                // 否则误删的任务再导入也恢复不了。其余运行状态差异（如 stop → running）仍按无变化处理。
@@ -3785,6 +3928,7 @@ public class TaskServiceImpl extends TaskService{
 
                if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
                        && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
+                   patchImportedAlarm(taskDto, user);
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
                }
@@ -4023,7 +4167,9 @@ public class TaskServiceImpl extends TaskService{
                         TaskEntity.class
                 );
             }
+            TaskDto alarmBefore = findAlarmReceiversForAudit(taskDto.getId());
             UpdateResult updateResult = updateById(taskDto, user, true);
+            writeImportedAlarmReceiverAudit(alarmBefore, taskDto, user);
             if (taskDto.getStatus().equals(TaskDto.STATUS_EDIT)) {
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.CONFIRM, user);
             }
@@ -4094,7 +4240,9 @@ public class TaskServiceImpl extends TaskService{
                         TaskEntity.class
                 );
             }
+            TaskDto alarmBefore = findAlarmReceiversForAudit(existingId);
             UpdateResult updateResult = updateById(taskDto, user,true);
+            writeImportedAlarmReceiverAudit(alarmBefore, taskDto, user);
             if(taskDto.getStatus().equals(TaskDto.STATUS_EDIT)){
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.CONFIRM, user);
             }

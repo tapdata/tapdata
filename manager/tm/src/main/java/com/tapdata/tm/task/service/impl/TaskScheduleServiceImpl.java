@@ -239,7 +239,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             }
         }
 
-        boolean strictSourceAgent = schedulingTaskDto != taskDto
+        boolean strictSourceAgent = isSourceAgentPolicyTask(taskDto)
                 && AccessNodeTypeEnum.isManually(schedulingTaskDto.getAccessNodeType());
         CalculationEngineVo calculationEngineVo;
         try {
@@ -286,6 +286,13 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         if (!isSourceAgentPolicyTask(taskDto)) {
             return taskDto;
         }
+        // A manually selected engine on a shared task is an explicit task-level
+        // override. Keep it for scheduling; otherwise resolve the source
+        // connection policy on every attempt so connection changes affect the
+        // default shared-mining task without rewriting the task configuration.
+        if (hasTaskAgentPolicyOverride(taskDto)) {
+            return taskDto;
+        }
         if (dataSourceService == null) {
             log.warn("Cannot resolve source connection service for task [{}], using task policy", taskDto.getName());
             return taskDto;
@@ -297,10 +304,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             return taskDto;
         }
 
-        List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(
-                sourceConnectionIds, user,
-                "name", "accessNodeType", "accessNodeProcessId", "priorityProcessId");
-        if (hasMissingSourceConnection(sourceConnectionIds, connections)) {
+        // Fix to TAP-12917 issue: When querying the connection to obtain the engine scheduling policy based on the connection ID,
+        // the connection ID has already passed the task permission verification and should not be filtered again.
+        // Otherwise, the query results may encounter bugs in the scenario of "connection and task created by different users",
+        // resulting in the inability to schedule tasks properly in the future
+        List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(sourceConnectionIds);
+        if (connections.isEmpty()) {
             log.warn("Cannot find all source connections [{}] for task [{}], using task policy",
                     sourceConnectionIds, taskDto.getName());
             return taskDto;
@@ -331,6 +340,13 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         // is edited. Force policy evaluation on every start/scheduling attempt.
         schedulingTaskDto.setAgentId(null);
         return schedulingTaskDto;
+    }
+
+    private boolean hasTaskAgentPolicyOverride(TaskDto taskDto) {
+        return !Boolean.TRUE.equals(taskDto.getAttrs() == null ? null
+                        : taskDto.getAttrs().get(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED))
+                && AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
+                && StringUtils.isNotBlank(taskDto.getAccessNodeProcessId());
     }
 
     private boolean isSourceAgentPolicyTask(TaskDto taskDto) {
@@ -366,19 +382,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .collect(Collectors.toList());
-    }
-
-    private boolean hasMissingSourceConnection(List<String> sourceConnectionIds,
-                                               List<DataSourceConnectionDto> connections) {
-        if (CollectionUtils.isEmpty(connections)) {
-            return true;
-        }
-        Set<String> foundConnectionIds = connections.stream()
-                .map(DataSourceConnectionDto::getId)
-                .filter(Objects::nonNull)
-                .map(ObjectId::toHexString)
-                .collect(Collectors.toSet());
-        return sourceConnectionIds.stream().anyMatch(id -> !foundConnectionIds.contains(id));
     }
 
     private boolean sameSourceAgentPolicy(DataSourceConnectionDto first,

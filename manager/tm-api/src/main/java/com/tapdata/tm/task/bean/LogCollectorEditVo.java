@@ -18,6 +18,10 @@ public class LogCollectorEditVo {
     private String name;
     /** 保留的时长 单位 （天） 默认3天*/
     private Integer storageTime;
+    private String accessNodeType;
+    private String accessNodeProcessId;
+    private String priorityProcessId;
+    private Boolean sourceAgentPolicyInherited;
 
     /** //  current - 从浏览器当前时间
      //  localTZ - 从指定的时间开始(浏览器时区)

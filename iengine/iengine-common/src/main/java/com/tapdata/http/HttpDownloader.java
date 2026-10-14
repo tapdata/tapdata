@@ -5,6 +5,9 @@ import cn.hutool.core.io.StreamProgress;
 import cn.hutool.core.lang.Assert;
 
 import java.io.File;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 
@@ -15,6 +18,7 @@ import java.nio.charset.Charset;
  * @since 5.6.4
  */
 public class HttpDownloader {
+	private static final int DEFAULT_TIMEOUT_MS = 30_000;
 
 	/**
 	 * 下载远程文本
@@ -37,7 +41,7 @@ public class HttpDownloader {
 	 * @return 文件数据
 	 */
 	public static byte[] downloadBytes(String url) {
-		return downloadBytes(url, 0);
+		return downloadBytes(url, DEFAULT_TIMEOUT_MS);
 	}
 
 	/**
@@ -50,6 +54,52 @@ public class HttpDownloader {
 	 */
 	public static byte[] downloadBytes(String url, int timeout) {
 		return requestDownload(url, timeout).bodyBytes();
+	}
+
+	/**
+	 * 打开远程文件响应流。返回流关闭时会同时关闭HTTP响应和底层连接。
+	 *
+	 * @param url 请求下载文件地址
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url) {
+		return openStream(url, DEFAULT_TIMEOUT_MS);
+	}
+
+	/**
+	 * 打开远程文件响应流。返回流关闭时会同时关闭HTTP响应和底层连接。
+	 *
+	 * @param url     请求下载文件地址
+	 * @param timeout 连接和读取超时时间，单位毫秒，必须大于0
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url, int timeout) {
+		if (timeout <= 0) {
+			throw new IllegalArgumentException("timeout must be greater than 0");
+		}
+
+		final HttpResponse response = requestDownload(url, timeout);
+		final InputStream body = response.bodyStream();
+		if (body == null) {
+			response.close();
+			throw new HttpException("HTTP response body is empty: {}", url);
+		}
+		return new FilterInputStream(body) {
+			private boolean closed;
+
+			@Override
+			public void close() throws IOException {
+				if (closed) {
+					return;
+				}
+				closed = true;
+				try {
+					super.close();
+				} finally {
+					response.close();
+				}
+			}
+		};
 	}
 
 	/**
@@ -141,6 +191,8 @@ public class HttpDownloader {
 			return response;
 		}
 
-		throw new HttpException("Server response error with status code: [{}]", response.getStatus());
+		HttpException exception = new HttpException("Server response error with status code: [{}]", response.getStatus());
+		response.close();
+		throw exception;
 	}
 }
