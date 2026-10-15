@@ -60,11 +60,6 @@
     },
     "Float": {
       "to": "TapDouble",
-      "bit": 64,
-      "scale": [
-        0,
-        6
-      ],
       "fixed": false
     }
   }

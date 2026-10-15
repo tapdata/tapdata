@@ -82,9 +82,16 @@ public class DataTypesHandler {
         if (tapMapping.getName() != null)
             return tapMapping.getName();
         TapResult<String> result = floatingPointFromTapType(tapMapping, expression, tapType);
-        if (result != null)
+        if (isResolvedExpression(result))
             return result.getData();
         return null;
+    }
+
+    private boolean isResolvedExpression(TapResult<String> result) {
+        return result != null
+                && result.getResult() != TapResult.RESULT_FAILED
+                && result.getData() != null
+                && !result.getData().contains("$");
     }
 
     private TapResult<String> floatingPointFromTapType(TapMapping tapMapping, String expression, TapType tapType) {
@@ -225,7 +232,7 @@ public class DataTypesHandler {
     }
 
     private void addFloatingPointField(TapResult<String> result, TableExpressionWrapper tableExpressionWrapper) {
-        if (result != null && result.getResult() != TapResult.RESULT_FAILED && result.getData() != null) {
+        if (isResolvedExpression(result)) {
             String dataType = result.getData();
             tableExpressionWrapper.table().add(field(FIELD_PREFIX + dataType, dataType));
         }
