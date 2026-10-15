@@ -57,8 +57,8 @@ public class CpuMemoryCollector {
     static final AtomicReference<Function<Void, Integer>> MAX_CAPACITY_FUNCTION =
             new AtomicReference<>(vi -> INITIAL_TASK_STATISTICS_RESTRICTION);
     private static volatile int taskStatisticsRestriction = INITIAL_TASK_STATISTICS_RESTRICTION;
-    private static final int CPU_MONITOR_THREAD_COUNT = Math.max(1,
-            Math.min(50, Runtime.getRuntime().availableProcessors() * 2));
+    private static final int CPU_MONITOR_THREAD_COUNT = 1;
+    private static final int MAX_CLEANUP_REFERENCES_PER_TASK = 1000;
     private static final int CLEANUP_THREAD_COUNT = 1;
 
     public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
@@ -74,13 +74,14 @@ public class CpuMemoryCollector {
     private static final ThreadPoolExecutor CPU_EXECUTOR_SERVICE = new ThreadPoolExecutor(
             CPU_MONITOR_THREAD_COUNT,
             CPU_MONITOR_THREAD_COUNT,
-            0L,
-            TimeUnit.MILLISECONDS,
+            1L,
+            TimeUnit.SECONDS,
             new ArrayBlockingQueue<>(TASK_STATISTICS_RESTRICTION_MAX),
             r -> new Thread(r, "CpuMemoryCollector-Cpu"),
             new ThreadPoolExecutor.CallerRunsPolicy());
 
     static {
+        CPU_EXECUTOR_SERVICE.allowCoreThreadTimeOut(true);
         CLEANUP_EXECUTOR_SERVICE.scheduleWithFixedDelay(
                 COLLECTOR::cleanAll,
                 500L,
@@ -168,8 +169,8 @@ public class CpuMemoryCollector {
             return;
         }
         try {
+            int restriction = getMaxSizeIfNeedReset();
             synchronized (COLLECTOR.taskRegistrationLock) {
-                int restriction = getMaxSizeIfNeedReset();
                 if (!COLLECTOR.threadGroupMap.containsKey(taskId)
                         && COLLECTOR.threadGroupMap.size() >= restriction) {
                     COLLECTOR.removeDeadThreadGroups();
@@ -202,10 +203,14 @@ public class CpuMemoryCollector {
     }
 
     private void cleanAll() {
-        for (Map.Entry<String, AtomicBoolean> entry : new ArrayList<>(cleaned.entrySet())) {
-            if (entry.getValue().get()) {
-                cleanTaskReferences(entry.getKey());
+        try {
+            for (Map.Entry<String, AtomicBoolean> entry : new ArrayList<>(cleaned.entrySet())) {
+                if (entry.getValue().get()) {
+                    cleanTaskReferences(entry.getKey());
+                }
             }
+        } catch (Throwable e) {
+            log.warn("Clean task references failed", e);
         }
     }
 
@@ -218,11 +223,14 @@ public class CpuMemoryCollector {
         }
         try {
             WeakReference<Object> pull;
-            while ((pull = (WeakReference<Object>) taskReferenceQueue.poll()) != null) {
+            int cleanedReferences = 0;
+            while (cleanedReferences < MAX_CLEANUP_REFERENCES_PER_TASK
+                    && (pull = (WeakReference<Object>) taskReferenceQueue.poll()) != null) {
                 weakReferences.remove(pull);
+                cleanedReferences++;
             }
-        } catch (Exception e) {
-            log.warn("Clean task references failed, task id = {}, e = {}", taskId, e.getMessage());
+        } catch (Throwable e) {
+            log.warn("Clean task references failed, task id = {}", taskId, e);
         }
     }
 
@@ -381,7 +389,7 @@ public class CpuMemoryCollector {
                 }
             }, "Calculate memory usage failed, {}");
         }
-        weakReferences.putAll(updates);
+        updates.forEach(weakReferences::replace);
     }
 
     void collectMemoryUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
@@ -414,10 +422,10 @@ public class CpuMemoryCollector {
     private void collectCpuUsageInSharedWindow(List<String> taskIds, Map<String, Usage> usageMap) {
         final Map<String, Map<Long, Long>> beforeByTask = new HashMap<>();
         final Map<String, List<WeakReference<ThreadFactory>>> threadGroupsByTask = new HashMap<>();
-        final long sampleStart = System.currentTimeMillis();
+        final Map<String, Long> sampleStartByTask = new HashMap<>();
+        final long sampleStart = System.nanoTime();
         boolean hasThreadSample = false;
         for (String taskId : taskIds) {
-            final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
             final List<WeakReference<ThreadFactory>> weakReferences = threadGroupMap.get(taskId);
             if (weakReferences == null) {
                 continue;
@@ -425,6 +433,7 @@ public class CpuMemoryCollector {
             weakReferences.removeIf(weakReference -> null == weakReference.get());
             final List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
             final Map<Long, Long> before = new HashMap<>();
+            final long taskSampleStart = System.nanoTime();
             eachThreadGroup(weakReferences, useless,
                     threadId -> before.put(threadId, THREAD_CPU_TIME.getThreadCpuTime(threadId)));
             removeUselessThreadGroups(taskId, weakReferences, useless);
@@ -432,34 +441,39 @@ public class CpuMemoryCollector {
                 hasThreadSample = true;
                 beforeByTask.put(taskId, before);
                 threadGroupsByTask.put(taskId, weakReferences);
+                sampleStartByTask.put(taskId, taskSampleStart);
             }
         }
         if (!hasThreadSample) {
             return;
         }
         sleepForRemainingSampleWindow(sampleStart);
-        final long interval = Math.max(1L, System.currentTimeMillis() - sampleStart);
         beforeByTask.forEach((taskId, before) -> {
-            final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
             final List<WeakReference<ThreadFactory>> weakReferences = threadGroupsByTask.get(taskId);
+            final long interval = sampleIntervalMillis(sampleStartByTask.get(taskId), System.nanoTime());
             final List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
             eachThreadGroup(weakReferences, useless, threadId -> {
                 Long previousCpuTime = before.get(threadId);
                 if (previousCpuTime != null) {
-                    usage.addCpu(THREAD_CPU_TIME.calculateCpuUsage(threadId, previousCpuTime, interval));
+                    usageMap.computeIfAbsent(taskId, k -> new Usage())
+                            .addCpu(THREAD_CPU_TIME.calculateCpuUsage(threadId, previousCpuTime, interval));
                 }
             });
             removeUselessThreadGroups(taskId, weakReferences, useless);
         });
     }
 
+    static long sampleIntervalMillis(long sampleStart, long sampleEnd) {
+        return Math.max(1000L, TimeUnit.NANOSECONDS.toMillis(sampleEnd - sampleStart));
+    }
+
     private void sleepForRemainingSampleWindow(long sampleStart) {
-        long remaining = 1000L - (System.currentTimeMillis() - sampleStart);
+        long remaining = TimeUnit.SECONDS.toNanos(1) - (System.nanoTime() - sampleStart);
         if (remaining <= 0L) {
             return;
         }
         try {
-            Thread.sleep(remaining);
+            TimeUnit.NANOSECONDS.sleep(remaining);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -509,9 +523,9 @@ public class CpuMemoryCollector {
         weakReferences.removeIf(weakReference -> null == weakReference.get());
         List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
         final Map<Long, Long> before = new HashMap<>();
-        final long now = System.currentTimeMillis();
+        final long now = System.nanoTime();
         eachThreadGroup(weakReferences, useless, threadId -> before.put(threadId, THREAD_CPU_TIME.getThreadCpuTime(threadId)));
-        final long lead = System.currentTimeMillis() - now;
+        final long lead = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - now);
         final long last = 1000L - lead;
         if (last > 0L) {
             try {

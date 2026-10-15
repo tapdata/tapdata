@@ -8,6 +8,7 @@ import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +34,7 @@ class CpuMemorySchedulerTest {
     private CpuMemoryScheduler scheduler;
     ClientMongoOperator clientMongoOperator;
     SettingService settingService;
+    private Function<Void, Integer> previousCapacityFunction;
 
     @BeforeEach
     void setUp() {
@@ -41,6 +43,16 @@ class CpuMemorySchedulerTest {
         settingService = mock(SettingService.class);
         ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
         ReflectionTestUtils.setField(scheduler, "settingService", settingService);
+        AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+        previousCapacityFunction = capacityFunction.get();
+    }
+
+    @AfterEach
+    void tearDown() {
+        AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+        capacityFunction.set(previousCapacityFunction);
     }
 
     @Nested
