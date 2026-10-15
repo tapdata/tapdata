@@ -279,11 +279,6 @@
   </dependencies>
 
   <distributionManagement>
-    <repository>
-      <id>tapdata-tapdata-maven</id>
-      <name>maven</name>
-      <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-    </repository>
   </distributionManagement>
 
   <build>
@@ -370,16 +365,5 @@
     </plugins>
   </build>
   <repositories>
-    <repository>
-      <id>tapdata-wendangshujuku-mongo</id>
-      <name>mongo</name>
-      <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
-    </repository>
   </repositories>
 </project>
