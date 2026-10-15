@@ -205,19 +205,34 @@ class CpuMemorySchedulerTest {
     @DisplayName("Method afterPropertiesSet test")
     class AfterPropertiesSetTest {
         @Test
-        @DisplayName("test capacity setting uses default value when value is empty")
+        @DisplayName("test capacity setting uses initial fallback when value is empty")
         @SuppressWarnings("unchecked")
         void testCapacitySettingUsesDefaultValue() {
-            int initialRestriction = (Integer) ReflectionTestUtils
-                    .getField(CpuMemoryCollector.class, "INITIAL_TASK_STATISTICS_RESTRICTION");
-            when(settingService.getInt("task.statistics.restriction", initialRestriction))
-                    .thenReturn(17);
+            Setting setting = new Setting();
+            setting.setDefault_value("200");
+            when(settingService.getSetting("task.statistics.restriction")).thenReturn(setting);
 
             scheduler.afterPropertiesSet();
 
             AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
                     .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
             assertNotNull(capacityFunction);
+            assertEquals(CpuMemoryCollector.getInitialTaskStatisticsRestriction(), capacityFunction.get().apply(null));
+        }
+
+        @Test
+        @DisplayName("test capacity setting uses explicitly configured value")
+        @SuppressWarnings("unchecked")
+        void testCapacitySettingUsesExplicitValue() {
+            Setting setting = new Setting();
+            setting.setDefault_value("200");
+            setting.setValue("17");
+            when(settingService.getSetting("task.statistics.restriction")).thenReturn(setting);
+
+            scheduler.afterPropertiesSet();
+
+            AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
             assertEquals(17, capacityFunction.get().apply(null));
         }
     }

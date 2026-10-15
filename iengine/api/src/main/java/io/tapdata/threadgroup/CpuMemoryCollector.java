@@ -204,26 +204,31 @@ public class CpuMemoryCollector {
 
     private void cleanAll() {
         try {
-            for (Map.Entry<String, AtomicBoolean> entry : new ArrayList<>(cleaned.entrySet())) {
-                if (entry.getValue().get()) {
-                    cleanTaskReferences(entry.getKey());
+            boolean more;
+            do {
+                more = false;
+                for (Map.Entry<String, AtomicBoolean> entry : new ArrayList<>(cleaned.entrySet())) {
+                    if (entry.getValue().get()
+                            && cleanTaskReferences(entry.getKey()) >= MAX_CLEANUP_REFERENCES_PER_TASK) {
+                        more = true;
+                    }
                 }
-            }
+            } while (more);
         } catch (Throwable e) {
             log.warn("Clean task references failed", e);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void cleanTaskReferences(String taskId) {
+    private int cleanTaskReferences(String taskId) {
         FixedConcurrentHashMap<WeakReference<Object>, Long> weakReferences = weakReferenceMap.get(taskId);
         ReferenceQueue<Object> taskReferenceQueue = referenceQueue.get(taskId);
         if (null == weakReferences || null == taskReferenceQueue) {
-            return;
+            return 0;
         }
+        int cleanedReferences = 0;
         try {
             WeakReference<Object> pull;
-            int cleanedReferences = 0;
             while (cleanedReferences < MAX_CLEANUP_REFERENCES_PER_TASK
                     && (pull = (WeakReference<Object>) taskReferenceQueue.poll()) != null) {
                 weakReferences.remove(pull);
@@ -231,7 +236,9 @@ public class CpuMemoryCollector {
             }
         } catch (Throwable e) {
             log.warn("Clean task references failed, task id = {}", taskId, e);
+            return -1;
         }
+        return cleanedReferences;
     }
 
     private void removeDeadThreadGroups() {

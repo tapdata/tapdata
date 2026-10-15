@@ -24,9 +24,6 @@
             "user_visible": true,
             "min": 1,
             "max": 500
-          },
-          "$setOnInsert": {
-            "value": "200"
           }
         },
         "upsert": true

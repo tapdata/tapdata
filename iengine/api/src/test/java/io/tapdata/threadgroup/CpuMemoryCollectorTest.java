@@ -1557,6 +1557,28 @@ class CpuMemoryCollectorTest {
         }
 
         @Test
+        @DisplayName("test cleanup rounds drain references beyond per-task limit")
+        void testCleanupRoundsDrainReferencesBeyondPerTaskLimit() {
+            String taskId = "task1";
+            ReferenceQueue<Object> queue = new ReferenceQueue<>();
+            FixedConcurrentHashMap<WeakReference<Object>, Long> weakMap = new FixedConcurrentHashMap<>(2000);
+            collector.referenceQueue.put(taskId, queue);
+            collector.weakReferenceMap.put(taskId, weakMap);
+            collector.cleaned.put(taskId, new AtomicBoolean(true));
+
+            for (int i = 0; i < 1001; i++) {
+                WeakReference<Object> reference = new WeakReference<>(new Object(), queue);
+                weakMap.put(reference, 1L);
+                assertTrue(reference.enqueue());
+            }
+
+            ReflectionTestUtils.invokeMethod(collector, "cleanAll");
+
+            assertTrue(weakMap.isEmpty());
+            assertNull(queue.poll());
+        }
+
+        @Test
         @DisplayName("test eachOneTask with null thread in group")
         void testEachOneTaskNullThreadInGroup() {
             String taskId = "task1";
