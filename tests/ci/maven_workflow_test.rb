@@ -191,4 +191,24 @@ class MavenWorkflowTest < Minitest::Test
     end
     assert_operator count, :>, 0
   end
+
+  def test_api_snapshot_cache_is_refreshed_before_build
+    cleanup = 'rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.11-SNAPSHOT'
+    count = 0
+    %w[mr-ci.yaml build.yml].each do |name|
+      workflow(name).fetch('jobs').each_value do |job|
+        job.fetch('steps', []).each do |step|
+          script = step['run'].to_s
+          next unless step['name'] == 'Patch Maven Dependens'
+
+          count += 1
+          label = "#{name}: #{step['name']}"
+          assert_includes script, cleanup, label
+          assert_operator script.index(cleanup), :<, script.index('rsync '), label
+          refute_match(%r{rm -rf /root/.m2/repository/io/tapdata(?:\s|$)}, script, label)
+        end
+      end
+    end
+    assert_equal 3, count
+  end
 end
