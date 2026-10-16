@@ -80,23 +80,30 @@ public class CustomQueryInspectTmContractTest {
 
     @Test
     public void testTaskWithNullCustomQueryFieldsSerialization() throws Exception {
-        // 验证旧任务（没有自定义查询字段）的兼容性
-        Task task = new Task();
-        task.setFieldMapping(null);
-        task.setSortFields(null);
+        // Older task documents do not contain these custom-query fields.
+        Task deserialized = mapper.readValue("{\"source\":{},\"target\":{}}", Task.class);
 
-        String json = mapper.writeValueAsString(task);
-        Task deserialized = mapper.readValue(json, Task.class);
-
-        // 旧任务的这些字段应为 null，不应抛异常
+        // Missing fields remain optional so older tasks deserialize unchanged.
         assertNull(deserialized.getFieldMapping(), "旧任务的 fieldMapping 应为 null");
         assertNull(deserialized.getSortFields(), "旧任务的 sortFields 应为 null");
+        assertNull(deserialized.getSource().getCustomQuery(), "旧任务的源端 customQuery 应为 null");
+        assertNull(deserialized.getTarget().getCustomQuery(), "旧任务的目标端 customQuery 应为 null");
     }
 
     @Test
     public void testCompleteCustomQueryTaskSerialization() throws Exception {
         // 验证完整的自定义查询任务配置的序列化往返
         Task task = new Task();
+
+        Source source = new Source();
+        source.setConnectionId("source-connection");
+        source.setCustomQuery("SELECT account_id, SUM(amount) AS total FROM orders GROUP BY account_id");
+        task.setSource(source);
+
+        Source target = new Source();
+        target.setConnectionId("target-connection");
+        target.setCustomQuery("SELECT account_id, SUM(amount) AS total FROM account_totals GROUP BY account_id");
+        task.setTarget(target);
 
         Map<String, String> fieldMapping = new HashMap<>();
         fieldMapping.put("sum_amount", "sum_amount");
@@ -110,6 +117,10 @@ public class CustomQueryInspectTmContractTest {
         String json = mapper.writeValueAsString(task);
         Task deserialized = mapper.readValue(json, Task.class);
 
+        assertEquals(source.getCustomQuery(), deserialized.getSource().getCustomQuery());
+        assertEquals(target.getCustomQuery(), deserialized.getTarget().getCustomQuery());
+        assertEquals("source-connection", deserialized.getSource().getConnectionId());
+        assertEquals("target-connection", deserialized.getTarget().getConnectionId());
         assertEquals(task.getFieldMapping(), deserialized.getFieldMapping(), "完整配置序列化往返后应一致");
         assertEquals(task.getSortFields(), deserialized.getSortFields(), "排序字段序列化往返后应一致");
     }
