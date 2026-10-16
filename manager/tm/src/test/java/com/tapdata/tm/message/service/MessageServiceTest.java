@@ -858,7 +858,8 @@ class MessageServiceTest {
                 Level level = Level.INFO;
                 UserDetail userDetail = mock(UserDetail.class);
                 MessageEntity saveMessage = mock(MessageEntity.class);
-                when(messageServiceUnderTest.addMessage(anyString(),anyString(),any(),any(),anyString(),any(),any(),anyBoolean())).thenReturn(saveMessage);
+                // 站内系统通知下线后，邮件经隐藏载体消息发送
+                when(messageServiceUnderTest.addEmailCarrier(anyString(),anyString(),any(),any(),any(),any())).thenReturn(saveMessage);
                 when(mockSettingsService.isCloud()).thenReturn(true);
                 when(messageServiceUnderTest.checkSending(userDetail)).thenReturn(true);
                 when(saveMessage.getId()).thenReturn(mock(ObjectId.class));

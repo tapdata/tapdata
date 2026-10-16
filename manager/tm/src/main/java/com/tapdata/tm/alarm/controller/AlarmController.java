@@ -39,6 +39,8 @@ import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.service.UserLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +78,7 @@ public class AlarmController extends BaseController {
     private AlarmSettingService alarmSettingService;
     private InspectService inspectService;
     private UserService userService;
+    private UserLogService userLogService;
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -101,7 +104,12 @@ public class AlarmController extends BaseController {
     @Operation(summary = "close alarm")
     @PostMapping("close")
     public ResponseMessage<Void> close(@RequestParam String[] ids) {
-        alarmService.close(ids, getLoginUser());
+        UserDetail user = getLoginUser();
+        alarmService.close(ids, user);
+        // 关闭只表示结束跟踪，不代表问题恢复；写入操作审计便于追溯
+        for (String id : ids) {
+            userLogService.addUserLog(Modular.ALARM, com.tapdata.tm.userLog.constant.Operation.CLOSE, user, id, id);
+        }
         return success();
     }
 
