@@ -28,7 +28,7 @@ public class Inspect extends BaseEntity implements Serializable {
 	private String mode;
 
 	/**
-	 * row_count,field
+	 * row_count,field,custom_query
 	 */
 	private String inspectMethod;
 	/**

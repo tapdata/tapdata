@@ -24,6 +24,8 @@ public class InspectDataSource implements Serializable {
 
 	private String connectionId;  // "",  // 连接ID
 	private String connectionName;  // 连接名称
+	/** SQL used to produce the result set for custom_query inspections. */
+	private String customQuery;
 	private String table;      // "IV_JW_MATRL",  // 不能带 owner，默认使用connection的owner
 	private String sortColumn;    // "INVNT_ID",  // 必填，提示使用索引字段
 	private String direction;    // "ASC",  // 固定值 ASC，后端强制ASC
