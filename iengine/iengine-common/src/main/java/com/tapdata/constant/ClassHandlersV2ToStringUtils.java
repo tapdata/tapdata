@@ -18,6 +18,18 @@ public class ClassHandlersV2ToStringUtils {
         valueHandler.register(TapMapValue.class, TapValue::getValue);
         valueHandler.register(TapStringValue.class, TapValue::getValue);
         valueHandler.register(TapRawValue.class, TapValue::getValue);
+        valueHandler.register(TapNumberValue.class, ClassHandlersV2ToStringUtils::numberValue);
+        valueHandler.register(TapDoubleValue.class, ClassHandlersV2ToStringUtils::numberValue);
+        valueHandler.register(TapFloatValue.class, ClassHandlersV2ToStringUtils::numberValue);
+        valueHandler.register(TapMoneyValue.class, ClassHandlersV2ToStringUtils::numberValue);
+    }
+
+    /**
+     * Numeric TapValue stores value as Double, prefer the origin number to keep integer form and long precision
+     */
+    private static Object numberValue(TapValue<?, ?> tapValue) {
+        Object originValue = tapValue.getOriginValue();
+        return originValue instanceof Number ? originValue : tapValue.getValue();
     }
 
     private static Object recursiveHandleValue(Object value) {
