@@ -212,6 +212,11 @@ public class MessageServiceImpl extends MessageService{
 
             messageEntity.setUserId(userDetail.getUserId());
             messageEntity.setCustomId(userDetail.getCustomerId());
+            // 站内系统通知已下线：仅在需要邮件/短信时保存隐藏记录作为发送与重发载体
+            if (!hasOutbound(msgTypeEnum, systemEnum, userDetail)) {
+                return;
+            }
+            messageEntity.setIsDeleted(true);
             repository.save(messageEntity,userDetail);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {
@@ -237,9 +242,16 @@ public class MessageServiceImpl extends MessageService{
         }
         NotificationDto notificationDto = needInform(SystemEnum.MIGRATION, msgTypeEnum);
         Notification userNotification = userDetail.getNotification();
+        boolean userOutbound = null != userNotification && null != userNotification.getStoppedByError()
+                && (Boolean.TRUE.equals(userNotification.getStoppedByError().getEmail())
+                || Boolean.TRUE.equals(userNotification.getStoppedByError().getSms()));
+        boolean settingEmail = null != notificationDto && Boolean.TRUE.equals(notificationDto.getEmail());
+        if (!settingEmail && !userOutbound) {
+            // 站内系统通知已下线，未配置邮件/短信时不再写消息
+            return;
+        }
+        saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, level, userDetail);
         if (null != notificationDto) {
-            saveMessage = addMessage(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
-
             if (notificationDto.getEmail()) {
                 SendStatus sendStatus = new SendStatus("false", "");
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
@@ -300,7 +312,8 @@ public class MessageServiceImpl extends MessageService{
      */
     public MessageDto addTrustAgentMessage(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, String title, UserDetail userDetail) {
         MessageEntity saveMessage = null;
-        saveMessage = addMessage(serverName, sourceId, SystemEnum.AGENT, msgTypeEnum, title, Level.INFO, userDetail);
+        saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.AGENT, msgTypeEnum, Level.INFO, userDetail);
+        saveMessage.setTitle(title);
         asynInformUserEmail(msgTypeEnum, SystemEnum.AGENT, saveMessage.getId().toString(), userDetail);
         asynInformUserSms(saveMessage.getId().toString(), userDetail);
         MessageDto messageDto = new MessageDto();
@@ -334,10 +347,9 @@ public class MessageServiceImpl extends MessageService{
         //系统设置，企业版
         NotificationDto notificationDto = needInform(SystemEnum.INSPECT, msgTypeEnum);
         if (null != notificationDto) {
-            if (notificationDto.getNotice()) {
-                saveMessage = addMessage(serverName, sourceId, SystemEnum.INSPECT, msgTypeEnum, null, level, userDetail);
-            }
+            // 站内系统通知已下线，仅邮件需要时保存隐藏载体
             if (notificationDto.getEmail()) {
+                saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.INSPECT, msgTypeEnum, level, userDetail);
                 SendStatus sendStatus = new SendStatus("", "false");
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
             }
@@ -359,7 +371,11 @@ public class MessageServiceImpl extends MessageService{
         if (null == notificationDto) {
             return;
         }
-        MessageEntity saveMessage = addMessage(serverName, sourceId, SystemEnum.SYNC, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
+        if (!Boolean.TRUE.equals(notificationDto.getEmail())) {
+            // 站内系统通知已下线，未配置邮件时不再写消息
+            return;
+        }
+        MessageEntity saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.SYNC, msgTypeEnum, level, userDetail);
 
         if (notificationDto.getEmail()) {
             FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
@@ -478,6 +494,25 @@ public class MessageServiceImpl extends MessageService{
 
     public void addMessage(MessageEntity messageEntity,UserDetail userDetail) {
         repository.save(messageEntity,userDetail);
+    }
+
+    /**
+     * 站内系统通知下线后，邮件/短信发送及失败重发仍按消息 ID 回查内容，故保存为隐藏记录。
+     */
+    protected MessageEntity addEmailCarrier(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, Level level, UserDetail userDetail) {
+        return addMessage(serverName, sourceId, systemEnum, msgTypeEnum, "", level, userDetail, false);
+    }
+
+    /** 与 informUser 相同的邮件/短信判定 */
+    protected boolean hasOutbound(MsgTypeEnum msgType, SystemEnum systemEnum, UserDetail userDetail) {
+        Notification notification = userDetail.getNotification();
+        if (null != notification) {
+            Object eventType = BeanUtil.getProperty(notification, msgType.getValue());
+            return Boolean.TRUE.equals(BeanUtil.getProperty(eventType, "email"))
+                    || Boolean.TRUE.equals(BeanUtil.getProperty(eventType, "sms"));
+        }
+        return Boolean.TRUE.equals(getDefaultNotification(systemEnum.getValue(), msgType.getValue(), "email"))
+                || Boolean.TRUE.equals(getDefaultNotification(systemEnum.getValue(), msgType.getValue(), "notice"));
     }
 
     /**
@@ -672,6 +707,10 @@ public class MessageServiceImpl extends MessageService{
             messageEntity.setServerName(messageDto.getAgentName());
             messageEntity.setLastUpdAt(now);
             messageEntity.setLastUpdBy(userDetail.getUsername());
+            if (SystemNotificationMapping.isRetiredSystemNotification(MsgTypeEnum.getEnumByValue(messageEntity.getMsg()))) {
+                // 站内系统通知已下线：Agent 状态消息仍作为邮件/熔断判断的隐藏载体保存
+                messageEntity.setIsDeleted(true);
+            }
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
             WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);

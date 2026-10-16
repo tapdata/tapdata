@@ -137,4 +137,11 @@ public interface AlarmService {
     }
 
     void ingestTaskAlert(TaskAlertRequest request);
+
+    /**
+     * 按当前语言渲染告警摘要；企业版补齐模板参数后渲染，默认直接返回原始摘要。
+     */
+    default String renderSummary(AlarmInfo info, Locale locale) {
+        return info == null ? null : info.getSummary();
+    }
 }
