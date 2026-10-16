@@ -9,5 +9,6 @@ public interface TaskScheduleService {
     void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart);
     void sendStartMsg(String taskId, String agentId, UserDetail user);
     CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user, boolean limitNum);
+    void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user);
 
 }

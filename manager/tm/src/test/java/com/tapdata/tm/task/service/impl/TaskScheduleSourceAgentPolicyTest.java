@@ -53,7 +53,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto task = new TaskDto();
         task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
 
-        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
         verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
@@ -64,7 +64,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
         TaskDto task = logCollectorTask(new ObjectId().toHexString());
 
-        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
     }
@@ -76,7 +76,7 @@ class TaskScheduleSourceAgentPolicyTest {
         ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
         TaskDto task = logCollectorTask();
 
-        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
         verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
@@ -92,7 +92,7 @@ class TaskScheduleSourceAgentPolicyTest {
         when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of());
 
-        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
         verify(dataSourceService).findInfoByConnectionIdList(eq(List.of(connectionId)));
@@ -111,7 +111,7 @@ class TaskScheduleSourceAgentPolicyTest {
         when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
                 .thenReturn(List.of(sourceConnection(connectionId, "source-agent")));
 
-        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertNotSame(task, result);
         assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), result.getAccessNodeType());
@@ -130,7 +130,7 @@ class TaskScheduleSourceAgentPolicyTest {
         task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
         task.setAccessNodeProcessId("task-agent");
 
-        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class));
+        TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
         verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
@@ -149,7 +149,7 @@ class TaskScheduleSourceAgentPolicyTest {
                         sourceConnection(secondConnectionId, "agent-b", "users")));
 
         BizException exception = assertThrows(BizException.class,
-                () -> ReflectionTestUtils.invokeMethod(service, "taskForSourceAgentPolicy", task, mock(UserDetail.class)));
+                () -> ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class)));
 
         assertEquals("Task.SourceAgentConflict", exception.getErrorCode());
         assertTrue(exception.getMessage().contains("orders"));
@@ -275,6 +275,9 @@ class TaskScheduleSourceAgentPolicyTest {
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("task-agent"));
+        Worker taskAgent = new Worker();
+        taskAgent.setProcessId("task-agent");
+        when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of(taskAgent));
         when(workerService.findByProcessId(anyString(), eq(user), any(String[].class))).thenReturn(new WorkerDto());
         when(workerService.getLimitTaskNum(any(WorkerDto.class), eq(user))).thenReturn(10);
         when(taskService.runningTaskNum(anyString(), eq(user))).thenReturn(0);
@@ -518,6 +521,144 @@ class TaskScheduleSourceAgentPolicyTest {
         service.cloudTaskLimitNum(task, user, true);
 
         verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+    }
+
+    @Test
+    void normalTaskUsesIntersectionOfAllConnectionAgentPolicies() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        AgentGroupService agentGroupService = mock(AgentGroupService.class);
+        UserService userService = mock(UserService.class);
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        SettingsService settingsService = mock(SettingsService.class);
+
+        ReflectionTestUtils.setField(service, "taskService", taskService);
+        ReflectionTestUtils.setField(service, "workerService", workerService);
+        ReflectionTestUtils.setField(service, "agentGroupService", agentGroupService);
+        ReflectionTestUtils.setField(service, "userService", userService);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        ReflectionTestUtils.setField(service, "settingsService", settingsService);
+
+        String userId = new ObjectId().toHexString();
+        UserDetail user = mock(UserDetail.class);
+        when(user.getUserId()).thenReturn(userId);
+        when(settingsService.isCloud()).thenReturn(false);
+        when(userService.loadUserById(any(ObjectId.class))).thenReturn(user);
+
+        ObjectId taskId = new ObjectId();
+        String sourceId = new ObjectId().toHexString();
+        String targetId = new ObjectId().toHexString();
+        TaskDto task = new TaskDto();
+        task.setId(taskId);
+        task.setUserId(userId);
+        task.setName("sync-intersection");
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
+        TableNode source = new TableNode();
+        source.setConnectionId(sourceId);
+        TableNode target = new TableNode();
+        target.setConnectionId(targetId);
+        DAG dag = mock(DAG.class);
+        when(dag.getNodes()).thenReturn(List.of(source, target));
+        task.setDag(dag);
+
+        TaskDto taskOwner = new TaskDto();
+        taskOwner.setUserId(userId);
+        when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(sourceId, targetId))))
+                .thenReturn(List.of(sourceConnection(sourceId, "agent-a"),
+                        sourceConnection(targetId, "agent-a")));
+        Worker agent = new Worker();
+        agent.setProcessId("agent-a");
+        when(workerService.findAvailableAgentByAccessNode(eq(user), eq(List.of("agent-a"))))
+                .thenReturn(List.of(agent));
+
+        CalculationEngineVo result = new CalculationEngineVo();
+        result.setProcessId("agent-a");
+        result.setRunningNum(0);
+        result.setTaskLimit(10);
+        when(workerService.scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), eq("task"), eq("sync-intersection")))
+                .thenReturn(result);
+
+        service.cloudTaskLimitNum(task, user, true);
+
+        org.mockito.ArgumentCaptor<SchedulableDto> scheduledTask = org.mockito.ArgumentCaptor.forClass(SchedulableDto.class);
+        verify(workerService).scheduleTaskToEngineWithStrictAgent(scheduledTask.capture(), eq(user), eq("task"), eq("sync-intersection"));
+        TaskDto scheduledTaskDto = (TaskDto) scheduledTask.getValue();
+        assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), scheduledTaskDto.getAccessNodeType());
+        assertEquals("agent-a", scheduledTaskDto.getAccessNodeProcessId());
+        assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), task.getAccessNodeType());
+        assertEquals("agent-a", task.getAgentId());
+    }
+
+    @Test
+    void saveValidationRejectsEmptyConnectionAgentIntersection() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        AgentGroupService agentGroupService = mock(AgentGroupService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        ReflectionTestUtils.setField(service, "agentGroupService", agentGroupService);
+
+        String firstConnectionId = new ObjectId().toHexString();
+        String secondConnectionId = new ObjectId().toHexString();
+        TaskDto task = new TaskDto();
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        TableNode first = new TableNode();
+        first.setConnectionId(firstConnectionId);
+        TableNode second = new TableNode();
+        second.setConnectionId(secondConnectionId);
+        DAG dag = mock(DAG.class);
+        when(dag.getNodes()).thenReturn(List.of(first, second));
+        task.setDag(dag);
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
+                .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a"),
+                        sourceConnection(secondConnectionId, "agent-b")));
+
+        BizException exception = assertThrows(BizException.class,
+                () -> service.validateConnectionAgentPolicy(task, mock(UserDetail.class)));
+
+        assertEquals("Task.SourceAgentConflict", exception.getErrorCode());
+    }
+
+    @Test
+    void saveValidationRejectsTaskAgentGroupOutsideConnectionAgentGroup() {
+        TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        AgentGroupService agentGroupService = mock(AgentGroupService.class);
+        ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        ReflectionTestUtils.setField(service, "agentGroupService", agentGroupService);
+
+        String connectionId = new ObjectId().toHexString();
+        TaskDto task = new TaskDto();
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+        task.setAccessNodeProcessId("group-b");
+        TableNode source = new TableNode();
+        source.setConnectionId(connectionId);
+        DAG dag = mock(DAG.class);
+        when(dag.getNodes()).thenReturn(List.of(source));
+        task.setDag(dag);
+
+        DataSourceConnectionDto connection = new DataSourceConnectionDto();
+        connection.setId(new ObjectId(connectionId));
+        connection.setName("source");
+        connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+        connection.setAccessNodeProcessId("group-a");
+        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+                .thenReturn(List.of(connection));
+        UserDetail user = mock(UserDetail.class);
+        when(agentGroupService.getProcessNodeListWithGroup(eq(connection), eq(user)))
+                .thenReturn(List.of("agent-1"));
+        when(agentGroupService.getProcessNodeListWithGroup(eq(task), eq(user)))
+                .thenReturn(List.of("agent-2"));
+
+        BizException exception = assertThrows(BizException.class,
+                () -> service.validateConnectionAgentPolicy(task, user));
+
+        assertEquals("Task.AgentConflict", exception.getErrorCode());
     }
 
     @Test

@@ -70,6 +70,16 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private AgentGroupService agentGroupService;
     private DataSourceService dataSourceService;
 
+    private static final class ConnectionAgentPolicy {
+        private final Set<String> allowedAgents;
+        private final List<String> connectionNames;
+
+        private ConnectionAgentPolicy(Set<String> allowedAgents, List<String> connectionNames) {
+            this.allowedAgents = allowedAgents;
+            this.connectionNames = connectionNames;
+        }
+    }
+
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart) {
         FunctionUtils.ignoreAnyError(() -> {
@@ -176,11 +186,16 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         Assert.notNull(userId, "task not found");
         user = userService.loadUserById(new ObjectId(userId.getUserId()));
 
-        // TAP-12917 Shared mining and heartbeat tasks always keep automatic allocation in their own
-        // configuration. Resolve the source connection policy only for this scheduling
-        // attempt, so a source connection change takes effect on the next start without
-        // persisting the source Agent policy onto the task.
-        TaskDto schedulingTaskDto = taskForSourceAgentPolicy(taskDto, user);
+        // Resolve the effective Agent policy only for this scheduling attempt. The task keeps
+        // its own automatic/manual setting, while connection policies restrict the runtime
+        // candidate set. This is shared by data development, data copy, shared mining and
+        // connection heartbeat tasks.
+        TaskDto schedulingTaskDto = taskForConnectionAgentPolicy(taskDto, user);
+        // A manual policy must always be evaluated from its configured Agent/group. Never let
+        // the AgentId from a previous run bypass the task/connection policy check.
+        if (AccessNodeTypeEnum.isManually(schedulingTaskDto.getAccessNodeType())) {
+            schedulingTaskDto.setAgentId(null);
+        }
         AtomicBoolean needCalculateAgent = new AtomicBoolean(true);
         String agentId = schedulingTaskDto.getAgentId();
         UserDetail finalUser = user;
@@ -228,29 +243,29 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(schedulingTaskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(schedulingTaskDto.getAccessNodeProcessIdList())) {
             WorkerDto workerDto = workerService.findByProcessId(schedulingTaskDto.getAgentId(), user, "user_id", "agentTags", "process_id");
-            int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
-            int runningNum = taskService.subCronOrPlanNum(schedulingTaskDto, taskService.runningTaskNum(schedulingTaskDto.getAgentId(), user));
-            if (runningNum > limitTaskNum && !limitNum) {
-                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-                if (stateMachineResult.isOk()) {
-                    throw new BizException("Task.ScheduleLimit");
+            if (workerDto != null) {
+                int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
+                int runningNum = taskService.subCronOrPlanNum(schedulingTaskDto, taskService.runningTaskNum(schedulingTaskDto.getAgentId(), user));
+                if (runningNum > limitTaskNum && !limitNum) {
+                    StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+                    if (stateMachineResult.isOk()) {
+                        throw new BizException("Task.ScheduleLimit");
+                    }
                 }
-
             }
         }
 
-        boolean strictSourceAgent = isSourceAgentPolicyTask(taskDto)
-                && AccessNodeTypeEnum.isManually(schedulingTaskDto.getAccessNodeType());
+        boolean strictTaskAgent = AccessNodeTypeEnum.isManually(schedulingTaskDto.getAccessNodeType());
         CalculationEngineVo calculationEngineVo;
         try {
-            calculationEngineVo = strictSourceAgent
+            calculationEngineVo = strictTaskAgent
                     ? workerService.scheduleTaskToEngineWithStrictAgent(schedulingTaskDto, user, "task", schedulingTaskDto.getName())
                     : workerService.scheduleTaskToEngine(schedulingTaskDto, user, "task", schedulingTaskDto.getName());
         } catch (BizException e) {
-            if (!strictSourceAgent || !"Task.AgentNotFound".equals(e.getErrorCode())) {
+            if (!strictTaskAgent || !"Task.AgentNotFound".equals(e.getErrorCode())) {
                 throw e;
             }
-            log.warn("Source Agent is unavailable for task [{}], waiting for the next scheduling round", taskDto.getName());
+            log.warn("Task Agent is unavailable for task [{}], waiting for the next scheduling round", taskDto.getName());
             taskDto.setAgentId(null);
             return noAvailableAgentResult();
         }
@@ -271,6 +286,24 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         return calculationEngineVo;
     }
 
+    @Override
+    public void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
+        ConnectionAgentPolicy policy = resolveConnectionAgentPolicy(taskDto, user);
+        if (policy == null || policy.allowedAgents == null) {
+            return;
+        }
+        if (CollectionUtils.isEmpty(policy.allowedAgents)) {
+            throw new BizException("Task.SourceAgentConflict", String.join(", ", policy.connectionNames));
+        }
+        if (hasTaskAgentPolicyOverride(taskDto)) {
+            Set<String> taskAgents = taskAllowedAgents(taskDto, user);
+            if (CollectionUtils.isEmpty(taskAgents)
+                    || Collections.disjoint(taskAgents, policy.allowedAgents)) {
+                throw new BizException("Task.AgentConflict");
+            }
+        }
+    }
+
     private CalculationEngineVo noAvailableAgentResult() {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         calculationEngineVo.setAvailable(0);
@@ -282,79 +315,157 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         return calculationEngineVo;
     }
 
-    private TaskDto taskForSourceAgentPolicy(TaskDto taskDto, UserDetail user) {
-        if (!isSourceAgentPolicyTask(taskDto)) {
+    private TaskDto taskForConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
+        ConnectionAgentPolicy policy = resolveConnectionAgentPolicy(taskDto, user);
+        if (policy == null || policy.allowedAgents == null) {
+            if (hasInheritedConnectionPolicy(taskDto)) {
+                return runtimeTaskWithAutomaticPolicy(taskDto);
+            }
             return taskDto;
         }
-        // A manually selected engine on a shared task is an explicit task-level
-        // override. Keep it for scheduling; otherwise resolve the source
-        // connection policy on every attempt so connection changes affect the
-        // default shared-mining task without rewriting the task configuration.
+        if (CollectionUtils.isEmpty(policy.allowedAgents)) {
+            throw new BizException("Task.SourceAgentConflict", String.join(", ", policy.connectionNames));
+        }
+
         if (hasTaskAgentPolicyOverride(taskDto)) {
-            return taskDto;
-        }
-        if (dataSourceService == null) {
-            log.warn("Cannot resolve source connection service for task [{}], using task policy", taskDto.getName());
-            return taskDto;
-        }
-
-        List<String> sourceConnectionIds = sourceConnectionIds(taskDto);
-        if (CollectionUtils.isEmpty(sourceConnectionIds)) {
-            log.warn("Cannot resolve source connection for task [{}], using task policy", taskDto.getName());
-            return taskDto;
-        }
-
-        // Fix to TAP-12917 issue: When querying the connection to obtain the engine scheduling policy based on the connection ID,
-        // the connection ID has already passed the task permission verification and should not be filtered again.
-        // Otherwise, the query results may encounter bugs in the scenario of "connection and task created by different users",
-        // resulting in the inability to schedule tasks properly in the future
-        List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(sourceConnectionIds);
-        if (connections.isEmpty()) {
-            log.warn("Cannot find all source connections [{}] for task [{}], using task policy",
-                    sourceConnectionIds, taskDto.getName());
-            return taskDto;
+            Set<String> taskAgents = taskAllowedAgents(taskDto, user);
+            if (CollectionUtils.isEmpty(taskAgents)
+                    || Collections.disjoint(taskAgents, policy.allowedAgents)) {
+                throw new BizException("Task.AgentConflict");
+            }
+            if (AccessNodeTypeEnum.isUserManually(taskDto.getAccessNodeType())) {
+                return taskDto;
+            }
+            policy.allowedAgents.retainAll(taskAgents);
+            if (CollectionUtils.isEmpty(policy.allowedAgents)) {
+                throw new BizException("Task.AgentConflict");
+            }
         }
 
-        List<DataSourceConnectionDto> manualConnections = connections.stream()
-                .filter(connection -> AccessNodeTypeEnum.isManually(connection.getAccessNodeType()))
-                .collect(Collectors.toList());
-        if (CollectionUtils.isNotEmpty(manualConnections)
-                && manualConnections.stream().anyMatch(connection -> !sameSourceAgentPolicy(manualConnections.get(0), connection))) {
-            String connectionNames = manualConnections.stream()
-                    .map(this::sourceConnectionName)
-                    .collect(Collectors.joining(", "));
-            throw new BizException("Task.SourceAgentConflict", connectionNames);
+        // The common scheduler accepts one strict Agent. Choose one member of the connection
+        // intersection for this run without changing the persisted task policy.
+        return runtimeTaskForAgentSet(taskDto, policy.allowedAgents, user);
+    }
+
+    private ConnectionAgentPolicy resolveConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
+        if (!isConnectionPolicyTask(taskDto) || dataSourceService == null) {
+            return null;
+        }
+        List<String> connectionIds = taskConnectionIds(taskDto);
+        if (CollectionUtils.isEmpty(connectionIds)) {
+            return null;
         }
 
-        DataSourceConnectionDto sourceConnection = CollectionUtils.isNotEmpty(manualConnections)
-                ? manualConnections.get(0)
-                : connections.get(0);
-        TaskDto schedulingTaskDto = new TaskDto();
-        BeanUtils.copyProperties(taskDto, schedulingTaskDto);
-        String accessNodeType = StringUtils.defaultIfBlank(sourceConnection.getAccessNodeType(),
-                AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-        schedulingTaskDto.setAccessNodeType(accessNodeType);
-        schedulingTaskDto.setAccessNodeProcessId(sourceConnection.getAccessNodeProcessId());
-        schedulingTaskDto.setPriorityProcessId(sourceConnection.getPriorityProcessId());
-        // TAP-12917 The runtime agent on the shared task can be stale after the source connection
-        // is edited. Force policy evaluation on every start/scheduling attempt.
-        schedulingTaskDto.setAgentId(null);
-        return schedulingTaskDto;
+        List<DataSourceConnectionDto> connections = dataSourceService.findInfoByConnectionIdList(connectionIds);
+        if (hasMissingConnection(connectionIds, connections)) {
+            log.warn("Cannot find all task connections [{}] for task [{}], using task policy",
+                    connectionIds, taskDto.getName());
+            return null;
+        }
+
+        Set<String> allowedAgentIntersection = null;
+        List<String> restrictedConnectionNames = new ArrayList<>();
+        for (DataSourceConnectionDto connection : connections) {
+            if (!AccessNodeTypeEnum.isManually(connection.getAccessNodeType())) {
+                continue;
+            }
+            Set<String> connectionAgents = connectionAllowedAgents(connection, user);
+            if (allowedAgentIntersection == null) {
+                allowedAgentIntersection = new LinkedHashSet<>(connectionAgents);
+            } else {
+                allowedAgentIntersection.retainAll(connectionAgents);
+            }
+            restrictedConnectionNames.add(sourceConnectionName(connection));
+        }
+        return new ConnectionAgentPolicy(allowedAgentIntersection, restrictedConnectionNames);
     }
 
     private boolean hasTaskAgentPolicyOverride(TaskDto taskDto) {
-        return !Boolean.TRUE.equals(taskDto.getAttrs() == null ? null
-                        : taskDto.getAttrs().get(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED))
+        return !hasInheritedConnectionPolicy(taskDto)
                 && AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
                 && StringUtils.isNotBlank(taskDto.getAccessNodeProcessId());
     }
 
-    private boolean isSourceAgentPolicyTask(TaskDto taskDto) {
-        return TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())
+    private boolean hasInheritedConnectionPolicy(TaskDto taskDto) {
+        return Boolean.TRUE.equals(taskDto.getAttrs() == null ? null
+                : taskDto.getAttrs().get(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED));
+    }
+
+    private boolean isConnectionPolicyTask(TaskDto taskDto) {
+        return TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())
+                || TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
+                || TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())
                 || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType());
     }
 
-    private List<String> sourceConnectionIds(TaskDto taskDto) {
+    private Set<String> connectionAllowedAgents(DataSourceConnectionDto connection, UserDetail user) {
+        if (AccessNodeTypeEnum.isGroupManually(connection.getAccessNodeType())) {
+            List<String> processIds = agentGroupService.getProcessNodeListWithGroup(connection, user);
+            return new LinkedHashSet<>(processIds == null ? Collections.emptyList() : processIds);
+        }
+        if (StringUtils.isBlank(connection.getAccessNodeProcessId())) {
+            return Collections.emptySet();
+        }
+        return new LinkedHashSet<>(Collections.singletonList(connection.getAccessNodeProcessId()));
+    }
+
+    private Set<String> taskAllowedAgents(TaskDto taskDto, UserDetail user) {
+        if (AccessNodeTypeEnum.isGroupManually(taskDto.getAccessNodeType())) {
+            List<String> processIds = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+            return new LinkedHashSet<>(processIds == null ? Collections.emptyList() : processIds);
+        }
+        if (StringUtils.isBlank(taskDto.getAccessNodeProcessId())) {
+            return Collections.emptySet();
+        }
+        return new LinkedHashSet<>(Collections.singletonList(taskDto.getAccessNodeProcessId()));
+    }
+
+    private TaskDto runtimeTaskForAgentSet(TaskDto taskDto, Set<String> allowedAgents, UserDetail user) {
+        if (CollectionUtils.isEmpty(allowedAgents)) {
+            throw new BizException("Task.AgentConflict");
+        }
+        List<String> candidates = new ArrayList<>(allowedAgents);
+        List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(user, candidates);
+        String selectedAgent = selectRuntimeAgent(taskDto, candidates, availableAgents);
+        if (StringUtils.isBlank(selectedAgent)) {
+            selectedAgent = candidates.get(0);
+        }
+
+        TaskDto schedulingTaskDto = new TaskDto();
+        BeanUtils.copyProperties(taskDto, schedulingTaskDto);
+        schedulingTaskDto.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+        schedulingTaskDto.setAccessNodeProcessId(selectedAgent);
+        schedulingTaskDto.setPriorityProcessId(null);
+        schedulingTaskDto.setAgentId(null);
+        return schedulingTaskDto;
+    }
+
+    private TaskDto runtimeTaskWithAutomaticPolicy(TaskDto taskDto) {
+        TaskDto schedulingTaskDto = new TaskDto();
+        BeanUtils.copyProperties(taskDto, schedulingTaskDto);
+        schedulingTaskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        schedulingTaskDto.setAccessNodeProcessId(null);
+        schedulingTaskDto.setPriorityProcessId(null);
+        schedulingTaskDto.setAgentId(null);
+        return schedulingTaskDto;
+    }
+
+    private String selectRuntimeAgent(TaskDto taskDto, List<String> candidates, List<Worker> availableAgents) {
+        if (CollectionUtils.isEmpty(availableAgents)) {
+            return null;
+        }
+        List<String> availableIds = availableAgents.stream()
+                .map(Worker::getProcessId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toList());
+        if (StringUtils.isNotBlank(taskDto.getPriorityProcessId())
+                && availableIds.contains(taskDto.getPriorityProcessId())) {
+            return taskDto.getPriorityProcessId();
+        }
+        return availableIds.stream().filter(candidates::contains).findFirst().orElse(null);
+    }
+
+    private List<String> taskConnectionIds(TaskDto taskDto) {
         if (taskDto.getDag() == null) {
             return Collections.emptyList();
         }
@@ -372,10 +483,22 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                     .distinct()
                     .collect(Collectors.toList());
         }
-        if (CollectionUtils.isEmpty(taskDto.getDag().getTargets())) {
+        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType())) {
+            if (CollectionUtils.isEmpty(taskDto.getDag().getTargets())) {
+                return Collections.emptyList();
+            }
+            return taskDto.getDag().getTargets().stream()
+                    .filter(DataParentNode.class::isInstance)
+                    .map(node -> (DataParentNode<?>) node)
+                    .map(DataParentNode::getConnectionId)
+                    .filter(StringUtils::isNotBlank)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
+        if (CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
             return Collections.emptyList();
         }
-        return taskDto.getDag().getTargets().stream()
+        return taskDto.getDag().getNodes().stream()
                 .filter(DataParentNode.class::isInstance)
                 .map(node -> (DataParentNode<?>) node)
                 .map(DataParentNode::getConnectionId)
@@ -384,26 +507,17 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 .collect(Collectors.toList());
     }
 
-    private boolean sameSourceAgentPolicy(DataSourceConnectionDto first,
-                                          DataSourceConnectionDto second) {
-        String firstType = normalizedAccessNodeType(first.getAccessNodeType());
-        String secondType = normalizedAccessNodeType(second.getAccessNodeType());
-        if (!StringUtils.equalsIgnoreCase(firstType, secondType)) {
-            return false;
-        }
-        if (!AccessNodeTypeEnum.isManually(firstType)) {
+    private boolean hasMissingConnection(List<String> connectionIds,
+                                         List<DataSourceConnectionDto> connections) {
+        if (CollectionUtils.isEmpty(connections)) {
             return true;
         }
-        if (!StringUtils.equals(first.getAccessNodeProcessId(), second.getAccessNodeProcessId())) {
-            return false;
-        }
-        return !AccessNodeTypeEnum.isGroupManually(firstType)
-                || StringUtils.equals(first.getPriorityProcessId(), second.getPriorityProcessId());
-    }
-
-    private String normalizedAccessNodeType(String accessNodeType) {
-        return StringUtils.defaultIfBlank(accessNodeType,
-                AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        Set<String> foundConnectionIds = connections.stream()
+                .map(DataSourceConnectionDto::getId)
+                .filter(Objects::nonNull)
+                .map(ObjectId::toHexString)
+                .collect(Collectors.toSet());
+        return connectionIds.stream().anyMatch(id -> !foundConnectionIds.contains(id));
     }
 
     private String sourceConnectionName(DataSourceConnectionDto connection) {

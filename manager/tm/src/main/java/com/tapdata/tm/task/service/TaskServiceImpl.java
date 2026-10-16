@@ -505,6 +505,9 @@ public class TaskServiceImpl extends TaskService{
 
         //模型推演
         setDefault(taskDto);
+        if (taskScheduleService != null) {
+            taskScheduleService.validateConnectionAgentPolicy(taskDto, user);
+        }
         taskDto.setOldVersionTimezone(false);
         taskDto = save(taskDto, user);
         if (dag != null) {
@@ -677,7 +680,22 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
                 taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
+                boolean agentPolicyWasSubmitted = StringUtils.isNotBlank(taskDto.getAccessNodeType())
+                        || taskDto.getAccessNodeProcessId() != null
+                        || taskDto.getPriorityProcessId() != null;
+                String submittedAccessNodeType = taskDto.getAccessNodeType();
+                String submittedAccessNodeProcessId = taskDto.getAccessNodeProcessId();
+                String submittedPriorityProcessId = taskDto.getPriorityProcessId();
                 TaskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto);
+                if (agentPolicyWasSubmitted
+                        && (!StringUtils.equals(submittedAccessNodeType, oldTaskDto.getAccessNodeType())
+                        || !StringUtils.equals(submittedAccessNodeProcessId, oldTaskDto.getAccessNodeProcessId())
+                        || !StringUtils.equals(submittedPriorityProcessId, oldTaskDto.getPriorityProcessId()))) {
+                    Map<String, Object> attrs = taskDto.getAttrs() == null
+                            ? new HashMap<>() : new HashMap<>(taskDto.getAttrs());
+                    attrs.put(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED, false);
+                    taskDto.setAttrs(attrs);
+                }
 
                 if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
                     DAG newDag = taskDto.getDag();
@@ -714,6 +732,8 @@ public class TaskServiceImpl extends TaskService{
             log.debug("task not found, need create new task, task id = {}", taskDto.getId());
             return create(taskDto, user);
         }
+
+        validateConnectionAgentPolicyBeforeSave(taskDto, oldTaskDto, user);
 
 
         dateNodeService.checkTaskDateNode(taskDto, user);
@@ -788,6 +808,36 @@ public class TaskServiceImpl extends TaskService{
             restrictNewTaskAlarmReceivers(taskDto, user);
         }
         return null;
+    }
+
+    private void validateConnectionAgentPolicyBeforeSave(TaskDto taskDto, TaskDto oldTaskDto, UserDetail user) {
+        TaskDto validationTask = taskDto;
+        if (taskDto.getDag() == null && oldTaskDto != null) {
+            validationTask = new TaskDto();
+            BeanUtils.copyProperties(oldTaskDto, validationTask);
+            if (StringUtils.isNotBlank(taskDto.getAccessNodeType())) {
+                validationTask.setAccessNodeType(taskDto.getAccessNodeType());
+            }
+            if (taskDto.getAccessNodeProcessId() != null) {
+                validationTask.setAccessNodeProcessId(taskDto.getAccessNodeProcessId());
+            }
+            if (taskDto.getPriorityProcessId() != null) {
+                validationTask.setPriorityProcessId(taskDto.getPriorityProcessId());
+            }
+            if (taskDto.getAttrs() != null) {
+                validationTask.setAttrs(taskDto.getAttrs());
+            }
+        }
+        if (taskScheduleService != null) {
+            taskScheduleService.validateConnectionAgentPolicy(validationTask, user);
+        }
+    }
+
+    private boolean isConnectionPolicyTask(TaskDto taskDto) {
+        return TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())
+                || TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
+                || TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())
+                || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType());
     }
 
     /**
@@ -1168,6 +1218,10 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg) {
+        if (taskScheduleService != null && isConnectionPolicyTask(taskDto)) {
+            taskScheduleService.validateConnectionAgentPolicy(taskDto, user);
+            return;
+        }
         if (taskDto.getShareCache()) {
             return;
         }
@@ -1205,6 +1259,13 @@ public class TaskServiceImpl extends TaskService{
                 Message message = validateMessage.values().iterator().next().get(0);
                 throw new BizException(message.getCode(), message.getMsg());
             }
+        }
+    }
+
+    @Override
+    public void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
+        if (taskScheduleService != null) {
+            taskScheduleService.validateConnectionAgentPolicy(taskDto, user);
         }
     }
 
@@ -4750,6 +4811,9 @@ public class TaskServiceImpl extends TaskService{
     public void start(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
         try {
+            if (taskScheduleService != null) {
+                taskScheduleService.validateConnectionAgentPolicy(taskDto, user);
+            }
             start(taskDto, user, "11");
         } catch (Exception e) {
             monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
