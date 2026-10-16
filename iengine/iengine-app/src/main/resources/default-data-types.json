@@ -59,12 +59,7 @@
       "to": "TapArray"
     },
     "Float": {
-      "to": "TapNumber",
-      "bit": 64,
-      "scale": [
-        0,
-        6
-      ],
+      "to": "TapDouble",
       "fixed": false
     }
   }
