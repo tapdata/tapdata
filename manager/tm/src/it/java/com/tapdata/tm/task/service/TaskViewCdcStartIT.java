@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.*;
 @Timeout(10)
 class TaskViewCdcStartIT {
     @Test
-    @DisplayName("L2：复制任务启动经源模型查询识别视图，在任何任务持久化之前拒绝增量")
+    @DisplayName("L2：复制和转换任务启动经源模型查询识别视图，在任何任务持久化之前拒绝增量")
     void shouldRejectViewCdcBeforePersistingStart() {
         TaskRepository tasks = mock(TaskRepository.class);
         TaskServiceImpl service = new TaskServiceImpl(tasks);
@@ -50,15 +51,22 @@ class TaskViewCdcStartIT {
         source.setTableNames(List.of("v_test", "base_table"));
         DAG dag = mock(DAG.class);
         when(dag.getSources()).thenReturn(List.of(source));
-        for (String type : List.of("cdc", "initial_sync+cdc")) {
-            TaskDto task = new TaskDto();
-            task.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
-            task.setType(type);
-            task.setDag(dag);
-            BizException error = assertThrows(BizException.class, () -> service.start(task, user, "11"));
-            assertEquals("Task.ViewCdcNotSupported", error.getErrorCode());
-            assertArrayEquals(new Object[]{"v_test"}, error.getArgs());
-            assertNull(task.getLastStartDate());
+        TableNode transformSource = new TableNode();
+        transformSource.setConnectionId("mysql-source");
+        transformSource.setTableName("v_test");
+        for (String syncType : List.of(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)) {
+            when(dag.getSources()).thenReturn(TaskDto.SYNC_TYPE_MIGRATE.equals(syncType)
+                    ? List.of(source) : List.of(transformSource));
+            for (String type : List.of("cdc", "initial_sync+cdc")) {
+                TaskDto task = new TaskDto();
+                task.setSyncType(syncType);
+                task.setType(type);
+                task.setDag(dag);
+                BizException error = assertThrows(BizException.class, () -> service.start(task, user, "11"));
+                assertEquals("Task.ViewCdcNotSupported", error.getErrorCode());
+                assertArrayEquals(new Object[]{"v_test"}, error.getArgs());
+                assertNull(task.getLastStartDate());
+            }
         }
         verifyNoInteractions(tasks);
     }
