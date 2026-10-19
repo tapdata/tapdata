@@ -136,12 +136,18 @@ public class TaskScheduleServiceImplTest {
             ReflectionTestUtils.setField(taskScheduleService, "agentGroupService", agentGroupService);
         }
 
+        private void mockStrictScheduling(CalculationEngineVo result) {
+            when(workerService.scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName())))
+                    .thenReturn(result);
+        }
+
         @Test
         void testSpecifiedByTheUserExceedCloudTaskLimitNum() {
             when(workerService.findByProcessId(processId, user, "user_id", "agentTags", "process_id")).thenReturn(workerDto);
             when(workerService.getLimitTaskNum(workerDto, user)).thenReturn(2);
             when(taskService.runningTaskNum(processId, user)).thenReturn(4);
-            when(taskService.subCronOrPlanNum(taskDto,4)).thenReturn(4);
+            when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(4))).thenReturn(4);
             when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user)).thenReturn(StateMachineResult.ok());
             assertThrows(BizException.class, () -> taskScheduleService.cloudTaskLimitNum(taskDto, user, false));
         }
@@ -151,10 +157,11 @@ public class TaskScheduleServiceImplTest {
             when(workerService.findByProcessId(processId, user, "user_id", "agentTags", "process_id")).thenReturn(workerDto);
             when(workerService.getLimitTaskNum(workerDto, user)).thenReturn(2);
             when(taskService.runningTaskNum(processId, user)).thenReturn(3);
-            when(taskService.subCronOrPlanNum(taskDto,3)).thenReturn(2);
-            when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(new CalculationEngineVo());
+            when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(3))).thenReturn(2);
+            mockStrictScheduling(new CalculationEngineVo());
             taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
-            verify(workerService, times(1)).scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+            verify(workerService, times(1)).scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName()));
         }
 
         @Test
@@ -165,9 +172,9 @@ public class TaskScheduleServiceImplTest {
             calculationEngineVo.setRunningNum(1);
             calculationEngineVo.setTaskLimit(2);
             when(taskService.runningTaskNum(processId, user)).thenReturn(3);
-            when(taskService.subCronOrPlanNum(taskDto,3)).thenReturn(2);
-            when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
-            when(taskService.subCronOrPlanNum(taskDto,1)).thenReturn(1);
+            when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(3))).thenReturn(2);
+            mockStrictScheduling(calculationEngineVo);
+            when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(1))).thenReturn(1);
             CalculationEngineVo result = taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
             assertEquals(calculationEngineVo, result);
         }
@@ -180,10 +187,10 @@ public class TaskScheduleServiceImplTest {
             calculationEngineVo.setRunningNum(4);
             calculationEngineVo.setTaskLimit(2);
             when(taskService.runningTaskNum(processId, user)).thenReturn(2);
-            when(taskService.subCronOrPlanNum(taskDto,2)).thenReturn(1);
-            when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
+            when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(2))).thenReturn(1);
+            when(taskService.subCronOrPlanNum(any(TaskDto.class), eq(4))).thenReturn(4);
+            mockStrictScheduling(calculationEngineVo);
             when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user)).thenReturn(StateMachineResult.ok());
-            when(taskService.subCronOrPlanNum(taskDto,4)).thenReturn(4);
             assertThrows(BizException.class, () -> taskScheduleService.cloudTaskLimitNum(taskDto, user, false));
         }
         @Test
@@ -200,11 +207,13 @@ public class TaskScheduleServiceImplTest {
             availableAgent.add(worker2);
             when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
             when(workerService.findAvailableAgentByAccessNode(any(),anyList())).thenReturn(availableAgent);
-            when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenAnswer(invocationOnMock -> {
-                TaskDto result = invocationOnMock.getArgument(0);
-                Assertions.assertEquals("worker_test2",result.getAgentId());
-                return calculationEngineVo;
-            });
+            when(workerService.scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName())))
+                    .thenAnswer(invocationOnMock -> {
+                        TaskDto result = invocationOnMock.getArgument(0);
+                        Assertions.assertEquals("worker_test2", result.getAgentId());
+                        return calculationEngineVo;
+                    });
             taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
         }
         @Test
@@ -220,22 +229,26 @@ public class TaskScheduleServiceImplTest {
             availableAgent.add(worker2);
             when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
             when(workerService.findAvailableAgentByAccessNode(any(),anyList())).thenReturn(availableAgent);
-            when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenAnswer(invocationOnMock -> {
-                TaskDto result = invocationOnMock.getArgument(0);
-                Assertions.assertEquals("worker_test1",result.getAgentId());
-                return calculationEngineVo;
-            });
+            when(workerService.scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName())))
+                    .thenAnswer(invocationOnMock -> {
+                        TaskDto result = invocationOnMock.getArgument(0);
+                        Assertions.assertEquals("worker_test1", result.getAgentId());
+                        return calculationEngineVo;
+                    });
             taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
         }
         @Test
         void testTaskIsGroupManually_accessNodeProcessIdList_is_Empty(){
             taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
             CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
-            when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenAnswer(invocationOnMock -> {
-                TaskDto result = invocationOnMock.getArgument(0);
-                Assertions.assertNull(result.getAgentId());
-                return calculationEngineVo;
-            });
+            when(workerService.scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName())))
+                    .thenAnswer(invocationOnMock -> {
+                        TaskDto result = invocationOnMock.getArgument(0);
+                        Assertions.assertNull(result.getAgentId());
+                        return calculationEngineVo;
+                    });
             taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
         }
 
@@ -251,7 +264,8 @@ public class TaskScheduleServiceImplTest {
             Assertions.assertNull(taskDto.getAgentId());
             Assertions.assertEquals(0, result.getAvailable());
             Assertions.assertEquals(Integer.MAX_VALUE, result.getTaskLimit());
-            verify(workerService, never()).scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+            verify(workerService, never()).scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName()));
         }
     }
 }
