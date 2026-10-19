@@ -18,6 +18,8 @@ import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -146,6 +148,19 @@ public class DataSourceController extends BaseController {
 			});
 			return success(resultDto);
 		}
+
+    @Operation(summary = "Batch update connection agent settings")
+    @PatchMapping("batch-agent-settings")
+    public ResponseMessage<BatchUpdateAgentSettingsResponse> batchUpdateAgentSettings(
+            @RequestBody BatchUpdateAgentSettingsRequest request) {
+        UserDetail userDetail = getLoginUser();
+        BatchUpdateAgentSettingsResponse result = DataPermissionMenuEnums.Connections.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.Edit,
+                () -> dataSourceService.batchUpdateAgentSettings(request, userDetail)
+        );
+        return success(result);
+    }
 
     /**
      * 根据条件查询数据源连接列表
