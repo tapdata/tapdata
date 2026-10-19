@@ -165,6 +165,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -4764,6 +4765,41 @@ public class TaskServiceImpl extends TaskService{
     public void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
         start(taskDto, user, startFlag);
     }
+
+    protected void validateMigrateViewCdc(TaskDto taskDto, UserDetail user) {
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
+                || taskDto.getType() == null || !taskDto.getType().contains("cdc")
+                || taskDto.getDag() == null) {
+            return;
+        }
+        Set<String> views = new TreeSet<>();
+        for (Node<?> source : taskDto.getDag().getSources()) {
+            if (!(source instanceof DatabaseNode)) {
+                continue;
+            }
+            DatabaseNode node = (DatabaseNode) source;
+            boolean expression = "expression".equals(node.getMigrateTableSelectType());
+            if (!expression && CollectionUtils.isEmpty(node.getTableNames())) {
+                continue;
+            }
+            List<MetadataInstancesDto> schemas = metadataInstancesService.findSourceSchemaBySourceId(
+                    node.getConnectionId(), expression ? null : node.getTableNames(), user);
+            if (CollectionUtils.isEmpty(schemas)) {
+                continue;
+            }
+            Set<String> selected = new HashSet<>(expression
+                    ? MetadataInstancesFilterUtil.getFilteredOriginalNames(schemas, node) : node.getTableNames());
+            for (MetadataInstancesDto schema : schemas) {
+                if (selected.contains(schema.getOriginalName()) && MetaType.isView(schema.getMetaType())) {
+                    views.add(schema.getOriginalName());
+                }
+            }
+        }
+        if (!views.isEmpty()) {
+            throw new BizException("Task.ViewCdcNotSupported", String.join(", ", views));
+        }
+    }
+
     /**
      * 状态机启动子任务之前执行
      *
@@ -4774,6 +4810,7 @@ public class TaskServiceImpl extends TaskService{
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         assertTaskNotRebalancing(taskDto.getId(), user);
+        validateMigrateViewCdc(taskDto, user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");

@@ -12,6 +12,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.schema.TapTableMap;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,7 +66,7 @@ public abstract class StreamReadBaseProxy<T extends TapFunction, V> extends Func
         return hasNext;
     }
 
-    public static void judgeTable(TapTableMap<String, TapTable> tableMap, ObsLogger log) {
+    public static boolean judgeTable(TapTableMap<String, TapTable> tableMap, ObsLogger log) {
         Iterator<Entry<TapTable>> iterator = tableMap.iterator();
         Set<String> view = new HashSet<>();
         while (iterator.hasNext()) {
@@ -74,13 +75,26 @@ public abstract class StreamReadBaseProxy<T extends TapFunction, V> extends Func
             TapTable tapTable = entry.getValue();
             String type = tapTable.getType();
             if (MetaType.isView(type)) {
-                tableMap.remove(tableName);
+                // Snapshot events may still need this shared schema after CDC starts.
                 view.add(tableName);
             }
         }
         if (!view.isEmpty()) {
             log.warn("The view does not support CDC mode. The following views will skip the CDC phase: {}", view.stream().sorted().collect(Collectors.joining(", ")));
         }
+        return tableMap.size() > view.size();
+    }
+
+    public static List<String> getCdcTableNames(TapTableMap<String, TapTable> tableMap) {
+        List<String> tables = new ArrayList<>();
+        Iterator<Entry<TapTable>> iterator = tableMap.iterator();
+        while (iterator.hasNext()) {
+            Entry<TapTable> entry = iterator.next();
+            if (!MetaType.isView(entry.getValue().getType())) {
+                tables.add(entry.getKey());
+            }
+        }
+        return tables;
     }
 
     protected abstract void remove(List<V> tables, String tableName);
