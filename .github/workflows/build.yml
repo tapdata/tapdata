@@ -98,6 +98,8 @@ jobs:
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
           # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
+          # The engine requires FloatingPointTransformMode from the current API snapshot.
+          rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.11-SNAPSHOT
           rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
@@ -169,6 +171,8 @@ jobs:
           # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
           # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
           mkdir -p /root/.m2/repository
+          # The engine requires FloatingPointTransformMode from the current API snapshot.
+          rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.11-SNAPSHOT
           rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
             --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
             rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/

@@ -55,8 +55,6 @@ import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDoubleValue;
-import io.tapdata.entity.schema.value.TapFloatValue;
 import io.tapdata.entity.schema.value.TapNumberValue;
 import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.schema.value.TapValue;
@@ -761,7 +759,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		void testTransformToTapValueUsesDedicatedFloatingPointCodecs() {
+		void testTransformToTapValueKeepsRawFloatingPointValues() {
 			Double value = 1.234567890123D;
 			Map<String, Object> after = new LinkedHashMap<>();
 			after.put("single", value);
@@ -775,10 +773,10 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 			hazelcastBaseNode.transformToTapValue(event, tapTableMap, TABLE_NAME);
 
-			TapFloatValue single = assertInstanceOf(TapFloatValue.class, after.get("single"));
-			TapDoubleValue doublePrecision = assertInstanceOf(TapDoubleValue.class, after.get("double"));
-			assertEquals((double) value.floatValue(), single.getValue());
-			assertEquals(value, doublePrecision.getValue());
+			assertEquals((double) value.floatValue(), after.get("single"));
+			assertEquals(value, after.get("double"));
+			assertFalse(after.get("single") instanceof TapValue);
+			assertFalse(after.get("double") instanceof TapValue);
 		}
 
 		@Test

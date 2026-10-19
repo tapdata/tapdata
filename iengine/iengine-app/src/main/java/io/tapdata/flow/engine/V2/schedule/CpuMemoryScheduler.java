@@ -9,6 +9,8 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -27,7 +29,7 @@ import java.util.Optional;
  */
 @Component
 @Slf4j
-public class CpuMemoryScheduler {
+public class CpuMemoryScheduler implements InitializingBean {
     @Autowired
     private ClientMongoOperator clientMongoOperator;
 
@@ -78,5 +80,23 @@ public class CpuMemoryScheduler {
         if (!metricInfo.isEmpty()) {
             clientMongoOperator.postOne(metricInfo, "/Task/update-cpu-memory", Void.class);
         }
+    }
+
+    @Override
+    public void afterPropertiesSet() {
+        CpuMemoryCollector.registerCapacityFun((vi) -> {
+            try {
+                Setting setting = settingService.getSetting("task.statistics.restriction");
+                // The migration supplies default_value for the Settings UI; only a non-blank value
+                // is an explicit override. Otherwise preserve the legacy system property fallback.
+                if (setting != null && StringUtils.isNotBlank(setting.getValue())) {
+                    return Integer.parseInt(setting.getValue());
+                }
+                return CpuMemoryCollector.getInitialTaskStatisticsRestriction();
+            } catch (Exception e) {
+                log.warn("Read task statistics restriction failed, use default value", e);
+                return CpuMemoryCollector.getInitialTaskStatisticsRestriction();
+            }
+        });
     }
 }
