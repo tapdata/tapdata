@@ -3,8 +3,6 @@ package com.tapdata.tm.userLog.aop;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
-import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -30,7 +28,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -69,10 +66,6 @@ public class DatasourceAop {
     @Pointcut("execution(* com.tapdata.tm.ds.service.impl.DataSourceService.update(..))")
     public void updatePointCut() {
 
-    }
-
-    @Pointcut("execution(* com.tapdata.tm.ds.service.impl.DataSourceService.batchUpdateAgentSettings(..))")
-    public void batchUpdateAgentSettingsPointCut() {
     }
 
 
@@ -239,47 +232,6 @@ public class DatasourceAop {
         }
 
         return null;
-    }
-
-    @AfterReturning(value = "batchUpdateAgentSettingsPointCut()", returning = "result")
-    public void afterBatchUpdateAgentSettings(JoinPoint joinPoint, Object result) {
-        if (!shouldRecord() || !(result instanceof BatchUpdateAgentSettingsResponse)) {
-            return;
-        }
-
-        Object[] args = joinPoint.getArgs();
-        if (args.length < 2 || !(args[0] instanceof BatchUpdateAgentSettingsRequest)
-                || !(args[1] instanceof UserDetail)) {
-            return;
-        }
-
-        BatchUpdateAgentSettingsRequest request = (BatchUpdateAgentSettingsRequest) args[0];
-        BatchUpdateAgentSettingsResponse response = (BatchUpdateAgentSettingsResponse) result;
-        List<String> updatedConnectionIds = response.getUpdatedConnectionIds();
-        if (CollectionUtils.isEmpty(updatedConnectionIds)) {
-            return;
-        }
-
-        UserDetail userDetail = (UserDetail) args[1];
-        try {
-            List<ObjectId> objectIds = updatedConnectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
-            List<DataSourceEntity> connections = dataSourceService.findAll(
-                    new Query(Criteria.where("_id").in(objectIds)), userDetail);
-            Map<String, String> namesById = connections == null ? Map.of() : connections.stream()
-                    .collect(Collectors.toMap(connection -> connection.getId().toHexString(), DataSourceEntity::getName));
-            List<String> names = updatedConnectionIds.stream()
-                    .map(id -> namesById.getOrDefault(id, ""))
-                    .collect(Collectors.toList());
-            Operation operationType = response.getUpdatedCount() > 1 ? Operation.BATCH_UPDATE : Operation.UPDATE;
-            userLogService.addUserLog(
-                    Modular.CONNECTION,
-                    operationType,
-                    userDetail,
-                    StringUtils.join(updatedConnectionIds, ","),
-                    StringUtils.join(names, ","));
-        } catch (Exception e) {
-            log.error("Record batch agent settings update failed. requestId={}", request.getRequestId(), e);
-        }
     }
 
 
