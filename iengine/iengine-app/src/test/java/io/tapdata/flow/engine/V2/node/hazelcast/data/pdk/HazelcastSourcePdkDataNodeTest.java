@@ -2950,27 +2950,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         }
     }
 
-    private TapTableMap<String, TapTable> ordinaryTableMap(String... names) {
-        TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
-        when(tableMap.size()).thenReturn(names.length);
-        when(tableMap.iterator()).thenAnswer(invocation -> {
-            java.util.Iterator<String> namesIterator = Arrays.asList(names).iterator();
-            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
-            when(iterator.hasNext()).thenAnswer(call -> namesIterator.hasNext());
-            when(iterator.next()).thenAnswer(call -> {
-                String name = namesIterator.next();
-                Entry<TapTable> entry = mock(Entry.class);
-                when(entry.getKey()).thenReturn(name);
-                TapTable table = new TapTable(name);
-                table.setType(MetaType.table.name());
-                when(entry.getValue()).thenReturn(table);
-                return entry;
-            });
-            return iterator;
-        });
-        return tableMap;
-    }
-
     @Nested
     @DisplayName("Method doRowDataCallbackIfNeed test")
     class DoRowDataCallbackIfNeedTest {
@@ -2987,7 +2966,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunction()).thenReturn(null);
             when(mockFunctions.getRawDataCallbackFilterFunctionV2()).thenReturn(mockRawDataCallbackV2);
 
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1")));
 
             List<String> tables = new ArrayList<>();
             AtomicReference<String> streamReadFunctionName = new AtomicReference<>("");
@@ -3020,7 +3000,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunction()).thenReturn(mockRawDataCallback);
             when(mockFunctions.getRawDataCallbackFilterFunctionV2()).thenReturn(null);
 
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1")));
 
             List<String> tables = new ArrayList<>();
             AtomicReference<String> streamReadFunctionName = new AtomicReference<>("");
@@ -3076,7 +3057,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunctionV2()).thenReturn(null);
 
             List<String> tables = new ArrayList<>();
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1", "table2");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1", "table2")));
 
             AtomicReference<String> streamReadFunctionName = new AtomicReference<>("");
             TapStreamReadConsumer<?, ?> consumer = mock(TapStreamReadConsumer.class);
@@ -3109,7 +3091,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunctionV2()).thenReturn(mockRawDataCallbackV2);
 
             List<String> tables = new ArrayList<>();
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1")));
 
             AtomicReference<String> streamReadFunctionName = new AtomicReference<>("");
             TapStreamReadConsumer<?, ?> consumer = mock(TapStreamReadConsumer.class);
@@ -3205,7 +3188,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunctionV2()).thenReturn(null);
             when(mockFunctions.getStreamReadFunction()).thenReturn(mockStreamReadFunc);
 
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1", "table2");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1", "table2")));
 
             List<String> tables = new ArrayList<>();
             StreamReadConsumer consumer = mock(StreamReadConsumer.class);
@@ -3280,7 +3264,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunctionV2()).thenReturn(null);
             when(mockFunctions.getStreamReadOneByOneFunction()).thenReturn(mockStreamReadFunc);
 
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1")));
 
             List<String> tables = new ArrayList<>();
             StreamReadOneByOneConsumer consumer = mock(StreamReadOneByOneConsumer.class);
@@ -3314,7 +3299,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             when(mockFunctions.getRawDataCallbackFilterFunction()).thenReturn(mockRawDataCallback);
             when(mockFunctions.getStreamReadOneByOneFunction()).thenReturn(null);
 
-            TapTableMap<String, TapTable> tapTableMap = ordinaryTableMap("table1");
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(tapTableMap.keySet()).thenReturn(new HashSet<>(Arrays.asList("table1")));
 
             List<String> tables = new ArrayList<>();
             StreamReadOneByOneConsumer consumer = mock(StreamReadOneByOneConsumer.class);
@@ -3995,8 +3981,13 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testNormalFlowWithInitialSyncAndCDC() throws Throwable {
             // Setup
             Set<String> tables = new HashSet<>(Arrays.asList("table1", "table2"));
-            TapTableMap<String, TapTable> tableMap = ordinaryTableMap("table1", "table2");
+            TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+            when(tableMap.remove(anyString())).thenReturn(null);
+            when(tableMap.isEmpty()).thenReturn(false);
             when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
+            when(tableMap.iterator()).thenReturn(iterator);
+            when(iterator.hasNext()).thenReturn(false);
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
@@ -4072,8 +4063,18 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testNormalFlowWithCDCOnly() throws Throwable {
             // Setup
             Set<String> tables = new HashSet<>(Arrays.asList("table1"));
-            TapTableMap<String, TapTable> tableMap = ordinaryTableMap("table1");
+            TapTable table1 = new TapTable("table1");
+            table1.setType(MetaType.table.name());
+            TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+            when(tableMap.remove(anyString())).thenReturn(null);
+            when(tableMap.isEmpty()).thenReturn(false);
             when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
+            when(tableMap.iterator()).thenReturn(iterator);
+            when(iterator.hasNext()).thenReturn(true, false);
+            Map<String, TapTable> map = new HashMap<>();
+            Entry<TapTable> entry = new TapTableEntry("table1", table1);
+            when(iterator.next()).thenReturn(entry);
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(false).when(sourceNode).need2InitialSync(syncProgress);

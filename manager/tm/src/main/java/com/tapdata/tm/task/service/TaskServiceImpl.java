@@ -4766,29 +4766,44 @@ public class TaskServiceImpl extends TaskService{
         start(taskDto, user, startFlag);
     }
 
-    protected void validateMigrateViewCdc(TaskDto taskDto, UserDetail user) {
-        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
+    protected void validateViewCdc(TaskDto taskDto, UserDetail user) {
+        if ((!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
+                && !TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType()))
                 || taskDto.getType() == null || !taskDto.getType().contains("cdc")
                 || taskDto.getDag() == null) {
             return;
         }
         Set<String> views = new TreeSet<>();
         for (Node<?> source : taskDto.getDag().getSources()) {
-            if (!(source instanceof DatabaseNode)) {
+            List<MetadataInstancesDto> schemas;
+            Set<String> selected;
+            if (source instanceof DatabaseNode) {
+                DatabaseNode node = (DatabaseNode) source;
+                boolean expression = "expression".equals(node.getMigrateTableSelectType());
+                if (!expression && CollectionUtils.isEmpty(node.getTableNames())) {
+                    continue;
+                }
+                schemas = metadataInstancesService.findSourceSchemaBySourceId(
+                        node.getConnectionId(), expression ? null : node.getTableNames(), user);
+                if (CollectionUtils.isEmpty(schemas)) {
+                    continue;
+                }
+                selected = new HashSet<>(expression
+                        ? MetadataInstancesFilterUtil.getFilteredOriginalNames(schemas, node) : node.getTableNames());
+            } else if (source instanceof TableNode) {
+                TableNode node = (TableNode) source;
+                if ("polling".equals(node.getCdcMode()) || StringUtils.isBlank(node.getTableName())) {
+                    continue;
+                }
+                selected = Collections.singleton(node.getTableName());
+                schemas = metadataInstancesService.findSourceSchemaBySourceId(
+                        node.getConnectionId(), new ArrayList<>(selected), user);
+                if (CollectionUtils.isEmpty(schemas)) {
+                    continue;
+                }
+            } else {
                 continue;
             }
-            DatabaseNode node = (DatabaseNode) source;
-            boolean expression = "expression".equals(node.getMigrateTableSelectType());
-            if (!expression && CollectionUtils.isEmpty(node.getTableNames())) {
-                continue;
-            }
-            List<MetadataInstancesDto> schemas = metadataInstancesService.findSourceSchemaBySourceId(
-                    node.getConnectionId(), expression ? null : node.getTableNames(), user);
-            if (CollectionUtils.isEmpty(schemas)) {
-                continue;
-            }
-            Set<String> selected = new HashSet<>(expression
-                    ? MetadataInstancesFilterUtil.getFilteredOriginalNames(schemas, node) : node.getTableNames());
             for (MetadataInstancesDto schema : schemas) {
                 if (selected.contains(schema.getOriginalName()) && MetaType.isView(schema.getMetaType())) {
                     views.add(schema.getOriginalName());
@@ -4810,7 +4825,7 @@ public class TaskServiceImpl extends TaskService{
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         assertTaskNotRebalancing(taskDto.getId(), user);
-        validateMigrateViewCdc(taskDto, user);
+        validateViewCdc(taskDto, user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");

@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -58,21 +59,21 @@ class TaskServiceViewCdcTest {
     @DisplayName("仅增量的视图任务也被拒绝")
     void rejectsCdcOnly() {
         task.setType("cdc");
-        assertThrows(BizException.class, () -> service.validateMigrateViewCdc(task, user));
+        assertThrows(BizException.class, () -> service.validateViewCdc(task, user));
     }
 
     @Test
     @DisplayName("普通表和视图混选不能静默跳过视图增量")
     void rejectsMixedSelection() {
         source.setTableNames(List.of("test", "v_test"));
-        assertThrows(BizException.class, () -> service.validateMigrateViewCdc(task, user));
+        assertThrows(BizException.class, () -> service.validateViewCdc(task, user));
     }
 
     @Test
     @DisplayName("仅全量视图不受增量校验影响")
     void allowsSnapshotOnly() {
         task.setType(TaskDto.TYPE_INITIAL_SYNC);
-        assertDoesNotThrow(() -> service.validateMigrateViewCdc(task, user));
+        assertDoesNotThrow(() -> service.validateViewCdc(task, user));
         verifyNoInteractions(metadata);
     }
 
@@ -80,7 +81,7 @@ class TaskServiceViewCdcTest {
     @DisplayName("未选中的视图不阻止普通表增量")
     void allowsTables() {
         source.setTableNames(List.of("test"));
-        assertDoesNotThrow(() -> service.validateMigrateViewCdc(task, user));
+        assertDoesNotThrow(() -> service.validateViewCdc(task, user));
     }
 
     @Test
@@ -88,7 +89,7 @@ class TaskServiceViewCdcTest {
     void rejectsExpressionMatchingView() {
         source.setMigrateTableSelectType("expression");
         source.setTableExpression("v_.*");
-        assertThrows(BizException.class, () -> service.validateMigrateViewCdc(task, user));
+        assertThrows(BizException.class, () -> service.validateViewCdc(task, user));
     }
 
     @Test
@@ -96,15 +97,69 @@ class TaskServiceViewCdcTest {
     void allowsExpressionMatchingOnlyTables() {
         source.setMigrateTableSelectType("expression");
         source.setTableExpression("test");
-        assertDoesNotThrow(() -> service.validateMigrateViewCdc(task, user));
+        assertDoesNotThrow(() -> service.validateViewCdc(task, user));
     }
 
     @Test
-    @DisplayName("数据转换字段轮询不被数据复制专用规则拒绝")
-    void leavesTransformationUnchanged() {
-        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
-        assertDoesNotThrow(() -> service.validateMigrateViewCdc(task, user));
+    @DisplayName("转换视图默认模式和日志模式的仅增量及全量增量均被拒绝")
+    void rejectsTransformationViewCdc() {
+        for (String type : List.of("cdc", "initial_sync+cdc")) {
+            task.setType(type);
+            for (String mode : new String[]{null, "", "log"}) {
+                transformationSource("v_test", mode);
+                BizException error = assertThrows(BizException.class, () -> service.start(task, user, "00"));
+                assertEquals("Task.ViewCdcNotSupported", error.getErrorCode());
+                assertArrayEquals(new Object[]{"v_test"}, error.getArgs());
+                assertNull(task.getLastStartDate());
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("转换视图字段轮询在仅增量及全量增量均放行")
+    void allowsTransformationPolling() {
+        for (String type : List.of("cdc", "initial_sync+cdc")) {
+            task.setType(type);
+            transformationSource("v_test", "polling");
+            assertDoesNotThrow(() -> service.validateViewCdc(task, user));
+        }
         verifyNoInteractions(metadata);
+    }
+
+    @Test
+    void allowsTransformationSnapshotOnly() {
+        transformationSource("v_test", null);
+        task.setType(TaskDto.TYPE_INITIAL_SYNC);
+        assertDoesNotThrow(() -> service.validateViewCdc(task, user));
+        verifyNoInteractions(metadata);
+    }
+
+    @Test
+    void allowsTransformationOrdinaryTableCdc() {
+        transformationSource("test", null);
+        assertDoesNotThrow(() -> service.validateViewCdc(task, user));
+    }
+
+    @Test
+    @DisplayName("轮询源不能掩盖同任务中另一个非法视图增量源")
+    void rejectsNonPollingViewAlongsidePollingSource() {
+        TableNode polling = transformationSource("v_polling", "polling");
+        TableNode log = new TableNode();
+        log.setConnectionId("mysql");
+        log.setTableName("v_test");
+        when(task.getDag().getSources()).thenReturn(List.of(polling, log));
+        BizException error = assertThrows(BizException.class, () -> service.validateViewCdc(task, user));
+        assertArrayEquals(new Object[]{"v_test"}, error.getArgs());
+    }
+
+    private TableNode transformationSource(String table, String mode) {
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        TableNode node = new TableNode();
+        node.setConnectionId("mysql");
+        node.setTableName(table);
+        node.setCdcMode(mode);
+        when(task.getDag().getSources()).thenReturn(List.of(node));
+        return node;
     }
 
     private MetadataInstancesDto schema(String name, String type) {
