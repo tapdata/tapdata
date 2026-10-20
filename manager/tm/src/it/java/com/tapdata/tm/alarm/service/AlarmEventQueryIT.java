@@ -1,6 +1,8 @@
 package com.tapdata.tm.alarm.service;
 
 import cn.hutool.extra.spring.SpringUtil;
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmObjectType;
 import com.tapdata.tm.alarm.dto.AlarmEventQuery;
 import com.tapdata.tm.alarm.dto.AlarmEventStatsVo;
@@ -25,10 +27,15 @@ import com.tapdata.tm.notification.delivery.dto.DeliverySummaryVo;
 import com.tapdata.tm.notification.delivery.entity.NotificationDelivery;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryService;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryServiceImpl;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.service.ModuleAccess;
 import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
@@ -51,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -67,6 +75,9 @@ class AlarmEventQueryIT {
     private TaskService tasks;
     private InspectService inspects;
     private AlarmService alarms;
+    private PermissionService permissions;
+    private SettingsService settings;
+    private UserLogService audit;
     private final List<AlarmInfo> alarmData = new ArrayList<>();
     private final List<NotificationDelivery> deliveryData = new ArrayList<>();
     private final AtomicReference<Query> lastAlarmQuery = new AtomicReference<>();
@@ -83,6 +94,10 @@ class AlarmEventQueryIT {
         tasks = mock(TaskService.class);
         inspects = mock(InspectService.class);
         alarms = mock(AlarmService.class);
+        permissions = mock(PermissionService.class);
+        settings = mock(SettingsService.class);
+        audit = mock(UserLogService.class);
+        when(permissions.checkCurrentUserHasPermission(anyString(), eq("admin"))).thenReturn(true);
         when(alarms.renderSummary(any(), any())).thenAnswer(i -> "rendered:" + i.<AlarmInfo>getArgument(0).getSummary());
         when(mongo.find(any(Query.class), eq(AlarmInfo.class))).thenAnswer(i -> {
             lastAlarmQuery.set(i.getArgument(0));
@@ -98,8 +113,9 @@ class AlarmEventQueryIT {
 
         context = new GenericApplicationContext();
         context.registerBean(NotificationDeliveryService.class, () -> new NotificationDeliveryServiceImpl(mongo));
+        context.registerBean(ModuleAccess.class, () -> new ModuleAccess(permissions, settings));
         context.registerBean(AlarmEventQueryService.class, () -> new AlarmEventQueryService(mongo, tasks, inspects, alarms,
-                context.getBean(NotificationDeliveryService.class)));
+                context.getBean(NotificationDeliveryService.class), context.getBean(ModuleAccess.class), audit));
         context.refresh();
         service = context.getBean(AlarmEventQueryService.class);
     }
@@ -203,8 +219,9 @@ class AlarmEventQueryIT {
     }
 
     @Test
-    @DisplayName("可见范围：普通用户只看有权限任务和校验的告警；没有任何权限时不查询告警")
+    @DisplayName("可见范围：云版普通用户仍只看有权限任务和校验的告警；没有任何权限时不查询告警")
     void should_scope_member_visibility() {
+        when(settings.isCloud()).thenReturn(true);
         when(tasks.findAllDto(any(Query.class), eq(member))).thenReturn(List.of(task(T1, "t")));
         when(inspects.findAllDto(any(Query.class), eq(member))).thenReturn(List.of(inspect(I1)));
         service.list(new AlarmEventQuery(), member, Locale.CHINA);
@@ -277,8 +294,61 @@ class AlarmEventQueryIT {
     }
 
     @Test
+    @DisplayName("AC10 告警模块权限：无权限拒绝且不查询；有权限或未启用权限体系可见全部告警，不按任务过滤")
+    void should_gate_by_alarm_module_permission() {
+        alarmData.add(taskAlarm(T2, "无任务权限", null));
+        assertThatThrownBy(() -> service.list(new AlarmEventQuery(), member, Locale.CHINA))
+                .isInstanceOfSatisfying(BizException.class, e -> assertThat(e.getErrorCode()).isEqualTo("NotAuthorized"));
+        assertThatThrownBy(() -> service.stats(member)).isInstanceOf(BizException.class);
+        assertThatThrownBy(() -> service.detail(alarmData.get(0).getId().toHexString(), member, Locale.CHINA))
+                .isInstanceOf(BizException.class);
+        assertThat(lastAlarmQuery.get()).isNull();
+
+        when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ALARM_EVENT, "member")).thenReturn(true);
+        assertThat(service.list(new AlarmEventQuery(), member, Locale.CHINA).getTotal()).isEqualTo(1);
+        assertThat(lastAlarmQuery.get().getQueryObject().toJson()).doesNotContain("taskId").doesNotContain("inspectId");
+        verify(tasks, never()).findAllDto(any(Query.class), eq(member));
+
+        UserDetail free = new UserDetail("free", "customer", "free", "unused", List.of());
+        free.setFreeAuth(true);
+        try {
+            assertThat(service.list(new AlarmEventQuery(), free, Locale.CHINA).getTotal()).isEqualTo(1);
+        } finally {
+            free.setFreeAuth(false);
+        }
+    }
+
+    @Test
+    @DisplayName("AC10 关闭告警需要关闭按钮权限，只能关闭可见告警并写操作审计")
+    void should_close_with_permission() {
+        AlarmInfo alarm = taskAlarm(T1, "订单同步", null);
+        String id = alarm.getId().toHexString();
+        when(mongo.findById(alarm.getId(), AlarmInfo.class)).thenReturn(alarm);
+        when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ALARM_EVENT, "member")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.close(List.of(id), member))
+                .isInstanceOfSatisfying(BizException.class, e -> assertThat(e.getErrorCode()).isEqualTo("NotAuthorized"));
+        verify(alarms, never()).close(any(), any());
+
+        when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE, "member")).thenReturn(true);
+        service.close(List.of(id), member);
+        verify(alarms).close(new String[]{id}, member);
+        verify(audit).addUserLog(Modular.ALARM, Operation.CLOSE, member, id, id);
+
+        // 云版仍按任务范围：不可见的告警不能关闭
+        when(settings.isCloud()).thenReturn(true);
+        when(tasks.findAllDto(any(Query.class), eq(member))).thenReturn(List.of(task(T2, "其他任务")));
+        when(inspects.findAllDto(any(Query.class), eq(member))).thenReturn(List.of());
+        when(mongo.exists(any(Query.class), eq(AlarmInfo.class))).thenReturn(false);
+        assertThatThrownBy(() -> service.close(List.of(id), member))
+                .isInstanceOfSatisfying(BizException.class, e -> assertThat(e.getErrorCode()).isEqualTo("Alarm.NotFound"));
+        verify(alarms).close(any(), any());
+    }
+
+    @Test
     @DisplayName("AC2 详情：无权限或不存在时返回 Alarm.NotFound")
     void should_hide_invisible_detail() {
+        when(settings.isCloud()).thenReturn(true);
         AlarmInfo alarm = taskAlarm(T2, "t2", null);
         when(mongo.findById(alarm.getId(), AlarmInfo.class)).thenReturn(alarm);
         when(tasks.findAllDto(any(Query.class), eq(member))).thenReturn(List.of(task(T1, "t")));

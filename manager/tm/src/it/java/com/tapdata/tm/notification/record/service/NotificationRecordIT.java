@@ -1,6 +1,8 @@
 package com.tapdata.tm.notification.record.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -21,6 +23,8 @@ import com.tapdata.tm.notification.record.dto.NotificationRecordDetailVo;
 import com.tapdata.tm.notification.record.dto.NotificationRecordQuery;
 import com.tapdata.tm.notification.record.dto.NotificationRecordVo;
 import com.tapdata.tm.notification.record.dto.ReadStatePreviewVo;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.service.ModuleAccess;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -64,6 +68,8 @@ class NotificationRecordIT {
     private NotificationRecordService service;
     private MongoTemplate mongo;
     private UserLogService audit;
+    private PermissionService permissions;
+    private SettingsService settings;
     private final List<MessageEntity> messages = new ArrayList<>();
     private final List<AlarmInfo> alarmData = new ArrayList<>();
     private final List<NotificationDelivery> deliveries = new ArrayList<>();
@@ -75,6 +81,9 @@ class NotificationRecordIT {
     void setUp() {
         mongo = mock(MongoTemplate.class);
         audit = mock(UserLogService.class);
+        permissions = mock(PermissionService.class);
+        settings = mock(SettingsService.class);
+        when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_NOTIFICATION_RECORD, "root")).thenReturn(true);
         when(mongo.find(any(Query.class), eq(MessageEntity.class))).thenAnswer(i -> {
             lastMessageQuery.set(i.getArgument(0));
             return new ArrayList<>(messages);
@@ -90,8 +99,9 @@ class NotificationRecordIT {
 
         context = new GenericApplicationContext();
         context.registerBean(NotificationDeliveryService.class, () -> new NotificationDeliveryServiceImpl(mongo));
+        context.registerBean(ModuleAccess.class, () -> new ModuleAccess(permissions, settings));
         context.registerBean(NotificationRecordService.class, () -> new NotificationRecordService(mongo,
-                context.getBean(NotificationDeliveryService.class), audit));
+                context.getBean(NotificationDeliveryService.class), audit, context.getBean(ModuleAccess.class)));
         context.refresh();
         service = context.getBean(NotificationRecordService.class);
     }
@@ -189,7 +199,7 @@ class NotificationRecordIT {
     }
 
     @Test
-    @DisplayName("AC5 只读取站内告警通知：许可证与系统通知不进入通知记录；root 可查看全部用户")
+    @DisplayName("AC5 只读取站内告警通知：许可证与系统通知不进入通知记录；有通知模块权限可查看全部用户")
     void should_only_read_alarm_messages() {
         service.list(new NotificationRecordQuery(), owner, Locale.CHINA);
         String json = lastMessageQuery.get().getQueryObject().toJson();
@@ -272,6 +282,41 @@ class NotificationRecordIT {
         assertThat(preview.getIds()).containsExactly(ALARM_A);
         assertThat(preview.isTruncated()).isFalse();
         verify(audit, never()).addUserLog(any(Modular.class), any(Operation.class), any(UserDetail.class), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("AC10 通知模块权限：可见全部用户记录但阅读状态只属于本人；无权限仅本人；云版仅本人")
+    void should_scope_by_notification_module_permission() {
+        givenAlarmWithThreeNotifications();
+
+        // 有权限查看 owner 的记录：不显示对方未读，不可标记，也不进入未读页签和批量预览
+        NotificationRecordVo record = service.list(new NotificationRecordQuery(), root, Locale.CHINA).getItems().get(0);
+        assertThat(lastMessageQuery.get().getQueryObject().toJson()).doesNotContain("user_id");
+        assertThat(record.getId()).isEqualTo(ALARM_A);
+        assertThat(record.isReadable()).isFalse();
+        assertThat(record.isUnread()).isFalse();
+        assertThat(ids(service.list(tab(NotificationRecordQuery.TAB_UNREAD), root, Locale.CHINA).getItems())).isEmpty();
+        assertThat(service.previewReadState(new NotificationRecordQuery(), true, root, Locale.CHINA).getCount()).isZero();
+        NotificationRecordDetailVo detail = service.detail(ALARM_A, root, Locale.CHINA);
+        assertThat(detail.isReadable()).isFalse();
+        assertThat(detail.getReadAt()).isNull();
+
+        // 收件人本人无模块权限：仅查看自己的，阅读状态正常
+        record = service.list(new NotificationRecordQuery(), owner, Locale.CHINA).getItems().get(0);
+        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("\"user_id\": \"owner\"");
+        assertThat(record.isReadable()).isTrue();
+        assertThat(record.isUnread()).isTrue();
+
+        // 云版为多租户，即使有权限也只查看自己的
+        when(settings.isCloud()).thenReturn(true);
+        service.list(new NotificationRecordQuery(), root, Locale.CHINA);
+        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("\"user_id\": \"root\"");
+    }
+
+    private static NotificationRecordQuery tab(String tab) {
+        NotificationRecordQuery q = new NotificationRecordQuery();
+        q.setTab(tab);
+        return q;
     }
 
     private void givenAlarmWithThreeNotifications() {

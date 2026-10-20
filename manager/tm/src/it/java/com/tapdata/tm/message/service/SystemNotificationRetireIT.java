@@ -16,6 +16,7 @@ import com.tapdata.tm.message.repository.MessageRepository;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryService;
 import com.tapdata.tm.notification.record.dto.SystemNotificationInventoryVo;
 import com.tapdata.tm.notification.record.service.NotificationRecordService;
+import com.tapdata.tm.permissions.service.ModuleAccess;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
@@ -179,7 +180,8 @@ class SystemNotificationRetireIT {
                 new Document("_id", "expiring").append("count", 40).append("unread", 0));
         when(mongo.aggregate(any(Aggregation.class), eq(MessageEntity.class), eq(Document.class)))
                 .thenReturn(new AggregationResults<>(rows, new Document()));
-        NotificationRecordService records = new NotificationRecordService(mongo, mock(NotificationDeliveryService.class), mock(UserLogService.class));
+        NotificationRecordService records = new NotificationRecordService(mongo, mock(NotificationDeliveryService.class), mock(UserLogService.class),
+                mock(ModuleAccess.class));
 
         List<SystemNotificationInventoryVo> inventory = records.systemNotificationInventory();
 
