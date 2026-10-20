@@ -128,6 +128,36 @@ class NotificationRecordIT {
         assertThat(old.isLegacy()).isTrue();
         assertThat(old.getId()).isEqualTo(NotificationRecordService.LEGACY_PREFIX + legacy.getId().toHexString());
         assertThat(old.getDeliverySummary().getStatus()).isEqualTo(DeliverySummaryVo.NONE);
+        assertThat(record.isAlarmEventMissing()).isFalse();
+        assertThat(old.isAlarmEventMissing()).isFalse();
+    }
+
+    @Test
+    @DisplayName("AC3 告警事件已被历史版本删除时降级展示：类型取消息模板、次数取最近投递快照、发生时间不伪造")
+    void should_degrade_when_alarm_event_missing() {
+        givenAlarmWithThreeNotifications();
+        alarmData.clear();
+        messages.forEach(m -> m.setTemplate(AlarmKeyEnum.TASK_INCREMENT_DELAY.name()));
+
+        NotificationRecordVo record = service.list(new NotificationRecordQuery(), owner, Locale.CHINA).getItems().get(0);
+        assertThat(record.getId()).isEqualTo(ALARM_A);
+        assertThat(record.isLegacy()).isFalse();
+        assertThat(record.isAlarmEventMissing()).isTrue();
+        assertThat(record.getMetric()).isEqualTo(AlarmKeyEnum.TASK_INCREMENT_DELAY);
+        assertThat(record.getOccurrenceCount()).isEqualTo(30);
+        assertThat(record.getFirstOccurrenceTime()).isNull();
+        assertThat(record.getLastOccurrenceTime()).isNull();
+        assertThat(record.getAlarmStatus()).isNull();
+        assertThat(record.getTaskName()).isEqualTo("订单同步");
+        assertThat(ids(query(q -> q.setMetric(List.of(AlarmKeyEnum.TASK_INCREMENT_DELAY))))).containsExactly(ALARM_A);
+
+        NotificationRecordDetailVo detail = service.detail(ALARM_A, owner, Locale.CHINA);
+        assertThat(detail.isAlarmEventMissing()).isTrue();
+        assertThat(detail.getOccurrenceCount()).isEqualTo(30);
+        assertThat(detail.getBatches()).hasSize(2);
+
+        messages.forEach(m -> m.setTemplate("UNKNOWN_TEMPLATE"));
+        assertThat(service.list(new NotificationRecordQuery(), owner, Locale.CHINA).getItems().get(0).getMetric()).isNull();
     }
 
     @Test

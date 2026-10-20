@@ -1,10 +1,12 @@
 package com.tapdata.tm.alarm.service;
 
+import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.alarm.constant.AlarmObjectType;
 import com.tapdata.tm.alarm.dto.AlarmEventQuery;
 import com.tapdata.tm.alarm.dto.AlarmEventStatsVo;
 import com.tapdata.tm.alarm.dto.AlarmEventVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.base.aop.MeasureAOP;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
@@ -13,6 +15,8 @@ import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.disruptor.Element;
+import com.tapdata.tm.disruptor.handler.CreateRecordEventHandler;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.notification.delivery.constant.DeliveryChannel;
@@ -21,6 +25,9 @@ import com.tapdata.tm.notification.delivery.dto.DeliverySummaryVo;
 import com.tapdata.tm.notification.delivery.entity.NotificationDelivery;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryService;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryServiceImpl;
+import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
+import com.tapdata.tm.task.entity.TaskRecord;
+import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -229,6 +236,42 @@ class AlarmEventQueryIT {
         assertThat(vo.isObjectDeleted()).isTrue();
         assertThat(vo.getSyncType()).isNull();
         assertThat(vo.getSummary()).isEqualTo("TASK_INCREMENT_DELAY_ALTER");
+    }
+
+    @Test
+    @DisplayName("AC2 任务新建运行记录时归档而非删除告警事件，归档后的告警仍可查看并标记归档")
+    void should_archive_alarms_on_task_rerun() {
+        TaskRecordService records = mock(TaskRecordService.class);
+        try (GenericApplicationContext handlerContext = new GenericApplicationContext()) {
+            handlerContext.registerBean(SpringUtil.class);
+            handlerContext.registerBean(TaskRecordService.class, () -> records);
+            handlerContext.registerBean(AlarmService.class, () -> alarms);
+            handlerContext.registerBean(ShareCdcTableMetricsService.class, () -> mock(ShareCdcTableMetricsService.class));
+            handlerContext.registerBean(MeasureAOP.class, () -> mock(MeasureAOP.class));
+            handlerContext.refresh();
+            Element<TaskRecord> event = new Element<>();
+            event.setData(new TaskRecord("64b0000000000000000000f1", T1, null, "admin", new Date()));
+
+            new CreateRecordEventHandler().onEvent(event, 0, true);
+
+            verify(records).createRecord(event.getData());
+            verify(alarms).archiveTaskAlarms(T1);
+            verify(alarms, never()).delAlarm(any());
+        }
+
+        AlarmInfo archived = taskAlarm(T1, "订单同步", null);
+        archived.setStatus(AlarmStatusEnum.CLOESE);
+        archived.setCloseTime(new Date(2000));
+        archived.setArchived(true);
+        when(mongo.findById(archived.getId(), AlarmInfo.class)).thenReturn(archived);
+        when(tasks.findAllTasksByIds(List.of(T1))).thenReturn(List.of(task(T1, "订单同步")));
+
+        AlarmEventVo vo = service.detail(archived.getId().toHexString(), admin, Locale.CHINA);
+
+        assertThat(vo.getStatus()).isEqualTo(AlarmStatusEnum.CLOESE);
+        assertThat(vo.isArchived()).isTrue();
+        assertThat(vo.getCloseTime()).isEqualTo(new Date(2000));
+        assertThat(vo.getCloseBy()).isNull();
     }
 
     @Test
