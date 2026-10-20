@@ -71,6 +71,8 @@ public class AlarmInfo extends BaseEntity {
     private Date closeTime;
     @Schema(description = "告警被谁关闭")
     private String closeBy;
+    @Schema(description = "任务重新运行时归档，不再参与同类告警去重")
+    private Boolean archived;
 		private String inspectId;
 
     private Map<String, Object> param;

@@ -42,6 +42,8 @@ public class AlarmEventVo {
     private Date recoveryTime;
     private Date closeTime;
     private String closeBy;
+    /** 任务重新运行时由系统归档 */
+    private boolean archived;
     private Date lastNotifyTime;
     private DeliverySummaryVo deliverySummary;
 }

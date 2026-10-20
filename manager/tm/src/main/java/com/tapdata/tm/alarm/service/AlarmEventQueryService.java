@@ -317,6 +317,7 @@ public class AlarmEventQueryService {
         vo.setRecoveryTime(info.getRecoveryTime());
         vo.setCloseTime(info.getCloseTime());
         vo.setCloseBy(info.getCloseBy());
+        vo.setArchived(Boolean.TRUE.equals(info.getArchived()));
         vo.setLastNotifyTime(info.getLastNotifyTime());
         vo.setDeliverySummary(delivery.getOrDefault(id, new DeliverySummaryVo()));
         TaskDto task = StringUtils.isBlank(info.getTaskId()) ? null : tasks.get(info.getTaskId());

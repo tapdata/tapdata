@@ -4,6 +4,7 @@ import com.tapdata.tm.alarm.constant.AlarmObjectType;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.MessageMetadata;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -286,9 +287,32 @@ public class NotificationRecordService {
             if (StringUtils.isBlank(vo.getTaskName())) {
                 vo.setTaskName(alarm.getName());
             }
+        } else if (!vo.isLegacy()) {
+            // 历史版本在任务重新运行时删除了告警事件：告警类型取消息模板，发生次数取最近投递快照，发生时间不以通知时间冒充
+            vo.setAlarmEventMissing(true);
+            vo.setMetric(metricOf(latest.getTemplate()));
+            vo.setOccurrenceCount(latestOccurrenceSnapshot(deliveries.getOrDefault(key, Collections.emptyList())));
         }
         vo.setDeliverySummary(deliveryService.summarize(deliveries.getOrDefault(key, Collections.emptyList())));
         return vo;
+    }
+
+    private static AlarmKeyEnum metricOf(String template) {
+        if (StringUtils.isBlank(template)) {
+            return null;
+        }
+        try {
+            return AlarmKeyEnum.valueOf(template);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static Integer latestOccurrenceSnapshot(List<NotificationDelivery> deliveries) {
+        return deliveries.stream().filter(d -> d.getOccurrenceCountSnapshot() != null)
+                .max(Comparator.comparing((NotificationDelivery d) -> d.getSentAt() != null ? d.getSentAt() : d.getCreateAt(),
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(NotificationDelivery::getOccurrenceCountSnapshot).orElse(null);
     }
 
     private Map<String, AlarmInfo> alarms(List<String> alarmEventIds) {

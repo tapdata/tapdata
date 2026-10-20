@@ -144,4 +144,10 @@ public interface AlarmService {
     default String renderSummary(AlarmInfo info, Locale locale) {
         return info == null ? null : info.getSummary();
     }
+
+    /**
+     * 任务新建运行记录时归档该任务的告警事件，保留历史并使新一轮运行重新聚合；默认无告警可归档。
+     */
+    default void archiveTaskAlarms(String taskId) {
+    }
 }
