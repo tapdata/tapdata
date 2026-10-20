@@ -43,6 +43,13 @@ class TaskViewCdcStartIT {
             assertTrue(filter.contains("view"));
             assertTrue(filter.contains("mysql-source"));
             assertTrue(filter.contains("v_test"));
+            assertEquals(1, query.getFieldsObject().get("original_name"));
+            assertEquals(1, query.getFieldsObject().get("meta_type"));
+            assertEquals(1, query.getFieldsObject().get("fields.primaryKey"));
+            assertEquals(1, query.getFieldsObject().get("indices.unique"));
+            assertEquals(1, query.getFieldsObject().get("partitionInfo"));
+            assertEquals(1, query.getFieldsObject().get("partitionMasterTableId"));
+            assertFalse(query.getFieldsObject().containsKey("fields"));
             return List.of(view);
         }).when(metadata).findAllDto(any(Query.class), eq(user));
 
@@ -60,6 +67,7 @@ class TaskViewCdcStartIT {
             for (String type : List.of("cdc", "initial_sync+cdc")) {
                 TaskDto task = new TaskDto();
                 task.setSyncType(syncType);
+                task.setStatus(TaskDto.STATUS_EDIT);
                 task.setType(type);
                 task.setDag(dag);
                 BizException error = assertThrows(BizException.class, () -> service.start(task, user, "11"));
