@@ -34,7 +34,7 @@ public class UserLogController extends BaseController {
     @GetMapping
     public ResponseMessage<Page<UserLogDto>> list(@RequestParam(value = "filter", required = false) String filterJson) {
         // 操作审计包含 IP、请求参数等全租户信息，需要审计查看权限
-        moduleAccess.require(getLoginUser(), DataPermissionEnumsName.V2_AUDIT_LOG_LIST);
+        moduleAccess.require(getLoginUser(), DataPermissionEnumsName.V2_AUDIT_LOG);
         Filter filter = parseFilter(filterJson);
         if (filter == null) {
             filter = new Filter();
