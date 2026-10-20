@@ -264,7 +264,7 @@ public class UserServiceImplTest {
         void testLoginByAD_Success() throws NamingException {
             when(settingsService.findAll()).thenReturn(settingsList);
             Settings settings = new Settings();
-            settings.setKey("ad.ssl.enable");
+            settings.setKey("ldap.ssl.enable");
             settings.setOpen(true);
             when(settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE))
                     .thenReturn(settings);
@@ -296,7 +296,7 @@ public class UserServiceImplTest {
         void testLoginByAD_SSLDisabled() throws NamingException {
             when(settingsService.findAll()).thenReturn(settingsList);
             Settings settings = new Settings();
-            settings.setKey("ad.ssl.enable");
+            settings.setKey("ldap.ssl.enable");
             settings.setOpen(true);
             when(settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE))
                     .thenReturn(settings);
