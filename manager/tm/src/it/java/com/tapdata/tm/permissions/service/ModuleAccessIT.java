@@ -83,7 +83,7 @@ class ModuleAccessIT {
         assertThat(access.allowed(user, DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE)).isFalse();
 
         when(settings.isCloud()).thenReturn(true);
-        assertThat(access.allowed(user, DataPermissionEnumsName.V2_AUDIT_LOG_LIST)).isTrue();
+        assertThat(access.allowed(user, DataPermissionEnumsName.V2_AUDIT_LOG)).isTrue();
         assertThat(access.allData(user, perm)).isFalse();
 
         when(settings.isCloud()).thenReturn(false);
@@ -103,7 +103,7 @@ class ModuleAccessIT {
         assertThatThrownBy(() -> controller.list(null)).isInstanceOf(BizException.class);
         verify(logs, never()).find(any(Filter.class), any(UserDetail.class));
 
-        when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_AUDIT_LOG_LIST, "u1")).thenReturn(true);
+        when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_AUDIT_LOG, "u1")).thenReturn(true);
         controller.list(null);
         verify(logs).find(any(Filter.class), eq(user));
     }
@@ -135,7 +135,7 @@ class ModuleAccessIT {
                 "v2_message-center", "v2_notification_record", "v2_audit_log", "v2_audit_log_list");
         assertThat(granted).isEqualTo(perms.keySet());
         assertThat(perms.keySet()).contains(DataPermissionEnumsName.V2_ALARM_EVENT, DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE,
-                DataPermissionEnumsName.V2_NOTIFICATION_RECORD, DataPermissionEnumsName.V2_AUDIT_LOG_LIST);
+                DataPermissionEnumsName.V2_NOTIFICATION_RECORD, DataPermissionEnumsName.V2_AUDIT_LOG);
         assertParent(perms, "v2_alarm_event", "v2_ops-center");
         assertParent(perms, "v2_alarm_event_ack_close", "v2_alarm_event");
         assertParent(perms, "v2_notification_record", "v2_message-center");
