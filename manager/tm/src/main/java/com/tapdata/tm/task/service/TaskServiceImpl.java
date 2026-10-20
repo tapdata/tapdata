@@ -4775,43 +4775,45 @@ public class TaskServiceImpl extends TaskService{
         }
         Set<String> views = new TreeSet<>();
         for (Node<?> source : taskDto.getDag().getSources()) {
-            List<MetadataInstancesDto> schemas;
-            Set<String> selected;
-            if (source instanceof DatabaseNode) {
-                DatabaseNode node = (DatabaseNode) source;
-                boolean expression = "expression".equals(node.getMigrateTableSelectType());
-                if (!expression && CollectionUtils.isEmpty(node.getTableNames())) {
-                    continue;
-                }
-                schemas = metadataInstancesService.findSourceSchemaBySourceId(
-                        node.getConnectionId(), expression ? null : node.getTableNames(), user);
-                if (CollectionUtils.isEmpty(schemas)) {
-                    continue;
-                }
-                selected = new HashSet<>(expression
-                        ? MetadataInstancesFilterUtil.getFilteredOriginalNames(schemas, node) : node.getTableNames());
-            } else if (source instanceof TableNode) {
-                TableNode node = (TableNode) source;
-                if ("polling".equals(node.getCdcMode()) || StringUtils.isBlank(node.getTableName())) {
-                    continue;
-                }
-                selected = Collections.singleton(node.getTableName());
-                schemas = metadataInstancesService.findSourceSchemaBySourceId(
-                        node.getConnectionId(), new ArrayList<>(selected), user);
-                if (CollectionUtils.isEmpty(schemas)) {
-                    continue;
-                }
-            } else {
-                continue;
-            }
-            for (MetadataInstancesDto schema : schemas) {
-                if (selected.contains(schema.getOriginalName()) && MetaType.isView(schema.getMetaType())) {
-                    views.add(schema.getOriginalName());
-                }
-            }
+            collectLogCdcViews(source, user, views);
         }
         if (!views.isEmpty()) {
             throw new BizException("Task.ViewCdcNotSupported", String.join(", ", views));
+        }
+    }
+
+    private void collectLogCdcViews(Node<?> source, UserDetail user, Set<String> views) {
+        List<MetadataInstancesDto> schemas;
+        Set<String> selected;
+        if (source instanceof DatabaseNode node) {
+            boolean expression = "expression".equals(node.getMigrateTableSelectType());
+            if (!expression && CollectionUtils.isEmpty(node.getTableNames())) {
+                return;
+            }
+            schemas = metadataInstancesService.findSourceSchemaBySourceId(
+                    node.getConnectionId(), expression ? null : node.getTableNames(), user);
+            if (CollectionUtils.isEmpty(schemas)) {
+                return;
+            }
+            selected = new HashSet<>(expression
+                    ? MetadataInstancesFilterUtil.getFilteredOriginalNames(schemas, node) : node.getTableNames());
+        } else if (source instanceof TableNode node) {
+            if ("polling".equals(node.getCdcMode()) || StringUtils.isBlank(node.getTableName())) {
+                return;
+            }
+            selected = Collections.singleton(node.getTableName());
+            schemas = metadataInstancesService.findSourceSchemaBySourceId(
+                    node.getConnectionId(), new ArrayList<>(selected), user);
+            if (CollectionUtils.isEmpty(schemas)) {
+                return;
+            }
+        } else {
+            return;
+        }
+        for (MetadataInstancesDto schema : schemas) {
+            if (selected.contains(schema.getOriginalName()) && MetaType.isView(schema.getMetaType())) {
+                views.add(schema.getOriginalName());
+            }
         }
     }
 
