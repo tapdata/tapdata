@@ -313,7 +313,7 @@ public class AlarmEventQueryService {
         vo.setThreshold(info.getThreshold());
         vo.setFirstOccurrenceTime(info.getFirstOccurrenceTime());
         vo.setLastOccurrenceTime(info.getLastOccurrenceTime());
-        vo.setOccurrenceCount(info.getTally());
+        vo.setOccurrenceCount(info.occurrenceCount());
         vo.setRecoveryTime(info.getRecoveryTime());
         vo.setCloseTime(info.getCloseTime());
         vo.setCloseBy(info.getCloseBy());

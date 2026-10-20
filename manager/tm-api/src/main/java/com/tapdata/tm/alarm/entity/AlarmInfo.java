@@ -81,5 +81,10 @@ public class AlarmInfo extends BaseEntity {
         return tally == null ? 0 : tally;
     }
 
+    /** tally 记录的是重复触发次数（首次为 0），发生次数需加上首次 */
+    public int occurrenceCount() {
+        return getTally() + 1;
+    }
+
     private String desc;
 }

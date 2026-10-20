@@ -280,7 +280,7 @@ public class NotificationRecordService {
             vo.setObjectType(AlarmObjectType.of(alarm));
             vo.setFirstOccurrenceTime(alarm.getFirstOccurrenceTime());
             vo.setLastOccurrenceTime(alarm.getLastOccurrenceTime());
-            vo.setOccurrenceCount(alarm.getTally());
+            vo.setOccurrenceCount(alarm.occurrenceCount());
             if (StringUtils.isBlank(vo.getTaskId())) {
                 vo.setTaskId(alarm.getTaskId());
             }
