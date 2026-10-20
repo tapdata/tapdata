@@ -135,7 +135,8 @@ class AlarmEventQueryIT {
 
         assertThat(page.getTotal()).isEqualTo(1);
         AlarmEventVo vo = page.getItems().get(0);
-        assertThat(vo.getOccurrenceCount()).isEqualTo(37);
+        // tally 为重复触发次数，发生次数含首次
+        assertThat(vo.getOccurrenceCount()).isEqualTo(38);
         assertThat(vo.getObjectType()).isEqualTo(AlarmObjectType.TASK);
         assertThat(vo.getObjectName()).isEqualTo("订单同步");
         assertThat(vo.isObjectDeleted()).isFalse();
@@ -270,6 +271,7 @@ class AlarmEventQueryIT {
 
         assertThat(vo.getStatus()).isEqualTo(AlarmStatusEnum.CLOESE);
         assertThat(vo.isArchived()).isTrue();
+        assertThat(vo.getOccurrenceCount()).isEqualTo(1);
         assertThat(vo.getCloseTime()).isEqualTo(new Date(2000));
         assertThat(vo.getCloseBy()).isNull();
     }

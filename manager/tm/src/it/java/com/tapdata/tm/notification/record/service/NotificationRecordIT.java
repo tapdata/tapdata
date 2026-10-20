@@ -118,7 +118,7 @@ class NotificationRecordIT {
         assertThat(record.getId()).isEqualTo(ALARM_A);
         assertThat(record.getNotificationCount()).isEqualTo(3);
         assertThat(record.getTaskName()).isEqualTo("订单同步");
-        assertThat(record.getOccurrenceCount()).isEqualTo(37);
+        assertThat(record.getOccurrenceCount()).isEqualTo(38);
         assertThat(record.getFirstOccurrenceTime()).isEqualTo(new Date(1000));
         assertThat(record.getMetric()).isEqualTo(AlarmKeyEnum.TASK_INCREMENT_DELAY);
         assertThat(record.isUnread()).isTrue();
