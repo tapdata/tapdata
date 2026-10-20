@@ -109,7 +109,9 @@ public class SettingsServiceImpl implements SettingsService {
 
     public MailAccountDto getMailAccount(String userId) {
         List<Settings> all = findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+        Map<String, Object> collect = all.stream()
+                .filter(settings -> CategoryEnum.SMTP.getValue().equals(settings.getCategory()))
+                .collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
         String host = (String) collect.get("smtp.server.host");
         String port = (String) collect.getOrDefault("smtp.server.port", "0");

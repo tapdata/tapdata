@@ -1064,7 +1064,9 @@ public class UserServiceImpl extends UserService{
     @Override
     public boolean loginByLdap(String username, String password) {
         List<Settings> all = settingsService.findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+        Map<String, Object> collect = all.stream()
+                .filter(settings -> CategoryEnum.LDAP.getValue().equals(settings.getCategory()))
+                .collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
         String host = (String) collect.get("ldap.server.host");
         String port = (String) collect.get("ldap.server.port");
