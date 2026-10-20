@@ -5,6 +5,8 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.service.ModuleAccess;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.param.AddUserLogParam;
@@ -21,14 +23,18 @@ import org.springframework.web.bind.annotation.*;
 public class UserLogController extends BaseController {
 
     final UserLogService userLogService;
+    final ModuleAccess moduleAccess;
 
-    public UserLogController(UserLogService userLogService) {
+    public UserLogController(UserLogService userLogService, ModuleAccess moduleAccess) {
         this.userLogService = userLogService;
+        this.moduleAccess = moduleAccess;
     }
 
     @Operation(summary = "查询列表")
     @GetMapping
     public ResponseMessage<Page<UserLogDto>> list(@RequestParam(value = "filter", required = false) String filterJson) {
+        // 操作审计包含 IP、请求参数等全租户信息，需要审计查看权限
+        moduleAccess.require(getLoginUser(), DataPermissionEnumsName.V2_AUDIT_LOG_LIST);
         Filter filter = parseFilter(filterJson);
         if (filter == null) {
             filter = new Filter();

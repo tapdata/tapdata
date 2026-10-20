@@ -13,8 +13,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 告警事件（TAP-13052）。旧的 /api/alarm/list 保留兼容。
@@ -38,6 +42,13 @@ public class AlarmEventController extends BaseController {
     @GetMapping("stats")
     public ResponseMessage<AlarmEventStatsVo> stats() {
         return success(queryService.stats(getLoginUser()));
+    }
+
+    @Operation(summary = "close alarm events, requires the close permission")
+    @PostMapping("close")
+    public ResponseMessage<Void> close(@RequestBody List<String> ids) {
+        queryService.close(ids, getLoginUser());
+        return success();
     }
 
     @Operation(summary = "alarm event detail")

@@ -35,7 +35,10 @@ public class NotificationRecordVo {
     private Integer occurrenceCount;
     /** 该告警已发出的站内通知条数 */
     private int notificationCount;
+    /** 当前用户自己的消息是否有未读；他人的记录始终为 false */
     private boolean unread;
+    /** 记录中有发给当前用户的消息，才可标记已读/未读 */
+    private boolean readable;
     private Date latestNotifyTime;
     private DeliverySummaryVo deliverySummary;
 }

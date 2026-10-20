@@ -17,6 +17,11 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.notification.delivery.dto.DeliverySummaryVo;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryService;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.service.ModuleAccess;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -60,17 +65,23 @@ public class AlarmEventQueryService {
     private final InspectService inspectService;
     private final AlarmService alarmService;
     private final NotificationDeliveryService deliveryService;
+    private final ModuleAccess moduleAccess;
+    private final UserLogService userLogService;
 
     public AlarmEventQueryService(MongoTemplate mongoTemplate, TaskService taskService, InspectService inspectService,
-                                  AlarmService alarmService, NotificationDeliveryService deliveryService) {
+                                  AlarmService alarmService, NotificationDeliveryService deliveryService,
+                                  ModuleAccess moduleAccess, UserLogService userLogService) {
         this.mongoTemplate = mongoTemplate;
         this.taskService = taskService;
         this.inspectService = inspectService;
         this.alarmService = alarmService;
         this.deliveryService = deliveryService;
+        this.moduleAccess = moduleAccess;
+        this.userLogService = userLogService;
     }
 
     public Page<AlarmEventVo> list(AlarmEventQuery q, UserDetail user, Locale locale) {
+        moduleAccess.require(user, DataPermissionEnumsName.V2_ALARM_EVENT);
         AlarmEventQuery query = q == null ? new AlarmEventQuery() : q;
         Criteria criteria = criteria(query, user);
         if (criteria == null) {
@@ -111,6 +122,7 @@ public class AlarmEventQueryService {
     }
 
     public AlarmEventVo detail(String id, UserDetail user, Locale locale) {
+        moduleAccess.require(user, DataPermissionEnumsName.V2_ALARM_EVENT);
         ObjectId objectId = MongoUtils.toObjectId(id);
         AlarmInfo info = objectId == null ? null : mongoTemplate.findById(objectId, AlarmInfo.class);
         if (info == null || !visible(info, user)) {
@@ -122,6 +134,7 @@ public class AlarmEventQueryService {
     }
 
     public AlarmEventStatsVo stats(UserDetail user) {
+        moduleAccess.require(user, DataPermissionEnumsName.V2_ALARM_EVENT);
         Criteria scope = visibility(user);
         if (scope == null) {
             return new AlarmEventStatsVo();
@@ -237,10 +250,31 @@ public class AlarmEventQueryService {
     }
 
     /**
-     * 管理员可见全部；其他用户仅可见有权限的任务和校验任务的告警，引擎、API Server 等平台告警仅管理员可见。
+     * 关闭告警：需要关闭按钮权限，只能关闭可见范围内的告警；关闭只表示结束跟踪，写入操作审计。
+     */
+    public void close(List<String> ids, UserDetail user) {
+        moduleAccess.require(user, DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE);
+        if (CollectionUtils.isEmpty(ids)) {
+            throw new BizException("IllegalArgument", "ids");
+        }
+        for (String id : ids) {
+            ObjectId objectId = MongoUtils.toObjectId(id);
+            AlarmInfo info = objectId == null ? null : mongoTemplate.findById(objectId, AlarmInfo.class);
+            if (info == null || !visible(info, user)) {
+                throw new BizException("Alarm.NotFound");
+            }
+        }
+        alarmService.close(ids.toArray(new String[0]), user);
+        for (String id : ids) {
+            userLogService.addUserLog(Modular.ALARM, Operation.CLOSE, user, id, id);
+        }
+    }
+
+    /**
+     * 有告警模块权限可见全部告警；云版仍仅可见有权限的任务和校验任务的告警。
      */
     Criteria visibility(UserDetail user) {
-        if (isAdmin(user)) {
+        if (moduleAccess.allData(user, DataPermissionEnumsName.V2_ALARM_EVENT)) {
             return new Criteria();
         }
         Query taskQuery = new Query();
@@ -258,16 +292,12 @@ public class AlarmEventQueryService {
     }
 
     boolean visible(AlarmInfo info, UserDetail user) {
-        if (isAdmin(user)) {
+        if (moduleAccess.allData(user, DataPermissionEnumsName.V2_ALARM_EVENT)) {
             return true;
         }
         Criteria scope = visibility(user);
         return scope != null && mongoTemplate.exists(Query.query(new Criteria().andOperator(
                 Criteria.where("_id").is(info.getId()), scope)), AlarmInfo.class);
-    }
-
-    static boolean isAdmin(UserDetail user) {
-        return user != null && (user.isRoot() || user.isFreeAuth());
     }
 
     List<AlarmEventVo> toVos(List<AlarmInfo> infos, Locale locale, Map<String, DeliverySummaryVo> summaries) {

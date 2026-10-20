@@ -18,6 +18,8 @@ import com.tapdata.tm.notification.record.dto.NotificationRecordQuery;
 import com.tapdata.tm.notification.record.dto.NotificationRecordVo;
 import com.tapdata.tm.notification.record.dto.ReadStatePreviewVo;
 import com.tapdata.tm.notification.record.dto.SystemNotificationInventoryVo;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.service.ModuleAccess;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -67,12 +69,14 @@ public class NotificationRecordService {
     private final MongoTemplate mongoTemplate;
     private final NotificationDeliveryService deliveryService;
     private final UserLogService userLogService;
+    private final ModuleAccess moduleAccess;
 
     public NotificationRecordService(MongoTemplate mongoTemplate, NotificationDeliveryService deliveryService,
-                                     UserLogService userLogService) {
+                                     UserLogService userLogService, ModuleAccess moduleAccess) {
         this.mongoTemplate = mongoTemplate;
         this.deliveryService = deliveryService;
         this.userLogService = userLogService;
+        this.moduleAccess = moduleAccess;
     }
 
     public Page<NotificationRecordVo> list(NotificationRecordQuery q, UserDetail user, Locale locale) {
@@ -93,18 +97,18 @@ public class NotificationRecordService {
     }
 
     public NotificationRecordDetailVo detail(String id, UserDetail user, Locale locale) {
-        List<MessageEntity> messages = mongoTemplate.find(new Query(new Criteria().andOperator(viewScope(user), groupCriteria(id)))
+        List<MessageEntity> messages = mongoTemplate.find(new Query(new Criteria().andOperator(viewScope(user, allData(user)), groupCriteria(id)))
                 .with(Sort.by(Sort.Direction.DESC, "createTime")).limit(MAX_SCAN), MessageEntity.class);
         if (messages.isEmpty()) {
             throw new BizException("Notification.NotFound");
         }
         Map<String, List<NotificationDelivery>> allDeliveries = deliveriesOf(Collections.singletonMap(id, messages));
         NotificationRecordVo base = build(id, messages, alarms(Collections.singletonList(messages.get(0).getAlarmEventId())),
-                allDeliveries, locale);
+                allDeliveries, locale, user);
         NotificationRecordDetailVo detail = new NotificationRecordDetailVo();
         org.springframework.beans.BeanUtils.copyProperties(base, detail);
         detail.setContent(base.getTitle());
-        detail.setReadAt(messages.stream().map(MessageEntity::getReadAt).filter(Objects::nonNull)
+        detail.setReadAt(messages.stream().filter(m -> isOwn(m, user)).map(MessageEntity::getReadAt).filter(Objects::nonNull)
                 .max(Comparator.naturalOrder()).orElse(null));
         List<NotificationDelivery> deliveries = allDeliveries.getOrDefault(id, Collections.emptyList());
         Map<String, List<NotificationDelivery>> byBatch = deliveries.stream()
@@ -137,7 +141,7 @@ public class NotificationRecordService {
     public ReadStatePreviewVo previewReadState(NotificationRecordQuery query, boolean read, UserDetail user, Locale locale) {
         NotificationRecordQuery q = query == null ? new NotificationRecordQuery() : query;
         List<String> ids = records(q, user, locale).stream()
-                .filter(r -> r.isUnread() == read)
+                .filter(r -> r.isReadable() && r.isUnread() == read)
                 .map(NotificationRecordVo::getId).collect(Collectors.toList());
         boolean truncated = ids.size() > MAX_BATCH;
         return new ReadStatePreviewVo(ids.size(), truncated ? ids.subList(0, MAX_BATCH) : ids, truncated);
@@ -188,7 +192,7 @@ public class NotificationRecordService {
 
     List<NotificationRecordVo> records(NotificationRecordQuery q, UserDetail user, Locale locale) {
         List<Criteria> and = new ArrayList<>();
-        and.add(viewScope(user));
+        and.add(viewScope(user, allData(user)));
         if (q.getStart() != null || q.getEnd() != null) {
             Criteria time = Criteria.where("createTime");
             if (q.getStart() != null) {
@@ -220,7 +224,7 @@ public class NotificationRecordService {
         Map<String, AlarmInfo> alarms = alarms(messages.stream().map(MessageEntity::getAlarmEventId).collect(Collectors.toList()));
         Map<String, List<NotificationDelivery>> deliveries = deliveriesOf(groups);
         return groups.entrySet().stream()
-                .map(e -> build(e.getKey(), e.getValue(), alarms, deliveries, locale))
+                .map(e -> build(e.getKey(), e.getValue(), alarms, deliveries, locale, user))
                 .filter(r -> matches(r, q, deliveries.getOrDefault(r.getId(), Collections.emptyList())))
                 .collect(Collectors.toList());
     }
@@ -256,7 +260,7 @@ public class NotificationRecordService {
     }
 
     NotificationRecordVo build(String key, List<MessageEntity> messages, Map<String, AlarmInfo> alarms,
-                               Map<String, List<NotificationDelivery>> deliveries, Locale locale) {
+                               Map<String, List<NotificationDelivery>> deliveries, Locale locale, UserDetail user) {
         MessageEntity latest = messages.get(0);
         NotificationRecordVo vo = new NotificationRecordVo();
         vo.setId(key);
@@ -266,7 +270,10 @@ public class NotificationRecordService {
         vo.setTitle(title(latest, locale));
         vo.setLevel(latest.getLevel());
         vo.setNotificationCount(messages.size());
-        vo.setUnread(messages.stream().anyMatch(m -> !Boolean.TRUE.equals(m.getRead())));
+        // 阅读状态属于收件人本人：查看他人的通知不显示也不能修改其阅读状态
+        List<MessageEntity> own = messages.stream().filter(m -> isOwn(m, user)).collect(Collectors.toList());
+        vo.setReadable(!own.isEmpty());
+        vo.setUnread(own.stream().anyMatch(m -> !Boolean.TRUE.equals(m.getRead())));
         vo.setLatestNotifyTime(latest.getCreateAt());
         MessageMetadata metadata = latest.getMessageMetadata();
         if (metadata != null) {
@@ -358,10 +365,19 @@ public class NotificationRecordService {
         return Criteria.where("alarmEventId").is(id);
     }
 
-    /** 可查看范围：告警通知且未隐藏；root 可查看全部用户的记录 */
-    static Criteria viewScope(UserDetail user) {
+    /** 有通知模块权限可查看全部用户的记录，否则只查看发给自己的 */
+    private boolean allData(UserDetail user) {
+        return moduleAccess.allData(user, DataPermissionEnumsName.V2_NOTIFICATION_RECORD);
+    }
+
+    /** 可查看范围：告警通知且未隐藏 */
+    static Criteria viewScope(UserDetail user, boolean allData) {
         Criteria base = Criteria.where("msg").is(MsgTypeEnum.ALARM.getValue()).and("isDeleted").ne(true);
-        return user != null && user.isRoot() ? base : base.and("user_id").is(user == null ? null : user.getUserId());
+        return allData ? base : base.and("user_id").is(user == null ? null : user.getUserId());
+    }
+
+    private static boolean isOwn(MessageEntity m, UserDetail user) {
+        return user != null && Objects.equals(m.getUserId(), user.getUserId());
     }
 
     /** 阅读状态只作用于当前用户自己的消息 */
