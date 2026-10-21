@@ -1,4 +1,2 @@
 pymongo
 mysql-connector-python
-oracledb
-python-tds
