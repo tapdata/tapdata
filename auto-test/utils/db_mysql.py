@@ -22,6 +22,27 @@ class MysqlUtil:
         except Exception as e:
             pass
 
+    def execute(self, sql, params=None):
+        cursor = self.mysql_client.cursor()
+        try:
+            cursor.execute(sql, params or ())
+            self.mysql_client.commit()
+            return cursor.rowcount
+        finally:
+            cursor.close()
+
+    def query_sql(self, sql, params=None):
+        cursor = self.mysql_client.cursor()
+        try:
+            cursor.execute(sql, params or ())
+            columns = [column[0] for column in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    def close(self):
+        self.__destroy__()
+
     def query(self, condition={}, limit=1, table=None):
         if table is None:
             table = self.table

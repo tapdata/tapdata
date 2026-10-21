@@ -59,3 +59,15 @@ qa_mysql: // 数据源名称
    3. 数据目标: 在上述 1/2 的基础上, 增加 _sink 后缀
 
 如果需要支持自定义任务检查, 可创建一个名为 check 的方法, 参数同上, 此方法返回 True 标明自定义检查通过, False 表明自定义检查失败
+
+### TAP-11941 日期时间用例
+`test_tap_13134_mysql_date_oracle_date.py` 和 `test_tap_13135_mssql_datetime2_datetime.py` 会创建临时源表及手动定义类型的目标表，启动全量同步并核对目标值和目标列类型。运行前需要在 `config.yaml` 中配置对应 Tapdata 数据源，并设置以下数据源键名：
+
+```sh
+export TAP11941_MYSQL_SOURCE=<config.yaml 中 MySQL 源数据源键>
+export TAP11941_ORACLE_SINK=<config.yaml 中 Oracle 目标数据源键>
+export TAP11941_MSSQL_SOURCE=<config.yaml 中 MSSQL 源数据源键>
+export TAP11941_MSSQL_SINK=<config.yaml 中 MSSQL 目标数据源键>
+```
+
+分别运行 `python3 runner.py --case test_tap_13134_mysql_date_oracle_date.py` 和 `python3 runner.py --case test_tap_13135_mssql_datetime2_datetime.py`。用例通过 `oracledb` 和 `python-tds` 直连数据库准备、查询并清理临时表；相关依赖见 `requirements.txt`。
