@@ -36,12 +36,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.support.GenericApplicationContext;
+import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +78,12 @@ class NotificationRecordIT {
     private final List<AlarmInfo> alarmData = new ArrayList<>();
     private final List<NotificationDelivery> deliveries = new ArrayList<>();
     private final AtomicReference<Query> lastMessageQuery = new AtomicReference<>();
+    /** 分组聚合管道（JSON），由库内完成筛选、计数与分页 */
+    private final List<String> pipelines = new ArrayList<>();
+    private final List<String> deliveryQueries = new ArrayList<>();
+    /** 存储边界：聚合返回的当前页分组键与总数；为空时按消息最近时间返回全部分组 */
+    private List<String> pageKeys;
+    private Long pageTotal;
     private UserDetail owner;
     private UserDetail root;
 
@@ -89,8 +99,20 @@ class NotificationRecordIT {
             return new ArrayList<>(messages);
         });
         when(mongo.find(any(Query.class), eq(AlarmInfo.class))).thenAnswer(i -> new ArrayList<>(alarmData));
+        when(mongo.getCollectionName(NotificationDelivery.class)).thenReturn("NotificationDelivery");
+        when(mongo.getCollectionName(AlarmInfo.class)).thenReturn("AlarmInfo");
+        when(mongo.aggregate(any(Aggregation.class), eq(MessageEntity.class), eq(Document.class))).thenAnswer(i -> {
+            pipelines.add(new Document("p", i.<Aggregation>getArgument(0).toPipeline(Aggregation.DEFAULT_CONTEXT)).toJson());
+            List<String> keys = pageKeys != null ? pageKeys : messages.stream()
+                    .sorted(Comparator.comparing(MessageEntity::getCreateAt).reversed())
+                    .map(NotificationRecordService::groupKey).distinct().collect(Collectors.toList());
+            Document facet = new Document("total", List.of(new Document("count", pageTotal != null ? pageTotal : keys.size())))
+                    .append("keys", keys.stream().map(k -> new Document("_id", k)).collect(Collectors.toList()));
+            return new AggregationResults<>(List.of(facet), new Document());
+        });
         when(mongo.find(any(Query.class), eq(NotificationDelivery.class))).thenAnswer(i -> {
             String json = i.<Query>getArgument(0).getQueryObject().toJson();
+            deliveryQueries.add(json);
             return deliveries.stream().filter(d -> (d.getAlarmEventId() != null && json.contains(d.getAlarmEventId()))
                     || (d.getMessageId() != null && json.contains(d.getMessageId()))).collect(Collectors.toList());
         });
@@ -112,6 +134,14 @@ class NotificationRecordIT {
         messages.clear();
         alarmData.clear();
         deliveries.clear();
+        pipelines.clear();
+        deliveryQueries.clear();
+        pageKeys = null;
+        pageTotal = null;
+    }
+
+    private String lastPipeline() {
+        return pipelines.get(pipelines.size() - 1);
     }
 
     @Test
@@ -140,6 +170,21 @@ class NotificationRecordIT {
         assertThat(old.getDeliverySummary().getStatus()).isEqualTo(DeliverySummaryVo.NONE);
         assertThat(record.isAlarmEventMissing()).isFalse();
         assertThat(old.isAlarmEventMissing()).isFalse();
+        // 投递记录按告警批量查询一次、历史消息批量查询一次，不按分组逐条查询
+        assertThat(deliveryQueries).hasSize(2);
+        assertThat(deliveryQueries.get(0)).contains("\"alarmEventId\": {\"$in\": [\"" + ALARM_A + "\"]}");
+        // 分组、计数与分页在库内完成，当前页只加载对应分组的消息
+        assertThat(lastPipeline()).contains("\"$group\"").contains("\"$facet\"").contains("\"$skip\": 0").contains("\"$limit\": 20")
+                .doesNotContain("$lookup");
+        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("\"alarmEventId\": {\"$in\": [\"" + ALARM_A + "\"]}")
+                .contains("{\"$oid\": \"" + legacy.getId().toHexString() + "\"}");
+
+        NotificationRecordQuery far = new NotificationRecordQuery();
+        far.setPage(10_000_000);
+        far.setSize(500);
+        pageKeys = List.of();
+        assertThat(service.list(far, owner, Locale.CHINA).getItems()).isEmpty();
+        assertThat(lastPipeline()).contains("\"$skip\": 4999999500");
     }
 
     @Test
@@ -159,7 +204,11 @@ class NotificationRecordIT {
         assertThat(record.getLastOccurrenceTime()).isNull();
         assertThat(record.getAlarmStatus()).isNull();
         assertThat(record.getTaskName()).isEqualTo("订单同步");
-        assertThat(ids(query(q -> q.setMetric(List.of(AlarmKeyEnum.TASK_INCREMENT_DELAY))))).containsExactly(ALARM_A);
+        query(q -> q.setMetric(List.of(AlarmKeyEnum.TASK_INCREMENT_DELAY)));
+        // 告警类型取告警事件，事件已不存在时取消息模板
+        assertThat(lastPipeline()).contains("\"from\": \"AlarmInfo\"").contains("\"to\": \"objectId\"")
+                .contains("\"$arrayElemAt\": [\"$_alarm.metric\", 0]").contains("\"$template\"")
+                .contains("\"_metric\": {\"$in\": [\"TASK_INCREMENT_DELAY\"]}");
 
         NotificationRecordDetailVo detail = service.detail(ALARM_A, owner, Locale.CHINA);
         assertThat(detail.isAlarmEventMissing()).isTrue();
@@ -171,43 +220,61 @@ class NotificationRecordIT {
     }
 
     @Test
-    @DisplayName("AC3 页签与筛选：未读、发送失败、渠道、投递状态、收件人、告警类型")
+    @DisplayName("AC3 页签与筛选在库内完成：未读、发送失败、渠道、投递状态、收件人、告警类型，再计数分页")
     void should_apply_tabs_and_filters() {
         givenAlarmWithThreeNotifications();
-        MessageEntity readLegacy = message(null, "旧任务", true, new Date(500));
-        messages.add(readLegacy);
 
-        assertThat(ids(query(q -> q.setTab(NotificationRecordQuery.TAB_UNREAD)))).containsExactly(ALARM_A);
-        assertThat(ids(query(q -> q.setTab(NotificationRecordQuery.TAB_FAILED)))).containsExactly(ALARM_A);
-        assertThat(ids(query(q -> q.setChannel(List.of(DeliveryChannel.SMS))))).isEmpty();
-        assertThat(ids(query(q -> q.setChannel(List.of(DeliveryChannel.EMAIL))))).containsExactly(ALARM_A);
-        assertThat(ids(query(q -> q.setDeliveryStatus(List.of(DeliverySummaryVo.NONE))))).hasSize(1).allMatch(i -> i.startsWith("msg:"));
-        assertThat(ids(query(q -> q.setRecipient("C@X.COM")))).containsExactly(ALARM_A);
-        assertThat(ids(query(q -> q.setRecipient("nobody")))).isEmpty();
-        assertThat(ids(query(q -> q.setMetric(List.of(AlarmKeyEnum.TASK_STATUS_ERROR))))).isEmpty();
-        assertThat(ids(query(q -> q.setRead(true)))).hasSize(1).allMatch(i -> i.startsWith("msg:"));
+        query(q -> q.setTab(NotificationRecordQuery.TAB_UNREAD));
+        // 未读指本人仍有未读消息
+        assertThat(lastPipeline()).contains("\"$eq\": [\"$user_id\", \"owner\"]").contains("\"$ne\": [\"$read\", true]")
+                .contains("\"$match\": {\"_ownUnread\": 1}").doesNotContain("$lookup");
+        query(q -> q.setRead(true));
+        assertThat(lastPipeline()).contains("\"$match\": {\"_ownUnread\": 0}");
+        query(q -> {
+            q.setTab(NotificationRecordQuery.TAB_UNREAD);
+            q.setRead(true);
+        });
+        assertThat(lastPipeline()).contains("\"$match\": {\"_ownUnread\": -1}");
+
+        query(q -> q.setTab(NotificationRecordQuery.TAB_FAILED));
+        assertThat(lastPipeline()).contains("\"_deliveryStatus\": {\"$in\": [\"FAILED\", \"PARTIAL_FAILED\"]}")
+                // 告警组按告警事件、历史组按消息 ID 关联投递，不适用一侧用占位值避免空值误匹配
+                .contains("\"_byAlarm\": {\"$cond\": [\"$_isAlarm\", \"$_id\", \"-\"]}")
+                .contains("\"_byMessage\": {\"$cond\": [\"$_isAlarm\", \"-\", \"$_messageId\"]}")
+                .contains("\"foreignField\": \"alarmEventId\"").contains("\"foreignField\": \"messageId\"");
+        query(q -> q.setChannel(List.of(DeliveryChannel.EMAIL)));
+        assertThat(lastPipeline()).contains("\"_deliveryChannels\": {\"$in\": [\"EMAIL\"]}");
+        query(q -> q.setDeliveryStatus(List.of(DeliverySummaryVo.NONE)));
+        assertThat(lastPipeline()).contains("\"_deliveryStatus\": {\"$in\": [\"NONE\"]}");
+        query(q -> q.setRecipient(" C@X.COM "));
+        assertThat(lastPipeline()).contains("\"$indexOfCP\"").contains("\"c@x.com\"").contains("\"$anyElementTrue\"");
+        query(q -> {
+            q.setTab(NotificationRecordQuery.TAB_FAILED);
+            q.setChannel(List.of(DeliveryChannel.EMAIL));
+        });
+        assertThat(lastPipeline()).contains("\"$and\": [{\"_deliveryStatus\"");
+
         query(q -> {
             q.setKeyword("订单");
             q.setLevel(List.of(Level.WARNING));
             q.setStart(1L);
             q.setAlarmEventId(ALARM_A);
         });
-        assertThat(lastMessageQuery.get().getQueryObject().toJson())
-                .contains("\"msg\": \"alarm\"").contains("\"user_id\": \"owner\"")
+        assertThat(lastPipeline()).contains("\"msg\": \"alarm\"").contains("\"user_id\": \"owner\"")
                 .contains("messageMetadata.name").contains("\"level\": {\"$in\": [\"WARNING\"]}").contains("createTime")
                 .contains("\"alarmEventId\": \"" + ALARM_A + "\"");
+        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("messageMetadata.name").contains("\"user_id\": \"owner\"");
     }
 
     @Test
     @DisplayName("AC5 只读取站内告警通知：许可证与系统通知不进入通知记录；有通知模块权限可查看全部用户")
     void should_only_read_alarm_messages() {
         service.list(new NotificationRecordQuery(), owner, Locale.CHINA);
-        String json = lastMessageQuery.get().getQueryObject().toJson();
-        assertThat(json).contains("\"msg\": \"alarm\"").contains("\"isDeleted\": {\"$ne\": true}").contains("\"user_id\": \"owner\"")
+        assertThat(lastPipeline()).contains("\"msg\": \"alarm\"").contains("\"isDeleted\": {\"$ne\": true}").contains("\"user_id\": \"owner\"")
                 .doesNotContain(MsgTypeEnum.EXPIRING.getValue());
 
         service.list(new NotificationRecordQuery(), root, Locale.CHINA);
-        assertThat(lastMessageQuery.get().getQueryObject().toJson()).doesNotContain("user_id");
+        assertThat(lastPipeline()).doesNotContain("\"user_id\": \"root\"").contains("\"$eq\": [\"$user_id\", \"root\"]");
     }
 
     @Test
@@ -264,6 +331,11 @@ class NotificationRecordIT {
 
         service.updateReadState(List.of(ALARM_A), true, owner, false);
         verify(audit).addUserLog(eq(Modular.MESSAGE), eq(Operation.READ), eq(owner), eq(ALARM_A), eq(ALARM_A));
+        // 历史通知审计来源取消息 ID，去掉前缀才能写入审计
+        service.updateReadState(List.of(legacyId), true, owner, false);
+        verify(audit).addUserLog(eq(Modular.MESSAGE), eq(Operation.READ), eq(owner),
+                eq(legacyId.substring(NotificationRecordService.LEGACY_PREFIX.length())), eq(legacyId));
+        assertThat(NotificationRecordService.auditSourceId("not-an-id")).isNull();
     }
 
     @Test
@@ -275,12 +347,21 @@ class NotificationRecordIT {
         assertThatThrownBy(() -> service.updateReadState(tooMany, true, owner, true)).isInstanceOf(BizException.class);
         verify(mongo, never()).updateMulti(any(Query.class), any(Update.class), eq(MessageEntity.class));
 
-        givenAlarmWithThreeNotifications();
-        messages.add(message(null, "旧任务", true, new Date(500)));
+        // 预览只取本人可修改且状态需要变化的分组，数量在库内统计，ID 最多返回上限条
+        pageKeys = List.of(ALARM_A);
+        pageTotal = 1L;
         ReadStatePreviewVo preview = service.previewReadState(new NotificationRecordQuery(), true, owner, Locale.CHINA);
         assertThat(preview.getCount()).isEqualTo(1);
         assertThat(preview.getIds()).containsExactly(ALARM_A);
         assertThat(preview.isTruncated()).isFalse();
+        assertThat(lastPipeline()).contains("\"$match\": {\"_own\": 1, \"_ownUnread\": 1}")
+                .contains("\"$limit\": " + NotificationRecordService.MAX_BATCH);
+        service.previewReadState(tab(NotificationRecordQuery.TAB_UNREAD), false, owner, Locale.CHINA);
+        assertThat(lastPipeline()).contains("\"$match\": {\"_ownUnread\": 1}").contains("\"$match\": {\"_own\": 1, \"_ownUnread\": 0}");
+        pageTotal = NotificationRecordService.MAX_BATCH + 1L;
+        preview = service.previewReadState(new NotificationRecordQuery(), true, owner, Locale.CHINA);
+        assertThat(preview.getCount()).isEqualTo(NotificationRecordService.MAX_BATCH + 1);
+        assertThat(preview.isTruncated()).isTrue();
         verify(audit, never()).addUserLog(any(Modular.class), any(Operation.class), any(UserDetail.class), anyString(), anyString());
     }
 
@@ -295,8 +376,12 @@ class NotificationRecordIT {
         assertThat(record.getId()).isEqualTo(ALARM_A);
         assertThat(record.isReadable()).isFalse();
         assertThat(record.isUnread()).isFalse();
+        // 未读页签与批量预览按当前用户本人的消息判定
+        pageKeys = List.of();
         assertThat(ids(service.list(tab(NotificationRecordQuery.TAB_UNREAD), root, Locale.CHINA).getItems())).isEmpty();
+        assertThat(lastPipeline()).contains("\"$eq\": [\"$user_id\", \"root\"]").contains("\"$match\": {\"_ownUnread\": 1}");
         assertThat(service.previewReadState(new NotificationRecordQuery(), true, root, Locale.CHINA).getCount()).isZero();
+        pageKeys = null;
         NotificationRecordDetailVo detail = service.detail(ALARM_A, root, Locale.CHINA);
         assertThat(detail.isReadable()).isFalse();
         assertThat(detail.getReadAt()).isNull();

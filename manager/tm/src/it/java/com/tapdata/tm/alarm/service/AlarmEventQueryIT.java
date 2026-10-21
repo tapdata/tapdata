@@ -45,6 +45,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 
@@ -294,7 +296,7 @@ class AlarmEventQueryIT {
     }
 
     @Test
-    @DisplayName("AC10 告警模块权限：无权限拒绝且不查询；有权限或未启用权限体系可见全部告警，不按任务过滤")
+    @DisplayName("AC10 告警模块权限：无权限拒绝且不查询；有权限可见全部告警，不按任务过滤；freeAuth 标记不放行")
     void should_gate_by_alarm_module_permission() {
         alarmData.add(taskAlarm(T2, "无任务权限", null));
         assertThatThrownBy(() -> service.list(new AlarmEventQuery(), member, Locale.CHINA))
@@ -312,18 +314,18 @@ class AlarmEventQueryIT {
         UserDetail free = new UserDetail("free", "customer", "free", "unused", List.of());
         free.setFreeAuth(true);
         try {
-            assertThat(service.list(new AlarmEventQuery(), free, Locale.CHINA).getTotal()).isEqualTo(1);
+            assertThatThrownBy(() -> service.list(new AlarmEventQuery(), free, Locale.CHINA)).isInstanceOf(BizException.class);
         } finally {
             free.setFreeAuth(false);
         }
     }
 
     @Test
-    @DisplayName("AC10 关闭告警需要关闭按钮权限，只能关闭可见告警并写操作审计")
+    @DisplayName("AC10 关闭告警需要关闭按钮权限，只能关闭可见告警并写操作审计；一次查询核对，数量有上限，非法 ID 不关闭")
     void should_close_with_permission() {
         AlarmInfo alarm = taskAlarm(T1, "订单同步", null);
+        alarmData.add(alarm);
         String id = alarm.getId().toHexString();
-        when(mongo.findById(alarm.getId(), AlarmInfo.class)).thenReturn(alarm);
         when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ALARM_EVENT, "member")).thenReturn(true);
 
         assertThatThrownBy(() -> service.close(List.of(id), member))
@@ -331,18 +333,29 @@ class AlarmEventQueryIT {
         verify(alarms, never()).close(any(), any());
 
         when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE, "member")).thenReturn(true);
-        service.close(List.of(id), member);
+        service.close(List.of(id, id), member);
         verify(alarms).close(new String[]{id}, member);
         verify(audit).addUserLog(Modular.ALARM, Operation.CLOSE, member, id, id);
+        assertThat(lastAlarmQuery.get().getQueryObject().toJson()).contains("\"$in\": [{\"$oid\": \"" + id + "\"}]");
+        verify(mongo, never()).findById(any(), eq(AlarmInfo.class));
+
+        // 非法 ID、超过上限：拒绝且不关闭
+        assertThatThrownBy(() -> service.close(List.of(id, "bad-id"), member))
+                .isInstanceOfSatisfying(BizException.class, e -> assertThat(e.getErrorCode()).isEqualTo("Alarm.NotFound"));
+        List<String> tooMany = java.util.stream.IntStream.range(0, AlarmEventQueryService.MAX_CLOSE + 1)
+                .mapToObj(i -> new ObjectId().toHexString()).collect(java.util.stream.Collectors.toList());
+        assertThatThrownBy(() -> service.close(tooMany, member)).isInstanceOf(BizException.class);
+        verify(alarms).close(any(), any());
 
         // 云版仍按任务范围：不可见的告警不能关闭
         when(settings.isCloud()).thenReturn(true);
         when(tasks.findAllDto(any(Query.class), eq(member))).thenReturn(List.of(task(T2, "其他任务")));
         when(inspects.findAllDto(any(Query.class), eq(member))).thenReturn(List.of());
-        when(mongo.exists(any(Query.class), eq(AlarmInfo.class))).thenReturn(false);
+        when(mongo.count(any(Query.class), eq(AlarmInfo.class))).thenReturn(0L);
         assertThatThrownBy(() -> service.close(List.of(id), member))
                 .isInstanceOfSatisfying(BizException.class, e -> assertThat(e.getErrorCode()).isEqualTo("Alarm.NotFound"));
         verify(alarms).close(any(), any());
+        verify(tasks).findAllDto(any(Query.class), eq(member));
     }
 
     @Test
@@ -381,30 +394,43 @@ class AlarmEventQueryIT {
     }
 
     @Test
-    @DisplayName("AC1 是否已通知筛选：按投递汇总过滤后再分页")
+    @DisplayName("AC1 是否已通知筛选：在库内关联投递并按汇总状态过滤后计数分页，只加载当前页告警")
     void should_filter_by_notified() {
         AlarmInfo failed = taskAlarm(T1, "t", null);
-        AlarmInfo quiet = taskAlarm(T1, "t", null);
-        alarmData.addAll(List.of(failed, quiet));
+        alarmData.add(failed);
         when(tasks.findAllTasksByIds(any())).thenReturn(List.of(task(T1, "t")));
         deliveryData.add(delivery(failed.getId().toHexString(), DeliveryChannel.EMAIL, "a@x.com", DeliveryStatus.FAILED));
-        when(mongo.find(any(Query.class), eq(AlarmInfo.class))).thenAnswer(i -> {
-            Query q = i.getArgument(0);
-            if (q.getQueryObject().containsKey("_id")) {
-                return List.of(failed);
-            }
-            return List.of(failed, quiet);
+        when(mongo.getCollectionName(NotificationDelivery.class)).thenReturn("NotificationDelivery");
+        List<String> pipelines = new ArrayList<>();
+        when(mongo.aggregate(any(Aggregation.class), eq(AlarmInfo.class), eq(Document.class))).thenAnswer(i -> {
+            pipelines.add(new Document("p", i.<Aggregation>getArgument(0).toPipeline(Aggregation.DEFAULT_CONTEXT)).toJson());
+            Document facet = new Document("total", List.of(new Document("count", 41)))
+                    .append("ids", List.of(new Document("_id", failed.getId())));
+            return new AggregationResults<>(List.of(facet), new Document());
         });
 
         AlarmEventQuery query = new AlarmEventQuery();
         query.setNotified(DeliverySummaryVo.FAILED);
+        query.setPage(3);
+        query.setSize(20);
         Page<AlarmEventVo> page = service.list(query, admin, Locale.CHINA);
-        assertThat(page.getTotal()).isEqualTo(1);
-        assertThat(page.getItems().get(0).getId()).isEqualTo(failed.getId().toHexString());
+        assertThat(page.getTotal()).isEqualTo(41);
+        assertThat(page.getItems()).extracting(AlarmEventVo::getId).containsExactly(failed.getId().toHexString());
+        assertThat(page.getItems().get(0).getDeliverySummary().getStatus()).isEqualTo(DeliverySummaryVo.FAILED);
+        assertThat(pipelines.get(0)).contains("\"from\": \"NotificationDelivery\"").contains("\"foreignField\": \"alarmEventId\"")
+                .contains("\"$match\": {\"_deliveryStatus\": \"FAILED\"}").contains("\"$skip\": 40").contains("\"$limit\": 20")
+                .contains("lastOccurrenceTime");
+        // 只按当前页 ID 加载告警，不把全部匹配告警读入内存
+        assertThat(lastAlarmQuery.get().getQueryObject().toJson()).contains("\"_id\": {\"$in\": [{\"$oid\": \"" + failed.getId().toHexString());
 
         query.setNotified(AlarmEventQueryService.NOTIFIED_NONE);
-        assertThat(service.list(query, admin, Locale.CHINA).getTotal()).isEqualTo(1);
-        verify(mongo, never()).count(any(Query.class), eq(NotificationDelivery.class));
+        service.list(query, admin, Locale.CHINA);
+        assertThat(pipelines.get(1)).contains("\"$match\": {\"_deliveryTotal\": 0}");
+        query.setNotified(AlarmEventQueryService.NOTIFIED_ANY);
+        query.setPage(10_000_000);
+        query.setSize(500);
+        service.list(query, admin, Locale.CHINA);
+        assertThat(pipelines.get(2)).contains("\"_deliveryTotal\": {\"$gt\": 0}").contains("\"$skip\": 4999999500");
     }
 
     private static AlarmInfo alarm() {

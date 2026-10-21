@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.service.EventsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
+import com.tapdata.tm.message.controller.MessageController;
 import com.tapdata.tm.message.constant.SystemNotificationMapping;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -37,6 +39,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,6 +68,8 @@ class SystemNotificationRetireIT {
     private EventsService events;
     private MailUtils mail;
     private final List<MessageEntity> saved = new ArrayList<>();
+    /** 保存时的标题快照：保存后再改内存对象不会落库 */
+    private final List<String> titlesAtSave = new ArrayList<>();
     private UserDetail user;
 
     @BeforeEach
@@ -81,6 +86,7 @@ class SystemNotificationRetireIT {
             MessageEntity entity = i.getArgument(0);
             entity.setId(new ObjectId());
             saved.add(entity);
+            titlesAtSave.add(entity.getTitle());
             return entity;
         });
         when(repository.count(any(Query.class))).thenReturn(0L);
@@ -106,6 +112,7 @@ class SystemNotificationRetireIT {
     void tearDown() {
         context.close();
         saved.clear();
+        titlesAtSave.clear();
     }
 
     @Test
@@ -157,6 +164,33 @@ class SystemNotificationRetireIT {
         assertThat(saved).hasSize(2);
         assertThat(saved.get(0).getIsDeleted()).isTrue();
         assertThat(saved.get(1).getIsDeleted()).isNull();
+    }
+
+    @Test
+    @DisplayName("AC6 隐藏载体保存前即带标题；兼容列表与按 ID 查询不返回隐藏载体")
+    void should_keep_carrier_title_and_hide_from_compat_api() {
+        service.addTrustAgentMessage("agent-a", "a1", MsgTypeEnum.WILL_RELEASE_AGENT, "Agent 即将释放", user);
+        assertThat(saved).singleElement().satisfies(m -> assertThat(m.getIsDeleted()).isTrue());
+        assertThat(titlesAtSave).containsExactly("Agent 即将释放");
+
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        when(repository.getMongoOperations()).thenReturn(mongo);
+        service.list(Locale.CHINA, MsgTypeEnum.ALARM, null, null, 1, 20, user);
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(mongo).count(query.capture(), eq(MessageEntity.class));
+        assertThat(query.getValue().getQueryObject().get("isDeleted")).isEqualTo(new Document("$ne", true));
+
+        MessageService messages = mock(MessageService.class);
+        MessageController controller = new MessageController();
+        controller.setMessageService(messages);
+        MessageDto hidden = new MessageDto();
+        hidden.setIsDeleted(true);
+        MessageDto visible = new MessageDto();
+        visible.setIsDeleted(false);
+        when(messages.findById("hidden")).thenReturn(hidden);
+        when(messages.findById("visible")).thenReturn(visible);
+        assertThat(controller.findById("hidden", "{}").getData()).isNull();
+        assertThat(controller.findById("visible", "{}").getData()).isSameAs(visible);
     }
 
     @Test

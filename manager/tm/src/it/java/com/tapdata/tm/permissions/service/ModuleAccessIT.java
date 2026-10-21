@@ -68,7 +68,7 @@ class ModuleAccessIT {
     }
 
     @Test
-    @DisplayName("AC10 模块权限判定：权限点放行并可看全部；云版放行但不看全部；未启用权限体系放行并看全部")
+    @DisplayName("AC10 模块权限判定：权限点放行并可看全部；云版放行但不看全部；URL 白名单标记 freeAuth 不放行")
     void should_decide_by_permission_cloud_and_free_auth() {
         String perm = DataPermissionEnumsName.V2_ALARM_EVENT;
         assertThat(access.allowed(user, perm)).isFalse();
@@ -86,10 +86,11 @@ class ModuleAccessIT {
         assertThat(access.allowed(user, DataPermissionEnumsName.V2_AUDIT_LOG)).isTrue();
         assertThat(access.allData(user, perm)).isFalse();
 
+        // freeAuth 只标记命中 Agent/集群等 URL 白名单的请求，与模块权限无关
         when(settings.isCloud()).thenReturn(false);
         user.setFreeAuth(true);
-        assertThat(access.allowed(user, DataPermissionEnumsName.V2_NOTIFICATION_RECORD)).isTrue();
-        assertThat(access.allData(user, DataPermissionEnumsName.V2_NOTIFICATION_RECORD)).isTrue();
+        assertThat(access.allowed(user, DataPermissionEnumsName.V2_NOTIFICATION_RECORD)).isFalse();
+        assertThat(access.allData(user, DataPermissionEnumsName.V2_NOTIFICATION_RECORD)).isFalse();
     }
 
     @Test
