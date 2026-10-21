@@ -3,13 +3,16 @@ package io.tapdata.flow.engine.V2.util;
 import com.tapdata.constant.DateUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.TimeZone;
 
 /**
@@ -38,17 +41,68 @@ public class TapCodecUtil {
 	}
 
 	public static void registerFromTapValue(TapCodecsRegistry tapCodecsRegistry) {
-		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> {
-			if (tapValue.getValue().isContainsIllegal()) {
-				tapValue.getValue().setTimeZone(TimeZone.getDefault());
-				return addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATETIME_BYTE_TAG_V2);
-			} else {
-				return tapValue.getValue().toInstant();
-			}
-		});
+		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, TapCodecUtil::fromTapDateTimeValue);
 		tapCodecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_YEAR_BYTE_TAG_V2));
-		tapCodecsRegistry.registerFromTapValue(TapDateValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATE_BYTE_TAG_V2));
+		tapCodecsRegistry.registerFromTapValue(TapDateValue.class, TapCodecUtil::fromTapDateValue);
 		tapCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_TIME_BYTE_TAG_V2));
+		tapCodecsRegistry.registerFromTapValueV2(TapDateTimeValue.class, TapCodecUtil::fromTapDateTimeValue);
+		tapCodecsRegistry.registerFromTapValueV2(TapDateValue.class, TapCodecUtil::fromTapDateValue);
+	}
+
+	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		if (tapValue.getValue().isContainsIllegal()) {
+			tapValue.getValue().setTimeZone(TimeZone.getDefault());
+			return addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATETIME_BYTE_TAG_V2);
+		}
+		return tapValue.getValue().toInstant();
+	}
+
+	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue, TapField targetField) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		if (targetField == null || !isDateTimeType(targetField.getDataType())
+				|| tapValue.getValue().isContainsIllegal()) {
+			return fromTapDateTimeValue(tapValue);
+		}
+		Integer scale = targetField.getScale();
+		if (scale == null || scale < 0 || scale > 9) {
+			return fromTapDateTimeValue(tapValue);
+		}
+		Timestamp timestamp = tapValue.getValue().toTimestamp();
+		if (timestamp == null) return null;
+		int quantum = (int) Math.pow(10, 9 - scale);
+		timestamp.setNanos((timestamp.getNanos() / quantum) * quantum);
+		return timestamp;
+	}
+
+	private static Object fromTapDateValue(TapDateValue tapValue) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		return addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATE_BYTE_TAG_V2);
+	}
+
+	private static Object fromTapDateValue(TapDateValue tapValue, TapField targetField) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		if (targetField != null && isDateType(targetField.getDataType())
+				&& !tapValue.getValue().isContainsIllegal()) {
+			return tapValue.getValue().toSqlDate();
+		}
+		return fromTapDateValue(tapValue);
+	}
+
+	private static boolean isDateType(String dataType) {
+		return baseType(dataType).equals("date");
+	}
+
+	private static boolean isDateTimeType(String dataType) {
+		String type = baseType(dataType);
+		return type.equals("datetime") || type.equals("datetime2");
+	}
+
+	private static String baseType(String dataType) {
+		if (dataType == null) return "";
+		String normalized = dataType.trim().toLowerCase(Locale.ROOT);
+		int parameterStart = normalized.indexOf('(');
+		return parameterStart < 0 ? normalized : normalized.substring(0, parameterStart).trim();
 	}
 
 	public static void registerToTapValue(TapCodecsRegistry tapCodecsRegistry) {
