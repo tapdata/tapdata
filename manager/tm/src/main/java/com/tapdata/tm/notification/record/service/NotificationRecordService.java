@@ -74,6 +74,8 @@ public class NotificationRecordService {
             new Document("$gt", Arrays.asList(new Document("$strLenCP", new Document("$ifNull", Arrays.asList("$alarmEventId", ""))), 0)),
             "$alarmEventId", new Document("$concat", Arrays.asList(LEGACY_PREFIX, new Document("$toString", "$_id")))));
     private static final String LATEST = "latest";
+    private static final String COUNT = "_count";
+    private static final String LATEST_ID = "_latestId";
     private static final String MESSAGE_ID = "_messageId";
     private static final String OWN = "_own";
     private static final String OWN_UNREAD = "_ownUnread";
@@ -100,7 +102,7 @@ public class NotificationRecordService {
         int page = Math.max(1, Objects.requireNonNullElse(query.getPage(), 1));
         int size = Math.min(500, Math.max(1, Objects.requireNonNullElse(query.getSize(), 20)));
         GroupPage groups = groups(query, user, null, (long) (page - 1) * size, size);
-        return Page.page(records(groups.keys, query, user, locale), groups.total);
+        return Page.page(records(groups.rows, user, locale), groups.total);
     }
 
     /** 铃铛角标：当前用户未读的站内告警通知（按告警聚合后的行数） */
@@ -154,7 +156,12 @@ public class NotificationRecordService {
 
     /** 当前筛选下将受影响的记录；用于“全部标为已读/未读”的二次确认 */
     public ReadStatePreviewVo previewReadState(NotificationRecordQuery query, boolean read, UserDetail user, Locale locale) {
-        NotificationRecordQuery q = query == null ? new NotificationRecordQuery() : query;
+        NotificationRecordQuery q = new NotificationRecordQuery();
+        if (query != null) {
+            org.springframework.beans.BeanUtils.copyProperties(query, q);
+        }
+        // 请求参数 read 是目标状态，同名绑定到列表的已读筛选会与目标状态相互排除，由目标状态决定范围
+        q.setRead(null);
         // 只统计本人可修改且状态需要变化的记录
         Document target = new Document(OWN, 1).append(OWN_UNREAD, read ? 1 : 0);
         GroupPage groups = groups(q, user, target, 0, MAX_BATCH);
@@ -239,13 +246,32 @@ public class NotificationRecordService {
         return new Criteria().andOperator(and.toArray(new Criteria[0]));
     }
 
+    /** 分组统计：消息条数、最近一条消息与本人阅读状态均在库内算出 */
+    static class GroupRow {
+        final String key;
+        final int count;
+        final ObjectId latestId;
+        final boolean own;
+        final boolean ownUnread;
+
+        GroupRow(String key, int count, ObjectId latestId, boolean own, boolean ownUnread) {
+            this.key = key;
+            this.count = count;
+            this.latestId = latestId;
+            this.own = own;
+            this.ownUnread = ownUnread;
+        }
+    }
+
     static class GroupPage {
         final long total;
+        final List<GroupRow> rows;
         final List<String> keys;
 
-        GroupPage(long total, List<String> keys) {
+        GroupPage(long total, List<GroupRow> rows) {
             this.total = total;
-            this.keys = keys;
+            this.rows = rows;
+            this.keys = rows.stream().map(r -> r.key).collect(Collectors.toList());
         }
     }
 
@@ -261,6 +287,8 @@ public class NotificationRecordService {
         Document isOwn = new Document("$eq", Arrays.asList("$user_id", userId));
         stages.add(DeliveryAggregation.stage("$group", new Document("_id", GROUP_KEY)
                 .append(LATEST, new Document("$max", "$createTime"))
+                .append(COUNT, new Document("$sum", 1))
+                .append(LATEST_ID, new Document("$first", "$_id"))
                 .append("alarmEventId", new Document("$first", "$alarmEventId"))
                 .append("template", new Document("$first", "$template"))
                 .append(MESSAGE_ID, new Document("$first", new Document("$toString", "$_id")))
@@ -296,7 +324,8 @@ public class NotificationRecordService {
         stages.add(DeliveryAggregation.stage("$sort", new Document(LATEST, -1).append("_id", -1)));
         stages.add(DeliveryAggregation.stage("$facet", new Document("total", Collections.singletonList(new Document("$count", "count")))
                 .append("keys", Arrays.asList(new Document("$skip", skip), new Document("$limit", limit),
-                        new Document("$project", new Document("_id", 1))))));
+                        new Document("$project", new Document("_id", 1).append(COUNT, 1).append(LATEST_ID, 1)
+                                .append(OWN, 1).append(OWN_UNREAD, 1))))));
         Aggregation aggregation = Aggregation.newAggregation(stages)
                 .withOptions(AggregationOptions.builder().allowDiskUse(true).build());
         Document result = mongoTemplate.aggregate(aggregation, MessageEntity.class, Document.class).getUniqueMappedResult();
@@ -304,8 +333,16 @@ public class NotificationRecordService {
             return new GroupPage(0, new ArrayList<>());
         }
         List<Document> total = result.getList("total", Document.class);
-        List<String> keys = result.getList("keys", Document.class).stream().map(d -> d.getString("_id")).collect(Collectors.toList());
-        return new GroupPage(total == null || total.isEmpty() ? 0 : ((Number) total.get(0).get("count")).longValue(), keys);
+        List<GroupRow> rows = result.getList("keys", Document.class).stream()
+                .map(d -> new GroupRow(d.getString("_id"), intOf(d, COUNT), d.getObjectId(LATEST_ID),
+                        intOf(d, OWN) == 1, intOf(d, OWN_UNREAD) == 1))
+                .collect(Collectors.toList());
+        return new GroupPage(total == null || total.isEmpty() ? 0 : ((Number) total.get(0).get("count")).longValue(), rows);
+    }
+
+    private static int intOf(Document d, String key) {
+        Object value = d.get(key);
+        return value instanceof Number ? ((Number) value).intValue() : 0;
     }
 
     /** 未读页签及阅读状态筛选：未读指本人仍有未读消息 */
@@ -364,37 +401,36 @@ public class NotificationRecordService {
         return and.size() == 1 ? and.get(0) : new Document("$and", and);
     }
 
-    /** 加载当前页分组的消息并组装记录，顺序与分页结果一致 */
-    List<NotificationRecordVo> records(List<String> keys, NotificationRecordQuery q, UserDetail user, Locale locale) {
-        if (CollectionUtils.isEmpty(keys)) {
+    /**
+     * 组装当前页记录：条数与阅读状态取自库内分组，只加载每组最近一条消息，单个高频告警不会挤掉同页其它组。
+     * 列表不返回组内全部消息 ID，详情接口返回。
+     */
+    List<NotificationRecordVo> records(List<GroupRow> rows, UserDetail user, Locale locale) {
+        List<ObjectId> latestIds = rows.stream().map(r -> r.latestId).filter(Objects::nonNull).collect(Collectors.toList());
+        if (latestIds.isEmpty()) {
             return new ArrayList<>();
         }
-        List<String> alarmKeys = keys.stream().filter(k -> !k.startsWith(LEGACY_PREFIX)).collect(Collectors.toList());
-        List<ObjectId> legacyIds = keys.stream().filter(k -> k.startsWith(LEGACY_PREFIX))
-                .map(k -> k.substring(LEGACY_PREFIX.length())).filter(ObjectId::isValid).map(ObjectId::new)
-                .collect(Collectors.toList());
-        List<Criteria> or = new ArrayList<>();
-        if (!alarmKeys.isEmpty()) {
-            or.add(Criteria.where("alarmEventId").in(alarmKeys));
-        }
-        if (!legacyIds.isEmpty()) {
-            or.add(Criteria.where("_id").in(legacyIds));
-        }
-        if (or.isEmpty()) {
-            return new ArrayList<>();
-        }
-        Query query = new Query(new Criteria().andOperator(messageCriteria(q, user, allData(user)),
-                new Criteria().orOperator(or.toArray(new Criteria[0]))))
-                .with(Sort.by(Sort.Direction.DESC, "createTime")).limit(MAX_SCAN);
-        Map<String, List<MessageEntity>> grouped = mongoTemplate.find(query, MessageEntity.class).stream()
-                .collect(Collectors.groupingBy(NotificationRecordService::groupKey, LinkedHashMap::new, Collectors.toList()));
+        Map<ObjectId, MessageEntity> latest = mongoTemplate.find(Query.query(Criteria.where("_id").in(latestIds)), MessageEntity.class)
+                .stream().collect(Collectors.toMap(MessageEntity::getId, Function.identity(), (a, b) -> a));
         Map<String, List<MessageEntity>> groups = new LinkedHashMap<>();
-        keys.stream().filter(grouped::containsKey).forEach(k -> groups.put(k, grouped.get(k)));
-        Map<String, AlarmInfo> alarms = alarms(new ArrayList<>(alarmKeys));
+        rows.stream().filter(r -> latest.containsKey(r.latestId))
+                .forEach(r -> groups.put(r.key, Collections.singletonList(latest.get(r.latestId))));
+        Map<String, AlarmInfo> alarms = alarms(groups.keySet().stream().filter(k -> !k.startsWith(LEGACY_PREFIX)).collect(Collectors.toList()));
         Map<String, List<NotificationDelivery>> deliveries = deliveriesOf(groups);
-        return groups.entrySet().stream()
-                .map(e -> build(e.getKey(), e.getValue(), alarms, deliveries, locale, user))
-                .collect(Collectors.toList());
+        List<NotificationRecordVo> result = new ArrayList<>();
+        for (GroupRow row : rows) {
+            List<MessageEntity> messages = groups.get(row.key);
+            if (messages == null) {
+                continue;
+            }
+            NotificationRecordVo vo = build(row.key, messages, alarms, deliveries, locale, user);
+            vo.setMessageIds(new ArrayList<>());
+            vo.setNotificationCount(row.count);
+            vo.setReadable(row.own);
+            vo.setUnread(row.ownUnread);
+            result.add(vo);
+        }
+        return result;
     }
 
     NotificationRecordVo build(String key, List<MessageEntity> messages, Map<String, AlarmInfo> alarms,

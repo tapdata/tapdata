@@ -22,6 +22,7 @@ public class NotificationRecordVo {
     private boolean legacy;
     /** 关联的告警事件已不存在（历史版本在任务重新运行时删除），只能展示通知自身保存的信息 */
     private boolean alarmEventMissing;
+    /** 组内全部站内消息 ID，仅详情返回；列表行为空 */
     private List<String> messageIds = new ArrayList<>();
     private String title;
     private String level;

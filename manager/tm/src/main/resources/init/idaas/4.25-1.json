@@ -322,5 +322,49 @@
         "upsert": true
       }
     ]
+  },
+  {
+    "createIndexes": "NotificationDelivery",
+    "indexes": [
+      {
+        "name": "alarm_channel_status",
+        "key": {
+          "alarmEventId": 1,
+          "channel": 1,
+          "status": 1
+        },
+        "background": true
+      },
+      {
+        "name": "message_channel_status",
+        "key": {
+          "messageId": 1,
+          "channel": 1,
+          "status": 1
+        },
+        "background": true
+      },
+      {
+        "name": "recipient_created",
+        "key": {
+          "recipientAddress": 1,
+          "createTime": -1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Message",
+    "indexes": [
+      {
+        "name": "alarmEventId_1_createTime_-1",
+        "key": {
+          "alarmEventId": 1,
+          "createTime": -1
+        },
+        "background": true
+      }
+    ]
   }
 ]
