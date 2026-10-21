@@ -241,15 +241,12 @@ public class TaskScheduleServiceImplTest {
         @Test
         void testTaskIsGroupManually_accessNodeProcessIdList_is_Empty(){
             taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
-            CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
-            when(workerService.scheduleTaskToEngineWithStrictAgent(
-                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName())))
-                    .thenAnswer(invocationOnMock -> {
-                        TaskDto result = invocationOnMock.getArgument(0);
-                        Assertions.assertNull(result.getAgentId());
-                        return calculationEngineVo;
-                    });
-            taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(List.of());
+            CalculationEngineVo result = taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
+            assertEquals(0, result.getAvailable());
+            Assertions.assertNull(taskDto.getAgentId());
+            verify(workerService, never()).scheduleTaskToEngineWithStrictAgent(
+                    any(TaskDto.class), eq(user), eq("task"), eq(taskDto.getName()));
         }
 
         @Test

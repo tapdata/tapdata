@@ -22,6 +22,7 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
 import java.util.Map;
@@ -56,7 +57,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
-        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+        verify(dataSourceService, never()).findAll(any(Query.class));
     }
 
     @Test
@@ -79,7 +80,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
-        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+        verify(dataSourceService, never()).findAll(any(Query.class));
     }
 
     @Test
@@ -89,13 +90,13 @@ class TaskScheduleSourceAgentPolicyTest {
         ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
         String connectionId = new ObjectId().toHexString();
         TaskDto task = logCollectorTask(connectionId);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of());
 
         TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
         assertSame(task, result);
-        verify(dataSourceService).findInfoByConnectionIdList(eq(List.of(connectionId)));
+        verify(dataSourceService).findAll(any(Query.class));
     }
 
     @Test
@@ -109,9 +110,12 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto task = logCollectorTask(connectionId);
         task.setAgentId("stale-agent");
         task.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-        task.setAttrs(Map.of(TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED, true));
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        task.setAttrs(Map.of("sourceAgentPolicyInherited", true));
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(connectionId, "source-agent")));
+        Worker available = new Worker();
+        available.setProcessId("source-agent");
+        when(workerService.findAvailableAgentByAccessNode(any(UserDetail.class), anyList())).thenReturn(List.of(available));
 
         TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
@@ -124,21 +128,27 @@ class TaskScheduleSourceAgentPolicyTest {
     }
 
     @Test
-    void explicitTaskAgentPolicyOverrideReturnsOriginalTaskWhenAllowedBySourceConnection() {
+    void explicitTaskAgentPolicyOverrideUsesOnlyAnAvailableAllowedAgent() {
         TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
         DataSourceService dataSourceService = mock(DataSourceService.class);
         ReflectionTestUtils.setField(service, "dataSourceService", dataSourceService);
+        WorkerService workerService = mock(WorkerService.class);
+        ReflectionTestUtils.setField(service, "workerService", workerService);
+        Worker worker = new Worker();
+        worker.setProcessId("task-agent");
+        when(workerService.findAvailableAgentByAccessNode(any(UserDetail.class), anyList())).thenReturn(List.of(worker));
         String connectionId = new ObjectId().toHexString();
         TaskDto task = logCollectorTask(connectionId);
         task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
         task.setAccessNodeProcessId("task-agent");
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(connectionId, "task-agent")));
 
         TaskDto result = ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, mock(UserDetail.class));
 
-        assertSame(task, result);
-        verify(dataSourceService).findInfoByConnectionIdList(eq(List.of(connectionId)));
+        assertNotSame(task, result);
+        assertEquals("task-agent", result.getAccessNodeProcessId());
+        verify(dataSourceService).findAll(any(Query.class));
     }
 
     @Test
@@ -149,7 +159,7 @@ class TaskScheduleSourceAgentPolicyTest {
         String firstConnectionId = new ObjectId().toHexString();
         String secondConnectionId = new ObjectId().toHexString();
         TaskDto task = logCollectorTask(firstConnectionId, secondConnectionId);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a", "orders"),
                         sourceConnection(secondConnectionId, "agent-b", "users")));
 
@@ -203,7 +213,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(connectionId, "agent-a")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("agent-a"));
@@ -278,7 +288,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(connectionId, "task-agent")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("task-agent"));
@@ -304,7 +314,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto scheduledTaskDto = (TaskDto) scheduledTask.getValue();
         assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), scheduledTaskDto.getAccessNodeType());
         assertEquals("task-agent", scheduledTaskDto.getAccessNodeProcessId());
-        verify(dataSourceService).findInfoByConnectionIdList(eq(List.of(connectionId)));
+        verify(dataSourceService).findAll(any(Query.class));
         assertEquals("task-agent", task.getAgentId());
     }
 
@@ -350,7 +360,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(connectionId, "source-agent", "source")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("source-agent"));
@@ -366,7 +376,7 @@ class TaskScheduleSourceAgentPolicyTest {
 
         assertEquals(0, result.getAvailable());
         assertNull(task.getAgentId());
-        verify(workerService).scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), eq("task"), eq("shared"));
+        verify(workerService, never()).scheduleTaskToEngineWithStrictAgent(any(SchedulableDto.class), eq(user), eq("task"), eq("shared"));
     }
 
     @Test
@@ -410,7 +420,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of());
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user))).thenReturn(List.of());
         when(workerService.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(List.of());
@@ -473,7 +483,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a", "orders"),
                         sourceConnection(secondConnectionId, "agent-b", "users")));
 
@@ -527,7 +537,7 @@ class TaskScheduleSourceAgentPolicyTest {
 
         service.cloudTaskLimitNum(task, user, true);
 
-        verify(dataSourceService, never()).findInfoByConnectionIdList(anyList());
+        verify(dataSourceService, never()).findAll(any(Query.class));
     }
 
     @Test
@@ -574,7 +584,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(sourceId, targetId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(sourceId, "agent-a"),
                         sourceConnection(targetId, "agent-a")));
         Worker agent = new Worker();
@@ -620,7 +630,7 @@ class TaskScheduleSourceAgentPolicyTest {
         DAG dag = mock(DAG.class);
         when(dag.getNodes()).thenReturn(List.of(first, second));
         task.setDag(dag);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(firstConnectionId, secondConnectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(firstConnectionId, "agent-a"),
                         sourceConnection(secondConnectionId, "agent-b")));
 
@@ -654,7 +664,7 @@ class TaskScheduleSourceAgentPolicyTest {
         connection.setName("source");
         connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
         connection.setAccessNodeProcessId("group-a");
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(connection));
         UserDetail user = mock(UserDetail.class);
         when(agentGroupService.getProcessNodeListWithGroup(eq(connection), eq(user)))
@@ -710,7 +720,7 @@ class TaskScheduleSourceAgentPolicyTest {
         TaskDto taskOwner = new TaskDto();
         taskOwner.setUserId(userId);
         when(taskService.findByTaskId(eq(taskId), anyString())).thenReturn(taskOwner);
-        when(dataSourceService.findInfoByConnectionIdList(eq(List.of(connectionId))))
+        when(dataSourceService.findAll(any(Query.class)))
                 .thenReturn(List.of(sourceConnection(connectionId, "heartbeat-agent")));
         when(agentGroupService.getProcessNodeListWithGroup(any(TaskDto.class), eq(user)))
                 .thenReturn(List.of("heartbeat-agent"));
@@ -739,6 +749,176 @@ class TaskScheduleSourceAgentPolicyTest {
         assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), task.getAccessNodeType());
         assertNull(task.getAccessNodeProcessId());
         assertEquals("heartbeat-agent", task.getAgentId());
+    }
+
+    @Test
+    void deletedOrEmptyConnectionGroupReportsTheConnectionConflict() {
+        for (String code : List.of("group.not.fund", "group.agent.not.available")) {
+            PolicyFixture f = new PolicyFixture();
+            f.connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+            when(f.groups.getProcessNodeListWithGroup(f.connection, f.user)).thenThrow(new BizException(code));
+            BizException error = assertThrows(BizException.class, () -> f.service.validateConnectionAgentPolicy(f.task, f.user));
+            assertEquals("Task.SourceAgentConflict", error.getErrorCode());
+            assertTrue(error.getMessage().contains("source"));
+        }
+    }
+
+    @Test
+    void unrelatedGroupFailureIsNotHiddenAsAnAgentConflict() {
+        PolicyFixture f = new PolicyFixture();
+        f.connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+        BizException failure = new BizException("SystemError");
+        when(f.groups.getProcessNodeListWithGroup(f.connection, f.user)).thenThrow(failure);
+        BizException error = assertThrows(BizException.class, () -> f.service.validateConnectionAgentPolicy(f.task, f.user));
+        assertSame(failure, error);
+    }
+
+    @Test
+    void blankConnectionAgentDoesNotRestrictTheTask() {
+        PolicyFixture f = new PolicyFixture();
+        f.connection.setAccessNodeProcessId(" ");
+        f.service.validateConnectionAgentPolicy(f.task, f.user);
+        assertSame(f.task, f.runtimeTask());
+        verify(f.workers, never()).findAvailableAgentByAccessNode(any(), anyList());
+    }
+
+    @Test
+    void connectionAndTaskGroupsAreResolvedUnderTheirOwnOwners() {
+        PolicyFixture f = new PolicyFixture();
+        UserService users = mock(UserService.class);
+        SettingsService settings = mock(SettingsService.class);
+        f.service.setUserService(users);
+        f.service.setSettingsService(settings);
+        when(settings.isCloud()).thenReturn(true);
+        String connectionOwnerId = new ObjectId().toHexString();
+        String taskOwnerId = new ObjectId().toHexString();
+        UserDetail connectionOwner = mock(UserDetail.class);
+        UserDetail taskOwner = mock(UserDetail.class);
+        when(users.loadUserById(new ObjectId(connectionOwnerId))).thenReturn(connectionOwner);
+        when(users.loadUserById(new ObjectId(taskOwnerId))).thenReturn(taskOwner);
+        f.connection.setUserId(connectionOwnerId);
+        f.connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+        f.task.setUserId(taskOwnerId);
+        f.task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+        f.task.setAccessNodeProcessId("task-group");
+        when(f.groups.getProcessNodeListWithGroup(f.connection, connectionOwner)).thenReturn(List.of("agent-a"));
+        when(f.groups.getProcessNodeListWithGroup(f.task, taskOwner)).thenReturn(List.of("agent-a"));
+        f.service.validateConnectionAgentPolicy(f.task, f.user);
+        verify(f.groups).getProcessNodeListWithGroup(f.connection, connectionOwner);
+        verify(f.groups).getProcessNodeListWithGroup(f.task, taskOwner);
+        verify(f.groups, never()).getProcessNodeListWithGroup(f.connection, f.user);
+    }
+
+    @Test
+    void connectionPriorityAndStableFallbackIgnoreDatabaseOrder() {
+        PolicyFixture f = new PolicyFixture();
+        f.connection.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+        when(f.groups.getProcessNodeListWithGroup(f.connection, f.user)).thenReturn(List.of("agent-b", "agent-c", "agent-a"));
+        f.available("agent-c", "agent-b", "agent-a");
+        f.connection.setPriorityProcessId("agent-b");
+        assertEquals("agent-b", f.runtimeTask().getAccessNodeProcessId());
+        f.task.setPriorityProcessId("agent-c");
+        assertEquals("agent-c", f.runtimeTask().getAccessNodeProcessId());
+        f.task.setPriorityProcessId(null);
+        f.connection.setPriorityProcessId("unavailable");
+        assertEquals("agent-a", f.runtimeTask().getAccessNodeProcessId());
+        f.available("agent-b", "agent-a", "agent-c");
+        assertEquals("agent-a", f.runtimeTask().getAccessNodeProcessId());
+    }
+
+    @Test
+    void unavailableOrExcludedCandidatesNeverReachStrictScheduling() {
+        PolicyFixture f = new PolicyFixture();
+        f.available();
+        assertNull(f.runtimeTask());
+        verify(f.workers, never()).scheduleTaskToEngineWithStrictAgent(any(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void missingConnectionDoesNotDisableRestrictionsOnRemainingConnections() {
+        PolicyFixture f = new PolicyFixture();
+        String missingId = new ObjectId().toHexString();
+        f.task.setDag(logCollectorTask(f.connection.getId().toHexString(), missingId).getDag());
+        f.task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+        f.task.setAccessNodeProcessId("agent-b");
+        BizException error = assertThrows(BizException.class, () -> f.service.validateConnectionAgentPolicy(f.task, f.user));
+        assertEquals("Task.AgentConflict", error.getErrorCode());
+    }
+
+    @Test
+    void clientInheritedFlagCannotBypassAnExplicitTaskAgent() {
+        PolicyFixture f = new PolicyFixture();
+        f.task.setAttrs(Map.of("sourceAgentPolicyInherited", true));
+        f.task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+        f.task.setAccessNodeProcessId("agent-b");
+        BizException error = assertThrows(BizException.class, () -> f.service.validateConnectionAgentPolicy(f.task, f.user));
+        assertEquals("Task.AgentConflict", error.getErrorCode());
+    }
+
+    @Test
+    void inheritedFlagDoesNotReplaceManualPolicyWhenConnectionsAreMissing() {
+        PolicyFixture f = new PolicyFixture();
+        when(f.sources.findAll(any(Query.class))).thenReturn(List.of());
+        f.task.setAttrs(Map.of("sourceAgentPolicyInherited", true));
+        f.task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+        f.task.setAccessNodeProcessId("agent-b");
+        assertSame(f.task, f.runtimeTask());
+        assertEquals("agent-b", f.task.getAccessNodeProcessId());
+    }
+
+    @Test
+    void sharedCacheKeepsTheAgentConflictExemption() {
+        PolicyFixture f = new PolicyFixture();
+        f.task.setShareCache(true);
+        f.service.validateConnectionAgentPolicy(f.task, f.user);
+        assertSame(f.task, f.runtimeTask());
+        verify(f.sources, never()).findAll(any(Query.class));
+    }
+
+    @Test
+    void onlyAgentPolicyFieldsAreLoadedForAllConnectionIds() {
+        PolicyFixture f = new PolicyFixture();
+        f.service.validateConnectionAgentPolicy(f.task, f.user);
+        org.mockito.ArgumentCaptor<Query> query = org.mockito.ArgumentCaptor.forClass(Query.class);
+        verify(f.sources).findAll(query.capture());
+        assertEquals(java.util.Set.of("_id", "name", "accessNodeType", "accessNodeProcessId", "priorityProcessId", "user_id"),
+                query.getValue().getFieldsObject().keySet());
+        assertEquals(List.of(f.connection.getId().toHexString()),
+                ((org.bson.Document) query.getValue().getQueryObject().get("_id")).get("$in"));
+    }
+
+    private class PolicyFixture {
+        final TaskScheduleServiceImpl service = new TaskScheduleServiceImpl();
+        final DataSourceService sources = mock(DataSourceService.class);
+        final WorkerService workers = mock(WorkerService.class);
+        final AgentGroupService groups = mock(AgentGroupService.class);
+        final UserDetail user = mock(UserDetail.class);
+        final DataSourceConnectionDto connection;
+        final TaskDto task;
+
+        PolicyFixture() {
+            service.setDataSourceService(sources);
+            service.setWorkerService(workers);
+            service.setAgentGroupService(groups);
+            String id = new ObjectId().toHexString();
+            connection = sourceConnection(id, "agent-a", "source");
+            task = logCollectorTask(id);
+            when(sources.findAll(any(Query.class))).thenReturn(List.of(connection));
+        }
+
+        void available(String... ids) {
+            List<Worker> available = new java.util.ArrayList<>();
+            for (String id : ids) {
+                Worker worker = new Worker();
+                worker.setProcessId(id);
+                available.add(worker);
+            }
+            when(workers.findAvailableAgentByAccessNode(eq(user), anyList())).thenReturn(available);
+        }
+
+        TaskDto runtimeTask() {
+            return ReflectionTestUtils.invokeMethod(service, "taskForConnectionAgentPolicy", task, user);
+        }
     }
 
     private TaskDto logCollectorTask(String... connectionIds) {
