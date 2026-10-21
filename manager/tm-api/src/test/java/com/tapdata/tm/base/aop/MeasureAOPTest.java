@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -670,6 +671,7 @@ public class MeasureAOPTest {
         private final String userId = "6682d405494d8d2a5c957f39";
         private final String CURRENT_RECORD_ID = "current-run-record";
         private final String PREVIOUS_RECORD_ID = "previous-run-record";
+        private final String NODE_ID = "source-node";
 
         @BeforeEach
         void setUp() {
@@ -709,15 +711,55 @@ public class MeasureAOPTest {
             return sampleRequest;
         }
 
+        private SampleRequest nodeSample(String taskRecordId, long currentEventTimestamp) {
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("currentEventTimestamp", currentEventTimestamp);
+            SampleRequest sampleRequest = sample("node", taskRecordId, vs);
+            sampleRequest.getTags().put("nodeId", NODE_ID);
+            return sampleRequest;
+        }
+
+        private void withSourceNode(TaskDto taskDto) {
+            DAG dag = mock(DAG.class);
+            TableNode node = new TableNode();
+            node.setId(NODE_ID);
+            node.setName("source");
+            when(dag.getNode(NODE_ID)).thenReturn((Node) node);
+            when(dag.getSources()).thenReturn(Collections.singletonList(node));
+            taskDto.setDag(dag);
+        }
+
+        private void stubFindTask(TaskDto taskDto) {
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId), "_id", "dag", "user_id", "agentId", "name",
+                    "currentEventTimestamp", "alarmSettings", "alarmRules", "snapshotDoneAt", "status", "desc",
+                    "nodeCurrentEventTimestamp", "taskRecordId")).thenReturn(taskDto);
+        }
+
+        private void stubUpdateMatchedCount(long matchedCount) {
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getMatchedCount()).thenReturn(matchedCount);
+            when(taskService.update(any(Query.class), any(Update.class))).thenReturn(updateResult);
+        }
+
+        private void runBatch(SampleRequest... samples) {
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            when(joinPoint.getArgs()).thenReturn(new Object[]{new ArrayList<>(Arrays.asList(samples))});
+            measureAOP.addAgentMeasurement(joinPoint);
+        }
+
         @Test
-        @DisplayName("重置中/待启动等状态禁止回写指标，运行中/已停止仍允许回写")
-        void testCanWriteMetricToTask() {
-            assertFalse(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_RENEWING, CURRENT_RECORD_ID)));
-            assertFalse(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID)));
-            assertFalse(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_SCHEDULING, CURRENT_RECORD_ID)));
-            assertTrue(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID)));
-            assertTrue(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_STOP, CURRENT_RECORD_ID)));
-            assertTrue(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_STOPPING, CURRENT_RECORD_ID)));
+        @DisplayName("只有不存在本轮运行的状态才拦截，scheduling / wait_run 期间的本轮样本不能被丢弃")
+        void testIsMetricBlockedStatus() {
+            assertTrue(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_RENEWING, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_DELETING, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_RENEW_FAILED, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_DELETE_FAILED, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_SCHEDULING, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_WAIT_RUN, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_STOP, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.isMetricBlockedStatus(task(TaskDto.STATUS_STOPPING, CURRENT_RECORD_ID)));
         }
 
         @Test
@@ -732,26 +774,12 @@ public class MeasureAOPTest {
         }
 
         @Test
-        @DisplayName("重置后任务处于 wait_start 时，上一轮的 snapshotDoneAt 不得写回任务文档")
-        void testDoNotWriteSnapshotDoneAtWhenTaskWaitingStart() {
-            TaskDto taskDto = task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID);
-            Map<String, Number> vs = new HashMap<>();
-            vs.put("snapshotStartAt", 1000L);
-            vs.put("snapshotDoneAt", 2000L);
-            vs.put("currentEventTimestamp", 2000L);
-
-            measureAOP.setTaskSnapshotDate(vs, taskId, taskDto, mock(UserDetail.class));
-
-            verify(taskService, never()).update(any(Query.class), any(Update.class));
-        }
-
-        @Test
-        @DisplayName("任务停止后的收尾样本仍应回写，且更新条件带上 taskRecordId 栅栏")
-        void testWriteSnapshotDoneAtWithTaskRecordIdFence() {
+        @DisplayName("回写条件同时带上 taskRecordId 栅栏和状态条件，由 MongoDB 原子判定")
+        void testWriteSnapshotDoneAtWithAtomicFence() {
             TaskDto taskDto = task(TaskDto.STATUS_STOP, CURRENT_RECORD_ID);
             Map<String, Number> vs = new HashMap<>();
             vs.put("snapshotDoneAt", 2000L);
-            when(taskService.update(any(Query.class), any(Update.class))).thenReturn(mock(UpdateResult.class));
+            stubUpdateMatchedCount(1L);
 
             measureAOP.setTaskSnapshotDate(vs, taskId, taskDto, mock(UserDetail.class));
 
@@ -761,55 +789,149 @@ public class MeasureAOPTest {
 
             assertEquals(2000L,
                     updateCaptor.getValue().getUpdateObject().get("$set", Document.class).get("snapshotDoneAt"));
-            assertEquals(CURRENT_RECORD_ID, queryCaptor.getValue().getQueryObject().get("taskRecordId"));
+            Document queryObject = queryCaptor.getValue().getQueryObject();
+            assertEquals(CURRENT_RECORD_ID, queryObject.get("taskRecordId"));
+            Collection<?> blockedStatus = (Collection<?>) queryObject.get("status", Document.class).get("$nin");
+            assertTrue(blockedStatus.containsAll(Arrays.asList(TaskDto.STATUS_RENEWING, TaskDto.STATUS_WAIT_START,
+                    TaskDto.STATUS_DELETING, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_DELETE_FAILED)));
+            assertFalse(blockedStatus.contains(TaskDto.STATUS_SCHEDULING));
+            assertFalse(blockedStatus.contains(TaskDto.STATUS_WAIT_RUN));
         }
 
         @Test
-        @DisplayName("上一轮样本在 addAgentMeasurement 中被整体跳过，不触发告警与回写")
-        void testSkipStaleSampleInAddAgentMeasurement() {
-            TaskDto taskDto = task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId), "_id", "dag", "user_id", "agentId", "name",
-                    "currentEventTimestamp", "alarmSettings", "alarmRules", "snapshotDoneAt", "status", "desc",
-                    "nodeCurrentEventTimestamp", "taskRecordId")).thenReturn(taskDto);
+        @DisplayName("任务已在 running 且文档已切到新 taskRecordId 时，上一轮样本既不回写也不触发告警")
+        void testSkipStaleSampleWhenTaskRunning() {
+            TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
+            withSourceNode(taskDto);
+            stubFindTask(taskDto);
 
             Map<String, Number> vs = new HashMap<>();
             vs.put("snapshotDoneAt", 2000L);
-            List<SampleRequest> list = new ArrayList<>();
-            list.add(sample("task", PREVIOUS_RECORD_ID, vs));
-
-            JoinPoint joinPoint = mock(JoinPoint.class);
-            Object[] objects = new Object[1];
-            objects[0] = list;
-            when(joinPoint.getArgs()).thenReturn(objects);
-
-            measureAOP.addAgentMeasurement(joinPoint);
+            vs.put("replicateLag", 50000L);
+            runBatch(sample("task", PREVIOUS_RECORD_ID, vs), nodeSample(PREVIOUS_RECORD_ID, 2000L));
 
             verify(alarmService, never()).getAlarmRuleDtos(any());
+            verify(alarmService, never()).save(any());
             verify(taskService, never()).update(any(Query.class), any(Update.class));
+            verify(taskService, never()).updateTaskIncrementDelayAlarm(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("renew_failed 重试重置时 taskRecordId 不变，本 id 的样本也不能参与告警判定与回写")
+        void testSkipSampleWhenRenewFailedWithSameRecordId() {
+            TaskDto taskDto = task(TaskDto.STATUS_RENEW_FAILED, CURRENT_RECORD_ID);
+            taskDto.setCurrentEventTimestamp(1000L);
+            stubFindTask(taskDto);
+            Map<String, List<AlarmRuleDto>> ruleMap = new HashMap<>();
+            ruleMap.put(taskId, Collections.singletonList(getAlarmRuleDto()));
+            when(alarmService.getAlarmRuleDtos(any())).thenReturn(ruleMap);
+            when(alarmService.checkOpen(any(TaskDto.class), any(), any(), any(), anyList())).thenReturn(true);
+
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotDoneAt", 2000L);
+            vs.put("replicateLag", 50000L);
+            runBatch(sample("task", CURRENT_RECORD_ID, vs));
+
+            verify(alarmService, never()).getAlarmRuleDtos(any());
+            verify(alarmService, never()).save(any());
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+            verify(taskService, never()).updateTaskIncrementDelayAlarm(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("禁止状态下即使 taskRecordId 一致，节点样本也不得回写 nodeCurrentEventTimestamp")
+        void testSkipNodeSampleWhenBlockedWithSameRecordId() {
+            TaskDto taskDto = task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID);
+            withSourceNode(taskDto);
+            stubFindTask(taskDto);
+            stubUpdateMatchedCount(1L);
+
+            runBatch(nodeSample(CURRENT_RECORD_ID, 2000L));
+
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+            assertNull(taskDto.getNodeCurrentEventTimestamp());
+        }
+
+        @Test
+        @DisplayName("scheduling / wait_run 期间到达的本轮样本仍要回写，避免短任务永久丢失 snapshotDoneAt")
+        void testWriteCurrentRunSampleBeforeRunningReported() {
+            for (String status : Arrays.asList(TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN)) {
+                reset(taskService);
+                TaskDto taskDto = task(status, CURRENT_RECORD_ID);
+                stubFindTask(taskDto);
+                stubUpdateMatchedCount(1L);
+
+                Map<String, Number> vs = new HashMap<>();
+                vs.put("snapshotDoneAt", 2000L);
+                runBatch(sample("task", CURRENT_RECORD_ID, vs));
+
+                ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+                verify(taskService, times(1)).update(any(Query.class), updateCaptor.capture());
+                assertEquals(2000L,
+                        updateCaptor.getValue().getUpdateObject().get("$set", Document.class).get("snapshotDoneAt"), status);
+            }
+        }
+
+        @Test
+        @DisplayName("节点回写命中后记入内存，同批相同时间戳的样本不再重复写")
+        void testNodeWriteRecordedInMemoryWhenMatched() {
+            TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
+            withSourceNode(taskDto);
+            stubFindTask(taskDto);
+            stubUpdateMatchedCount(1L);
+
+            runBatch(nodeSample(CURRENT_RECORD_ID, 2000L), nodeSample(CURRENT_RECORD_ID, 2000L));
+
+            verify(taskService, times(1)).update(any(Query.class), any(Update.class));
+            assertEquals(2000L, taskDto.getNodeCurrentEventTimestamp().get(NODE_ID));
+        }
+
+        @Test
+        @DisplayName("节点回写被栅栏拒绝（命中 0 行）时不更新内存，同批后续样本仍会尝试写入")
+        void testNodeWriteNotRecordedInMemoryWhenFenceRejected() {
+            TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
+            withSourceNode(taskDto);
+            stubFindTask(taskDto);
+            stubUpdateMatchedCount(0L);
+
+            runBatch(nodeSample(CURRENT_RECORD_ID, 2000L), nodeSample(CURRENT_RECORD_ID, 2000L));
+
+            verify(taskService, times(2)).update(any(Query.class), any(Update.class));
+            assertNull(taskDto.getNodeCurrentEventTimestamp());
+        }
+
+        @Test
+        @DisplayName("批次中存在没有 tags 的样本时不抛异常，其余样本照常处理")
+        void testSkipSampleWithoutTags() {
+            TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
+            stubFindTask(taskDto);
+            when(alarmService.getAlarmRuleDtos(any())).thenReturn(Collections.emptyMap());
+            stubUpdateMatchedCount(1L);
+            SampleRequest tagless = new SampleRequest();
+            tagless.setSample(new Sample());
+
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotDoneAt", 2000L);
+            assertDoesNotThrow(() -> runBatch(tagless, sample("task", CURRENT_RECORD_ID, vs)));
+
+            verify(alarmService, times(1)).getAlarmRuleDtos(any());
+            verify(taskService, times(1)).update(any(Query.class), any(Update.class));
         }
 
         @Test
         @DisplayName("本轮样本在 addAgentMeasurement 中正常参与处理")
         void testProcessCurrentRunSample() {
             TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId), "_id", "dag", "user_id", "agentId", "name",
-                    "currentEventTimestamp", "alarmSettings", "alarmRules", "snapshotDoneAt", "status", "desc",
-                    "nodeCurrentEventTimestamp", "taskRecordId")).thenReturn(taskDto);
+            stubFindTask(taskDto);
             when(alarmService.getAlarmRuleDtos(any())).thenReturn(Collections.emptyMap());
+            stubUpdateMatchedCount(1L);
 
             Map<String, Number> vs = new HashMap<>();
             vs.put("snapshotDoneAt", 2000L);
-            List<SampleRequest> list = new ArrayList<>();
-            list.add(sample("task", CURRENT_RECORD_ID, vs));
-
-            JoinPoint joinPoint = mock(JoinPoint.class);
-            Object[] objects = new Object[1];
-            objects[0] = list;
-            when(joinPoint.getArgs()).thenReturn(objects);
-
-            measureAOP.addAgentMeasurement(joinPoint);
+            runBatch(sample("task", CURRENT_RECORD_ID, vs));
 
             verify(alarmService, times(1)).getAlarmRuleDtos(any());
+            verify(taskService, times(1)).update(any(Query.class), any(Update.class));
         }
     }
 }
