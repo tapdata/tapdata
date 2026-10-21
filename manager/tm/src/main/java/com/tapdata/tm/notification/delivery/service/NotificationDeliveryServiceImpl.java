@@ -59,6 +59,16 @@ public class NotificationDeliveryServiceImpl implements NotificationDeliveryServ
     }
 
     @Override
+    public List<NotificationDelivery> findByAlarmEventIds(Collection<String> alarmEventIds) {
+        if (CollectionUtils.isEmpty(alarmEventIds)) {
+            return Collections.emptyList();
+        }
+        Query query = Query.query(Criteria.where("alarmEventId").in(alarmEventIds))
+                .with(Sort.by(Sort.Direction.DESC, "createTime"));
+        return mongoTemplate.find(query, NotificationDelivery.class);
+    }
+
+    @Override
     public List<NotificationDelivery> findByMessageIds(Collection<String> messageIds) {
         if (CollectionUtils.isEmpty(messageIds)) {
             return Collections.emptyList();

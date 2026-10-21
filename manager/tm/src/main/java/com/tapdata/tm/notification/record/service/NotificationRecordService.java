@@ -12,6 +12,7 @@ import com.tapdata.tm.message.constant.SystemNotificationMapping;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.notification.delivery.dto.DeliverySummaryVo;
 import com.tapdata.tm.notification.delivery.entity.NotificationDelivery;
+import com.tapdata.tm.notification.delivery.service.DeliveryAggregation;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryService;
 import com.tapdata.tm.notification.record.dto.NotificationRecordDetailVo;
 import com.tapdata.tm.notification.record.dto.NotificationRecordQuery;
@@ -32,6 +33,8 @@ import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -40,6 +43,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -65,6 +69,18 @@ public class NotificationRecordService {
     static final int MAX_SCAN = 5000;
     /** 单次批量已读/未读的记录上限 */
     static final int MAX_BATCH = 1000;
+    /** 分组键：有告警事件按告警聚合，历史消息按消息 ID */
+    private static final Document GROUP_KEY = new Document("$cond", Arrays.asList(
+            new Document("$gt", Arrays.asList(new Document("$strLenCP", new Document("$ifNull", Arrays.asList("$alarmEventId", ""))), 0)),
+            "$alarmEventId", new Document("$concat", Arrays.asList(LEGACY_PREFIX, new Document("$toString", "$_id")))));
+    private static final String LATEST = "latest";
+    private static final String MESSAGE_ID = "_messageId";
+    private static final String OWN = "_own";
+    private static final String OWN_UNREAD = "_ownUnread";
+    private static final String IS_ALARM = "_isAlarm";
+    private static final String DELIVERIES = "_deliveries";
+    /** 关联投递时不适用一侧的占位值 */
+    private static final String NO_MATCH = "-";
 
     private final MongoTemplate mongoTemplate;
     private final NotificationDeliveryService deliveryService;
@@ -81,11 +97,10 @@ public class NotificationRecordService {
 
     public Page<NotificationRecordVo> list(NotificationRecordQuery q, UserDetail user, Locale locale) {
         NotificationRecordQuery query = q == null ? new NotificationRecordQuery() : q;
-        List<NotificationRecordVo> records = records(query, user, locale);
         int page = Math.max(1, Objects.requireNonNullElse(query.getPage(), 1));
         int size = Math.min(500, Math.max(1, Objects.requireNonNullElse(query.getSize(), 20)));
-        int from = Math.min((page - 1) * size, records.size());
-        return Page.page(new ArrayList<>(records.subList(from, Math.min(from + size, records.size()))), records.size());
+        GroupPage groups = groups(query, user, null, (long) (page - 1) * size, size);
+        return Page.page(records(groups.keys, query, user, locale), groups.total);
     }
 
     /** 铃铛角标：当前用户未读的站内告警通知（按告警聚合后的行数） */
@@ -140,11 +155,10 @@ public class NotificationRecordService {
     /** 当前筛选下将受影响的记录；用于“全部标为已读/未读”的二次确认 */
     public ReadStatePreviewVo previewReadState(NotificationRecordQuery query, boolean read, UserDetail user, Locale locale) {
         NotificationRecordQuery q = query == null ? new NotificationRecordQuery() : query;
-        List<String> ids = records(q, user, locale).stream()
-                .filter(r -> r.isReadable() && r.isUnread() == read)
-                .map(NotificationRecordVo::getId).collect(Collectors.toList());
-        boolean truncated = ids.size() > MAX_BATCH;
-        return new ReadStatePreviewVo(ids.size(), truncated ? ids.subList(0, MAX_BATCH) : ids, truncated);
+        // 只统计本人可修改且状态需要变化的记录
+        Document target = new Document(OWN, 1).append(OWN_UNREAD, read ? 1 : 0);
+        GroupPage groups = groups(q, user, target, 0, MAX_BATCH);
+        return new ReadStatePreviewVo((int) Math.min(groups.total, Integer.MAX_VALUE), groups.keys, groups.total > MAX_BATCH);
     }
 
     /**
@@ -164,10 +178,10 @@ public class NotificationRecordService {
         update.set("readAt", read ? new Date() : null);
         long modified = mongoTemplate.updateMulti(query, update, MessageEntity.class).getModifiedCount();
         Operation operation = read ? (batch ? Operation.READ_ALL : Operation.READ) : Operation.UNREAD;
-        String sourceId = batch ? null : ids.iterator().next();
+        String id = batch ? null : ids.iterator().next();
         try {
-            userLogService.addUserLog(Modular.MESSAGE, operation, user, sourceId,
-                    batch ? String.valueOf(ids.size()) : sourceId);
+            userLogService.addUserLog(Modular.MESSAGE, operation, user, auditSourceId(id),
+                    batch ? String.valueOf(ids.size()) : id);
         } catch (Exception e) {
             log.warn("Audit notification read state failed", e);
         }
@@ -190,9 +204,16 @@ public class NotificationRecordService {
         }).sorted(Comparator.comparingLong(SystemNotificationInventoryVo::getCount).reversed()).collect(Collectors.toList());
     }
 
-    List<NotificationRecordVo> records(NotificationRecordQuery q, UserDetail user, Locale locale) {
+    /** 审计来源须为 ObjectId：历史通知去掉前缀取消息 ID，非法值不记来源 */
+    static String auditSourceId(String id) {
+        String source = StringUtils.removeStart(id, LEGACY_PREFIX);
+        return source != null && ObjectId.isValid(source) ? source : null;
+    }
+
+    /** 消息级筛选：可见范围、时间、告警事件、级别、关键字 */
+    static Criteria messageCriteria(NotificationRecordQuery q, UserDetail user, boolean allData) {
         List<Criteria> and = new ArrayList<>();
-        and.add(viewScope(user, allData(user)));
+        and.add(viewScope(user, allData));
         if (q.getStart() != null || q.getEnd() != null) {
             Criteria time = Criteria.where("createTime");
             if (q.getStart() != null) {
@@ -215,48 +236,165 @@ public class NotificationRecordService {
             and.add(new Criteria().orOperator(Criteria.where("messageMetadata.name").regex(pattern),
                     Criteria.where("messageMetadata.id").is(keyword), Criteria.where("title").regex(pattern)));
         }
-        Query query = new Query(new Criteria().andOperator(and.toArray(new Criteria[0])))
-                .with(Sort.by(Sort.Direction.DESC, "createTime")).limit(MAX_SCAN);
-        List<MessageEntity> messages = mongoTemplate.find(query, MessageEntity.class);
-
-        Map<String, List<MessageEntity>> groups = messages.stream()
-                .collect(Collectors.groupingBy(NotificationRecordService::groupKey, LinkedHashMap::new, Collectors.toList()));
-        Map<String, AlarmInfo> alarms = alarms(messages.stream().map(MessageEntity::getAlarmEventId).collect(Collectors.toList()));
-        Map<String, List<NotificationDelivery>> deliveries = deliveriesOf(groups);
-        return groups.entrySet().stream()
-                .map(e -> build(e.getKey(), e.getValue(), alarms, deliveries, locale, user))
-                .filter(r -> matches(r, q, deliveries.getOrDefault(r.getId(), Collections.emptyList())))
-                .collect(Collectors.toList());
+        return new Criteria().andOperator(and.toArray(new Criteria[0]));
     }
 
-    static boolean matches(NotificationRecordVo r, NotificationRecordQuery q, List<NotificationDelivery> deliveries) {
-        String status = r.getDeliverySummary() == null ? DeliverySummaryVo.NONE : r.getDeliverySummary().getStatus();
-        if (NotificationRecordQuery.TAB_UNREAD.equals(q.getTab()) && !r.isUnread()) {
-            return false;
+    static class GroupPage {
+        final long total;
+        final List<String> keys;
+
+        GroupPage(long total, List<String> keys) {
+            this.total = total;
+            this.keys = keys;
         }
-        if (NotificationRecordQuery.TAB_FAILED.equals(q.getTab())
-                && !(DeliverySummaryVo.FAILED.equals(status) || DeliverySummaryVo.PARTIAL_FAILED.equals(status))) {
-            return false;
+    }
+
+    /**
+     * 在库内按告警聚合消息，完成阅读状态、告警类型、渠道、发送状态、收件人筛选后计数并分页。
+     * @param extra 追加在分组结果上的筛选，可为空
+     */
+    GroupPage groups(NotificationRecordQuery q, UserDetail user, Document extra, long skip, int limit) {
+        String userId = user == null ? null : user.getUserId();
+        List<AggregationOperation> stages = new ArrayList<>();
+        stages.add(Aggregation.match(messageCriteria(q, user, allData(user))));
+        stages.add(Aggregation.sort(Sort.by(Sort.Direction.DESC, "createTime")));
+        Document isOwn = new Document("$eq", Arrays.asList("$user_id", userId));
+        stages.add(DeliveryAggregation.stage("$group", new Document("_id", GROUP_KEY)
+                .append(LATEST, new Document("$max", "$createTime"))
+                .append("alarmEventId", new Document("$first", "$alarmEventId"))
+                .append("template", new Document("$first", "$template"))
+                .append(MESSAGE_ID, new Document("$first", new Document("$toString", "$_id")))
+                .append(OWN, new Document("$max", new Document("$cond", Arrays.asList(isOwn, 1, 0))))
+                .append(OWN_UNREAD, new Document("$max", new Document("$cond", Arrays.asList(
+                        new Document("$and", Arrays.asList(isOwn, new Document("$ne", Arrays.asList("$read", true)))), 1, 0))))));
+        stages.add(DeliveryAggregation.stage("$addFields", new Document(IS_ALARM,
+                new Document("$ne", Arrays.asList(new Document("$substrCP", Arrays.asList("$_id", 0, LEGACY_PREFIX.length())), LEGACY_PREFIX)))));
+        Document readFilter = readFilter(q);
+        if (!readFilter.isEmpty()) {
+            stages.add(DeliveryAggregation.stage("$match", readFilter));
         }
-        if (q.getRead() != null && r.isUnread() == q.getRead()) {
-            return false;
+        if (extra != null && !extra.isEmpty()) {
+            stages.add(DeliveryAggregation.stage("$match", extra));
         }
-        if (CollectionUtils.isNotEmpty(q.getMetric()) && (r.getMetric() == null || !q.getMetric().contains(r.getMetric()))) {
-            return false;
+        if (CollectionUtils.isNotEmpty(q.getMetric())) {
+            stages.addAll(metricStages(q.getMetric().stream().map(Enum::name).collect(Collectors.toList())));
         }
-        if (CollectionUtils.isNotEmpty(q.getChannel()) && (r.getDeliverySummary() == null
-                || q.getChannel().stream().noneMatch(c -> r.getDeliverySummary().getChannels().contains(c)))) {
-            return false;
+        Document deliveryFilter = deliveryFilter(q);
+        if (!deliveryFilter.isEmpty()) {
+            // 告警组按告警事件关联投递，历史消息组按消息 ID；不适用的一侧用占位值，避免空值匹配缺字段的投递
+            String collection = mongoTemplate.getCollectionName(NotificationDelivery.class);
+            stages.add(DeliveryAggregation.stage("$addFields", new Document("_byAlarm",
+                    new Document("$cond", Arrays.asList("$" + IS_ALARM, "$_id", NO_MATCH)))
+                    .append("_byMessage", new Document("$cond", Arrays.asList("$" + IS_ALARM, NO_MATCH, "$" + MESSAGE_ID)))));
+            stages.add(DeliveryAggregation.lookup(collection, "_byAlarm", "alarmEventId", "_alarmDeliveries"));
+            stages.add(DeliveryAggregation.lookup(collection, "_byMessage", "messageId", "_messageDeliveries"));
+            stages.add(DeliveryAggregation.stage("$addFields", new Document(DELIVERIES,
+                    new Document("$concatArrays", Arrays.asList("$_alarmDeliveries", "$_messageDeliveries")))));
+            stages.addAll(DeliveryAggregation.summarize(DELIVERIES));
+            stages.add(DeliveryAggregation.stage("$match", deliveryFilter));
         }
-        if (CollectionUtils.isNotEmpty(q.getDeliveryStatus()) && !q.getDeliveryStatus().contains(status)) {
-            return false;
+        stages.add(DeliveryAggregation.stage("$sort", new Document(LATEST, -1).append("_id", -1)));
+        stages.add(DeliveryAggregation.stage("$facet", new Document("total", Collections.singletonList(new Document("$count", "count")))
+                .append("keys", Arrays.asList(new Document("$skip", skip), new Document("$limit", limit),
+                        new Document("$project", new Document("_id", 1))))));
+        Aggregation aggregation = Aggregation.newAggregation(stages)
+                .withOptions(AggregationOptions.builder().allowDiskUse(true).build());
+        Document result = mongoTemplate.aggregate(aggregation, MessageEntity.class, Document.class).getUniqueMappedResult();
+        if (result == null) {
+            return new GroupPage(0, new ArrayList<>());
+        }
+        List<Document> total = result.getList("total", Document.class);
+        List<String> keys = result.getList("keys", Document.class).stream().map(d -> d.getString("_id")).collect(Collectors.toList());
+        return new GroupPage(total == null || total.isEmpty() ? 0 : ((Number) total.get(0).get("count")).longValue(), keys);
+    }
+
+    /** 未读页签及阅读状态筛选：未读指本人仍有未读消息 */
+    static Document readFilter(NotificationRecordQuery q) {
+        Document filter = new Document();
+        if (NotificationRecordQuery.TAB_UNREAD.equals(q.getTab())) {
+            filter.put(OWN_UNREAD, 1);
+        }
+        if (q.getRead() != null) {
+            int unread = q.getRead() ? 0 : 1;
+            // 未读页签再筛已读时无结果
+            filter.put(OWN_UNREAD, filter.containsKey(OWN_UNREAD) && filter.getInteger(OWN_UNREAD) != unread ? -1 : unread);
+        }
+        return filter;
+    }
+
+    /** 告警类型取告警事件；告警事件已不存在时取消息模板，历史消息无告警类型 */
+    private List<AggregationOperation> metricStages(List<String> metrics) {
+        return Arrays.asList(
+                DeliveryAggregation.stage("$addFields", new Document("_alarmOid", new Document("$convert",
+                        new Document("input", new Document("$cond", Arrays.asList("$" + IS_ALARM, "$_id", null)))
+                                .append("to", "objectId").append("onError", null).append("onNull", null)))),
+                DeliveryAggregation.lookup(mongoTemplate.getCollectionName(AlarmInfo.class), "_alarmOid", "_id", "_alarm"),
+                DeliveryAggregation.stage("$addFields", new Document("_metric", new Document("$cond", Arrays.asList(
+                        new Document("$gt", Arrays.asList(new Document("$size", "$_alarm"), 0)),
+                        new Document("$arrayElemAt", Arrays.asList("$_alarm.metric", 0)),
+                        new Document("$cond", Arrays.asList("$" + IS_ALARM, "$template", null)))))),
+                DeliveryAggregation.stage("$match", new Document("_metric", new Document("$in", metrics))),
+                DeliveryAggregation.stage("$project", new Document("_alarm", 0)));
+    }
+
+    /** 发送失败页签、渠道、发送状态、收件人筛选，与投递汇总的判定一致 */
+    static Document deliveryFilter(NotificationRecordQuery q) {
+        List<Document> and = new ArrayList<>();
+        if (NotificationRecordQuery.TAB_FAILED.equals(q.getTab())) {
+            and.add(new Document(DeliveryAggregation.STATUS,
+                    new Document("$in", Arrays.asList(DeliverySummaryVo.FAILED, DeliverySummaryVo.PARTIAL_FAILED))));
+        }
+        if (CollectionUtils.isNotEmpty(q.getDeliveryStatus())) {
+            and.add(new Document(DeliveryAggregation.STATUS, new Document("$in", q.getDeliveryStatus())));
+        }
+        if (CollectionUtils.isNotEmpty(q.getChannel())) {
+            and.add(new Document(DeliveryAggregation.CHANNELS,
+                    new Document("$in", q.getChannel().stream().map(Enum::name).collect(Collectors.toList()))));
         }
         if (StringUtils.isNotBlank(q.getRecipient())) {
             String recipient = q.getRecipient().trim().toLowerCase(Locale.ROOT);
-            return deliveries.stream().map(NotificationDelivery::getRecipientAddress).filter(Objects::nonNull)
-                    .anyMatch(a -> a.toLowerCase(Locale.ROOT).contains(recipient));
+            Document contains = new Document("$gte", Arrays.asList(new Document("$indexOfCP", Arrays.asList(
+                    new Document("$toLower", new Document("$ifNull", Arrays.asList("$$d.recipientAddress", ""))), recipient)), 0));
+            and.add(new Document("$expr", new Document("$anyElementTrue", Collections.singletonList(
+                    new Document("$map", new Document("input", "$" + DELIVERIES).append("as", "d").append("in", contains))))));
         }
-        return true;
+        if (and.isEmpty()) {
+            return new Document();
+        }
+        return and.size() == 1 ? and.get(0) : new Document("$and", and);
+    }
+
+    /** 加载当前页分组的消息并组装记录，顺序与分页结果一致 */
+    List<NotificationRecordVo> records(List<String> keys, NotificationRecordQuery q, UserDetail user, Locale locale) {
+        if (CollectionUtils.isEmpty(keys)) {
+            return new ArrayList<>();
+        }
+        List<String> alarmKeys = keys.stream().filter(k -> !k.startsWith(LEGACY_PREFIX)).collect(Collectors.toList());
+        List<ObjectId> legacyIds = keys.stream().filter(k -> k.startsWith(LEGACY_PREFIX))
+                .map(k -> k.substring(LEGACY_PREFIX.length())).filter(ObjectId::isValid).map(ObjectId::new)
+                .collect(Collectors.toList());
+        List<Criteria> or = new ArrayList<>();
+        if (!alarmKeys.isEmpty()) {
+            or.add(Criteria.where("alarmEventId").in(alarmKeys));
+        }
+        if (!legacyIds.isEmpty()) {
+            or.add(Criteria.where("_id").in(legacyIds));
+        }
+        if (or.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Query query = new Query(new Criteria().andOperator(messageCriteria(q, user, allData(user)),
+                new Criteria().orOperator(or.toArray(new Criteria[0]))))
+                .with(Sort.by(Sort.Direction.DESC, "createTime")).limit(MAX_SCAN);
+        Map<String, List<MessageEntity>> grouped = mongoTemplate.find(query, MessageEntity.class).stream()
+                .collect(Collectors.groupingBy(NotificationRecordService::groupKey, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<MessageEntity>> groups = new LinkedHashMap<>();
+        keys.stream().filter(grouped::containsKey).forEach(k -> groups.put(k, grouped.get(k)));
+        Map<String, AlarmInfo> alarms = alarms(new ArrayList<>(alarmKeys));
+        Map<String, List<NotificationDelivery>> deliveries = deliveriesOf(groups);
+        return groups.entrySet().stream()
+                .map(e -> build(e.getKey(), e.getValue(), alarms, deliveries, locale, user))
+                .collect(Collectors.toList());
     }
 
     NotificationRecordVo build(String key, List<MessageEntity> messages, Map<String, AlarmInfo> alarms,
@@ -341,8 +479,11 @@ public class NotificationRecordService {
                 legacyMessageIds.add(key.substring(LEGACY_PREFIX.length()));
             }
         });
-        groups.keySet().stream().filter(k -> !k.startsWith(LEGACY_PREFIX))
-                .forEach(k -> result.put(k, deliveryService.findByAlarmEventId(k)));
+        List<String> alarmKeys = groups.keySet().stream().filter(k -> !k.startsWith(LEGACY_PREFIX)).collect(Collectors.toList());
+        if (!alarmKeys.isEmpty()) {
+            deliveryService.findByAlarmEventIds(alarmKeys)
+                    .forEach(d -> result.computeIfAbsent(d.getAlarmEventId(), k -> new ArrayList<>()).add(d));
+        }
         if (!legacyMessageIds.isEmpty()) {
             deliveryService.findByMessageIds(legacyMessageIds)
                     .forEach(d -> result.computeIfAbsent(LEGACY_PREFIX + d.getMessageId(), k -> new ArrayList<>()).add(d));

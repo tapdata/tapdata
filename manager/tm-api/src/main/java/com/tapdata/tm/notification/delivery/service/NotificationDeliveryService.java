@@ -14,6 +14,9 @@ public interface NotificationDeliveryService {
 
     List<NotificationDelivery> findByAlarmEventId(String alarmEventId);
 
+    /** 一次查询多个告警事件的投递记录 */
+    List<NotificationDelivery> findByAlarmEventIds(Collection<String> alarmEventIds);
+
     List<NotificationDelivery> findByMessageIds(Collection<String> messageIds);
 
     Map<String, DeliverySummaryVo> summarizeByAlarmEventIds(Collection<String> alarmEventIds);

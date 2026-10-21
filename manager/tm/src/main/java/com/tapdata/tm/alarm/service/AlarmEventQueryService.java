@@ -16,6 +16,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.notification.delivery.dto.DeliverySummaryVo;
+import com.tapdata.tm.notification.delivery.entity.NotificationDelivery;
+import com.tapdata.tm.notification.delivery.service.DeliveryAggregation;
 import com.tapdata.tm.notification.delivery.service.NotificationDeliveryService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.permissions.service.ModuleAccess;
@@ -27,9 +29,13 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -57,6 +63,10 @@ import java.util.stream.Collectors;
 public class AlarmEventQueryService {
     public static final String NOTIFIED_NONE = "NONE";
     public static final String NOTIFIED_ANY = "NOTIFIED";
+    /** 单次批量关闭的告警上限 */
+    static final int MAX_CLOSE = 1000;
+    private static final String ALARM_ID = "_alarmId";
+    private static final String DELIVERIES = "_deliveries";
     private static final List<String> EMPTY = Arrays.asList(null, "");
     private static final List<Level> SEVERE = Arrays.asList(Level.CRITICAL, Level.EMERGENCY);
 
@@ -92,21 +102,7 @@ public class AlarmEventQueryService {
         Sort sort = Sort.by(Sort.Direction.DESC, "lastOccurrenceTime");
 
         if (StringUtils.isNotBlank(query.getNotified())) {
-            // 投递状态不在告警记录上，先取候选 ID 再按投递汇总过滤
-            Query idQuery = new Query(criteria).with(sort);
-            idQuery.fields().include("_id");
-            List<String> ids = mongoTemplate.find(idQuery, AlarmInfo.class).stream()
-                    .map(a -> a.getId().toHexString()).collect(Collectors.toList());
-            Map<String, DeliverySummaryVo> summaries = deliveryService.summarizeByAlarmEventIds(ids);
-            List<String> matched = ids.stream()
-                    .filter(id -> matchesNotified(summaries.get(id), query.getNotified()))
-                    .collect(Collectors.toList());
-            int from = Math.min((page - 1) * size, matched.size());
-            List<ObjectId> pageIds = matched.subList(from, Math.min(from + size, matched.size())).stream()
-                    .map(ObjectId::new).collect(Collectors.toList());
-            List<AlarmInfo> infos = pageIds.isEmpty() ? Collections.emptyList()
-                    : mongoTemplate.find(Query.query(Criteria.where("_id").in(pageIds)).with(sort), AlarmInfo.class);
-            return Page.page(toVos(infos, locale, summaries), matched.size());
+            return listByNotified(criteria, query.getNotified(), page, size, sort, locale);
         }
 
         Query dataQuery = new Query(criteria);
@@ -119,6 +115,54 @@ public class AlarmEventQueryService {
         Map<String, DeliverySummaryVo> summaries = deliveryService.summarizeByAlarmEventIds(
                 infos.stream().map(a -> a.getId().toHexString()).collect(Collectors.toList()));
         return Page.page(toVos(infos, locale, summaries), total);
+    }
+
+    /**
+     * 投递状态不在告警记录上：在库内关联投递记录、计算汇总状态后再计数和分页，不把匹配的告警全部读入内存
+     */
+    private Page<AlarmEventVo> listByNotified(Criteria criteria, String notified, int page, int size, Sort sort, Locale locale) {
+        List<AggregationOperation> stages = new ArrayList<>();
+        stages.add(Aggregation.match(criteria));
+        stages.add(Aggregation.sort(sort));
+        stages.add(DeliveryAggregation.stage("$addFields", new Document(ALARM_ID, new Document("$toString", "$_id"))));
+        stages.add(DeliveryAggregation.lookup(mongoTemplate.getCollectionName(NotificationDelivery.class), ALARM_ID, "alarmEventId", DELIVERIES));
+        stages.addAll(DeliveryAggregation.summarize(DELIVERIES));
+        stages.add(DeliveryAggregation.stage("$match", notifiedFilter(notified)));
+        stages.add(DeliveryAggregation.stage("$facet", new Document("total", Collections.singletonList(new Document("$count", "count")))
+                .append("ids", Arrays.asList(new Document("$skip", (long) (page - 1) * size), new Document("$limit", size),
+                        new Document("$project", new Document("_id", 1))))));
+        Aggregation aggregation = Aggregation.newAggregation(stages)
+                .withOptions(AggregationOptions.builder().allowDiskUse(true).build());
+        Document result = mongoTemplate.aggregate(aggregation, AlarmInfo.class, Document.class).getUniqueMappedResult();
+        long total = totalOf(result);
+        List<ObjectId> pageIds = result == null ? Collections.emptyList() : result.getList("ids", Document.class).stream()
+                .map(d -> d.getObjectId("_id")).collect(Collectors.toList());
+        if (total == 0 || pageIds.isEmpty()) {
+            return Page.page(new ArrayList<>(), total);
+        }
+        List<AlarmInfo> infos = mongoTemplate.find(Query.query(Criteria.where("_id").in(pageIds)).with(sort), AlarmInfo.class);
+        Map<String, DeliverySummaryVo> summaries = deliveryService.summarizeByAlarmEventIds(
+                pageIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
+        return Page.page(toVos(infos, locale, summaries), total);
+    }
+
+    static Document notifiedFilter(String notified) {
+        switch (notified) {
+            case NOTIFIED_NONE:
+                return new Document(DeliveryAggregation.TOTAL, 0);
+            case NOTIFIED_ANY:
+                return new Document(DeliveryAggregation.TOTAL, new Document("$gt", 0));
+            default:
+                return new Document(DeliveryAggregation.STATUS, notified);
+        }
+    }
+
+    static long totalOf(Document facet) {
+        if (facet == null) {
+            return 0;
+        }
+        List<Document> total = facet.getList("total", Document.class);
+        return total == null || total.isEmpty() ? 0 : ((Number) total.get(0).get("count")).longValue();
     }
 
     public AlarmEventVo detail(String id, UserDetail user, Locale locale) {
@@ -237,18 +281,6 @@ public class AlarmEventQueryService {
         return values.stream().filter(Objects::nonNull).map(Enum::name).collect(Collectors.toList());
     }
 
-    static boolean matchesNotified(DeliverySummaryVo summary, String notified) {
-        String status = summary == null ? DeliverySummaryVo.NONE : summary.getStatus();
-        switch (notified) {
-            case NOTIFIED_NONE:
-                return DeliverySummaryVo.NONE.equals(status);
-            case NOTIFIED_ANY:
-                return !DeliverySummaryVo.NONE.equals(status);
-            default:
-                return notified.equals(status);
-        }
-    }
-
     /**
      * 关闭告警：需要关闭按钮权限，只能关闭可见范围内的告警；关闭只表示结束跟踪，写入操作审计。
      */
@@ -257,15 +289,19 @@ public class AlarmEventQueryService {
         if (CollectionUtils.isEmpty(ids)) {
             throw new BizException("IllegalArgument", "ids");
         }
-        for (String id : ids) {
-            ObjectId objectId = MongoUtils.toObjectId(id);
-            AlarmInfo info = objectId == null ? null : mongoTemplate.findById(objectId, AlarmInfo.class);
-            if (info == null || !visible(info, user)) {
-                throw new BizException("Alarm.NotFound");
-            }
+        if (ids.size() > MAX_CLOSE) {
+            throw new BizException("IllegalArgument", "ids.size > " + MAX_CLOSE);
         }
-        alarmService.close(ids.toArray(new String[0]), user);
-        for (String id : ids) {
+        List<ObjectId> objectIds = ids.stream().map(MongoUtils::toObjectId).distinct().collect(Collectors.toList());
+        Criteria scope = objectIds.contains(null) ? null : visibility(user);
+        // 一次查询核对全部 ID 均存在且在可见范围内
+        if (scope == null || mongoTemplate.count(Query.query(new Criteria().andOperator(
+                Criteria.where("_id").in(objectIds), scope)), AlarmInfo.class) != objectIds.size()) {
+            throw new BizException("Alarm.NotFound");
+        }
+        String[] targets = objectIds.stream().map(ObjectId::toHexString).toArray(String[]::new);
+        alarmService.close(targets, user);
+        for (String id : targets) {
             userLogService.addUserLog(Modular.ALARM, Operation.CLOSE, user, id, id);
         }
     }

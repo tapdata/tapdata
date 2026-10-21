@@ -19,13 +19,12 @@ public class ModuleAccess {
         this.settingsService = settingsService;
     }
 
-    /** 能否使用模块：云版、未启用权限体系的租户沿用既有约定放行 */
+    /** 能否使用模块：与角色、集群等模块一致，云版放行，企业版按权限点 */
     public boolean allowed(UserDetail user, String permission) {
         if (user == null) {
             return false;
         }
-        return settingsService.isCloud() || user.isFreeAuth()
-                || permissionService.checkCurrentUserHasPermission(permission, user.getUserId());
+        return settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(permission, user.getUserId());
     }
 
     public void require(UserDetail user, String permission) {
@@ -41,6 +40,6 @@ public class ModuleAccess {
         if (user == null || settingsService.isCloud()) {
             return false;
         }
-        return user.isFreeAuth() || permissionService.checkCurrentUserHasPermission(permission, user.getUserId());
+        return permissionService.checkCurrentUserHasPermission(permission, user.getUserId());
     }
 }

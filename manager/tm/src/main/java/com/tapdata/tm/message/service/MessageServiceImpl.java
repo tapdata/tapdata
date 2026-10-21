@@ -164,7 +164,8 @@ public class MessageServiceImpl extends MessageService{
     }
 
     public Page<MessageListVo> list(Locale locale, MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
-        Criteria criteria = Criteria.where("msg").is(type.getValue());
+        // 停写的系统通知以隐藏载体保存，兼容接口不返回
+        Criteria criteria = Criteria.where("msg").is(type.getValue()).and("isDeleted").ne(true);
         if (!userDetail.isRoot()) {
             criteria.and("user_id").is(userDetail.getUserId());
         }
@@ -312,8 +313,7 @@ public class MessageServiceImpl extends MessageService{
      */
     public MessageDto addTrustAgentMessage(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, String title, UserDetail userDetail) {
         MessageEntity saveMessage = null;
-        saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.AGENT, msgTypeEnum, Level.INFO, userDetail);
-        saveMessage.setTitle(title);
+        saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.AGENT, msgTypeEnum, title, Level.INFO, userDetail);
         asynInformUserEmail(msgTypeEnum, SystemEnum.AGENT, saveMessage.getId().toString(), userDetail);
         asynInformUserSms(saveMessage.getId().toString(), userDetail);
         MessageDto messageDto = new MessageDto();
@@ -500,7 +500,12 @@ public class MessageServiceImpl extends MessageService{
      * 站内系统通知下线后，邮件/短信发送及失败重发仍按消息 ID 回查内容，故保存为隐藏记录。
      */
     protected MessageEntity addEmailCarrier(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, Level level, UserDetail userDetail) {
-        return addMessage(serverName, sourceId, systemEnum, msgTypeEnum, "", level, userDetail, false);
+        return addEmailCarrier(serverName, sourceId, systemEnum, msgTypeEnum, "", level, userDetail);
+    }
+
+    /** 标题需在保存前设置，重发邮件时按消息 ID 回查 */
+    protected MessageEntity addEmailCarrier(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String title, Level level, UserDetail userDetail) {
+        return addMessage(serverName, sourceId, systemEnum, msgTypeEnum, title, level, userDetail, false);
     }
 
     /** 与 informUser 相同的邮件/短信判定 */
