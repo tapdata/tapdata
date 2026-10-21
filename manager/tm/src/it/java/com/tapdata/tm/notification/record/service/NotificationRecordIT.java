@@ -47,8 +47,10 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -102,12 +104,27 @@ class NotificationRecordIT {
         when(mongo.getCollectionName(NotificationDelivery.class)).thenReturn("NotificationDelivery");
         when(mongo.getCollectionName(AlarmInfo.class)).thenReturn("AlarmInfo");
         when(mongo.aggregate(any(Aggregation.class), eq(MessageEntity.class), eq(Document.class))).thenAnswer(i -> {
-            pipelines.add(new Document("p", i.<Aggregation>getArgument(0).toPipeline(Aggregation.DEFAULT_CONTEXT)).toJson());
-            List<String> keys = pageKeys != null ? pageKeys : messages.stream()
+            String json = new Document("p", i.<Aggregation>getArgument(0).toPipeline(Aggregation.DEFAULT_CONTEXT)).toJson();
+            pipelines.add(json);
+            java.util.regex.Matcher uid = java.util.regex.Pattern.compile("\\$eq\": \\[\"\\$user_id\", \"([^\"]*)\"").matcher(json);
+            String userId = uid.find() ? uid.group(1) : null;
+            // 存储边界：库内分组结果（条数、最近一条消息、本人阅读状态）
+            Map<String, List<MessageEntity>> grouped = messages.stream()
                     .sorted(Comparator.comparing(MessageEntity::getCreateAt).reversed())
-                    .map(NotificationRecordService::groupKey).distinct().collect(Collectors.toList());
+                    .collect(Collectors.groupingBy(NotificationRecordService::groupKey, LinkedHashMap::new, Collectors.toList()));
+            List<String> keys = pageKeys != null ? pageKeys : new ArrayList<>(grouped.keySet());
+            List<Document> rows = keys.stream().map(k -> {
+                List<MessageEntity> group = grouped.getOrDefault(k, List.of());
+                Document row = new Document("_id", k).append("_count", group.size());
+                if (!group.isEmpty()) {
+                    row.append("_latestId", group.get(0).getId());
+                }
+                boolean own = group.stream().anyMatch(m -> m.getUserId().equals(userId));
+                boolean unread = group.stream().anyMatch(m -> m.getUserId().equals(userId) && !Boolean.TRUE.equals(m.getRead()));
+                return row.append("_own", own ? 1 : 0).append("_ownUnread", unread ? 1 : 0);
+            }).collect(Collectors.toList());
             Document facet = new Document("total", List.of(new Document("count", pageTotal != null ? pageTotal : keys.size())))
-                    .append("keys", keys.stream().map(k -> new Document("_id", k)).collect(Collectors.toList()));
+                    .append("keys", rows);
             return new AggregationResults<>(List.of(facet), new Document());
         });
         when(mongo.find(any(Query.class), eq(NotificationDelivery.class))).thenAnswer(i -> {
@@ -176,8 +193,13 @@ class NotificationRecordIT {
         // 分组、计数与分页在库内完成，当前页只加载对应分组的消息
         assertThat(lastPipeline()).contains("\"$group\"").contains("\"$facet\"").contains("\"$skip\": 0").contains("\"$limit\": 20")
                 .doesNotContain("$lookup");
-        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("\"alarmEventId\": {\"$in\": [\"" + ALARM_A + "\"]}")
-                .contains("{\"$oid\": \"" + legacy.getId().toHexString() + "\"}");
+        // 条数与阅读状态取自库内分组，当前页每组只加载最近一条消息，高频告警不会挤掉同页其它组
+        assertThat(lastPipeline()).contains("\"_count\": {\"$sum\": 1}").contains("\"_latestId\": {\"$first\": \"$_id\"}");
+        assertThat(lastMessageQuery.get().getQueryObject().toJson()).startsWith("{\"_id\": {\"$in\": [")
+                .contains("{\"$oid\": \"" + messages.get(0).getId().toHexString() + "\"}")
+                .contains("{\"$oid\": \"" + legacy.getId().toHexString() + "\"}")
+                .doesNotContain(messages.get(1).getId().toHexString()).doesNotContain(messages.get(2).getId().toHexString());
+        assertThat(record.getMessageIds()).isEmpty();
 
         NotificationRecordQuery far = new NotificationRecordQuery();
         far.setPage(10_000_000);
@@ -263,7 +285,6 @@ class NotificationRecordIT {
         assertThat(lastPipeline()).contains("\"msg\": \"alarm\"").contains("\"user_id\": \"owner\"")
                 .contains("messageMetadata.name").contains("\"level\": {\"$in\": [\"WARNING\"]}").contains("createTime")
                 .contains("\"alarmEventId\": \"" + ALARM_A + "\"");
-        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("messageMetadata.name").contains("\"user_id\": \"owner\"");
     }
 
     @Test
@@ -358,6 +379,12 @@ class NotificationRecordIT {
                 .contains("\"$limit\": " + NotificationRecordService.MAX_BATCH);
         service.previewReadState(tab(NotificationRecordQuery.TAB_UNREAD), false, owner, Locale.CHINA);
         assertThat(lastPipeline()).contains("\"$match\": {\"_ownUnread\": 1}").contains("\"$match\": {\"_own\": 1, \"_ownUnread\": 0}");
+        // 预览接口的 read 参数同名绑定到列表筛选：由目标状态决定范围，不与已读筛选相互排除
+        NotificationRecordQuery sameName = new NotificationRecordQuery();
+        sameName.setRead(true);
+        assertThat(service.previewReadState(sameName, true, owner, Locale.CHINA).getIds()).containsExactly(ALARM_A);
+        assertThat(lastPipeline()).doesNotContain("\"_ownUnread\": 0").contains("\"$match\": {\"_own\": 1, \"_ownUnread\": 1}");
+        assertThat(sameName.getRead()).isTrue();
         pageTotal = NotificationRecordService.MAX_BATCH + 1L;
         preview = service.previewReadState(new NotificationRecordQuery(), true, owner, Locale.CHINA);
         assertThat(preview.getCount()).isEqualTo(NotificationRecordService.MAX_BATCH + 1);
@@ -372,7 +399,7 @@ class NotificationRecordIT {
 
         // 有权限查看 owner 的记录：不显示对方未读，不可标记，也不进入未读页签和批量预览
         NotificationRecordVo record = service.list(new NotificationRecordQuery(), root, Locale.CHINA).getItems().get(0);
-        assertThat(lastMessageQuery.get().getQueryObject().toJson()).doesNotContain("user_id");
+        assertThat(lastPipeline()).doesNotContain("\"user_id\": \"");
         assertThat(record.getId()).isEqualTo(ALARM_A);
         assertThat(record.isReadable()).isFalse();
         assertThat(record.isUnread()).isFalse();
@@ -388,14 +415,14 @@ class NotificationRecordIT {
 
         // 收件人本人无模块权限：仅查看自己的，阅读状态正常
         record = service.list(new NotificationRecordQuery(), owner, Locale.CHINA).getItems().get(0);
-        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("\"user_id\": \"owner\"");
+        assertThat(lastPipeline()).contains("\"user_id\": \"owner\"");
         assertThat(record.isReadable()).isTrue();
         assertThat(record.isUnread()).isTrue();
 
         // 云版为多租户，即使有权限也只查看自己的
         when(settings.isCloud()).thenReturn(true);
         service.list(new NotificationRecordQuery(), root, Locale.CHINA);
-        assertThat(lastMessageQuery.get().getQueryObject().toJson()).contains("\"user_id\": \"root\"");
+        assertThat(lastPipeline()).contains("\"user_id\": \"root\"");
     }
 
     private static NotificationRecordQuery tab(String tab) {

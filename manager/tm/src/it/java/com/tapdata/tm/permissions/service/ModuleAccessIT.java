@@ -110,14 +110,20 @@ class ModuleAccessIT {
     }
 
     @Test
-    @DisplayName("AC10 权限种子：新增权限树、页面路径与前端路由一致，并授予内置 admin 角色")
+    @DisplayName("AC10 权限种子：新增权限树、页面路径与前端路由一致，并授予内置 admin 角色；同时创建通知链路索引")
     void should_seed_permissions_for_admin() throws IOException {
         assertThat(read("init/idaas/version").trim()).isEqualTo(SEED_VERSION);
         JsonNode seed = new ObjectMapper().readTree(read("init/idaas/" + SEED_VERSION + ".json"));
 
         Map<String, JsonNode> perms = new HashMap<>();
         Set<String> granted = new HashSet<>();
+        Map<String, Set<String>> indexes = new HashMap<>();
         for (JsonNode block : seed) {
+            if (block.has("createIndexes")) {
+                block.get("indexes").forEach(i -> indexes.computeIfAbsent(block.get("createIndexes").asText(), k -> new HashSet<>())
+                        .add(i.get("name").asText() + "=" + i.get("key").toString()));
+                continue;
+            }
             for (JsonNode update : block.get("updates")) {
                 JsonNode set = update.get("u").get("$set");
                 assertThat(update.get("upsert").asBoolean()).isTrue();
@@ -146,6 +152,17 @@ class ModuleAccessIT {
         assertPage(perms, "v2_notification_record", "/notification-records");
         assertPage(perms, "v2_audit_log_list", "/operation-audit");
         assertThat(perms.get("v2_alarm_event_ack_close").get("resources").get(0).get("type").asText()).isEqualTo("button");
+
+        // 库内聚合按告警/消息关联投递、按告警回查消息依赖的索引，与实体声明一致
+        assertThat(indexes.get("NotificationDelivery")).containsExactlyInAnyOrder(
+                "alarm_channel_status={\"alarmEventId\":1,\"channel\":1,\"status\":1}",
+                "message_channel_status={\"messageId\":1,\"channel\":1,\"status\":1}",
+                "recipient_created={\"recipientAddress\":1,\"createTime\":-1}");
+        assertThat(indexes.get("Message")).containsExactly("alarmEventId_1_createTime_-1={\"alarmEventId\":1,\"createTime\":-1}");
+        org.springframework.data.mongodb.core.index.CompoundIndexes declared = com.tapdata.tm.notification.delivery.entity.NotificationDelivery.class
+                .getAnnotation(org.springframework.data.mongodb.core.index.CompoundIndexes.class);
+        assertThat(java.util.Arrays.stream(declared.value()).map(org.springframework.data.mongodb.core.index.CompoundIndex::name))
+                .containsExactlyInAnyOrder("alarm_channel_status", "message_channel_status", "recipient_created");
     }
 
     private static void assertParent(Map<String, JsonNode> perms, String name, String parent) {
