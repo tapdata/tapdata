@@ -18,7 +18,13 @@ import java.util.Map;
 
 public class MonitorConfigListener implements ApplicationListener<ApplicationEnvironmentPreparedEvent> {
 
-    private Logger log = LoggerFactory.getLogger(MonitorConfigListener.class);
+    private static final String EXPOSURE_INCLUDE = "management.endpoints.web.exposure.include";
+    private static final String EXPOSURE_EXCLUDE = "management.endpoints.web.exposure.exclude";
+    private static final String DISCOVERY_ENABLED = "management.endpoints.web.discovery.enabled";
+    private static final String ACCESS_DEFAULT = "management.endpoints.access.default";
+    private static final String ACCESS_MAX_PERMITTED = "management.endpoints.access.max-permitted";
+
+    private final Logger log = LoggerFactory.getLogger(MonitorConfigListener.class);
 
     @Override
     public void onApplicationEvent(ApplicationEnvironmentPreparedEvent event) {
@@ -30,24 +36,23 @@ public class MonitorConfigListener implements ApplicationListener<ApplicationEnv
 
         Map<String, Object> properties = new HashMap<>();
         if (isMonitorEnabled) {
-            properties.put("management.endpoints.web.exposure.include", "prometheus, info, health");
+            properties.put(EXPOSURE_INCLUDE, "prometheus, info, health");
         } else {
             // 监控未开启时不暴露任何 Actuator 端点：仅暴露 health 名义入口，同时用 exclude 通配、
             // 关闭发现页并收紧访问级别，避免未认证请求读取 /actuator 与 /actuator/info。
-            properties.put("management.endpoints.web.exposure.include", "health");
-            properties.put("management.endpoints.web.exposure.exclude", "*");
-            properties.put("management.endpoints.web.discovery.enabled", false);
-            properties.put("management.endpoints.access.default", "none");
-            properties.put("management.endpoints.access.max-permitted", "none");
+            properties.put(EXPOSURE_INCLUDE, "health");
+            properties.put(EXPOSURE_EXCLUDE, "*");
+            properties.put(DISCOVERY_ENABLED, false);
+            properties.put(ACCESS_DEFAULT, "none");
+            properties.put(ACCESS_MAX_PERMITTED, "none");
         }
 
         // 添加到环境配置中，优先级高于application.yml
         MutablePropertySources propertySources = environment.getPropertySources();
         propertySources.addFirst(new MapPropertySource("dynamicMonitorConfig", properties));
 
-        log.info("end monitorConfigListener monitor enabled: " + isMonitorEnabled +
-                ", endpoints include: " + properties.get("management.endpoints.web.exposure.include") +
-                ", endpoints exclude: " + properties.get("management.endpoints.web.exposure.exclude") +
-                ", discovery enabled: " + properties.get("management.endpoints.web.discovery.enabled"));
+        log.info("end monitorConfigListener monitor enabled: {}, endpoints include: {}, endpoints exclude: {}, discovery enabled: {}",
+                isMonitorEnabled, properties.get(EXPOSURE_INCLUDE), properties.get(EXPOSURE_EXCLUDE),
+                properties.get(DISCOVERY_ENABLED));
     }
 }
