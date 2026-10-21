@@ -25,6 +25,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.SampleRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.JoinPoint;
@@ -34,7 +35,6 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;

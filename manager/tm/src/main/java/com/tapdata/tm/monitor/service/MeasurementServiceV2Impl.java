@@ -523,7 +523,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                             foundSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
                         }
 
-                        putNodeSnapshotSamples(foundSample, taskSnapshotDoneAt);
+                        putSnapshotSamples(foundSample, taskSnapshotDoneAt);
                     } else {
                         Map<String, Object> newSample = new HashMap<>();
                         Map<String, String> newTags = new HashMap<>(querySample.getTags());
@@ -537,9 +537,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
                         newSample.put(MetricCons.F_TAGS, newTags);
                         newSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
-                        // 该节点在本轮查询区间内没有任何样本，说明本轮还没上报过全量进度，
-                        // 因此只补增量时间点，不补任务级 snapshotDoneAt / snapshotTableTotal，
-                        // 否则上一轮残留的完成时间会让未开始全量的节点显示全量已完成（TAP-13132）
+                        if (taskSnapshotDoneAt != null) {
+                            newSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+                        }
+                        if (taskSnapshotProgress != null) {
+                            newSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, taskSnapshotProgress);
+                        }
 
                         uniqueData.add(newSample);
                     }
@@ -555,39 +558,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         Object snapTableTotalObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
-        if (snapTableTotalObj != null && (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0)) {
+        if (snapTableTotalObj != null && (snapTableTotalObj == null || (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0))) {
             foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, foundSample.get(MetricCons.SS.VS.F_TABLE_TOTAL));
         }
-    }
-
-    /**
-     * 节点补值：只有本轮已经开始全量（有 snapshotStartAt）的节点，才允许用任务级 snapshotDoneAt 补值。
-     * 否则重置后上一轮残留的 snapshotDoneAt 会让未开始全量的节点显示"全量已完成"（TAP-13132）。
-     */
-    private static void putNodeSnapshotSamples(Map<String, Object> foundSample, Long taskSnapshotDoneAt) {
-        if (!isSnapshotStartedInCurrentRun(foundSample, taskSnapshotDoneAt)) {
-            return;
-        }
-        putSnapshotSamples(foundSample, taskSnapshotDoneAt);
-    }
-
-    /**
-     * 节点本轮是否已经开始全量：必须有 snapshotStartAt，且任务级 snapshotDoneAt 不早于本轮开始时间。
-     * 未开始全量或跨轮残留时一律不补值，避免未开始全量的节点被上一轮的完成时间污染成"全量已完成"（TAP-13132）。
-     */
-    private static boolean isSnapshotStartedInCurrentRun(Map<String, Object> sample, Long taskSnapshotDoneAt) {
-        if (sample == null) {
-            return false;
-        }
-        Object snapshotStartAtObj = sample.get(MetricCons.SS.VS.F_SNAPSHOT_START_AT);
-        if (!(snapshotStartAtObj instanceof Number)) {
-            return false;
-        }
-        long snapshotStartAt = ((Number) snapshotStartAtObj).longValue();
-        if (snapshotStartAt <= 0) {
-            return false;
-        }
-        return taskSnapshotDoneAt == null || taskSnapshotDoneAt >= snapshotStartAt;
     }
 
     private TaskDto getCachedTaskDto(Map<String, TaskDto> cache, String taskId) {
