@@ -7,6 +7,7 @@ public enum InspectMethod {
     CDC_COUNT("cdcCount"),
     JUNIT_TEST("junitTest"),
     HASH("hash"),
+    CUSTOM_QUERY("custom_query")
     ;
 
     private final String value;

@@ -19,6 +19,8 @@ public class Source {
     private String connectionId;
     /** */
     private String connectionName;
+    /** SQL used to produce the result set for custom_query inspections. */
+    private String customQuery;
     /** */
     private String direction;
 
