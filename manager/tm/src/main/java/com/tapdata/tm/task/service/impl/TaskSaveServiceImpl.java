@@ -67,11 +67,11 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         }
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             dag.getSourceNode().forEach(sourceNode -> {
-                if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+                if (MetadataInstancesFilterUtil.isExpressionSelection(sourceNode)) {
                     String connectionId = sourceNode.getConnectionId();
                     List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                     if (CollectionUtils.isNotEmpty(metaList)) {
-                        List<String> collect = MetadataInstancesFilterUtil.getFilteredOriginalNames(metaList,sourceNode);
+                        List<String> collect = MetadataInstancesFilterUtil.getSelectedOriginalNames(metaList,sourceNode);
                         sourceNode.setTableNames(collect);
                     }
                 }
