@@ -362,12 +362,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     protected List<String> getMigrateTableNames(DatabaseNode sourceNode, UserDetail userDetail){
-        if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
-            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
-            return MetadataInstancesFilterUtil.getFilteredOriginalNames(metaInstances,sourceNode);
-        }else{
-            return sourceNode.getTableNames();
-        }
+        List<MetadataInstancesDto> metaInstances = MetadataInstancesFilterUtil.isExpressionSelection(sourceNode)
+                ? metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name")
+                : Collections.emptyList();
+        return MetadataInstancesFilterUtil.getSelectedOriginalNames(metaInstances, sourceNode);
     }
 
     protected void checkUnionProcess(DAG dag, String nodeId, List<String> tableNames){

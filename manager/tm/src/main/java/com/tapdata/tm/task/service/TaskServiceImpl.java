@@ -165,6 +165,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -4828,6 +4829,79 @@ public class TaskServiceImpl extends TaskService{
     public void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
         start(taskDto, user, startFlag);
     }
+
+    protected void validateViewCdc(TaskDto taskDto, UserDetail user) {
+        if ((!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
+                && !TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType()))
+                || taskDto.getType() == null || !taskDto.getType().contains("cdc")
+                || taskDto.getDag() == null) {
+            return;
+        }
+        Map<String, List<Node<?>>> sourcesByConnection = new LinkedHashMap<>();
+        for (Node<?> source : taskDto.getDag().getSources()) {
+            if (source instanceof DatabaseNode node) {
+                if (MetadataInstancesFilterUtil.isExpressionSelection(node)) {
+                    validateTableExpression(node);
+                }
+                if (MetadataInstancesFilterUtil.isExpressionSelection(node) || CollectionUtils.isNotEmpty(node.getTableNames())) {
+                    sourcesByConnection.computeIfAbsent(node.getConnectionId(), key -> new ArrayList<>()).add(node);
+                }
+            } else if (source instanceof TableNode node && !"polling".equals(node.getCdcMode())
+                    && StringUtils.isNotBlank(node.getTableName())) {
+                sourcesByConnection.computeIfAbsent(node.getConnectionId(), key -> new ArrayList<>()).add(node);
+            }
+        }
+        Set<String> views = new TreeSet<>();
+        sourcesByConnection.forEach((connection, sources) -> collectLogCdcViews(connection, sources, user, views));
+        if (!views.isEmpty()) {
+            throw new BizException("Task.ViewCdcNotSupported", String.join(", ", views));
+        }
+    }
+
+    private void validateTableExpression(DatabaseNode node) {
+        try {
+            java.util.regex.Pattern.compile(StringUtils.defaultString(node.getTableExpression()));
+        } catch (java.util.regex.PatternSyntaxException e) {
+            throw new BizException("Task.TableExpressionInvalid");
+        }
+    }
+
+    private void collectLogCdcViews(String connection, List<Node<?>> sources, UserDetail user, Set<String> views) {
+        Set<String> names = new HashSet<>();
+        boolean expression = false;
+        for (Node<?> source : sources) {
+            if (source instanceof DatabaseNode node) {
+                expression |= MetadataInstancesFilterUtil.isExpressionSelection(node);
+                if (CollectionUtils.isNotEmpty(node.getTableNames())) {
+                    names.addAll(node.getTableNames());
+                }
+            } else if (source instanceof TableNode node) {
+                names.add(node.getTableName());
+            }
+        }
+        List<MetadataInstancesDto> schemas = metadataInstancesService.findSourceSchemasForStart(
+                connection, expression ? null : new ArrayList<>(names), user);
+        if (CollectionUtils.isEmpty(schemas)) {
+            return;
+        }
+        Set<String> selected = new HashSet<>();
+        for (Node<?> source : sources) {
+            if (source instanceof DatabaseNode node) {
+                List<String> nodeNames = MetadataInstancesFilterUtil.getSelectedOriginalNames(schemas, node);
+                if (nodeNames != null) {
+                    selected.addAll(nodeNames);
+                }
+            } else if (source instanceof TableNode node) {
+                selected.add(node.getTableName());
+            }
+        }
+        for (MetadataInstancesDto schema : schemas) {
+            if (selected.contains(schema.getOriginalName()) && MetaType.isView(schema.getMetaType())) {
+                views.add(schema.getOriginalName());
+            }
+        }
+    }
+
     /**
      * 状态机启动子任务之前执行
      *
@@ -4838,6 +4912,22 @@ public class TaskServiceImpl extends TaskService{
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         assertTaskNotRebalancing(taskDto.getId(), user);
+        //filter heartbeat task when status is renew failed for automatic test
+        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
+            log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
+            return;
+        }
+        //校验当前状态是否允许启动。放在轮换 lastStartDate（CAS fencing token）与取消心跳恢复之前，
+        //避免被拒绝的启动请求（例如批量启动误含运行中任务）静默致盲正在运行任务的引擎侧 watchdog。
+        if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
+            log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
+                throw new BizException("Task.Deleted");
+            }
+            throw new BizException("Task.StartStatusInvalid");
+        }
+
+        validateViewCdc(taskDto, user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
@@ -4861,20 +4951,6 @@ public class TaskServiceImpl extends TaskService{
 //            lockControlService.fdmStartQueue(user);
 //        }
 
-        //filter heartbeat task when status is renew failed for automatic test
-        if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
-            log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
-            return;
-        }
-        //校验当前状态是否允许启动。放在轮换 lastStartDate（CAS fencing token）与取消心跳恢复之前，
-        //避免被拒绝的启动请求（例如批量启动误含运行中任务）静默致盲正在运行任务的引擎侧 watchdog。
-        if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
-            log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
-            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
-                throw new BizException("Task.Deleted");
-            }
-            throw new BizException("Task.StartStatusInvalid");
-        }
 
         long lastStartDate = System.currentTimeMillis();
         Update update = Update.update("lastStartDate", lastStartDate);

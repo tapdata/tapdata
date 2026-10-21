@@ -840,6 +840,20 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    /** Lightweight source metadata for startup validation; retains all table-selection inputs. */
+    public List<MetadataInstancesDto> findSourceSchemasForStart(String sourceId, List<String> tableNames, UserDetail user) {
+        Criteria criteria = Criteria.where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
+                .and(IS_DELETED).ne(true).and(SOURCE_ID).is(sourceId)
+                .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name()).and(TASK_ID).exists(false);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and(ORIGINAL_NAME).in(tableNames);
+        }
+        Query query = Query.query(criteria);
+        query.fields().include("original_name", "meta_type", "name", "fields.primaryKey", "indices.unique",
+                "partitionInfo", "partitionMasterTableId");
+        return findAllDto(query, user);
+    }
+
     @Override
     public List<MetadataInstancesDto> findSourceSchemaBySourceIdIgnoreCase(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria

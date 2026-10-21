@@ -42,6 +42,15 @@ public class MetadataInstancesFilterUtil {
         return realMetadata;
     }
 
+    public static boolean isExpressionSelection(DatabaseNode sourceNode) {
+        return "expression".equals(sourceNode.getMigrateTableSelectType());
+    }
+
+    public static List<String> getSelectedOriginalNames(List<MetadataInstancesDto> metaList, DatabaseNode sourceNode) {
+        return isExpressionSelection(sourceNode)
+                ? getFilteredOriginalNames(metaList, sourceNode) : sourceNode.getTableNames();
+    }
+
     public static List<String> getFilteredOriginalNames(List<MetadataInstancesDto> metaList, DatabaseNode sourceNode){
         return filterBySyncSourcePartitionTableEnable(sourceNode, metaList).stream()
                 .map(metadataInstancesDto -> getMetadataInstancesDtoOriginalName(sourceNode, metadataInstancesDto))
