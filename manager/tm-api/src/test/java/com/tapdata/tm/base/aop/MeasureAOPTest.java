@@ -28,7 +28,9 @@ import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import org.aspectj.lang.JoinPoint;
+import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.mockito.ArgumentCaptor;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +45,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -364,7 +368,7 @@ public class MeasureAOPTest {
         @Test
         void test1(){
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -404,7 +408,7 @@ public class MeasureAOPTest {
             when(dag.getNode("test")).thenReturn((Node)node);
             taskDto.setDag(dag);
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -446,7 +450,7 @@ public class MeasureAOPTest {
             taskDto.setDag(dag);
             taskDto.setStatus(TaskDto.STATUS_RUNNING);
             when(alarmService.getAlarmRuleDtos(any())).thenReturn(Collections.emptyMap());
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -486,7 +490,7 @@ public class MeasureAOPTest {
             when(dag.getNode("test")).thenReturn((Node)node);
             taskDto.setDag(dag);
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -524,7 +528,7 @@ public class MeasureAOPTest {
             when(dag.getNode("test")).thenReturn((Node)node);
             taskDto.setDag(dag);
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -556,7 +560,7 @@ public class MeasureAOPTest {
         @Test
         void testSkipWhenUserDetailMissing(){
             when(userService.loadUserById(any())).thenReturn(null);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -588,7 +592,7 @@ public class MeasureAOPTest {
             when(dag.getTargets()).thenReturn(Collections.emptyList());
             when(dag.getNode("missing")).thenReturn(null);
             taskDto.setDag(dag);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status","desc","nodeCurrentEventTimestamp","taskRecordId")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -653,5 +657,159 @@ public class MeasureAOPTest {
 
         }
 
+    }
+
+    @Nested
+    class ResetMetricWriteGateTest {
+        private TaskService taskService;
+        private AlarmService alarmService;
+        private UserService userService;
+        private AlarmSettingService alarmSettingService;
+        private MeasureAOP measureAOP;
+        private final String taskId = "6682d405494d8d2a5c957f38";
+        private final String userId = "6682d405494d8d2a5c957f39";
+        private final String CURRENT_RECORD_ID = "current-run-record";
+        private final String PREVIOUS_RECORD_ID = "previous-run-record";
+
+        @BeforeEach
+        void setUp() {
+            taskService = mock(TaskService.class);
+            alarmService = mock(AlarmService.class);
+            userService = mock(UserService.class);
+            alarmSettingService = mock(AlarmSettingService.class);
+            measureAOP = new MeasureAOP(taskService, alarmService, userService, alarmSettingService, null);
+            UserDetail userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn(userId);
+            when(userService.loadUserById(any())).thenReturn(userDetail);
+            when(alarmSettingService.findAllAlarmSetting(any())).thenReturn(Collections.emptyList());
+            when(alarmService.checkOpen(any(TaskDto.class), any(), any(), any(), any(UserDetail.class))).thenReturn(false);
+        }
+
+        private TaskDto task(String status, String taskRecordId) {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(MongoUtils.toObjectId(taskId));
+            taskDto.setUserId(userId);
+            taskDto.setStatus(status);
+            taskDto.setTaskRecordId(taskRecordId);
+            return taskDto;
+        }
+
+        private SampleRequest sample(String type, String taskRecordId, Map<String, Number> vs) {
+            SampleRequest sampleRequest = new SampleRequest();
+            Map<String, String> tags = new HashMap<>();
+            tags.put("type", type);
+            tags.put("taskId", taskId);
+            if (taskRecordId != null) {
+                tags.put("taskRecordId", taskRecordId);
+            }
+            sampleRequest.setTags(tags);
+            Sample sample = new Sample();
+            sample.setVs(vs);
+            sampleRequest.setSample(sample);
+            return sampleRequest;
+        }
+
+        @Test
+        @DisplayName("重置中/待启动等状态禁止回写指标，运行中/已停止仍允许回写")
+        void testCanWriteMetricToTask() {
+            assertFalse(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_RENEWING, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID)));
+            assertFalse(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_SCHEDULING, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_STOP, CURRENT_RECORD_ID)));
+            assertTrue(measureAOP.canWriteMetricToTask(task(TaskDto.STATUS_STOPPING, CURRENT_RECORD_ID)));
+        }
+
+        @Test
+        @DisplayName("taskRecordId 不一致才判定为上一轮样本，缺失时不做判定")
+        void testIsStaleRunSample() {
+            TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
+            assertTrue(measureAOP.isStaleRunSample(taskDto, sample("task", PREVIOUS_RECORD_ID, new HashMap<>())));
+            assertFalse(measureAOP.isStaleRunSample(taskDto, sample("task", CURRENT_RECORD_ID, new HashMap<>())));
+            assertFalse(measureAOP.isStaleRunSample(taskDto, sample("task", null, new HashMap<>())));
+            assertFalse(measureAOP.isStaleRunSample(task(TaskDto.STATUS_RUNNING, null),
+                    sample("task", PREVIOUS_RECORD_ID, new HashMap<>())));
+        }
+
+        @Test
+        @DisplayName("重置后任务处于 wait_start 时，上一轮的 snapshotDoneAt 不得写回任务文档")
+        void testDoNotWriteSnapshotDoneAtWhenTaskWaitingStart() {
+            TaskDto taskDto = task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotStartAt", 1000L);
+            vs.put("snapshotDoneAt", 2000L);
+            vs.put("currentEventTimestamp", 2000L);
+
+            measureAOP.setTaskSnapshotDate(vs, taskId, taskDto, mock(UserDetail.class));
+
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        @DisplayName("任务停止后的收尾样本仍应回写，且更新条件带上 taskRecordId 栅栏")
+        void testWriteSnapshotDoneAtWithTaskRecordIdFence() {
+            TaskDto taskDto = task(TaskDto.STATUS_STOP, CURRENT_RECORD_ID);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotDoneAt", 2000L);
+            when(taskService.update(any(Query.class), any(Update.class))).thenReturn(mock(UpdateResult.class));
+
+            measureAOP.setTaskSnapshotDate(vs, taskId, taskDto, mock(UserDetail.class));
+
+            ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(taskService, times(1)).update(queryCaptor.capture(), updateCaptor.capture());
+
+            assertEquals(2000L,
+                    updateCaptor.getValue().getUpdateObject().get("$set", Document.class).get("snapshotDoneAt"));
+            assertEquals(CURRENT_RECORD_ID, queryCaptor.getValue().getQueryObject().get("taskRecordId"));
+        }
+
+        @Test
+        @DisplayName("上一轮样本在 addAgentMeasurement 中被整体跳过，不触发告警与回写")
+        void testSkipStaleSampleInAddAgentMeasurement() {
+            TaskDto taskDto = task(TaskDto.STATUS_WAIT_START, CURRENT_RECORD_ID);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId), "_id", "dag", "user_id", "agentId", "name",
+                    "currentEventTimestamp", "alarmSettings", "alarmRules", "snapshotDoneAt", "status", "desc",
+                    "nodeCurrentEventTimestamp", "taskRecordId")).thenReturn(taskDto);
+
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotDoneAt", 2000L);
+            List<SampleRequest> list = new ArrayList<>();
+            list.add(sample("task", PREVIOUS_RECORD_ID, vs));
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            Object[] objects = new Object[1];
+            objects[0] = list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+
+            measureAOP.addAgentMeasurement(joinPoint);
+
+            verify(alarmService, never()).getAlarmRuleDtos(any());
+            verify(taskService, never()).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        @DisplayName("本轮样本在 addAgentMeasurement 中正常参与处理")
+        void testProcessCurrentRunSample() {
+            TaskDto taskDto = task(TaskDto.STATUS_RUNNING, CURRENT_RECORD_ID);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId), "_id", "dag", "user_id", "agentId", "name",
+                    "currentEventTimestamp", "alarmSettings", "alarmRules", "snapshotDoneAt", "status", "desc",
+                    "nodeCurrentEventTimestamp", "taskRecordId")).thenReturn(taskDto);
+            when(alarmService.getAlarmRuleDtos(any())).thenReturn(Collections.emptyMap());
+
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotDoneAt", 2000L);
+            List<SampleRequest> list = new ArrayList<>();
+            list.add(sample("task", CURRENT_RECORD_ID, vs));
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            Object[] objects = new Object[1];
+            objects[0] = list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+
+            measureAOP.addAgentMeasurement(joinPoint);
+
+            verify(alarmService, times(1)).getAlarmRuleDtos(any());
+        }
     }
 }

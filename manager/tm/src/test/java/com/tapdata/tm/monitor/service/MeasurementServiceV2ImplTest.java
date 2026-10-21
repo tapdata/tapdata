@@ -1617,7 +1617,8 @@ class MeasurementServiceV2ImplTest {
             ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
 
             assertEquals(987654321L, sample1.get("currentEventTimestamp"));
-            assertEquals(123456789L, sample1.get("snapshotDoneAt"));
+            // node1 本轮没有 snapshotStartAt，不得用任务级 snapshotDoneAt 补值（TAP-13132）
+            assertEquals(0L, sample1.get("snapshotDoneAt"));
 
             List<Map<String, Object>> resultList = data.get("uniqueKey");
             assertEquals(2, resultList.size());
@@ -1627,9 +1628,96 @@ class MeasurementServiceV2ImplTest {
                     .orElse(null);
             assertNotNull(paddedSample);
             assertEquals(888888888L, paddedSample.get("currentEventTimestamp"));
-            assertEquals(123456789L, paddedSample.get("snapshotDoneAt"));
-            assertEquals(2L, paddedSample.get("snapshotTableTotal"));
+            // node2 本轮完全没有样本，只补增量时间点，不补任务级快照进度（TAP-13132）
+            assertNull(paddedSample.get("snapshotDoneAt"));
+            assertNull(paddedSample.get("snapshotTableTotal"));
             assertEquals("database", ((Map<String, String>) paddedSample.get("tags")).get("nodeType"));
+        }
+
+        @Test
+        @DisplayName("test fillNodeCurrentEventTimestampIfNeed - node started snapshot in current run can be padded")
+        void testNodeStartedSnapshotCanBePadded() {
+            Map<String, List<Map<String, Object>>> data = new HashMap<>();
+            List<Map<String, Object>> uniqueData = new ArrayList<>();
+            Map<String, Object> sample1 = new HashMap<>();
+            Map<String, String> tags1 = new HashMap<>();
+            tags1.put("type", "node");
+            tags1.put("taskId", "6a46322e5b75c32ed96ac543");
+            tags1.put("nodeId", "node1");
+            sample1.put("tags", tags1);
+            // 本轮已经开始全量，只是本帧还没上报完成时间
+            sample1.put("snapshotStartAt", 100L);
+            sample1.put("snapshotDoneAt", 0L);
+            uniqueData.add(sample1);
+            data.put("uniqueKey", uniqueData);
+
+            MeasurementQueryParam param = new MeasurementQueryParam();
+            Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = new HashMap<>();
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            Map<String, String> qtags = new HashMap<>();
+            qtags.put("type", "node");
+            qtags.put("taskId", "6a46322e5b75c32ed96ac543");
+            querySample.setTags(qtags);
+            querySample.setType("instant");
+            samples.put("uniqueKey", querySample);
+            param.setSamples(samples);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("migrate");
+            taskDto.setSnapshotDoneAt(123456789L);
+            Map<String, Long> nodeTs = new HashMap<>();
+            nodeTs.put("node1", 987654321L);
+            taskDto.setNodeCurrentEventTimestamp(nodeTs);
+            taskDto.setAttrs(new HashMap<>());
+
+            when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
+
+            ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
+
+            assertEquals(123456789L, sample1.get("snapshotDoneAt"));
+        }
+
+        @Test
+        @DisplayName("test fillNodeCurrentEventTimestampIfNeed - previous run snapshotDoneAt must not be padded")
+        void testPreviousRunSnapshotDoneAtNotPadded() {
+            Map<String, List<Map<String, Object>>> data = new HashMap<>();
+            List<Map<String, Object>> uniqueData = new ArrayList<>();
+            Map<String, Object> sample1 = new HashMap<>();
+            Map<String, String> tags1 = new HashMap<>();
+            tags1.put("type", "node");
+            tags1.put("taskId", "6a46322e5b75c32ed96ac543");
+            tags1.put("nodeId", "node1");
+            sample1.put("tags", tags1);
+            // 本轮刚开始全量，任务级 snapshotDoneAt 却是上一轮的值（早于本轮开始时间）
+            sample1.put("snapshotStartAt", 123456790L);
+            sample1.put("snapshotDoneAt", 0L);
+            uniqueData.add(sample1);
+            data.put("uniqueKey", uniqueData);
+
+            MeasurementQueryParam param = new MeasurementQueryParam();
+            Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = new HashMap<>();
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            Map<String, String> qtags = new HashMap<>();
+            qtags.put("type", "node");
+            qtags.put("taskId", "6a46322e5b75c32ed96ac543");
+            querySample.setTags(qtags);
+            querySample.setType("instant");
+            samples.put("uniqueKey", querySample);
+            param.setSamples(samples);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("migrate");
+            taskDto.setSnapshotDoneAt(123456789L);
+            Map<String, Long> nodeTs = new HashMap<>();
+            nodeTs.put("node1", 987654321L);
+            taskDto.setNodeCurrentEventTimestamp(nodeTs);
+            taskDto.setAttrs(new HashMap<>());
+
+            when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
+
+            ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
+
+            assertEquals(0L, sample1.get("snapshotDoneAt"));
         }
 
         @Test

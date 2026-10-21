@@ -34,6 +34,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
+@Slf4j
 @Aspect
 @Component
 public class MeasureAOP {
@@ -68,6 +70,22 @@ public class MeasureAOP {
     private static final String FIELD_SS_VS_LAST_ENQUEUED_INCREMENTAL_EVENT_AT = MetricCons.SS.VS.F_LAST_ENQUEUED_INCREMENTAL_EVENT_AT;
     private static final String FIELD_SS_VS_PENDING_INCREMENTAL_EVENT = MetricCons.SS.VS.F_PENDING_INCREMENTAL_EVENT;
     private static final long SOURCE_NO_INCREMENTAL_EVENT_THRESHOLD_MS = TimeUnit.MINUTES.toMillis(1);
+    private static final String FIELD_TAGS_TASK_RECORD_ID = MetricCons.Tags.F_TASK_RECORD_ID;
+    private static final String FIELD_TASK_RECORD_ID = "taskRecordId";
+    /**
+     * 这些状态下任务还没有开始新一轮运行（或正在重置/删除），此时到达的指标样本属于上一轮。
+     * 上一轮样本不允许回写 snapshotDoneAt / currentEventTimestamp / nodeCurrentEventTimestamp，
+     * 否则重置（renew）清空的结果会被上一轮样本覆盖，未开始全量的节点会显示全量已完成（TAP-13132）。
+     */
+    private static final Set<String> METRIC_WRITE_BLOCKED_STATUS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            TaskDto.STATUS_RENEWING,
+            TaskDto.STATUS_WAIT_START,
+            TaskDto.STATUS_SCHEDULING,
+            TaskDto.STATUS_WAIT_RUN,
+            TaskDto.STATUS_DELETING,
+            TaskDto.STATUS_RENEW_FAILED,
+            TaskDto.STATUS_DELETE_FAILED
+    )));
 
     public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService,
                       AlarmSettingService alarmSettingService, DataSourceService dataSourceService) {
@@ -89,7 +107,7 @@ public class MeasureAOP {
         Map<String, Boolean> heartbeatEnabledMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status","desc", "nodeCurrentEventTimestamp");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status","desc", "nodeCurrentEventTimestamp", FIELD_TASK_RECORD_ID);
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
@@ -113,6 +131,12 @@ public class MeasureAOP {
             if (StringUtils.isNotBlank(taskId)) {
                 TaskDto taskDto = taskDtoMap.get(taskId);
                 if (Objects.isNull(taskDto) || StringUtils.isBlank(taskDto.getUserId())) {
+                    return;
+                }
+                if (isStaleRunSample(taskDto, sampleRequest)) {
+                    // 重置后到达的上一轮样本，不能参与本轮的任何指标回写与告警判定
+                    log.debug("Skip stale metric sample of previous run, taskId = {}, sampleTaskRecordId = {}, currentTaskRecordId = {}",
+                            taskId, sampleRequest.getTags().get(FIELD_TAGS_TASK_RECORD_ID), taskDto.getTaskRecordId());
                     return;
                 }
                 // task alarm
@@ -152,12 +176,13 @@ public class MeasureAOP {
                                 heartbeatEnabledMap, alarmSettingMap.get(userDetail.getUserId()));
 
                         Number currentEventTimestamp = vs.get(FIELD_SS_VS_CURR_EVENT_TS);
-                        if (Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0) {
+                        if (Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0
+                                && canWriteMetricToTask(taskDto)) {
                             Map<String, Long> nodeCurrentEventTimestampMap = taskDto.getNodeCurrentEventTimestamp();
                             if (nodeCurrentEventTimestampMap == null || !currentEventTimestamp.equals(nodeCurrentEventTimestampMap.get(nodeId))) {
                                 Update update = new Update();
                                 update.set("nodeCurrentEventTimestamp." + nodeId, currentEventTimestamp.longValue());
-                                taskService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId))), update);
+                                taskService.update(metricWriteQuery(taskId, taskDto), update);
 
                                 if (nodeCurrentEventTimestampMap == null) {
                                     nodeCurrentEventTimestampMap = new HashMap<>();
@@ -246,6 +271,13 @@ public class MeasureAOP {
             alarmService.save(alarmInfo);
         }
 
+        if (!canWriteMetricToTask(taskDto)) {
+            // 任务处于重置/待启动等状态，本轮尚未开始，上一轮样本不得回写快照时间
+            log.debug("Skip writing snapshot metrics back to task, taskId = {}, status = {}, taskRecordId = {}",
+                    taskId, taskDto.getStatus(), taskDto.getTaskRecordId());
+            return;
+        }
+
         Update update = new Update();
 
         if (Objects.nonNull(snapshotDoneAt) && !snapshotDoneAt.equals(taskDto.getSnapshotDoneAt())) {
@@ -257,8 +289,49 @@ public class MeasureAOP {
         }
 
         if (update.getUpdateObject().size() > 0) {
-            taskService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId))), update);
+            taskService.update(metricWriteQuery(taskId, taskDto), update);
         }
+    }
+
+    /**
+     * 判断样本是否来自上一轮运行。重置（renew）会为任务生成新的 taskRecordId，
+     * 因此样本 tags 里的 taskRecordId 与任务文档不一致时，说明它是上一轮残留的样本。
+     * 任一侧缺失时无法判定批次，保持原有行为，避免误丢有效样本。
+     */
+    protected boolean isStaleRunSample(TaskDto taskDto, SampleRequest sampleRequest) {
+        if (Objects.isNull(taskDto) || Objects.isNull(sampleRequest) || Objects.isNull(sampleRequest.getTags())) {
+            return false;
+        }
+        String sampleTaskRecordId = sampleRequest.getTags().get(FIELD_TAGS_TASK_RECORD_ID);
+        String currentTaskRecordId = taskDto.getTaskRecordId();
+        if (StringUtils.isBlank(sampleTaskRecordId) || StringUtils.isBlank(currentTaskRecordId)) {
+            return false;
+        }
+        return !sampleTaskRecordId.equals(currentTaskRecordId);
+    }
+
+    /**
+     * 任务是否允许把指标回写到任务文档。重置中/待启动等状态下任务尚未开始新一轮运行，
+     * 此时到达的样本属于上一轮，回写会把 renew 清空的 snapshotDoneAt 等字段重新写脏（TAP-13132）。
+     */
+    protected boolean canWriteMetricToTask(TaskDto taskDto) {
+        if (Objects.isNull(taskDto)) {
+            return false;
+        }
+        return !METRIC_WRITE_BLOCKED_STATUS.contains(taskDto.getStatus());
+    }
+
+    /**
+     * 指标回写的条件更新：除 _id 外再以 taskRecordId 作为栅栏，
+     * 避免"读-判-写"之间任务被重置后，上一轮的判定结果仍然落库。
+     */
+    private Query metricWriteQuery(String taskId, TaskDto taskDto) {
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(taskId));
+        String taskRecordId = Objects.isNull(taskDto) ? null : taskDto.getTaskRecordId();
+        if (StringUtils.isNotBlank(taskRecordId)) {
+            criteria = criteria.and(FIELD_TASK_RECORD_ID).is(taskRecordId);
+        }
+        return Query.query(criteria);
     }
 
     protected void sourceNoIncrementalEventAlarm(TaskDto task, String taskId, String nodeId, String nodeName,
