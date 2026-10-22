@@ -1,6 +1,9 @@
 package com.tapdata.tm.Settings.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
@@ -60,6 +63,15 @@ public class SettingsServiceTest {
     private SettingsRepository mockSettingsRepository;
 
     private CaffeineCacheManager caffeineCacheManager;
+
+    private Settings smtpSetting(String key, Object value) {
+        Settings setting = new Settings();
+        setting.setCategory(CategoryEnum.SMTP.getValue());
+        setting.setKey(key);
+        setting.setValue(value);
+        return setting;
+    }
+
     @BeforeEach
     void beforeEach() {
         settingsService=spy(SettingsServiceImpl.class);
@@ -86,14 +98,13 @@ public class SettingsServiceTest {
             try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
                 springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(UserService.class)).thenReturn(userService);
                 ArrayList<Settings> settingsArr = new ArrayList<>();
-                Settings settings = new Settings();
-                settings.setKey("smtp.server.host");
-                settings.setValue("192.168.1.1");
-                Settings settings1 =new Settings();
-                settings1.setKey("email.receivers");
-                settings1.setValue("test");
-                settingsArr.add(settings1);
-                settingsArr.add(settings);
+                settingsArr.add(smtpSetting("email.receivers", "test"));
+                settingsArr.add(smtpSetting("smtp.server.host", "192.168.1.1"));
+                Settings unrelatedSetting = new Settings();
+                unrelatedSetting.setCategory(CategoryEnum.JOB.getValue());
+                unrelatedSetting.setKey("task.statistics.restriction");
+                unrelatedSetting.setValue(null);
+                settingsArr.add(unrelatedSetting);
                 when(mongoTemplate.find(any(),eq(Settings.class))).thenReturn(settingsArr);
                 MailAccountDto mailAccount = settingsService.getMailAccount("123");
                 System.out.println(mailAccount);
@@ -104,22 +115,10 @@ public class SettingsServiceTest {
         @Test
         void testGetMailAccountWithProxy(){
             ArrayList<Settings> settingsArr = new ArrayList<>();
-            Settings settings = new Settings();
-            settings.setKey("smtp.server.host");
-            settings.setValue("192.168.1.1");
-            Settings settings1 = new Settings();
-            settings1.setKey("email.receivers");
-            settings1.setValue("test");
-            Settings settings2 = new Settings();
-            settings2.setKey("smtp.proxy.host");
-            settings2.setValue("smtp.proxy.cn");
-            Settings settings3 = new Settings();
-            settings3.setKey("smtp.proxy.port");
-            settings3.setValue("1025");
-            settingsArr.add(settings);
-            settingsArr.add(settings1);
-            settingsArr.add(settings2);
-            settingsArr.add(settings3);
+            settingsArr.add(smtpSetting("smtp.server.host", "192.168.1.1"));
+            settingsArr.add(smtpSetting("email.receivers", "test"));
+            settingsArr.add(smtpSetting("smtp.proxy.host", "smtp.proxy.cn"));
+            settingsArr.add(smtpSetting("smtp.proxy.port", "1025"));
             when(mongoTemplate.find(any(),eq(Settings.class))).thenReturn(settingsArr);
             MailAccountDto mailAccount = settingsService.getMailAccount("123");
             assertEquals("smtp.proxy.cn",mailAccount.getProxyHost());
@@ -130,10 +129,7 @@ public class SettingsServiceTest {
             try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
                 springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(UserService.class)).thenReturn(userService);
                 ArrayList<Settings> settingsArr = new ArrayList<>();
-                Settings settings = new Settings();
-                settings.setKey("smtp.server.host");
-                settings.setValue("192.168.1.1");
-                settingsArr.add(settings);
+                settingsArr.add(smtpSetting("smtp.server.host", "192.168.1.1"));
                 Query query = Query.query(Criteria.where("category").is("System"));
                 query.addCriteria(Criteria.where("key").is("buildProfile"));
                 Settings systemSetting=new Settings();
@@ -154,10 +150,7 @@ public class SettingsServiceTest {
             try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
                 springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(UserService.class)).thenReturn(userService);
                 ArrayList<Settings> settingsArr = new ArrayList<>();
-                Settings settings = new Settings();
-                settings.setKey("smtp.server.host");
-                settings.setValue("192.168.1.1");
-                settingsArr.add(settings);
+                settingsArr.add(smtpSetting("smtp.server.host", "192.168.1.1"));
                 Query query = Query.query(Criteria.where("category").is("System"));
                 query.addCriteria(Criteria.where("key").is("buildProfile"));
                 Settings systemSetting=new Settings();
@@ -173,6 +166,21 @@ public class SettingsServiceTest {
                 MailAccountDto mailAccount = settingsService.getMailAccount("123");
                 assertEquals(2,mailAccount.getReceivers().size());
             }
+        }
+
+        @Test
+        void testMigrationSetsEmptyValueOnlyOnInsert() throws Exception {
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode migration;
+            try (var input = getClass().getClassLoader().getResourceAsStream("init/idaas/4.24-9.json")) {
+                assertNotNull(input);
+                migration = objectMapper.readTree(input);
+            }
+
+            JsonNode update = migration.get(0).get("updates").get(0).get("u");
+            assertEquals("", update.get("$setOnInsert").get("value").asText());
+            assertFalse(update.get("$set").has("value"));
+            assertEquals("200", update.get("$set").get("default_value").asText());
         }
 
         @Test
