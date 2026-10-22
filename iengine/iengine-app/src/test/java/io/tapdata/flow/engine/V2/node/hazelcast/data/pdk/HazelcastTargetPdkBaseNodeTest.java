@@ -106,6 +106,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -1927,6 +1928,62 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertReplayCacheSurvivesWorkerCompletion(false);
 		}
 
+		@Test
+		void lateWorkerReloadsTheSnapshotAfterAllPreviousWorkersComplete() throws Exception {
+			assertReplayCacheSurvivesWorkerCompletion(true);
+			ConnectorNode connector = mock(ConnectorNode.class);
+			when(connector.getConnectorFunctions()).thenReturn(mock(ConnectorFunctions.class));
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connector);
+			when(hazelcastTargetPdkBaseNode.createPdkMethodInvoker()).thenReturn(mock(PDKMethodInvoker.class));
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			when(context.getTapTableMap()).thenReturn(mock(TapTableMap.class));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", context);
+			AtomicInteger reloads = new AtomicInteger();
+			ExecutorService lateWorker = Executors.newSingleThreadExecutor();
+			try {
+				List<TapEvent> written = lateWorker.submit(() -> {
+					try (MockedStatic<PDKInvocationMonitor> monitor = mockStatic(PDKInvocationMonitor.class)) {
+						monitor.when(() -> PDKInvocationMonitor.invoke(any(), any(), any())).thenAnswer(invocation -> {
+							reloads.incrementAndGet();
+							cache.add("replayed");
+							lastTimestamps.put("t1", 1000L);
+							return null;
+						});
+						return process(recoveryEvent("replayed", 950L));
+					}
+				}).get(5, TimeUnit.SECONDS);
+				assertEquals(1, reloads.get());
+				assertTrue(written.isEmpty(), "A newly registered worker must reload and filter persisted IDs");
+			} finally {
+				lateWorker.shutdownNow();
+			}
+		}
+
+		@Test
+		void completingBothTablesMustPreserveAnotherWorkersTableLookups() throws Exception {
+			DatabaseNode databaseNode = mock(DatabaseNode.class);
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			syncObjects.setType(SyncObjects.TABLE_TYPE);
+			syncObjects.setObjectNames(Arrays.asList("t1", "t2"));
+			when(databaseNode.getSyncObjects()).thenReturn(Collections.singletonList(syncObjects));
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables", Arrays.asList("t1", "t2"));
+			doAnswer(invocation -> invocation.<TapRecordEvent>getArgument(0).getTableId())
+					.when(hazelcastTargetPdkBaseNode).getTgtTableNameFromTapEvent(any());
+			firstTimestamps.put("t2", 1L);
+			lastTimestamps.put("t2", 1000L);
+			cache.add("replayed-t2");
+			laggingWorker.submit(() -> process(recoveryEvent("warmup", 900L))).get(5, TimeUnit.SECONDS);
+			leadingWorker.submit(() -> process(recoveryEvent("new-t1", 2000L))).get(5, TimeUnit.SECONDS);
+			leadingWorker.submit(() -> process(recoveryEvent("t2", "new-t2", 2000L))).get(5, TimeUnit.SECONDS);
+			assertTrue(laggingWorker.submit(() -> process(recoveryEvent("t2", "replayed-t2", 950L)))
+					.get(5, TimeUnit.SECONDS).isEmpty());
+			assertTrue(cache.contains("replayed"));
+			laggingWorker.submit(() -> process(recoveryEvent("new-lagging-t1", 2001L))).get(5, TimeUnit.SECONDS);
+			laggingWorker.submit(() -> process(recoveryEvent("t2", "new-lagging-t2", 2001L))).get(5, TimeUnit.SECONDS);
+			assertTrue(cache.isEmpty());
+		}
+
 		private void assertReplayCacheSurvivesWorkerCompletion(boolean leadingEventHasCache) throws Exception {
 			assertTrue(laggingWorker.submit(() -> process(recoveryEvent("warmup", 900L))).get(5, TimeUnit.SECONDS).isEmpty());
 			TapdataEvent leadingEvent = recoveryEvent("new-leading", 2000L);
@@ -1946,9 +2003,14 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		private TapdataEvent recoveryEvent(String id, long sourceTime) {
+			return recoveryEvent("t1", id, sourceTime);
+		}
+
+		private TapdataEvent recoveryEvent(String table, String id, long sourceTime) {
 			TapInsertRecordEvent record = new TapInsertRecordEvent().init();
-			record.setTableId("t1");
+			record.setTableId(table);
 			record.setExactlyOnceId(id);
+			record.referenceTime(sourceTime);
 			TapdataEvent event = new TapdataEvent();
 			event.setTapEvent(record);
 			event.setSyncStage(SyncStage.CDC);
