@@ -745,7 +745,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					taskLock.tryRun(taskId, () -> {
 						// isRunning() is checked outside taskLock: the stop operation may have already reported and
 						// removed this client, or a new run may have replaced it. Reporting again would hit the next run.
-						if (taskClientMap.get(taskId) != taskClient) return;
+						if (taskClientMap.get(taskId) != taskClient) {
+							logger.info("Skip reporting terminal status of task {}[{}], task client has been removed or replaced, taskRecordId: {}",
+									taskClient.getTask().getName(), taskId, taskClient.getTask().getTaskRecordId());
+							return;
+						}
 						StopTaskResource stopTaskResource = null;
 						TerminalMode terminalMode = taskClient.getTerminalMode();
 						if (heartbeatRecoveryOwnsRetry(taskClient, terminalMode)) return;
@@ -811,14 +815,17 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			}
 			String taskId = taskClient.getTask().getId().toHexString();
 			if (isTaskRescheduledToAnotherAgent(taskId)) {
-				TaskClient<TaskDto> removed = taskClientMap.remove(taskId);
-				if (removed == null) {
-					removed = taskClient;
+				// The TM query above runs outside taskLock: meanwhile the stop operation may have removed this client,
+				// or a new run may have replaced it. Removing by key would stop that new run, so remove only this client.
+				if (!taskClientMap.remove(taskId, taskClient)) {
+					logger.info("TaskHA event=skip_internal_stop_rescheduled_task taskId={} taskName={} localAgentId={} reason=task_client_removed_or_replaced",
+							taskId, taskClient.getTask().getName(), instanceNo);
+					continue;
 				}
-				internalStopTaskClientMap.put(taskId, removed);
+				internalStopTaskClientMap.put(taskId, taskClient);
 				TmStatusService.removeTask(taskId);
 				logger.info("TaskHA event=internal_stop_rescheduled_task taskId={} taskName={} localAgentId={}",
-						taskId, removed.getTask().getName(), instanceNo);
+						taskId, taskClient.getTask().getName(), instanceNo);
 			} else {
 				TmStatusService.setAllowReport(taskId);
 			}
@@ -981,9 +988,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				return success.get();
 			} catch (Exception e) {
 				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
-					// 违反TM状态机，不再进行修改任务状态的重试
-					logger.warn("Call api to stop task status to {} failed, will set task to error, message: {}", resource, e.getMessage(), e);
-					CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), taskStatusResource(task, StopTaskResource.RUN_ERROR.getResource()), taskId, TaskDto.class)).join();
+					// 违反TM状态机，说明该事件对TM当前状态已无意义（例如这一轮已结束、任务已被重新调度），不再重试，也不能改报 runError：
+					// SCHEDULING/WAIT_RUN 接受 ERROR，改报会把刚拉起的新一轮打成 error（TAP-13143）
+					logger.warn("Call api to modify task status to {} rejected by TM state machine, ignore it, message: {}", resource, e.getMessage());
 					return true;
 				} else {
 					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]", resource, taskName, taskId, e);
