@@ -125,4 +125,14 @@ class TaskInspectUtilsTest {
             verify(runnable).run();
         }
     }
+
+    @Test
+    void testExecutorUsesDirectHandoffAndIdleReaping() {
+        ThreadPoolExecutor executor = assertInstanceOf(ThreadPoolExecutor.class, TaskInspectUtils.executorService);
+
+        assertEquals(TaskInspectUtils.DEFAULT_CORE_POOL_SIZE, executor.getCorePoolSize());
+        assertEquals(TaskInspectUtils.DEFAULT_MAX_POOL_SIZE, executor.getMaximumPoolSize());
+        assertTrue(executor.allowsCoreThreadTimeOut());
+        assertInstanceOf(SynchronousQueue.class, executor.getQueue());
+    }
 }
