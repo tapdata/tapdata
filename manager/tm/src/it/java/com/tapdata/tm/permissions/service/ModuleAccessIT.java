@@ -31,6 +31,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -94,19 +95,23 @@ class ModuleAccessIT {
     }
 
     @Test
-    @DisplayName("AC10 操作审计列表需要审计查看权限，无权限时不查询")
+    @DisplayName("AC10 操作审计列表需要审计查看权限，无权限时不查询；有权限查看全部用户日志，云版仍按原用户范围")
     void should_gate_audit_log_list() {
         UserLogService logs = mock(UserLogService.class);
-        when(logs.find(any(Filter.class), eq(user))).thenReturn(new Page<>());
+        when(logs.find(any(Filter.class), eq(user), anyBoolean())).thenReturn(new Page<>());
         UserLogController controller = spy(new UserLogController(logs, access));
         doReturn(user).when(controller).getLoginUser();
 
         assertThatThrownBy(() -> controller.list(null)).isInstanceOf(BizException.class);
-        verify(logs, never()).find(any(Filter.class), any(UserDetail.class));
+        verify(logs, never()).find(any(Filter.class), any(UserDetail.class), anyBoolean());
 
         when(permissions.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_AUDIT_LOG, "u1")).thenReturn(true);
         controller.list(null);
-        verify(logs).find(any(Filter.class), eq(user));
+        verify(logs).find(any(Filter.class), eq(user), eq(true));
+
+        when(settings.isCloud()).thenReturn(true);
+        controller.list(null);
+        verify(logs).find(any(Filter.class), eq(user), eq(false));
     }
 
     @Test
