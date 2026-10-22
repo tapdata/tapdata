@@ -128,6 +128,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		hazelcastTargetPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
 		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "saveSnapshotLock", new Object());
 		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "uploadDagLock", new Object());
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceLookupLock", new Object());
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteNeedLookupTables", new ConcurrentHashMap<>());
 		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
 		setBaseProperty(hazelcastTargetPdkBaseNode);
 		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "fromConcurrentProcessor", ThreadLocal.withInitial(() -> false));
@@ -1861,6 +1863,103 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			assertEquals(1, tapEvents.size());
 			assertFalse(lookupTables.contains("t1"));
+		}
+	}
+
+	@Nested
+	@DisplayName("exactly once cache lifecycle across recovery workers")
+	class ExactlyOnceConcurrentRecoveryTest {
+		private OverflowToRocksDBSet cache;
+		private Map<String, Long> firstTimestamps;
+		private Map<String, Long> lastTimestamps;
+		private ExecutorService laggingWorker;
+		private ExecutorService leadingWorker;
+
+		@BeforeEach
+		void setUp() throws Exception {
+			cache = new OverflowToRocksDBSet();
+			cache.addAll(Arrays.asList("warmup", "replayed"));
+			firstTimestamps = new ConcurrentHashMap<>(Collections.singletonMap("t1", 1L));
+			lastTimestamps = new ConcurrentHashMap<>(Collections.singletonMap("t1", 1000L));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceCache", cache);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "firstCDCTimestampMap", firstTimestamps);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "lastCDCTimestampMap", lastTimestamps);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables", new ArrayList<>(Collections.singletonList("t1")));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteNeedLookupTables", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", mock(ObsLogger.class));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "checkExactlyOnceWriteEnableResult",
+					CheckExactlyOnceWriteEnableResult.createEnable().mode(CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE));
+			TableNode recoveryNode = mock(TableNode.class);
+			when(recoveryNode.getTableName()).thenReturn("t1");
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) recoveryNode);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initAndGetExactlyOnceWriteLookupList();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEventDML(any(), any(), any(), any(), any());
+			when(hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(any())).thenAnswer(invocation ->
+					invocation.<TapdataEvent>getArgument(0).getTapEvent());
+			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(any())).thenReturn("t1");
+			when(hazelcastTargetPdkBaseNode.handleExactlyOnceWriteCacheIfNeed(any(), anyList())).thenAnswer(invocation -> {
+				TapdataEvent event = invocation.getArgument(0);
+				event.setExactlyOnceWriteCache(new TapInsertRecordEvent());
+				return true;
+			});
+			when(hazelcastTargetPdkBaseNode.eventExactlyOnceWriteCheckExists(any())).thenAnswer(invocation -> {
+				TapdataEvent event = invocation.getArgument(0);
+				return cache.contains(((TapRecordEvent) event.getTapEvent()).getExactlyOnceId());
+			});
+			laggingWorker = Executors.newSingleThreadExecutor(r -> new Thread(r, "recovery-lagging"));
+			leadingWorker = Executors.newSingleThreadExecutor(r -> new Thread(r, "recovery-leading"));
+		}
+
+		@AfterEach
+		void tearDown() {
+			laggingWorker.shutdownNow();
+			leadingWorker.shutdownNow();
+			cache.close();
+		}
+
+		@Test
+		void completedWorkerMustPreserveAnotherWorkersReplayCache() throws Exception {
+			assertReplayCacheSurvivesWorkerCompletion(true);
+		}
+
+		@Test
+		void eventWithoutCacheMetadataMustNotClearAnotherWorkersReplayCache() throws Exception {
+			assertReplayCacheSurvivesWorkerCompletion(false);
+		}
+
+		private void assertReplayCacheSurvivesWorkerCompletion(boolean leadingEventHasCache) throws Exception {
+			assertTrue(laggingWorker.submit(() -> process(recoveryEvent("warmup", 900L))).get(5, TimeUnit.SECONDS).isEmpty());
+			TapdataEvent leadingEvent = recoveryEvent("new-leading", 2000L);
+			if (!leadingEventHasCache) {
+				doReturn(false).when(hazelcastTargetPdkBaseNode).handleExactlyOnceWriteCacheIfNeed(eq(leadingEvent), anyList());
+			}
+			assertEquals(1, leadingWorker.submit(() -> process(leadingEvent)).get(5, TimeUnit.SECONDS).size());
+			assertTrue(cache.contains("replayed"), "A completed worker must not discard IDs needed by the lagging worker");
+			assertEquals(1000L, lastTimestamps.get("t1"));
+			assertTrue(laggingWorker.submit(() -> process(recoveryEvent("replayed", 950L))).get(5, TimeUnit.SECONDS).isEmpty());
+
+			// The shared snapshot can be released once every registered worker has caught up.
+			assertEquals(1, laggingWorker.submit(() -> process(recoveryEvent("new-lagging", 2001L))).get(5, TimeUnit.SECONDS).size());
+			assertTrue(cache.isEmpty());
+			assertTrue(firstTimestamps.isEmpty());
+			assertTrue(lastTimestamps.isEmpty());
+		}
+
+		private TapdataEvent recoveryEvent(String id, long sourceTime) {
+			TapInsertRecordEvent record = new TapInsertRecordEvent().init();
+			record.setTableId("t1");
+			record.setExactlyOnceId(id);
+			TapdataEvent event = new TapdataEvent();
+			event.setTapEvent(record);
+			event.setSyncStage(SyncStage.CDC);
+			event.setSourceTime(sourceTime);
+			return event;
+		}
+
+		private List<TapEvent> process(TapdataEvent event) throws JsonProcessingException {
+			List<TapEvent> events = new ArrayList<>();
+			hazelcastTargetPdkBaseNode.handleTapdataEventDML(events, new AtomicBoolean(), new ArrayList<>(), new AtomicReference<>(), event);
+			return events;
 		}
 	}
 

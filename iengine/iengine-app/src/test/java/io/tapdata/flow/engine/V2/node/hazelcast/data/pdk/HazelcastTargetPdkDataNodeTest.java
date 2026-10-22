@@ -101,6 +101,87 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
     }
 
 	@Nested
+	class ExactlyOnceTransactionStopTest {
+		private WriteRecordFunction writeCache;
+		private AtomicBoolean running;
+		private List<TapdataEvent> events;
+		private List<TapEvent> records;
+
+		@BeforeEach
+		void setUp() {
+			running = new AtomicBoolean(true);
+			when(hazelcastTargetPdkDataNode.isRunning()).thenAnswer(invocation -> running.get());
+			ConnectorNode connector = mock(ConnectorNode.class);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			writeCache = mock(WriteRecordFunction.class);
+			when(connector.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getWriteRecordFunction()).thenReturn(writeCache);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connector);
+			Node node = mock(TableNode.class);
+			when(node.getId()).thenReturn("target-node");
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			TapTableMap tables = mock(TapTableMap.class);
+			when(context.getTapTableMap()).thenReturn(tables);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", context);
+			PDKMethodInvoker invoker = mock(PDKMethodInvoker.class);
+			doCallRealMethod().when(invoker).runnable(any());
+			doCallRealMethod().when(invoker).getRunnable();
+			when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(invoker);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(anyList(), anyList(), anyBoolean());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(), any());
+			Map<String, Object> cacheRow = new HashMap<>();
+			cacheRow.put(ExactlyOnceUtil.NODE_ID_COL_NAME, "target-node");
+			cacheRow.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, "t1");
+			cacheRow.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "event-1");
+			cacheRow.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1000L);
+			TapdataEvent event = new TapdataEvent();
+			event.setExactlyOnceWriteCache(TapInsertRecordEvent.create().after(cacheRow).init());
+			events = Collections.singletonList(event);
+			records = Collections.singletonList(new TapInsertRecordEvent().init());
+		}
+
+		@Test
+		void stopAfterBusinessWriteMustRollbackInsteadOfCommittingWithoutCache() throws Throwable {
+			doAnswer(invocation -> { running.set(false); return null; })
+					.when(hazelcastTargetPdkDataNode).processEvents(anyList(), eq(false));
+			assertThrows(TapCodeException.class, this::writeBatch);
+			verify(hazelcastTargetPdkDataNode).transactionRollback();
+			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
+			verifyNoInteractions(writeCache);
+		}
+
+		@Test
+		void stopDuringCacheWriteMustRollbackTheWholeBatch() throws Throwable {
+			doAnswer(invocation -> { running.set(false); return null; })
+					.when(writeCache).writeRecord(any(), anyList(), any(), any());
+			assertThrows(TapCodeException.class, this::writeBatch);
+			verify(hazelcastTargetPdkDataNode).transactionRollback();
+			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
+		}
+
+		@Test
+		void runningBatchCommitsBusinessDataAndCacheTogether() throws Throwable {
+			writeBatch();
+			verify(hazelcastTargetPdkDataNode).processEvents(records, false);
+			verify(writeCache).writeRecord(any(), anyList(), any(), any());
+			verify(hazelcastTargetPdkDataNode).transactionCommit();
+			verify(hazelcastTargetPdkDataNode, never()).transactionRollback();
+		}
+
+		private void writeBatch() {
+			try (MockedStatic<PDKInvocationMonitor> monitor = mockStatic(PDKInvocationMonitor.class)) {
+				monitor.when(() -> PDKInvocationMonitor.invoke(any(), any(), any())).thenAnswer(invocation -> {
+					PDKMethodInvoker invoker = invocation.getArgument(2);
+					invoker.getRunnable().run();
+					return null;
+				});
+				hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(events, records, true);
+			}
+		}
+	}
+
+	@Nested
 	@DisplayName("ProcessEvents Method Test")
 	class processEventsTest {
 		@BeforeEach

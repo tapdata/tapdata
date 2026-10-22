@@ -211,9 +211,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private final ITaskInspect taskInspect;
     protected final ISkipErrorTable skipErrorTable;
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
-	protected final Map<String, Boolean> startTransactionMap = new HashMap<>();
+	protected final Map<String, Boolean> startTransactionMap = new ConcurrentHashMap<>();
 	protected boolean offsetCallbackEnable = false;
 	protected OverflowToRocksDBSet exactlyOnceCache = new OverflowToRocksDBSet();
+	private final Object exactlyOnceLookupLock = new Object();
 	private TapTable exactlyOnceTable;
 	private Long earliestTimestamp = Long.MAX_VALUE;
 	private final Map<String, Long> firstCDCTimestampMap = new ConcurrentHashMap<>();
@@ -1473,48 +1474,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				needCheckExactlyOnceWrite = false;
 			}
 		}
-		if (needCheckExactlyOnceWrite) {
-			hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
-			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
-			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
-			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get()) {
-				firstCDCTimestampMap.computeIfAbsent(tgtTableNameFromTapEvent, k ->  {
-					// If the first CDC event, cache the exactly once write id from 5 minutes before its reference time because of the difference between source and target
-					Long timestamp = TapEventUtil.getTimestamp(tapRecordEvent) - 5 * 60 * 1000L;
-					if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
-						cacheExactlyOnceIds(getConnectorNode(), tgtTableNameFromTapEvent, timestamp);
-					} else if (timestamp < earliestTimestamp) {
-						cacheExactlyOnceIdsForTask(getConnectorNode(), exactlyOnceTable, timestamp, earliestTimestamp);
-						earliestTimestamp = timestamp;
-					}
-					return timestamp;
-				});
-				if (eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-					tapdataEvent.setExactlyOnceWriteCache(null);
-					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
-					return;
-				} else {
-					if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && lookupTables.contains(tgtTableNameFromTapEvent) && tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
-						obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-						lookupTables.remove(tgtTableNameFromTapEvent);
-						if (lookupTables.isEmpty()) {
-							exactlyOnceCache.clear();
-							firstCDCTimestampMap.clear();
-							lastCDCTimestampMap.clear();
-						}
-					}
-				}
-			} else {
-				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
-					obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-					lookupTables.remove(tgtTableNameFromTapEvent);
-					if (lookupTables.isEmpty()) {
-						exactlyOnceCache.clear();
-						firstCDCTimestampMap.clear();
-						lastCDCTimestampMap.clear();
-					}
-				}
-			}
+		if (needCheckExactlyOnceWrite && skipExactlyOnceEvent(tapdataEvent, tapRecordEvent, hasExactlyOnceWriteCache, exactlyOnceWriteCache)) {
+			return;
 		}
 
 		// Add offset information from TapdataEvent to TapRecordEvent.info
@@ -1536,6 +1497,51 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             lastTapdataEvent.set(tapdataEvent);
         }
     }
+
+	private boolean skipExactlyOnceEvent(TapdataEvent tapdataEvent, TapRecordEvent tapRecordEvent,
+			AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache) throws JsonProcessingException {
+		hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
+		if (checkExactlyOnceWriteEnableResult != null && !Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable())) {
+			return false;
+		}
+		// Worker registration, lookup and retirement must be atomic with shared cache cleanup.
+		synchronized (exactlyOnceLookupLock) {
+			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
+			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
+			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get()) {
+				firstCDCTimestampMap.computeIfAbsent(tgtTableNameFromTapEvent, k ->  {
+					// If the first CDC event, cache the exactly once write id from 5 minutes before its reference time because of the difference between source and target
+					Long timestamp = TapEventUtil.getTimestamp(tapRecordEvent) - 5 * 60 * 1000L;
+					if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
+						cacheExactlyOnceIds(getConnectorNode(), tgtTableNameFromTapEvent, timestamp);
+					} else if (timestamp < earliestTimestamp) {
+						cacheExactlyOnceIdsForTask(getConnectorNode(), exactlyOnceTable, timestamp, earliestTimestamp);
+						earliestTimestamp = timestamp;
+					}
+					return timestamp;
+				});
+				if (eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+					tapdataEvent.setExactlyOnceWriteCache(null);
+					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
+					return true;
+				}
+			}
+			if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables
+					&& lookupTables.contains(tgtTableNameFromTapEvent)
+					&& tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
+				obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+				lookupTables.remove(tgtTableNameFromTapEvent);
+				// Each worker has its own lookup list, but all workers share this snapshot.
+				if (lookupTables.isEmpty() && exactlyOnceWriteNeedLookupTables.values().stream().allMatch(List::isEmpty)) {
+					exactlyOnceCache.clear();
+					firstCDCTimestampMap.clear();
+					lastCDCTimestampMap.clear();
+					earliestTimestamp = Long.MAX_VALUE;
+				}
+			}
+			return false;
+		}
+	}
 
     protected void handleTapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent tapdataEvent) {
         try {
