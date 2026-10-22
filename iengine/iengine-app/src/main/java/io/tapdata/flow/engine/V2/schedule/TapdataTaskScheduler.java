@@ -743,6 +743,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 				if (!taskClient.isRunning()) {
 					taskLock.tryRun(taskId, () -> {
+						// isRunning() is checked outside taskLock: the stop operation may have already reported and
+						// removed this client, or a new run may have replaced it. Reporting again would hit the next run.
+						if (taskClientMap.get(taskId) != taskClient) return;
 						StopTaskResource stopTaskResource = null;
 						TerminalMode terminalMode = taskClient.getTerminalMode();
 						if (heartbeatRecoveryOwnsRetry(taskClient, terminalMode)) return;

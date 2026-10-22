@@ -12,6 +12,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
@@ -1037,6 +1038,93 @@ public class TapdataTaskSchedulerTest {
 			verify(taskClient).stop();
 			verifyNoInteractions(taskRetryFactory);
 			verifyNoInteractions(obsLoggerFactory);
+		}
+	}
+
+	@Nested
+	class ErrorOrStopTaskTest {
+		TapdataTaskScheduler scheduler;
+		ClientMongoOperator clientMongoOperator;
+		Map<String, TaskClient<TaskDto>> taskClientMap;
+		TaskClient<TaskDto> taskClient;
+		TaskDto taskDto;
+		String taskId;
+
+		@BeforeEach
+		void init() {
+			scheduler = new TapdataTaskScheduler();
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			taskClientMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(scheduler, "logger", mock(Logger.class));
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(scheduler, "taskClientMap", taskClientMap);
+			ReflectionTestUtils.setField(scheduler, "instanceNo", "fe1");
+
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			taskDto.setName("share-cdc-collector");
+			taskDto.setTaskRecordId(new ObjectId().toHexString());
+			taskId = taskDto.getId().toHexString();
+			taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(taskDto);
+			when(taskClient.getTerminalMode()).thenReturn(TerminalMode.STOP_GRACEFUL);
+			when(taskClient.stop()).thenReturn(true);
+			taskClientMap.put(taskId, taskClient);
+		}
+
+		@Test
+		void shouldNotReportStoppedWhenStopOperationAlreadyRemovedTaskClient() {
+			when(taskClient.isRunning()).thenAnswer(invocation -> {
+				taskClientMap.remove(taskId);
+				return false;
+			});
+
+			runErrorOrStopTask();
+
+			verify(taskClient, never()).stop();
+			verify(clientMongoOperator, never()).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+		}
+
+		@Test
+		void shouldNotReportStoppedWhenTaskClientReplacedByNewRun() {
+			TaskClient<TaskDto> newRunTaskClient = mock(TaskClient.class);
+			when(taskClient.isRunning()).thenAnswer(invocation -> {
+				taskClientMap.put(taskId, newRunTaskClient);
+				return false;
+			});
+
+			runErrorOrStopTask();
+
+			assertSame(newRunTaskClient, taskClientMap.get(taskId));
+			verify(taskClient, never()).stop();
+			verify(clientMongoOperator, never()).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+		}
+
+		@Test
+		void shouldReportStoppedForCurrentTaskClient() {
+			when(taskClient.isRunning()).thenReturn(false);
+			TaskOpRespDto taskOpRespDto = new TaskOpRespDto();
+			taskOpRespDto.setSuccessIds(Collections.singletonList(taskId));
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), eq(taskId), eq(TaskOpRespDto.class))).thenReturn(taskOpRespDto);
+
+			runErrorOrStopTask();
+
+			verify(taskClient).stop();
+			verify(clientMongoOperator).updateById(any(Update.class),
+					argThat((String resource) -> resource.startsWith(ConnectorConstant.TASK_COLLECTION + "/stopped")
+							&& resource.contains("taskRecordId=" + taskDto.getTaskRecordId())),
+					eq(taskId), eq(TaskOpRespDto.class));
+			assertFalse(taskClientMap.containsKey(taskId));
+		}
+
+		private void runErrorOrStopTask() {
+			try (MockedStatic<TmStatusService> ignoredTmStatusService = mockStatic(TmStatusService.class);
+				 MockedStatic<TaskRetryFactory> taskRetryFactoryMockedStatic = mockStatic(TaskRetryFactory.class);
+				 MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)) {
+				taskRetryFactoryMockedStatic.when(TaskRetryFactory::getInstance).thenReturn(mock(TaskRetryFactory.class));
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+				scheduler.errorOrStopTask();
+			}
 		}
 	}
 
