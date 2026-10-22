@@ -814,20 +814,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				continue;
 			}
 			String taskId = taskClient.getTask().getId().toHexString();
-			if (isTaskRescheduledToAnotherAgent(taskId)) {
+			if (!isTaskRescheduledToAnotherAgent(taskId)) {
+				TmStatusService.setAllowReport(taskId);
+			} else if (taskClientMap.remove(taskId, taskClient)) {
 				// The TM query above runs outside taskLock: meanwhile the stop operation may have removed this client,
 				// or a new run may have replaced it. Removing by key would stop that new run, so remove only this client.
-				if (!taskClientMap.remove(taskId, taskClient)) {
-					logger.info("TaskHA event=skip_internal_stop_rescheduled_task taskId={} taskName={} localAgentId={} reason=task_client_removed_or_replaced",
-							taskId, taskClient.getTask().getName(), instanceNo);
-					continue;
-				}
 				internalStopTaskClientMap.put(taskId, taskClient);
 				TmStatusService.removeTask(taskId);
 				logger.info("TaskHA event=internal_stop_rescheduled_task taskId={} taskName={} localAgentId={}",
 						taskId, taskClient.getTask().getName(), instanceNo);
 			} else {
-				TmStatusService.setAllowReport(taskId);
+				logger.info("TaskHA event=skip_internal_stop_rescheduled_task taskId={} taskName={} localAgentId={} reason=task_client_removed_or_replaced",
+						taskId, taskClient.getTask().getName(), instanceNo);
 			}
 		}
 	}
