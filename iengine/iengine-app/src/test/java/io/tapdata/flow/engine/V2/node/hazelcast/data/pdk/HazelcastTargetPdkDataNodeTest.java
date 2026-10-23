@@ -101,6 +101,122 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
     }
 
 	@Nested
+	class ExactlyOnceTransactionStopTest {
+		private WriteRecordFunction writeCache;
+		private AtomicBoolean running;
+		private List<TapdataEvent> events;
+		private List<TapEvent> records;
+
+		@BeforeEach
+		void setUp() {
+			running = new AtomicBoolean(true);
+			when(hazelcastTargetPdkDataNode.isRunning()).thenAnswer(invocation -> running.get());
+			ConnectorNode connector = mock(ConnectorNode.class);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			writeCache = mock(WriteRecordFunction.class);
+			when(connector.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getWriteRecordFunction()).thenReturn(writeCache);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connector);
+			Node node = mock(TableNode.class);
+			when(node.getId()).thenReturn("target-node");
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			TapTableMap tables = mock(TapTableMap.class);
+			when(context.getTapTableMap()).thenReturn(tables);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", context);
+			PDKMethodInvoker invoker = mock(PDKMethodInvoker.class);
+			doCallRealMethod().when(invoker).runnable(any());
+			doCallRealMethod().when(invoker).getRunnable();
+			when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(invoker);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(anyList(), anyList(), anyBoolean());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(), any());
+			Map<String, Object> cacheRow = new HashMap<>();
+			cacheRow.put(ExactlyOnceUtil.NODE_ID_COL_NAME, "target-node");
+			cacheRow.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, "t1");
+			cacheRow.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "event-1");
+			cacheRow.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1000L);
+			TapdataEvent event = new TapdataEvent();
+			event.setExactlyOnceWriteCache(TapInsertRecordEvent.create().after(cacheRow).init());
+			events = Collections.singletonList(event);
+			records = Collections.singletonList(new TapInsertRecordEvent().init());
+		}
+
+		@Test
+		void stopAfterBusinessWriteMustRollbackInsteadOfCommittingWithoutCache() throws Throwable {
+			doAnswer(invocation -> { running.set(false); return null; })
+					.when(hazelcastTargetPdkDataNode).processEvents(anyList(), eq(false));
+			assertThrows(ExactlyOnceWriteCancelledException.class, this::writeBatch);
+			verify(hazelcastTargetPdkDataNode).transactionRollback();
+			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
+			verifyNoInteractions(writeCache);
+		}
+
+		@Test
+		void stopDuringCacheWriteMustRollbackTheWholeBatch() throws Throwable {
+			doAnswer(invocation -> { running.set(false); return null; })
+					.when(writeCache).writeRecord(any(), anyList(), any(), any());
+			assertThrows(ExactlyOnceWriteCancelledException.class, this::writeBatch);
+			verify(hazelcastTargetPdkDataNode).transactionRollback();
+			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
+		}
+
+		@Test
+		void runningBatchCommitsBusinessDataAndCacheTogether() throws Throwable {
+			writeBatch();
+			verify(hazelcastTargetPdkDataNode).processEvents(records, false);
+			verify(writeCache).writeRecord(any(), anyList(), any(), any());
+			verify(hazelcastTargetPdkDataNode).transactionCommit();
+			verify(hazelcastTargetPdkDataNode, never()).transactionRollback();
+		}
+
+		@Test
+		void stoppedCancellationIsRecognizedThroughSerialConsumerWrapping() {
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).isStoppedExactlyOnceWrite(any());
+			RuntimeException wrapped = new RuntimeException(new ExactlyOnceWriteCancelledException());
+			assertFalse(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(wrapped));
+			running.set(false);
+			assertTrue(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(wrapped));
+			assertFalse(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(new RuntimeException("write failed")));
+		}
+
+		@Test
+		void interruptedStoppedCancellationIsRecognizedThroughPdkWrapping() {
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).isStoppedExactlyOnceWrite(any());
+			running.set(false);
+			Throwable wrapped = new io.tapdata.pdk.core.error.TapPdkRunnerUnknownException(new ExactlyOnceWriteCancelledException());
+			boolean interrupted = Thread.currentThread().isInterrupted();
+			Thread.currentThread().interrupt();
+			try {
+				assertTrue(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(wrapped));
+				assertTrue(Thread.currentThread().isInterrupted());
+			} finally {
+				if (!interrupted) Thread.interrupted();
+			}
+		}
+
+		@Test
+		void cancellationWithRollbackFailureMustRemainAWriteError() throws Throwable {
+			doAnswer(invocation -> { running.set(false); return null; })
+					.when(hazelcastTargetPdkDataNode).processEvents(anyList(), eq(false));
+			doThrow(new RuntimeException("rollback failed")).when(hazelcastTargetPdkDataNode).transactionRollback();
+			TapCodeException error = assertThrows(TapCodeException.class, this::writeBatch);
+			assertFalse(ExactlyOnceWriteCancelledException.isCleanCancellation(error));
+			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
+		}
+
+		private void writeBatch() {
+			try (MockedStatic<PDKInvocationMonitor> monitor = mockStatic(PDKInvocationMonitor.class)) {
+				monitor.when(() -> PDKInvocationMonitor.invoke(any(), any(), any())).thenAnswer(invocation -> {
+					PDKMethodInvoker invoker = invocation.getArgument(2);
+					invoker.getRunnable().run();
+					return null;
+				});
+				hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(events, records, true);
+			}
+		}
+	}
+
+	@Nested
 	@DisplayName("ProcessEvents Method Test")
 	class processEventsTest {
 		@BeforeEach
@@ -208,7 +324,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		class testProcessExactlyOnceWriteCache{
 			@BeforeEach
 			void init(){
-
+				when(hazelcastTargetPdkDataNode.isRunning()).thenReturn(true);
+				DataProcessorContext context = mock(DataProcessorContext.class);
+				when(context.getTapTableMap()).thenReturn(mock(TapTableMap.class));
+				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", context);
 			}
 			@Test
 			void test1(){
@@ -229,7 +348,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				when(hazelcastTargetPdkDataNode.getNode()).thenReturn((Node) node);
 				ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
 				when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
-				when(connectorFunctions.getWriteRecordFunction()).thenReturn(new mockWriteFunction());
+				mockWriteFunction writer = spy(new mockWriteFunction());
+				when(connectorFunctions.getWriteRecordFunction()).thenReturn(writer);
 				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
 				when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
 				doCallRealMethod().when(pdkMethodInvoker).runnable(any());
@@ -249,6 +369,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 					}));
 					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents, tapEvents, true);
 				}
+				try { verify(writer).writeRecord(any(), anyList(), any(), any()); }
+				catch (Throwable error) { throw new AssertionError(error); }
 			}
 			class mockWriteFunction implements WriteRecordFunction{
 

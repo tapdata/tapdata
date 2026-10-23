@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
 import com.tapdata.entity.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.ExactlyOnceWriteCancelledException;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffset;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -770,6 +771,65 @@ class PartitionConcurrentProcessorTest {
             ReflectionTestUtils.setField(processor, "currentRunning", currentRunning);
             ReflectionTestUtils.setField(processor, "nodeRunning", nodeRunning);
         }
+        @Test
+        void stoppedTransactionCancellationMustNotReportErrorOrFlushOffset() throws InterruptedException {
+            AtomicBoolean running = new AtomicBoolean(true);
+            ReflectionTestUtils.setField(processor, "nodeRunning", (Supplier<Boolean>) running::get);
+            doAnswer(invocation -> {
+                running.set(false);
+                throw new RuntimeException(new ExactlyOnceWriteCancelledException());
+            }).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            Runnable cleanup = mock(Runnable.class);
+            processor.setWorkerCleanup(cleanup);
+            processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+            verify(cleanup).run();
+            verifyNoInteractions(errorHandler, flushOffset);
+        }
+
+        @Test
+        void interruptedStoppedPdkCancellationMustNotReportErrorOrFlushOffset() throws InterruptedException {
+            AtomicBoolean running = new AtomicBoolean(true);
+            ReflectionTestUtils.setField(processor, "nodeRunning", (Supplier<Boolean>) running::get);
+            doAnswer(invocation -> {
+                running.set(false);
+                Thread.currentThread().interrupt();
+                throw new io.tapdata.pdk.core.error.TapPdkRunnerUnknownException(new ExactlyOnceWriteCancelledException());
+            }).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            Runnable cleanup = mock(Runnable.class);
+            processor.setWorkerCleanup(cleanup);
+            boolean interrupted = Thread.currentThread().isInterrupted();
+            try {
+                processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+                verify(cleanup).run();
+                verifyNoInteractions(errorHandler, flushOffset);
+                assertTrue(Thread.currentThread().isInterrupted());
+            } finally {
+                if (!interrupted) Thread.interrupted();
+            }
+        }
+
+        @Test
+        void cancellationWhileRunningMustStillReportError() throws InterruptedException {
+            doThrow(new ExactlyOnceWriteCancelledException()).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+            verify(errorHandler).accept(any(Throwable.class), anyString());
+        }
+
+        @Test
+        void rollbackFailureDuringStopMustStillReportError() throws InterruptedException {
+            AtomicBoolean running = new AtomicBoolean(true);
+            ReflectionTestUtils.setField(processor, "nodeRunning", (Supplier<Boolean>) running::get);
+            ExactlyOnceWriteCancelledException cancelled = new ExactlyOnceWriteCancelledException();
+            cancelled.addSuppressed(new RuntimeException("rollback failed"));
+            doAnswer(invocation -> {
+                running.set(false);
+                throw new TapCodeException("rollback", cancelled);
+            }).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+            verify(errorHandler).accept(any(Throwable.class), anyString());
+            verifyNoInteractions(flushOffset);
+        }
+
         @Test
         void partitionConsumerTestWithTapCodeException() throws InterruptedException {
             doThrow(new TapCodeException("postgres","test permission")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());

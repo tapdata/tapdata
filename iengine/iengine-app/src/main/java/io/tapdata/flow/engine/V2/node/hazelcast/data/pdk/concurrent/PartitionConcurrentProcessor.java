@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.ExactlyOnceWriteCancelledException;
+
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.entity.TapdataEvent;
@@ -74,6 +76,12 @@ public class PartitionConcurrentProcessor {
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
 	private Supplier<Boolean> nodeRunning;
+	private Runnable workerCleanup;
+
+	public PartitionConcurrentProcessor setWorkerCleanup(Runnable workerCleanup) {
+		this.workerCleanup = workerCleanup;
+		return this;
+	}
 	private TaskDto taskDto;
 	private DataProcessorContext dataProcessorContext;
 
@@ -233,6 +241,9 @@ public class PartitionConcurrentProcessor {
 					Thread.currentThread().interrupt();
 					break;
 				} catch (Throwable throwable) {
+					if (!nodeRunning.get() && ExactlyOnceWriteCancelledException.isCleanCancellation(throwable)) {
+						break;
+					}
 					currentRunning.compareAndSet(true, false);
 					Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 					if (null == matched) {
@@ -243,7 +254,11 @@ public class PartitionConcurrentProcessor {
 				}
 			}
 		} finally {
-			ThreadContext.clearAll();
+			try {
+				if (workerCleanup != null) workerCleanup.run();
+			} finally {
+				ThreadContext.clearAll();
+			}
 		}
 	}
 
