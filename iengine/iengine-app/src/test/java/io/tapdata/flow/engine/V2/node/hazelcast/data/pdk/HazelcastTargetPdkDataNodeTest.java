@@ -180,6 +180,21 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		}
 
 		@Test
+		void interruptedStoppedCancellationIsRecognizedThroughPdkWrapping() {
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).isStoppedExactlyOnceWrite(any());
+			running.set(false);
+			Throwable wrapped = new io.tapdata.pdk.core.error.TapPdkRunnerUnknownException(new ExactlyOnceWriteCancelledException());
+			boolean interrupted = Thread.currentThread().isInterrupted();
+			Thread.currentThread().interrupt();
+			try {
+				assertTrue(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(wrapped));
+				assertTrue(Thread.currentThread().isInterrupted());
+			} finally {
+				if (!interrupted) Thread.interrupted();
+			}
+		}
+
+		@Test
 		void cancellationWithRollbackFailureMustRemainAWriteError() throws Throwable {
 			doAnswer(invocation -> { running.set(false); return null; })
 					.when(hazelcastTargetPdkDataNode).processEvents(anyList(), eq(false));

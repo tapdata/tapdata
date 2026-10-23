@@ -787,6 +787,28 @@ class PartitionConcurrentProcessorTest {
         }
 
         @Test
+        void interruptedStoppedPdkCancellationMustNotReportErrorOrFlushOffset() throws InterruptedException {
+            AtomicBoolean running = new AtomicBoolean(true);
+            ReflectionTestUtils.setField(processor, "nodeRunning", (Supplier<Boolean>) running::get);
+            doAnswer(invocation -> {
+                running.set(false);
+                Thread.currentThread().interrupt();
+                throw new io.tapdata.pdk.core.error.TapPdkRunnerUnknownException(new ExactlyOnceWriteCancelledException());
+            }).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            Runnable cleanup = mock(Runnable.class);
+            processor.setWorkerCleanup(cleanup);
+            boolean interrupted = Thread.currentThread().isInterrupted();
+            try {
+                processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+                verify(cleanup).run();
+                verifyNoInteractions(errorHandler, flushOffset);
+                assertTrue(Thread.currentThread().isInterrupted());
+            } finally {
+                if (!interrupted) Thread.interrupted();
+            }
+        }
+
+        @Test
         void cancellationWhileRunningMustStillReportError() throws InterruptedException {
             doThrow(new ExactlyOnceWriteCancelledException()).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
             processor.partitionConsumer(finalPartition, linkedBlockingQueue);
