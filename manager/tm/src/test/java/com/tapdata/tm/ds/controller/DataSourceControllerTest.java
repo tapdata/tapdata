@@ -87,4 +87,40 @@ class DataSourceControllerTest {
             }
         }
     }
+    @Test
+    void conflictDoesNotDeleteHeartbeatBeforeTheConnectionIsSaved() {
+        com.tapdata.tm.task.service.TaskService tasks = mock(com.tapdata.tm.task.service.TaskService.class);
+        controller.setTaskService(tasks);
+        String id = new ObjectId().toHexString();
+        com.tapdata.tm.commons.schema.DataSourceConnectionDto candidate = new com.tapdata.tm.commons.schema.DataSourceConnectionDto();
+        candidate.setHeartbeatEnable(false);
+        com.tapdata.tm.ds.dto.ConnectionAgentConflictReport report = new com.tapdata.tm.ds.dto.ConnectionAgentConflictReport();
+        report.setHasConflicts(true);
+        org.mockito.Mockito.when(dataSourceService.update(eq(userDetail), same(candidate), org.mockito.ArgumentMatchers.anyBoolean()))
+                .thenThrow(new com.tapdata.tm.ds.exception.ConnectionAgentConflictException(report));
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(any(), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(call -> ((Supplier<?>) call.getArgument(5)).get());
+            assertThrows(com.tapdata.tm.ds.exception.ConnectionAgentConflictException.class, () -> controller.updateById(id, candidate));
+        }
+        verify(tasks, never()).deleteHeartbeatByConnId(any(), any());
+    }
+
+    @Test
+    void disablesHeartbeatOnlyAfterSuccessfulConnectionSave() {
+        com.tapdata.tm.task.service.TaskService tasks = mock(com.tapdata.tm.task.service.TaskService.class);
+        controller.setTaskService(tasks);
+        String id = new ObjectId().toHexString();
+        com.tapdata.tm.commons.schema.DataSourceConnectionDto candidate = new com.tapdata.tm.commons.schema.DataSourceConnectionDto();
+        candidate.setHeartbeatEnable(false);
+        org.mockito.Mockito.when(dataSourceService.update(eq(userDetail), same(candidate), org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(candidate);
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(any(), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(call -> ((Supplier<?>) call.getArgument(5)).get());
+            controller.updateById(id, candidate);
+        }
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(dataSourceService, tasks);
+        order.verify(dataSourceService).update(eq(userDetail), same(candidate), org.mockito.ArgumentMatchers.anyBoolean());
+        order.verify(tasks).deleteHeartbeatByConnId(userDetail, id);
+    }
 }

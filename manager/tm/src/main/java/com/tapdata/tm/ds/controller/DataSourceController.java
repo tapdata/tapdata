@@ -19,6 +19,8 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentCheckRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentConflictReport;
 import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
@@ -134,20 +136,24 @@ public class DataSourceController extends BaseController {
 				return DataSourceConnectionDto.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus());
 			}).orElse(false) ? DataPermissionActionEnums.View : DataPermissionActionEnums.Edit;
 			DataSourceConnectionDto resultDto = DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, actionEnums, () -> {
-				DataSourceConnectionDto finaDataSource = Optional.ofNullable(dataSource).map(ds -> {
-					if (Boolean.FALSE.equals(ds.getHeartbeatEnable())) {
-						taskService.deleteHeartbeatByConnId(userDetail, id);
-					}
-					return ds;
-				}).orElseGet(DataSourceConnectionDto::new);
-				finaDataSource.setId(MongoUtils.toObjectId(id));
-
-				return dataSourceService.update(userDetail, finaDataSource, !(
-					DataSourceEntity.STATUS_TESTING.equals(finaDataSource.getStatus()) || "loading".equals(finaDataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
-				));
+                DataSourceConnectionDto candidate = Optional.ofNullable(dataSource).orElseGet(DataSourceConnectionDto::new);
+                candidate.setId(MongoUtils.toObjectId(id));
+                DataSourceConnectionDto updated = dataSourceService.update(userDetail, candidate, !(
+                        DataSourceEntity.STATUS_TESTING.equals(candidate.getStatus()) || "loading".equals(candidate.getLoadFieldsStatus())));
+                if (Boolean.FALSE.equals(candidate.getHeartbeatEnable())) {
+                    taskService.deleteHeartbeatByConnId(userDetail, id);
+                }
+                return updated;
 			});
 			return success(resultDto);
 		}
+
+    @PostMapping("agent-settings-conflicts")
+    public ResponseMessage<ConnectionAgentConflictReport> checkAgentSettings(@RequestBody ConnectionAgentCheckRequest request) {
+        UserDetail user = getLoginUser();
+        return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.Edit,
+                () -> dataSourceService.checkConnectionAgentSettings(request, user)));
+    }
 
     @Operation(summary = "Batch update connection agent settings")
     @PatchMapping("batch-agent-settings")

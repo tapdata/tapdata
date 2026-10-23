@@ -50,11 +50,21 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
     public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
+    /** Legacy metadata used by enterprise clients; ignored when resolving Agent policy. */
+    @Deprecated
     public static final String ATTRS_SOURCE_AGENT_POLICY_INHERITED = "sourceAgentPolicyInherited";
 
     public static final String RETRY_STATUS_RUNNING = "Retrying";
     public static final String RETRY_STATUS_NONE = "";
     public static final String SYNC_TYPE_PREVIEW = "preview";
+
+    /** Whether connection Agent restrictions apply to this task type. */
+    public boolean usesConnectionAgentPolicy() {
+        return SYNC_TYPE_SYNC.equals(getSyncType())
+                || SYNC_TYPE_MIGRATE.equals(getSyncType())
+                || SYNC_TYPE_LOG_COLLECTOR.equals(getSyncType())
+                || SYNC_TYPE_CONN_HEARTBEAT.equals(getSyncType());
+    }
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)

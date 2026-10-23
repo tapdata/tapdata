@@ -3,6 +3,7 @@ package com.tapdata.tm.base.handler;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.ds.exception.ConnectionAgentConflictException;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.utils.MessageUtil;
@@ -140,6 +141,12 @@ public class ExceptionHandler extends BaseController {
 		if ("NotAuthorized".equals(e.getErrorCode()) || "NotLogin".equals(e.getErrorCode())) {
 			response.setStatus(HttpStatus.SC_UNAUTHORIZED);
 		}
+
+		if (e instanceof ConnectionAgentConflictException conflict) {
+            ResponseMessage<Object> result = failed(e.getErrorCode(), MessageUtil.getMessage(WebUtils.getLocale(request), e.getErrorCode()));
+            result.setData(conflict.getReport());
+            return result;
+        }
 
 		//对于一些需要返回多个节点的多个错误信息的约定返回异常码
 		if ("Task.ListWarnMessage".equals(e.getErrorCode())) {

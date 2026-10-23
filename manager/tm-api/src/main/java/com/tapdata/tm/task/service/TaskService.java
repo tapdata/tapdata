@@ -105,6 +105,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg);
 
+    public abstract void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user);
+
     public abstract TaskDto remove(ObjectId id, UserDetail user);
 
     public abstract void afterRemove(TaskDto taskDto, UserDetail user);

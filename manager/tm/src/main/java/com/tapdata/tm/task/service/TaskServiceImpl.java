@@ -506,6 +506,7 @@ public class TaskServiceImpl extends TaskService{
 
         //模型推演
         setDefault(taskDto);
+        validateConnectionAgentPolicy(taskDto, user);
         taskDto.setOldVersionTimezone(false);
         taskDto = save(taskDto, user);
         if (dag != null) {
@@ -716,6 +717,8 @@ public class TaskServiceImpl extends TaskService{
             return create(taskDto, user);
         }
 
+        validateConnectionAgentPolicyBeforeSave(taskDto, oldTaskDto, user);
+
 
         dateNodeService.checkTaskDateNode(taskDto, user);
 
@@ -789,6 +792,34 @@ public class TaskServiceImpl extends TaskService{
             restrictNewTaskAlarmReceivers(taskDto, user);
         }
         return null;
+    }
+
+    private void validateConnectionAgentPolicyBeforeSave(TaskDto taskDto, TaskDto oldTaskDto, UserDetail user) {
+        TaskDto validationTask = taskDto;
+        if (taskDto.getDag() == null && oldTaskDto != null) {
+            validationTask = new TaskDto();
+            BeanUtils.copyProperties(oldTaskDto, validationTask);
+            if (StringUtils.isNotBlank(taskDto.getAccessNodeType())) {
+                validationTask.setAccessNodeType(taskDto.getAccessNodeType());
+            }
+            if (taskDto.getAccessNodeProcessId() != null) {
+                validationTask.setAccessNodeProcessId(taskDto.getAccessNodeProcessId());
+            }
+            if (taskDto.getPriorityProcessId() != null) {
+                validationTask.setPriorityProcessId(taskDto.getPriorityProcessId());
+            }
+            if (taskDto.getAttrs() != null) {
+                validationTask.setAttrs(taskDto.getAttrs());
+            }
+        } else if (oldTaskDto != null) {
+            validationTask = new TaskDto();
+            BeanUtils.copyProperties(taskDto, validationTask);
+        }
+        if (oldTaskDto != null) {
+            // The request may omit or spoof user_id. Resolve task groups as the stored owner.
+            validationTask.setUserId(oldTaskDto.getUserId());
+        }
+        validateConnectionAgentPolicy(validationTask, user);
     }
 
     /**
@@ -1009,7 +1040,11 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto confirmStart(TaskDto taskDto, UserDetail user, boolean confirm) {
         taskDto = confirmById(taskDto, user, confirm);
         try {
-            start(taskDto, user, "11");
+            if (taskScheduleService != null && taskDto.usesConnectionAgentPolicy()) {
+                startWithValidatedConnectionPolicy(taskDto, user, "11");
+            } else {
+                start(taskDto, user, "11");
+            }
         } catch (Exception e) {
             monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
             throw e;
@@ -1032,7 +1067,9 @@ public class TaskServiceImpl extends TaskService{
         // check task inspect flag
         checkTaskInspectFlag(taskDto);
 
-        checkDagAgentConflict(taskDto, user, true);
+        if (taskScheduleService == null || !taskDto.usesConnectionAgentPolicy()) {
+            checkDagAgentConflict(taskDto, user, true);
+        }
 
         checkDDLConflict(taskDto);
 
@@ -1169,7 +1206,11 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg) {
-        if (taskDto.getShareCache()) {
+        if (Boolean.TRUE.equals(taskDto.getShareCache())) {
+            return;
+        }
+        if (taskScheduleService != null && taskDto.usesConnectionAgentPolicy()) {
+            validateConnectionAgentPolicy(taskDto, user);
             return;
         }
 
@@ -1206,6 +1247,13 @@ public class TaskServiceImpl extends TaskService{
                 Message message = validateMessage.values().iterator().next().get(0);
                 throw new BizException(message.getCode(), message.getMsg());
             }
+        }
+    }
+
+    @Override
+    public void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
+        if (taskScheduleService != null && !Boolean.TRUE.equals(taskDto.getShareCache())) {
+            taskScheduleService.validateConnectionAgentPolicy(taskDto, user);
         }
     }
 
@@ -4847,6 +4895,14 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        startInternal(taskDto, user, startFlag, false);
+    }
+
+    protected void startWithValidatedConnectionPolicy(TaskDto taskDto, UserDetail user, String startFlag) {
+        startInternal(taskDto, user, startFlag, true);
+    }
+
+    private void startInternal(TaskDto taskDto, UserDetail user, String startFlag, boolean connectionPolicyValidated) {
         assertTaskNotRebalancing(taskDto.getId(), user);
         //filter heartbeat task when status is renew failed for automatic test
         if (TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(taskDto.getSyncType()) && TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
@@ -4924,7 +4980,9 @@ public class TaskServiceImpl extends TaskService{
         }
         update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
 
-        checkDagAgentConflict(taskDto, user, false);
+        if (!connectionPolicyValidated || !taskDto.usesConnectionAgentPolicy()) {
+            checkDagAgentConflict(taskDto, user, false);
+        }
         checkEngineStatus(taskDto, user);
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
