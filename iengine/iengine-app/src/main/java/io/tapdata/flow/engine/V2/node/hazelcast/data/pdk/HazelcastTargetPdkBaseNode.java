@@ -211,9 +211,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private final ITaskInspect taskInspect;
     protected final ISkipErrorTable skipErrorTable;
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
-	protected final Map<String, Boolean> startTransactionMap = new HashMap<>();
+	protected final Map<String, Boolean> startTransactionMap = new ConcurrentHashMap<>();
 	protected boolean offsetCallbackEnable = false;
 	protected OverflowToRocksDBSet exactlyOnceCache = new OverflowToRocksDBSet();
+	private final Object exactlyOnceLookupLock = new Object();
+	// Only tables actually encountered by CDC workers keep the recovery snapshot alive.
+	private final Map<String, Set<String>> activeExactlyOnceLookupTables = new HashMap<>();
+	private int exactlyOnceLookupsInFlight;
+	private final Object exactlyOnceMqLoadLock = new Object();
 	private TapTable exactlyOnceTable;
 	private Long earliestTimestamp = Long.MAX_VALUE;
 	private final Map<String, Long> firstCDCTimestampMap = new ConcurrentHashMap<>();
@@ -1078,6 +1083,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                             .dataProcessorContext(dataProcessorContext));
             drainAndRun(tapEventQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, this::processTargetEvents);
         } catch (Throwable e) {
+            if (isStoppedExactlyOnceWrite(e)) return;
             executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
             Throwable throwableWrapper;
             Throwable tapCodeEx = CommonUtils.matchThrowable(e, TapCodeException.class);
@@ -1129,6 +1135,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					}
 			), e -> {
+				if (isStoppedExactlyOnceWrite(e)) return true;
 				executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 				Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
 				if (null == matchThrowable) {
@@ -1138,6 +1145,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				return null != tapCodeException;
 			});
         } catch (Exception e) {
+            if (isStoppedExactlyOnceWrite(e)) return;
             executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
             Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
             if (null == matchThrowable) {
@@ -1422,7 +1430,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
-        if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
+        if (checkExactlyOnceWriteEnableResult != null && Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
             processExactlyOnceWriteCache(tapdataEvents, tapEvents, checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
         } else {
             processEvents(tapEvents);
@@ -1469,52 +1477,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Object info = tapRecordEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
 		if(info instanceof MergeInfo mergeInfo) {
 			Integer level = mergeInfo.getLevel();
-			if (!level.equals(1)) {
+			if (!Integer.valueOf(1).equals(level)) {
 				needCheckExactlyOnceWrite = false;
 			}
 		}
-		if (needCheckExactlyOnceWrite) {
-			hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
-			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
-			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
-			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get()) {
-				firstCDCTimestampMap.computeIfAbsent(tgtTableNameFromTapEvent, k ->  {
-					// If the first CDC event, cache the exactly once write id from 5 minutes before its reference time because of the difference between source and target
-					Long timestamp = TapEventUtil.getTimestamp(tapRecordEvent) - 5 * 60 * 1000L;
-					if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
-						cacheExactlyOnceIds(getConnectorNode(), tgtTableNameFromTapEvent, timestamp);
-					} else if (timestamp < earliestTimestamp) {
-						cacheExactlyOnceIdsForTask(getConnectorNode(), exactlyOnceTable, timestamp, earliestTimestamp);
-						earliestTimestamp = timestamp;
-					}
-					return timestamp;
-				});
-				if (eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-					tapdataEvent.setExactlyOnceWriteCache(null);
-					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
-					return;
-				} else {
-					if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && lookupTables.contains(tgtTableNameFromTapEvent) && tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
-						obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-						lookupTables.remove(tgtTableNameFromTapEvent);
-						if (lookupTables.isEmpty()) {
-							exactlyOnceCache.clear();
-							firstCDCTimestampMap.clear();
-							lastCDCTimestampMap.clear();
-						}
-					}
-				}
-			} else {
-				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
-					obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-					lookupTables.remove(tgtTableNameFromTapEvent);
-					if (lookupTables.isEmpty()) {
-						exactlyOnceCache.clear();
-						firstCDCTimestampMap.clear();
-						lastCDCTimestampMap.clear();
-					}
-				}
-			}
+		if (needCheckExactlyOnceWrite && skipExactlyOnceEvent(tapdataEvent, tapRecordEvent, hasExactlyOnceWriteCache, exactlyOnceWriteCache)) {
+			return;
 		}
 
 		// Add offset information from TapdataEvent to TapRecordEvent.info
@@ -1536,6 +1504,89 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             lastTapdataEvent.set(tapdataEvent);
         }
     }
+
+	private boolean skipExactlyOnceEvent(TapdataEvent tapdataEvent, TapRecordEvent tapRecordEvent,
+			AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache) throws JsonProcessingException {
+		if (checkExactlyOnceWriteEnableResult == null || !Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable())) {
+			return false;
+		}
+		hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
+		if (!SyncStage.CDC.equals(tapdataEvent.getSyncStage())) {
+			return false;
+		}
+		String worker = Thread.currentThread().getName();
+		String table = getTgtTableNameFromTapEvent(tapRecordEvent);
+		List<String> lookupTables;
+		synchronized (exactlyOnceLookupLock) {
+			lookupTables = initAndGetExactlyOnceWriteLookupList();
+			if (lookupTables == null || !lookupTables.contains(table)) return false;
+			activeExactlyOnceLookupTables.computeIfAbsent(worker, k -> new HashSet<>()).add(table);
+			exactlyOnceLookupsInFlight++;
+		}
+		boolean retireLookup = false;
+		try {
+			// No global monitor is held across connector I/O or cache reads.
+			if (hasExactlyOnceWriteCache.get()) {
+				firstCDCTimestampMap.computeIfAbsent(table, k -> {
+					long timestamp = TapEventUtil.getTimestamp(tapRecordEvent) - 5 * 60 * 1000L;
+					if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
+						cacheExactlyOnceIds(getConnectorNode(), table, timestamp);
+					} else {
+						// MQ loads share one task-wide time range; SQL tables load independently.
+						synchronized (exactlyOnceMqLoadLock) {
+							if (timestamp < earliestTimestamp) {
+								cacheExactlyOnceIdsForTask(getConnectorNode(), exactlyOnceTable, timestamp, earliestTimestamp);
+								earliestTimestamp = timestamp;
+							}
+						}
+					}
+					return timestamp;
+				});
+				if (eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+					tapdataEvent.setExactlyOnceWriteCache(null);
+					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
+					return true;
+				}
+			}
+			Long sourceTime = tapdataEvent.getSourceTime();
+			retireLookup = sourceTime != null && sourceTime > lastCDCTimestampMap.getOrDefault(table, 0L);
+			return false;
+		} finally {
+			synchronized (exactlyOnceLookupLock) {
+				if (retireLookup) {
+					lookupTables.remove(table);
+					Set<String> activeTables = activeExactlyOnceLookupTables.get(worker);
+					activeTables.remove(table);
+					if (activeTables.isEmpty()) activeExactlyOnceLookupTables.remove(worker);
+				}
+				exactlyOnceLookupsInFlight--;
+				clearExactlyOnceSnapshotIfUnused();
+			}
+		}
+	}
+
+	protected void unregisterExactlyOnceLookupWorker() {
+		synchronized (exactlyOnceLookupLock) {
+			String worker = Thread.currentThread().getName();
+			activeExactlyOnceLookupTables.remove(worker);
+			exactlyOnceWriteNeedLookupTables.remove(worker);
+			clearExactlyOnceSnapshotIfUnused();
+		}
+	}
+
+	// Caller holds exactlyOnceLookupLock; in-flight lookups protect loads and reads.
+	private void clearExactlyOnceSnapshotIfUnused() {
+		if (exactlyOnceLookupsInFlight == 0 && activeExactlyOnceLookupTables.isEmpty() && exactlyOnceCache != null) {
+			exactlyOnceCache.clear();
+			firstCDCTimestampMap.clear();
+			lastCDCTimestampMap.clear();
+			earliestTimestamp = Long.MAX_VALUE;
+		}
+	}
+
+	protected boolean isStoppedExactlyOnceWrite(Throwable error) {
+		return !isRunning() && ExactlyOnceWriteCancelledException.isCleanCancellation(error);
+	}
 
     protected void handleTapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent tapdataEvent) {
         try {
@@ -2305,7 +2356,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::errorHandle,
 				this::isRunning,
 				dataProcessorContext
-		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy)
+				.setWorkerCleanup(this::unregisterExactlyOnceLookupWorker);
     }
 
 	protected PartitionConcurrentProcessor initShareCDCConcurrentProcessor(int concurrentWriteNum) {
@@ -2330,7 +2382,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::errorHandle,
 				this::isRunning,
 				dataProcessorContext
-		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy)
+				.setWorkerCleanup(this::unregisterExactlyOnceLookupWorker);
 	}
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
@@ -2358,7 +2411,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::errorHandle,
 				this::isRunning,
 				dataProcessorContext
-		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy)
+				.setWorkerCleanup(this::unregisterExactlyOnceLookupWorker);
     }
 
     private void stopFlushOffsetExecutorAndSaveSnapshot() {
