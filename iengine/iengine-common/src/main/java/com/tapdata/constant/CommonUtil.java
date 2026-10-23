@@ -306,17 +306,14 @@ public class CommonUtil {
 			if (val1 instanceof String || val2 instanceof String) {
 				val1 = val1.toString().trim();
 				val2 = val2.toString().trim();
-			} else if (val1 instanceof Byte || val2 instanceof Byte
-					|| val1 instanceof Short || val2 instanceof Short
-					|| val1 instanceof Integer || val2 instanceof Integer
-					|| val1 instanceof Long || val2 instanceof Long) {
-				val1 = new BigDecimal(val1.toString()).longValue();
-				val2 = new BigDecimal(val2.toString()).longValue();
 			} else if (val1 instanceof Float || val2 instanceof Float
-					|| val1 instanceof Double || val2 instanceof Double
-					|| val1 instanceof BigDecimal || val2 instanceof BigDecimal) {
+					|| val1 instanceof Double || val2 instanceof Double) {
+				// 任一侧为浮点类型时，其本身只有 double 精度，按 double 比较
 				val1 = new BigDecimal(val1.toString()).doubleValue();
 				val2 = new BigDecimal(val2.toString()).doubleValue();
+			} else if (val1 instanceof Number || val2 instanceof Number) {
+				// 精确数值类型(整数/BigInteger/BigDecimal)按 BigDecimal 精确比较，避免截断小数、溢出或丢失精度
+				return new BigDecimal(val1.toString()).compareTo(new BigDecimal(val2.toString())) != 0;
 			}
 
 			return !val1.equals(val2);
