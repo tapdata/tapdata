@@ -1400,6 +1400,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 									} catch (Exception rollbackError) {
 										e.addSuppressed(rollbackError);
 									}
+									if (e instanceof ExactlyOnceWriteCancelledException && e.getSuppressed().length == 0) {
+										throw e;
+									}
 									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
 								}
 							}
@@ -1413,8 +1416,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		// Connectors may return a partially written batch when their alive supplier turns false.
 		// Never commit that batch, or its cache, after a stop/cancel has been observed.
 		if (!isRunning() || Thread.currentThread().isInterrupted()) {
-			throw new NodeException("Node stopped during exactly once write; rolling back the batch")
-					.context(getDataProcessorContext());
+			throw new ExactlyOnceWriteCancelledException();
 		}
 	}
 

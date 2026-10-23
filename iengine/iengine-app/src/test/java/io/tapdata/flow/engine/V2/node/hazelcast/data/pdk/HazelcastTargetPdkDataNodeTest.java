@@ -145,7 +145,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void stopAfterBusinessWriteMustRollbackInsteadOfCommittingWithoutCache() throws Throwable {
 			doAnswer(invocation -> { running.set(false); return null; })
 					.when(hazelcastTargetPdkDataNode).processEvents(anyList(), eq(false));
-			assertThrows(TapCodeException.class, this::writeBatch);
+			assertThrows(ExactlyOnceWriteCancelledException.class, this::writeBatch);
 			verify(hazelcastTargetPdkDataNode).transactionRollback();
 			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
 			verifyNoInteractions(writeCache);
@@ -155,7 +155,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void stopDuringCacheWriteMustRollbackTheWholeBatch() throws Throwable {
 			doAnswer(invocation -> { running.set(false); return null; })
 					.when(writeCache).writeRecord(any(), anyList(), any(), any());
-			assertThrows(TapCodeException.class, this::writeBatch);
+			assertThrows(ExactlyOnceWriteCancelledException.class, this::writeBatch);
 			verify(hazelcastTargetPdkDataNode).transactionRollback();
 			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
 		}
@@ -167,6 +167,26 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			verify(writeCache).writeRecord(any(), anyList(), any(), any());
 			verify(hazelcastTargetPdkDataNode).transactionCommit();
 			verify(hazelcastTargetPdkDataNode, never()).transactionRollback();
+		}
+
+		@Test
+		void stoppedCancellationIsRecognizedThroughSerialConsumerWrapping() {
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).isStoppedExactlyOnceWrite(any());
+			RuntimeException wrapped = new RuntimeException(new ExactlyOnceWriteCancelledException());
+			assertFalse(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(wrapped));
+			running.set(false);
+			assertTrue(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(wrapped));
+			assertFalse(hazelcastTargetPdkDataNode.isStoppedExactlyOnceWrite(new RuntimeException("write failed")));
+		}
+
+		@Test
+		void cancellationWithRollbackFailureMustRemainAWriteError() throws Throwable {
+			doAnswer(invocation -> { running.set(false); return null; })
+					.when(hazelcastTargetPdkDataNode).processEvents(anyList(), eq(false));
+			doThrow(new RuntimeException("rollback failed")).when(hazelcastTargetPdkDataNode).transactionRollback();
+			TapCodeException error = assertThrows(TapCodeException.class, this::writeBatch);
+			assertFalse(ExactlyOnceWriteCancelledException.isCleanCancellation(error));
+			verify(hazelcastTargetPdkDataNode, never()).transactionCommit();
 		}
 
 		private void writeBatch() {
@@ -289,7 +309,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		class testProcessExactlyOnceWriteCache{
 			@BeforeEach
 			void init(){
-
+				when(hazelcastTargetPdkDataNode.isRunning()).thenReturn(true);
+				DataProcessorContext context = mock(DataProcessorContext.class);
+				when(context.getTapTableMap()).thenReturn(mock(TapTableMap.class));
+				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", context);
 			}
 			@Test
 			void test1(){
@@ -310,7 +333,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				when(hazelcastTargetPdkDataNode.getNode()).thenReturn((Node) node);
 				ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
 				when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
-				when(connectorFunctions.getWriteRecordFunction()).thenReturn(new mockWriteFunction());
+				mockWriteFunction writer = spy(new mockWriteFunction());
+				when(connectorFunctions.getWriteRecordFunction()).thenReturn(writer);
 				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
 				when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
 				doCallRealMethod().when(pdkMethodInvoker).runnable(any());
@@ -330,6 +354,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 					}));
 					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents, tapEvents, true);
 				}
+				try { verify(writer).writeRecord(any(), anyList(), any(), any()); }
+				catch (Throwable error) { throw new AssertionError(error); }
 			}
 			class mockWriteFunction implements WriteRecordFunction{
 
