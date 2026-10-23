@@ -309,7 +309,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
     @Override
     public void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
-        resolveEffectiveAgents(taskDto, resolveConnectionAgentPolicy(taskDto, user), user);
+        validateConnectionAgentPolicy(taskDto, user, Collections.emptyMap());
+    }
+
+    @Override
+    public void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user, Map<String, DataSourceConnectionDto> overrides) {
+        resolveEffectiveAgents(taskDto, resolveConnectionAgentPolicy(taskDto, user, overrides), user);
     }
 
     private Set<String> resolveEffectiveAgents(TaskDto taskDto, ConnectionAgentPolicy policy, UserDetail user) {
@@ -350,6 +355,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     }
 
     private ConnectionAgentPolicy resolveConnectionAgentPolicy(TaskDto taskDto, UserDetail user) {
+        return resolveConnectionAgentPolicy(taskDto, user, Collections.emptyMap());
+    }
+
+    private ConnectionAgentPolicy resolveConnectionAgentPolicy(TaskDto taskDto, UserDetail user,
+                                                               Map<String, DataSourceConnectionDto> overrides) {
         if (!taskDto.usesConnectionAgentPolicy() || Boolean.TRUE.equals(taskDto.getShareCache()) || dataSourceService == null) {
             return null;
         }
@@ -363,12 +373,10 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         Query policyQuery = Query.query(Criteria.where("_id").in(connectionIds));
         policyQuery.fields().include("_id", "name", "accessNodeType", "accessNodeProcessId", "priorityProcessId", "user_id");
         List<DataSourceConnectionDto> connections = dataSourceService.findAll(policyQuery);
-        if (CollectionUtils.isEmpty(connections)) {
-            return null;
-        }
-        Map<String, DataSourceConnectionDto> byId = connections.stream()
+        Map<String, DataSourceConnectionDto> byId = (connections == null ? Collections.<DataSourceConnectionDto>emptyList() : connections).stream()
                 .filter(connection -> connection != null && connection.getId() != null)
                 .collect(Collectors.toMap(connection -> connection.getId().toHexString(), connection -> connection, (first, second) -> first));
+        byId.putAll(overrides);
         Set<String> allowedAgentIntersection = null;
         List<String> restrictedConnectionNames = new ArrayList<>();
         List<String> priorityAgents = new ArrayList<>();

@@ -1,6 +1,8 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import java.util.Map;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 
@@ -10,5 +12,6 @@ public interface TaskScheduleService {
     void sendStartMsg(String taskId, String agentId, UserDetail user);
     CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user, boolean limitNum);
     void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user);
+    void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user, Map<String, DataSourceConnectionDto> overrides);
 
 }
