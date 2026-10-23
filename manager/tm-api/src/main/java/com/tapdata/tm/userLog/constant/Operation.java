@@ -22,6 +22,8 @@ public enum Operation {
 
     READ_ALL("readAll"),
     READ("read"),
+    UNREAD("unread"),
+    CLOSE("close"),
     LOGOUT("logout"),
     LOGIN("login"),
 

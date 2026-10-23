@@ -232,14 +232,19 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
     }
 
     public Page<UserLogDto> find(Filter filter, UserDetail userDetail) {
+        return find(filter, userDetail, false);
+    }
+
+    @Override
+    public Page<UserLogDto> find(Filter filter, UserDetail userDetail, boolean allData) {
 
         if (filter == null) {
             filter = new Filter();
         }
 
-        List<UserLogs> entityList = userLogRepository.findAll(filter, userDetail);
+        List<UserLogs> entityList = allData ? userLogRepository.findAll(filter) : userLogRepository.findAll(filter, userDetail);
 
-        long total = userLogRepository.count(filter.getWhere(), userDetail);
+        long total = allData ? userLogRepository.count(filter.getWhere()) : userLogRepository.count(filter.getWhere(), userDetail);
 
         List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
         Locale locale = MessageUtil.getLocale();

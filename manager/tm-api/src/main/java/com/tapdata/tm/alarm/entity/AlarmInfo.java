@@ -71,12 +71,19 @@ public class AlarmInfo extends BaseEntity {
     private Date closeTime;
     @Schema(description = "告警被谁关闭")
     private String closeBy;
+    @Schema(description = "任务重新运行时归档，不再参与同类告警去重")
+    private Boolean archived;
 		private String inspectId;
 
     private Map<String, Object> param;
 
     public Integer getTally() {
         return tally == null ? 0 : tally;
+    }
+
+    /** tally 记录的是重复触发次数（首次为 0），发生次数需加上首次 */
+    public int occurrenceCount() {
+        return getTally() + 1;
     }
 
     private String desc;

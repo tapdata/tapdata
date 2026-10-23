@@ -1,5 +1,8 @@
 package com.tapdata.tm.userLog.service;
 
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.constant.SyncType;
@@ -321,4 +324,49 @@ public class UserLogServiceImplTest {
         }
     }
 
+
+    @Nested
+    class FindScope {
+        private UserLogRepository repository;
+        private UserDetail userDetail;
+        private Filter filter;
+
+        @BeforeEach
+        void beforeEach() {
+            repository = mock(UserLogRepository.class);
+            userLogService = new UserLogServiceImpl(repository);
+            ReflectionTestUtils.setField(userLogService, "userLogRepository", repository);
+            userDetail = mock(UserDetail.class);
+            filter = new Filter(new Where());
+        }
+
+        @Test
+        void testAllDataQueriesAllUsers() {
+            UserLogs log = new UserLogs();
+            log.setId(new ObjectId());
+            log.setUsername("bob");
+            when(repository.findAll(filter)).thenReturn(List.of(log));
+            when(repository.count(filter.getWhere())).thenReturn(1L);
+
+            Page<UserLogDto> page = userLogService.find(filter, userDetail, true);
+
+            assertEquals(1L, page.getTotal());
+            assertEquals("bob", page.getItems().get(0).getUsername());
+            verify(repository, never()).findAll(any(Filter.class), any(UserDetail.class));
+            verify(repository, never()).count(any(Where.class), any(UserDetail.class));
+        }
+
+        @Test
+        void testOwnDataQueriesCurrentUserScope() {
+            when(repository.findAll(filter, userDetail)).thenReturn(new ArrayList<>());
+            when(repository.count(filter.getWhere(), userDetail)).thenReturn(0L);
+
+            Page<UserLogDto> page = userLogService.find(filter, userDetail);
+
+            assertEquals(0L, page.getTotal());
+            verify(repository).findAll(filter, userDetail);
+            verify(repository, never()).findAll(any(Filter.class));
+            verify(repository, never()).count(any(Where.class));
+        }
+    }
 }

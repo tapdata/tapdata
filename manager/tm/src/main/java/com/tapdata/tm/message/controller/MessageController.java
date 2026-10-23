@@ -98,7 +98,9 @@ public class MessageController extends BaseController {
     @GetMapping("{id}")
     public ResponseMessage<MessageDto> findById(@PathVariable("id") String id,
                                                 @RequestParam("fields") String fieldsJson) {
-        return success(messageService.findById(id));
+        MessageDto message = messageService.findById(id);
+        // 停写的系统通知以隐藏载体保存，仅供邮件发送回查，不对外返回
+        return success(message == null || Boolean.TRUE.equals(message.getIsDeleted()) ? null : message);
 
     }
 

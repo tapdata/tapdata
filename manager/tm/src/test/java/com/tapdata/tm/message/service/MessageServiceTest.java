@@ -858,7 +858,8 @@ class MessageServiceTest {
                 Level level = Level.INFO;
                 UserDetail userDetail = mock(UserDetail.class);
                 MessageEntity saveMessage = mock(MessageEntity.class);
-                when(messageServiceUnderTest.addMessage(anyString(),anyString(),any(),any(),anyString(),any(),any(),anyBoolean())).thenReturn(saveMessage);
+                // 站内系统通知下线后，邮件经隐藏载体消息发送
+                when(messageServiceUnderTest.addEmailCarrier(anyString(),anyString(),any(),any(),any(),any())).thenReturn(saveMessage);
                 when(mockSettingsService.isCloud()).thenReturn(true);
                 when(messageServiceUnderTest.checkSending(userDetail)).thenReturn(true);
                 when(saveMessage.getId()).thenReturn(mock(ObjectId.class));
@@ -923,7 +924,8 @@ class MessageServiceTest {
             messageServiceUnderTest = spy(messageServiceUnderTest);
             MongoTemplate template = mock(MongoTemplate.class);
             when(mockMessageRepository.getMongoOperations()).thenReturn(template);
-            Query query = new Query(Criteria.where("msg").is(type.getValue()));
+            // 停写系统通知的隐藏载体不返回
+            Query query = new Query(Criteria.where("msg").is(type.getValue()).and("isDeleted").ne(true));
             when(template.count(query, MessageEntity.class)).thenReturn(1L);
             when(userDetail.isRoot()).thenReturn(true);
             Page<MessageListVo> list = messageServiceUnderTest.list(locale, type, level, read, page, size, userDetail);
