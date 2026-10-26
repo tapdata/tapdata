@@ -22,6 +22,8 @@ import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.ds.utils.DataSourceServiceUtil;
@@ -39,6 +41,7 @@ import io.tapdata.pdk.apis.entity.Capability;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -66,6 +69,227 @@ import static org.mockito.Mockito.*;
 
 class DataSourceServiceImplTest {
     DataSourceServiceImpl dataSourceService;
+
+    @Nested
+    class BatchUpdateAgentSettingsTest {
+        private DataSourceRepository dataSourceRepository;
+        private DataSourceServiceImpl dataSourceService;
+        private AgentGroupService agentGroupService;
+        private WorkerService workerService;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            agentGroupService = mock(AgentGroupService.class);
+            workerService = mock(WorkerService.class);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("user-1");
+            ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
+            ReflectionTestUtils.setField(dataSourceService, "workerService", workerService);
+            when(workerService.findAvailableAgentByAccessNode(eq(userDetail), anyList()))
+                    .thenReturn(Collections.singletonList(new Worker()));
+        }
+
+        @Test
+        void shouldNormalizeAutomaticSettingsAndReturnCanonicalUpdatedIds() {
+            ObjectId connectionId = new ObjectId();
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(connectionId.toHexString().toUpperCase(Locale.ROOT)),
+                    " automatic_platform_allocation ", null, "priority-1");
+            mockUpdateResult(1, 1);
+
+            BatchUpdateAgentSettingsResponse response = dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document updateObject = updateCaptor.getValue().getUpdateObject();
+            Document set = (Document) updateObject.get("$set");
+            Document unset = (Document) updateObject.get("$unset");
+            assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), set.get("accessNodeType"));
+            assertTrue(set.containsKey("accessNodeProcessId"));
+            assertNull(set.get("accessNodeProcessId"));
+            assertEquals(Collections.emptyList(), set.get("accessNodeProcessIdList"));
+            assertEquals("priority-1", set.get("priorityProcessId"));
+            assertEquals(DataSourceEntity.STATUS_INVALID, set.get("status"));
+            assertInstanceOf(Date.class, set.get("lastUpdAt"));
+            assertEquals("user-1", set.get("lastUpdBy"));
+            assertTrue(unset.containsKey("testTime"));
+            assertTrue(unset.containsKey("errorMsg"));
+            assertEquals(request.getRequestId(), response.getRequestId());
+            assertEquals(1, response.getUpdatedCount());
+            assertEquals(Collections.singletonList(connectionId.toHexString()), response.getUpdatedConnectionIds());
+            verify(dataSourceRepository, never()).findAll(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldNormalizeUserManualSettingsAndRejectPriorityAgent() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), "agent-1", null);
+            mockUpdateResult(1, 1);
+
+            dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals("agent-1", set.get("accessNodeProcessId"));
+            assertEquals(Collections.singletonList("agent-1"), set.get("accessNodeProcessIdList"));
+            verify(workerService).findAvailableAgentByAccessNode(eq(userDetail), eq(Collections.singletonList("agent-1")));
+
+            request.getSettings().setPriorityProcessId("agent-1");
+            BizException exception = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            assertEquals("IllegalArgument", exception.getErrorCode());
+        }
+
+        @Test
+        void shouldValidateGroupPriorityAgainstSelectedGroup() {
+            String groupId = "group-1";
+            String type = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            when(agentGroupService.getProcessNodeListByGroupId(anyList(), eq(type), eq(userDetail)))
+                    .thenReturn(Collections.singletonList("agent-1"));
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(new ObjectId().toHexString()), type, groupId, "agent-1");
+            mockUpdateResult(1, 1);
+
+            dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(groupId, set.get("accessNodeProcessId"));
+            assertEquals("agent-1", set.get("priorityProcessId"));
+
+            request.getSettings().setPriorityProcessId("agent-2");
+            BizException exception = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            assertEquals("IllegalArgument", exception.getErrorCode());
+
+            ObjectId connectionId = new ObjectId();
+            DataSourceConnectionDto singleUpdate = new DataSourceConnectionDto();
+            singleUpdate.setId(connectionId);
+            singleUpdate.setName("connection");
+            singleUpdate.setAccessNodeType(type);
+            singleUpdate.setAccessNodeProcessId(groupId);
+            singleUpdate.setPriorityProcessId("agent-2");
+            DataSourceConnectionDto existingConnection = new DataSourceConnectionDto();
+            existingConnection.setId(connectionId);
+            existingConnection.setName("connection");
+            doReturn(existingConnection).when(dataSourceService).findById(eq(connectionId), eq(userDetail));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(userDetail), eq("connection"), eq(connectionId));
+            assertThrows(BizException.class, () -> dataSourceService.updateCheck(userDetail, singleUpdate));
+        }
+
+        @Test
+        void shouldRejectInvalidDuplicateAndOversizedConnectionIdLists() {
+            String connectionId = new ObjectId().toHexString();
+            BatchUpdateAgentSettingsRequest duplicateRequest = request(
+                    Arrays.asList(connectionId, connectionId.toUpperCase(Locale.ROOT)),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException duplicateException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(duplicateRequest, userDetail));
+            assertEquals("IllegalArgument", duplicateException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest invalidIdRequest = request(
+                    Collections.singletonList("not-an-object-id"),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException invalidIdException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(invalidIdRequest, userDetail));
+            assertEquals("IllegalArgument", invalidIdException.getErrorCode());
+
+            List<String> tooManyIds = new ArrayList<>();
+            for (int i = 0; i <= 100; i++) {
+                tooManyIds.add(new ObjectId().toHexString());
+            }
+            BatchUpdateAgentSettingsRequest oversizedRequest = request(
+                    tooManyIds, AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException oversizedException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(oversizedRequest, userDetail));
+            assertEquals("IllegalArgument", oversizedException.getErrorCode());
+            verify(dataSourceRepository, never()).count(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldRejectMissingSettingsAndRequiredAgentIds() {
+            BatchUpdateAgentSettingsRequest missingSettingsRequest = new BatchUpdateAgentSettingsRequest();
+            missingSettingsRequest.setConnectionIds(Collections.singletonList(new ObjectId().toHexString()));
+            BizException missingSettingsException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingSettingsRequest, userDetail));
+            assertEquals("IllegalArgument", missingSettingsException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingTypeRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()), null, null, null);
+            BizException missingTypeException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingTypeRequest, userDetail));
+            assertEquals("IllegalArgument", missingTypeException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingManualAgentRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), null, null);
+            BizException missingManualAgentException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingManualAgentRequest, userDetail));
+            assertEquals("IllegalArgument", missingManualAgentException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingGroupIdRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), null, null);
+            BizException missingGroupIdException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingGroupIdRequest, userDetail));
+            assertEquals("IllegalArgument", missingGroupIdException.getErrorCode());
+            verify(dataSourceRepository, never()).count(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldRejectEditableCountMismatchWithoutLoadingConnectionConfigs() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            when(dataSourceRepository.count(any(Query.class), eq(userDetail))).thenReturn(1L);
+
+            assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+            verify(dataSourceRepository, never()).findAll(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldFailWhenConcurrentChangesCausePartialUpdate() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            mockUpdateResult(2, 1);
+
+            assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+        }
+
+        private BatchUpdateAgentSettingsRequest request(
+                List<String> connectionIds,
+                String accessNodeType,
+                String accessNodeProcessId,
+                String priorityProcessId
+        ) {
+            BatchUpdateAgentSettingsRequest request = new BatchUpdateAgentSettingsRequest();
+            request.setRequestId("request-1");
+            request.setConnectionIds(connectionIds);
+            BatchUpdateAgentSettingsRequest.AgentSettings settings = new BatchUpdateAgentSettingsRequest.AgentSettings();
+            settings.setAccessNodeType(accessNodeType);
+            settings.setAccessNodeProcessId(accessNodeProcessId);
+            settings.setPriorityProcessId(priorityProcessId);
+            request.setSettings(settings);
+            return request;
+        }
+
+        private void mockUpdateResult(long expectedCount, long matchedCount) {
+            when(dataSourceRepository.count(any(Query.class), eq(userDetail))).thenReturn(expectedCount);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getMatchedCount()).thenReturn(matchedCount);
+            when(dataSourceRepository.update(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(updateResult);
+        }
+    }
+
     @Nested
     class RestoreAccessNodeTypeTest{
         DataSourceConnectionDto updateDto;

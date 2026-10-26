@@ -44,7 +44,17 @@ public class DefaultMongoConfig extends AbstractMongoClientConfiguration {
         converters.add(new DagSerializeConvert());
         converters.add(new DagDeserializeConvert());
 
-        return new MongoCustomConversions(converters);
+        // Spring Data MongoDB 5.x (Spring Boot 4) changed the default BigDecimalRepresentation
+        // from STRING to UNSPECIFIED, and the MongoDB driver has no codec for BigInteger/BigDecimal
+        // in that mode. Explicitly restore STRING so BigInteger/BigDecimal values (e.g. field
+        // default values derived from unsigned BIGINT columns) are persisted as strings instead of
+        // failing to encode or silently becoming Decimal128. The framework supplies the symmetric
+        // read converters, so no hand-written BigInteger*Converter is needed. This string format
+        // must be settled before any BigInteger/BigDecimal value is persisted; switching it later
+        // would strand existing documents in the previous representation.
+        return MongoCustomConversions.create(adapter -> adapter
+                .registerConverters(converters)
+                .bigDecimal(MongoCustomConversions.BigDecimalRepresentation.STRING));
     }
 
     @SneakyThrows

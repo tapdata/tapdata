@@ -51,6 +51,7 @@ import org.springframework.stereotype.Service;
 @Setter(onMethod_ = {@Autowired})
 public class SettingsServiceImpl implements SettingsService {
     public static final String SMTP_SERVER_PASSWORD = "smtp.server.password";
+    public static final String CATEGORY = "category";
     private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
@@ -69,7 +70,7 @@ public class SettingsServiceImpl implements SettingsService {
     @Deprecated
     public Object getByCategoryAndKey(String category, String key) {
         Object value = null;
-        Query query = Query.query(Criteria.where("category").is(category));
+        Query query = Query.query(Criteria.where(CATEGORY).is(category));
         query.addCriteria(Criteria.where("key").is(key));
 
         Settings settings = null;
@@ -108,11 +109,15 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public MailAccountDto getMailAccount(String userId) {
-        List<Settings> all = findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+        Query query = Query.query(Criteria.where(CATEGORY).is(CategoryEnum.SMTP.getValue()));
+        List<Settings> all = findAll(query);
+        Map<String, Object> collect = all.stream()
+                .filter(settings -> settings.getValue() != null)
+                .collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
         String host = (String) collect.get("smtp.server.host");
-        String port = (String) collect.getOrDefault("smtp.server.port", "0");
+        String port = (String) collect.get("smtp.server.port");
+        port = StringUtils.isNotBlank(port) ? port : "0";
         String from = (String) collect.get("email.send.address");
         String user = (String) collect.get("smtp.server.user");
         Object pwd = collect.get(SMTP_SERVER_PASSWORD);
@@ -150,7 +155,7 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
-        Query query = Query.query(Criteria.where("category").is(category.getValue()));
+        Query query = Query.query(Criteria.where(CATEGORY).is(category.getValue()));
         query.addCriteria(Criteria.where("key").is(key.getValue()));
 
         Settings settings = null;
@@ -285,7 +290,7 @@ public class SettingsServiceImpl implements SettingsService {
         }
         BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class);
         for (SettingsDto dto : validSettings) {
-            bulkOperations.updateOne(Query.query(Criteria.where("category").is(dto.getCategory()).and("key").is(dto.getKey())), buildSettingsUpdate(dto));
+            bulkOperations.updateOne(Query.query(Criteria.where(CATEGORY).is(dto.getCategory()).and("key").is(dto.getKey())), buildSettingsUpdate(dto));
         }
         bulkOperations.execute();
     }
@@ -316,7 +321,7 @@ public class SettingsServiceImpl implements SettingsService {
     public List<Object> getByKeysOnSameCateGory(String category, String... keys) {
 
 
-        Query query = Query.query(Criteria.where("category").is(category).and("key").in(keys));
+        Query query = Query.query(Criteria.where(CATEGORY).is(category).and("key").in(keys));
 
         List<Settings> settingsList = mongoTemplate.find(query, Settings.class);
         Map<String, List<Settings>> settingMap = settingsList.stream().collect(Collectors.groupingBy(Settings::getKey));
@@ -341,7 +346,7 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public void update(SettingsEnum settingsEnum, Object value) {
-        Criteria criteria = Criteria.where("category").is(settingsEnum.getCategory()).and("key").is(settingsEnum.getKey());
+        Criteria criteria = Criteria.where(CATEGORY).is(settingsEnum.getCategory()).and("key").is(settingsEnum.getKey());
         Query query = new Query(criteria);
         Update update = Update.update("value", value);
         mongoTemplate.updateFirst(query, update, Settings.class);
@@ -401,7 +406,7 @@ public class SettingsServiceImpl implements SettingsService {
         if (StringUtils.isEmpty(settingKey) || StringUtils.isEmpty(category)) {
             return null;
         }
-        Query query = Query.query(Criteria.where("key").is(settingKey.trim()).and("category").is(category.trim()));
+        Query query = Query.query(Criteria.where("key").is(settingKey.trim()).and(CATEGORY).is(category.trim()));
         List<SettingsDto> settings = mongoTemplate.find(query, SettingsDto.class, "Settings");
         if (CollectionUtils.isNotEmpty(settings)) {
             return settings.get(0);

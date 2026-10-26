@@ -1,9 +1,12 @@
 package com.tapdata.tm.ds.controller;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.component.ProductComponent;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
@@ -15,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,9 +38,10 @@ import java.util.Objects;
 @Slf4j
 public class PdkController extends BaseController {
     private PkdSourceService pkdSourceService;
+    private ProductComponent productComponent;
 
     @PostMapping(path = "upload/source", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseMessage<Void> uploadJar(@RequestPart(value = "file") MultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest) {
+    public ResponseMessage<Void> uploadJar(@RequestPart(value = "file") MultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest, HttpServletRequest request) {
 
         log.debug("Process upload pdk source, file size: {}, source size: {}, latest: {}", file.length, sourceJsons.size(), latest);
         List<PdkSourceDto> pdkSourceDtos = new ArrayList<>();
@@ -55,7 +60,16 @@ public class PdkController extends BaseController {
             pdkSourceDtos.add(pdkSourceDto);
         }
 
-        pkdSourceService.uploadPdk(file, pdkSourceDtos, latest, getLoginUser());
+        UserDetail user = getLoginUser();
+        // Connector registration only stops tasks for an interactive enterprise login.
+        // Cloud requests and non-interactive user_id / Basic requests keep the upload-only path.
+        boolean interactiveRegistration = productComponent.isDAAS() && user != null
+                && (AuthType.USERNAME_LOGIN.getValue().equals(user.getAuthType())
+                || AuthType.SAML_LOGIN.getValue().equals(user.getAuthType()))
+                && StringUtils.isBlank(request.getHeader("user_id"))
+                && StringUtils.isBlank(request.getHeader("authorization"));
+        boolean uploadOnlyRegistration = !interactiveRegistration;
+        pkdSourceService.uploadPdk(file, pdkSourceDtos, latest, user, uploadOnlyRegistration);
         return success();
     }
 

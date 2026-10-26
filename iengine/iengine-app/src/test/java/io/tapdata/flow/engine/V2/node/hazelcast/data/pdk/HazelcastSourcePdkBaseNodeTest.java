@@ -130,6 +130,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import io.tapdata.entity.CountResult;
 
@@ -834,6 +835,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			instance = spy(instance);
 			syncProgress = new SyncProgress();
 			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
+			ReflectionTestUtils.setField(instance, "obsLogger", log);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			doReturn(connectorNode).when(instance).getConnectorNode();
 			TapTableMap tapTableMap = mock(TapTableMap.class);
@@ -851,8 +853,22 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
 			instance.readBatchOffset(syncProgress);
 			assertNotNull(syncProgress.getBatchOffsetObj());
-			assertInstanceOf(Map.class, syncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
+		}
+
+		@Test
+		@DisplayName("test missing connector offset class falls back to a full sync")
+		void testMissingConnectorOffsetClassFallsBackToFullSync() {
+			syncProgress.setBatchOffset("encoded-batch-offset");
+			try (MockedStatic<PdkUtil> pdkUtil = mockStatic(PdkUtil.class)) {
+				pdkUtil.when(() -> PdkUtil.decodeOffset(anyString(), any(ConnectorNode.class)))
+						.thenThrow(new CoreException("ClassNotFoundException: missing connector offset class"));
+
+				assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
+				assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
+				assertTrue(((Map<?, ?>) syncProgress.getBatchOffsetObj()).isEmpty());
+			}
 		}
 
 		@Test
@@ -1631,6 +1647,99 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertSame(currentOffset.getPartitions(), snapshot.getPartitions());
 			assertFalse(snapshot.getTableCompleted());
 			assertTrue(snapshot.getCompletedPartitions().isEmpty());
+		}
+
+		@DisplayName("test connector batch offset is handed off as an immutable encoded snapshot")
+		@Test
+		void testConnectorBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(hazelcastSourcePdkDataNode).getConnectorNode();
+
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("position", 100);
+
+			SyncProgress progress = new SyncProgress();
+			progress.setBatchOffsetObj(new ConcurrentHashMap<>());
+			BatchOffsetUtil.updateBatchOffset(progress, tableId, connectorOffset, TableBatchReadStatus.RUNNING.name());
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotBatchOffset(tableId);
+			// the snapshot is a table offset marker map; wrap it in a tableId keyed container just like it is stored
+			Map<String, Object> snapshotContainer = new HashMap<>();
+			snapshotContainer.put(tableId, snapshot);
+			SyncProgress snapshotProgress = new SyncProgress();
+			snapshotProgress.setBatchOffsetObj(snapshotContainer);
+			Object snapshotOffset = BatchOffsetUtil.getBatchOffsetOfTable(snapshotProgress, tableId);
+
+			// the live connector offset is serialized into an immutable string, not shared by reference
+			assertNotSame(connectorOffset, snapshotOffset);
+			assertInstanceOf(String.class, snapshotOffset);
+			assertTrue(((String) snapshotOffset).startsWith(PdkUtil.ENCODE_PREFIX));
+
+			// mutating the connector's live offset after the snapshot must not change the captured breakpoint
+			connectorOffset.put("position", 999);
+			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
+			assertEquals(100, decoded.get("position"));
+		}
+
+		@DisplayName("test whole batch offset is handed off as an immutable encoded snapshot")
+		@Test
+		void testEntireBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(hazelcastSourcePdkDataNode).getConnectorNode();
+
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("position", 100);
+
+			SyncProgress progress = new SyncProgress();
+			progress.setBatchOffsetObj(new ConcurrentHashMap<>());
+			BatchOffsetUtil.updateBatchOffset(progress, tableId, connectorOffset, TableBatchReadStatus.RUNNING.name());
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotEntireBatchOffset();
+
+			// the snapshot is a fresh container, not the source's live map, and does not alias its table markers
+			assertNotSame(progress.getBatchOffsetObj(), snapshot);
+			assertNotSame(((Map<String, Object>) progress.getBatchOffsetObj()).get(tableId), ((Map<String, Object>) snapshot).get(tableId));
+
+			SyncProgress snapshotProgress = new SyncProgress();
+			snapshotProgress.setBatchOffsetObj(snapshot);
+			Object snapshotOffset = BatchOffsetUtil.getBatchOffsetOfTable(snapshotProgress, tableId);
+			assertNotSame(connectorOffset, snapshotOffset);
+			assertInstanceOf(String.class, snapshotOffset);
+			assertTrue(((String) snapshotOffset).startsWith(PdkUtil.ENCODE_PREFIX));
+
+			// mutating the connector's live offset after the snapshot must not change the captured breakpoint
+			connectorOffset.put("position", 999);
+			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
+			assertEquals(100, decoded.get("position"));
+		}
+
+		@DisplayName("test whole batch offset snapshot copies a PartitionTableOffset instead of aliasing it")
+		@Test
+		void testEntireBatchOffsetSnapshotCopiesPartitionTableOffset() {
+			String tableId = "testTableId";
+			PartitionTableOffset liveOffset = new PartitionTableOffset();
+			liveOffset.setTableCompleted(false);
+			liveOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			liveOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
+
+			SyncProgress progress = new SyncProgress();
+			Map<String, Object> offsets = new ConcurrentHashMap<>();
+			offsets.put(tableId, liveOffset);
+			progress.setBatchOffsetObj(offsets);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotEntireBatchOffset();
+			PartitionTableOffset snapshotOffset = (PartitionTableOffset) ((Map<?, ?>) snapshot).get(tableId);
+
+			assertNotSame(liveOffset, snapshotOffset);
+			assertNotSame(progress.getBatchOffsetObj(), snapshot);
+
+			liveOffset.partitionCompleted("partition-1", 100L);
+			assertTrue(snapshotOffset.getCompletedPartitions().isEmpty());
 		}
 	}
 

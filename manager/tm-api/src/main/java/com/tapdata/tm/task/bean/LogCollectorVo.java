@@ -13,6 +13,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -34,6 +35,10 @@ public class LogCollectorVo {
     private Date logTime;
     /** 保留的时长 单位 （天） 默认3天*/
     private Integer storageTime = 3;
+    private String accessNodeType;
+    private String accessNodeProcessId;
+    private String priorityProcessId;
+    private Boolean sourceAgentPolicyInherited;
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
@@ -44,4 +49,12 @@ public class LogCollectorVo {
     @EqField
     private List<TaskDto.SyncPoint> syncPoints;
     private Set<String> permissionActions;
+
+    /**
+     * 任务指标信息
+     * cpu: cpuUsage<Double>
+     * mem: memoryUsage<Long>
+     * time: lastUpdateTime<Long>
+     */
+    private Map<String, Object> metricInfo;
 }

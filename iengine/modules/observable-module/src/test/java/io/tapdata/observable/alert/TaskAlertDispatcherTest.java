@@ -2,6 +2,7 @@ package io.tapdata.observable.alert;
 
 import io.tapdata.entity.logger.alert.TapAlertType;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -47,7 +48,7 @@ class TaskAlertDispatcherTest {
 
     @Test
     void sameKeyWithinWindowShouldCoalesce() throws InterruptedException {
-        CountDownLatch publishedLatch = new CountDownLatch(1);
+        CountDownLatch publishedLatch = new CountDownLatch(2);
         AtomicInteger published = new AtomicInteger();
         TaskAlertPublisher publisher = event -> {
             published.incrementAndGet();
@@ -56,13 +57,18 @@ class TaskAlertDispatcherTest {
         };
         TaskAlertDispatcher dispatcher = new TaskAlertDispatcher(publisher, 16, 1, 0, 1L, 1L);
         try {
-            dispatcher.submit(event("same"));
-            dispatcher.submit(event("same"));
+            Assertions.assertTrue(dispatcher.submit(event("warm-up")));
+            long start = System.currentTimeMillis();
+            Assertions.assertTrue(dispatcher.submit(event("same")));
+            Assertions.assertTrue(dispatcher.submit(event("same")));
+            long elapsed = System.currentTimeMillis() - start;
+            // The coalesce window is 1000ms of wall-clock time; a slower run cannot prove coalescing.
+            Assumptions.assumeTrue(elapsed < 1000L, "two submits took " + elapsed + "ms, exceeding the coalesce window");
             Assertions.assertTrue(publishedLatch.await(2, TimeUnit.SECONDS));
         } finally {
             dispatcher.shutdown();
         }
-        Assertions.assertEquals(1, published.get());
+        Assertions.assertEquals(2, published.get(), "warm-up and the first 'same' event are published, the second is coalesced");
     }
 
     private TaskAlertEvent event(String dedupKey) {

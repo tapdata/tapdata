@@ -7,6 +7,7 @@ import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
@@ -23,6 +24,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
+import io.tapdata.entity.codec.filter.FloatingPointTransformMode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -400,9 +402,17 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			return null;
 		}
 		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
-			return ((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformToTapValueMap(data, dataProcessorContext.getTapTableMap().get(tableName), getSkipDetector());
+			return ((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformToTapValueMap(
+					FloatingPointTransformMode.RAW,
+					data,
+					dataProcessorContext.getTapTableMap().get(tableName),
+					getSkipDetector());
 		} else {
-			tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
+			tapCodecsFilterManager.transformToTapValueMap(
+				FloatingPointTransformMode.RAW,
+				data,
+				getTableFiledMap(tableName),
+				getSkipDetector());
 		}
 		return null;
 	}
@@ -584,11 +594,27 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 		String batchOffset = syncProgress.getBatchOffset();
 		if (StringUtils.isNotBlank(batchOffset)) {
-			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
+			Object batchOffsetObj = PdkUtil.decodeOffset(batchOffset, getConnectorNode());
+			if (decodeConnectorOffsetInBatchOffset()) {
+				batchOffsetObj = BatchOffsetUtil.decodeConnectorOffset(
+						batchOffsetObj,
+						offset -> PdkUtil.decodeOffset(offset, getConnectorNode())
+				);
+			}
+			syncProgress.setBatchOffsetObj(BatchOffsetUtil.asConcurrentBatchOffset(batchOffsetObj));
 		}
 		if (null == syncProgress.getBatchOffsetObj()) {
 			syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
 		}
+	}
+
+	/**
+	 * Target nodes intentionally keep connector offsets encoded because they only persist the
+	 * breakpoint; source nodes override this to decode the connector offset before handing it back
+	 * to batchRead.
+	 */
+	protected boolean decodeConnectorOffsetInBatchOffset() {
+		return false;
 	}
 
 

@@ -55,6 +55,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -547,7 +549,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                 , BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName)
             );
             TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-            tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+            tapdataCompleteTableSnapshotEvent.setBatchOffset(snapshotBatchOffset(tableName));
             tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
             enqueue(tapdataCompleteTableSnapshotEvent);
             return;
@@ -597,6 +599,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
         BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = functions.getQueryByAdvanceFilterFunction();
         ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
+        Object tableOffset = BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId);
 
         PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
         try {
@@ -604,7 +607,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                 BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
                     .eventBatchSize(readBatchSize)
                     .connectorContext(connectorNode.getConnectorContext())
-                    .offsetState(null)
+                    .offsetState(tableOffset)
                     .dataProcessorContext(this.getDataProcessorContext())
                     .start()
                     .table(tapTable),
@@ -613,6 +616,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                     PDKMethod.SOURCE_BATCH_READ,
                     pdkMethodInvoker.runnable(() -> {
                             try {
+                                Object currentTableOffset = BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId);
                                 BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
                                     if (events != null && !events.isEmpty()) {
 										CpuMemoryCollector.listening(getNode().getId(), events);
@@ -693,10 +697,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             handleCustomCommandResult(result, tableName, consumer);
                                         });
                                     } else {
-                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
+                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, currentTableOffset, readBatchSize, consumer);
                                     }
                                 } else {
-                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
+                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, currentTableOffset, readBatchSize, consumer);
                                 }
                             } catch (SkipErrorTableException e) {
                                 logger.warn("skip error table '{}'", e.getTableName());
@@ -713,7 +717,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
         }
         executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
         TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-        tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+        tapdataCompleteTableSnapshotEvent.setBatchOffset(snapshotBatchOffset(tableName));
         tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
         enqueue(tapdataCompleteTableSnapshotEvent);
     }
@@ -1581,6 +1585,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 	private Object getConvertValue(TapType tapType, String defaultValue) {
 		Object convertValue = defaultValue;
+		if (tapType instanceof TapFloat || tapType instanceof TapDouble) {
+			try {
+				return Double.valueOf(defaultValue);
+			} catch (NumberFormatException e) {
+				throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "Convert polling cdc condition value [" + defaultValue + "] to floating point failed", e);
+			}
+		}
 		switch (tapType.getType()) {
 			case TapType.TYPE_NUMBER:
 				if (defaultValue.contains(".")) {

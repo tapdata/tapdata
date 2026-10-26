@@ -21,13 +21,25 @@ import okio.Source;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -39,38 +51,23 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @Slf4j
 public class UploadFileService {
 
-  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk, PrintUtil printUtil) throws Exception {
+  private static final String ADMIN_EMAIL = "admin@admin.com";
+  private static final String RC4_KEY = "Gotapd8";
+  private static final String RC4_ALGORITHM = "RC4";
+  private static final byte[] SALTED_MAGIC = "Salted__".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String username, String password, String ak, String sk, PrintUtil printUtil) throws Exception {
 
     boolean cloud = StringUtils.isNotBlank(ak);
 
 
     String token = null;
     if (!cloud) {
-
-      String tokenUrl = hostAndPort + "/api/users/generatetoken";
-      Map<String, String> param = new HashMap<>();
-      param.put("accesscode", accessCode);
-      String jsonString = JSON.toJSONString(param);
-      String s = OkHttpUtils.postJsonParams(tokenUrl, jsonString);
-
-      printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + s);
-
-      if (StringUtils.isBlank(s)) {
-        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
-        return;
-      }
-
-      Map map = JSON.parseObject(s, Map.class);
-      Object data = map.get("data");
-      if (null == data) {
-        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
-        return;
-      }
-      JSONObject data1 = (JSONObject) data;
-      token = (String) data1.get("id");
+      token = StringUtils.isNotBlank(accessCode)
+              ? generateAccessCodeToken(hostAndPort, accessCode, printUtil)
+              : login(hostAndPort, username, password);
       if (StringUtils.isBlank(token)) {
-        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
-        return;
+        throw new IllegalStateException("TM server not found or authentication failed");
       }
     }
 
@@ -128,7 +125,7 @@ public class UploadFileService {
       for (String json : jsons) {
         if (cloud) {
           digest.update("source".getBytes(UTF_8));
-          digest.update(json.getBytes());
+          digest.update(json.getBytes(UTF_8));
         }
       }
       // if the jsons size == 1, the data received by TM will be weird, adding an empty string helps TM receive the
@@ -213,7 +210,8 @@ public class UploadFileService {
 
     String msg = "success";
     String result = "success";
-    if (!"ok".equals(map.get("code"))) {
+    boolean uploadSucceeded = "ok".equals(map.get("code"));
+    if (!uploadSucceeded) {
         msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
         result = "fail";
       printUtil.print(PrintUtil.TYPE.ERROR, String.format("* Register Connector: %s Failed, message: %s", file.getName(), msg));
@@ -221,7 +219,110 @@ public class UploadFileService {
       printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s Completed", file.getName()));
     }
     printUtil.print(PrintUtil.TYPE.WARN, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
+    if (!uploadSucceeded) {
+      throw new IllegalStateException("Connector registration failed: " + msg);
+    }
     JarEncryptor.encryptJar(file.getPath());
+  }
+
+  /**
+   * Compatibility overload for callers using the administrator-password flow.
+   */
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String username, String password, String ak, String sk, PrintUtil printUtil) throws Exception {
+    upload(inputStreamMap, file, jsons, latest, hostAndPort, null, username, password, ak, sk, printUtil);
+  }
+
+  /**
+   * Compatibility overload for the original accessCode-based registration API.
+   */
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk, PrintUtil printUtil) throws Exception {
+    upload(inputStreamMap, file, jsons, latest, hostAndPort, accessCode, null, null, ak, sk, printUtil);
+  }
+
+  static String generateAccessCodeToken(String hostAndPort, String accessCode, PrintUtil printUtil) {
+    String tokenUrl = hostAndPort + "/api/users/generatetoken";
+    Map<String, String> param = new HashMap<>();
+    param.put("accesscode", accessCode);
+    String response = OkHttpUtils.postJsonParams(tokenUrl, JSON.toJSONString(param));
+
+    printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + response);
+
+    if (StringUtils.isBlank(response)) {
+      printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
+      throw new IllegalStateException("TM server not found or generate token failed");
+    }
+
+    JSONObject result = JSON.parseObject(response);
+    JSONObject data = result.getJSONObject("data");
+    String token = data == null ? null : data.getString("id");
+    if (StringUtils.isBlank(token)) {
+      printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
+      throw new IllegalStateException("TM server not found or generate token failed");
+    }
+    return token;
+  }
+
+  static String login(String hostAndPort, String username, String password) {
+    if (!ADMIN_EMAIL.equals(StringUtils.trim(username))) {
+      throw new IllegalArgumentException("Connector registration only supports admin@admin.com");
+    }
+    if (StringUtils.isBlank(password)) {
+      throw new IllegalArgumentException("Administrator password is required");
+    }
+    String loginUrl = hostAndPort + "/api/users/login";
+    String response = OkHttpUtils.postJsonParams(loginUrl, createLoginRequest(username, password));
+    return parseAccessToken(response);
+  }
+
+  static String createLoginRequest(String username, String password) {
+    Map<String, String> loginRequest = new HashMap<>();
+    loginRequest.put("email", StringUtils.trim(username));
+    loginRequest.put("password", encryptPassword(password));
+    return JSON.toJSONString(loginRequest);
+  }
+
+  static String parseAccessToken(String response) {
+    if (StringUtils.isBlank(response)) {
+      throw new IllegalStateException("TM server not found or login failed");
+    }
+    JSONObject result = JSON.parseObject(response);
+    JSONObject data = result.getJSONObject("data");
+    String token = data == null ? null : data.getString("id");
+    if (!"ok".equals(result.getString("code")) || StringUtils.isBlank(token)) {
+      String message = StringUtils.defaultIfBlank(result.getString("message"), result.getString("msg"));
+      throw new IllegalStateException(StringUtils.defaultIfBlank(message, "TM server not found or login failed"));
+    }
+    return token;
+  }
+
+  static String encryptPassword(String password) {
+    try {
+      byte[] pass = RC4_KEY.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+      byte[] salt = new SecureRandom().generateSeed(8);
+      byte[] passAndSalt = concat(pass, salt);
+      byte[] hash = new byte[0];
+      byte[] keyAndIv = new byte[0];
+      for (int index = 0; index < 3 && keyAndIv.length < 48; index++) {
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        hash = md.digest(concat(hash, passAndSalt));
+        keyAndIv = concat(keyAndIv, hash);
+      }
+      SecretKeySpec key = new SecretKeySpec(Arrays.copyOfRange(keyAndIv, 0, 32), RC4_ALGORITHM);
+      Cipher cipher = Cipher.getInstance(RC4_ALGORITHM);
+      cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameterSpec) null);
+      byte[] encrypted = cipher.doFinal(password.getBytes(UTF_8));
+      return Base64.getEncoder().encodeToString(concat(concat(SALTED_MAGIC, salt), encrypted));
+    } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException
+             | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException e) {
+      throw new IllegalStateException("Failed to encrypt administrator password", e);
+    }
+  }
+
+  private static byte[] concat(byte[] first, byte[] second) {
+    byte[] result = new byte[first.length + second.length];
+    System.arraycopy(first, 0, result, 0, first.length);
+    System.arraycopy(second, 0, result, first.length, second.length);
+    return result;
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {

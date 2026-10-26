@@ -233,28 +233,30 @@ public class UserServiceImplTest {
         private String username;
         private String password;
 
+        private Settings ldapSetting(String key, Object value) {
+            Settings settings = new Settings();
+            settings.setCategory(CategoryEnum.LDAP.getValue());
+            settings.setKey(key);
+            settings.setValue(value);
+            return settings;
+        }
+
         @BeforeEach
         void beforeEach() {
             username = "user1";
             password = "password1";
-            Settings settings1 = new Settings();
-            settings1.setKey("ad.server.host");
-            settings1.setValue("ldap://ad.example.com");
-            Settings settings2 = new Settings();
-            settings2.setKey("ad.server.port");
-            settings2.setValue("389");
-            Settings settings3 = new Settings();
-            settings3.setKey("ad.bind.dn");
-            settings3.setValue("CN=Admin,CN=Users,DC=example,DC=com");
-            Settings settings4 = new Settings();
-            settings4.setKey("ad.bind.password");
-            settings4.setValue("adminPassword");
-            Settings settings5 = new Settings();
-            settings5.setKey("ad.base.dn");
-            settings5.setValue("DC=example,DC=com");
-            settingsList = Arrays.asList(
-                    settings1, settings2, settings3, settings4, settings5
-            );
+            settingsList = new ArrayList<>(Arrays.asList(
+                    ldapSetting("ldap.server.host", "ldap://ad.example.com"),
+                    ldapSetting("ldap.server.port", "389"),
+                    ldapSetting("ldap.bind.dn", "CN=Admin,CN=Users,DC=example,DC=com"),
+                    ldapSetting("ldap.bind.password", "adminPassword"),
+                    ldapSetting("ldap.base.dn", "DC=example,DC=com")
+            ));
+            Settings unrelatedSetting = new Settings();
+            unrelatedSetting.setCategory(CategoryEnum.JOB.getValue());
+            unrelatedSetting.setKey("task.statistics.restriction");
+            unrelatedSetting.setValue(null);
+            settingsList.add(unrelatedSetting);
             doCallRealMethod().when(userService).loginByLdap(username, password);
         }
 
@@ -262,7 +264,7 @@ public class UserServiceImplTest {
         void testLoginByAD_Success() throws NamingException {
             when(settingsService.findAll()).thenReturn(settingsList);
             Settings settings = new Settings();
-            settings.setKey("ad.ssl.enable");
+            settings.setKey("ldap.ssl.enable");
             settings.setOpen(true);
             when(settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE))
                     .thenReturn(settings);
@@ -294,7 +296,7 @@ public class UserServiceImplTest {
         void testLoginByAD_SSLDisabled() throws NamingException {
             when(settingsService.findAll()).thenReturn(settingsList);
             Settings settings = new Settings();
-            settings.setKey("ad.ssl.enable");
+            settings.setKey("ldap.ssl.enable");
             settings.setOpen(true);
             when(settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE))
                     .thenReturn(settings);
@@ -894,7 +896,7 @@ public class UserServiceImplTest {
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
             verify(mongoTemplate).remove(any(Query.class), eq(SsoExternalIdentity.class));
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
         @Test
         void testDeleteFailed() {
@@ -904,7 +906,7 @@ public class UserServiceImplTest {
             when(userDto.getEmail()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(0)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(0)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
         @Test
         void testDeleteWithEmail() {
@@ -914,7 +916,7 @@ public class UserServiceImplTest {
             when(userDto.getEmail()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
     }
 

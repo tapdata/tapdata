@@ -1377,7 +1377,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					pdkMethodInvoker.runnable(() -> {
 								try {
 									transactionBegin();
+									ensureExactlyOnceWriteRunning();
 									processEvents(tapEvents,false);
+									ensureExactlyOnceWriteRunning();
 									writeRecordFunction.writeRecord(
 											connectorNode.getConnectorContext(),
 											tapRecordEvents,
@@ -1390,15 +1392,31 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
 												}
 											});
+									ensureExactlyOnceWriteRunning();
 									transactionCommit();
 								} catch (Exception e) {
-									transactionRollback();
+									try {
+										transactionRollback();
+									} catch (Exception rollbackError) {
+										e.addSuppressed(rollbackError);
+									}
+									if (e instanceof ExactlyOnceWriteCancelledException && e.getSuppressed().length == 0) {
+										throw e;
+									}
 									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
 								}
 							}
 					));
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);
+		}
+	}
+
+	private void ensureExactlyOnceWriteRunning() {
+		// Connectors may return a partially written batch when their alive supplier turns false.
+		// Never commit that batch, or its cache, after a stop/cancel has been observed.
+		if (!isRunning() || Thread.currentThread().isInterrupted()) {
+			throw new ExactlyOnceWriteCancelledException();
 		}
 	}
 

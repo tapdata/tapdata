@@ -12,6 +12,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
@@ -28,6 +29,9 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Query;
@@ -794,7 +798,36 @@ public class TapdataTaskSchedulerTest {
 			assertEquals(expectedTaskDto.getStatus(), result.getStatus());
 
 			// Verify the query was constructed correctly
-			verify(clientMongoOperator).findOne(any(Query.class), any(), any());
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(clientMongoOperator).findOne(queryCaptor.capture(), any(), any());
+			assertFalse(queryCaptor.getValue().getFieldsObject().isEmpty(),
+					"generic retry must keep the legacy compact task projection");
+		}
+
+		@Test
+		@DisplayName("Should load the complete document only for an enabled heartbeat watchdog")
+		void testSafeQueryTaskByIdLoadsFullTaskForHeartbeatWatchdog() {
+			String taskId = "507f1f77bcf86cd799439011";
+			TaskDto expectedTaskDto = new TaskDto();
+			expectedTaskDto.setId(new ObjectId(taskId));
+			expectedTaskDto.setName("heartbeat-task");
+			expectedTaskDto.setStatus(TaskDto.STATUS_RUNNING);
+			expectedTaskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			expectedTaskDto.setAttrs(new java.util.HashMap<>(Map.of(
+				"heartbeatWatchdog", Map.of("enabled", true, "units", List.of("edge"),
+						"timeoutMs", 60_000L, "graceMs", 60_000L))));
+			when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class)))
+				.thenReturn(expectedTaskDto);
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			TaskDto result = taskScheduler.safeQueryTaskById(taskId);
+
+			assertSame(expectedTaskDto, result);
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(clientMongoOperator, times(2)).findOne(queryCaptor.capture(), any(), any());
+			assertFalse(queryCaptor.getAllValues().get(0).getFieldsObject().isEmpty());
+			assertTrue(queryCaptor.getAllValues().get(1).getFieldsObject().isEmpty(),
+					"opted-in retry must reload the complete task document");
 		}
 
 		@Test
@@ -934,6 +967,83 @@ public class TapdataTaskSchedulerTest {
 				tmStatusServiceMockedStatic.verify(() -> TmStatusService.setAllowReport(taskId));
 			}
 		}
+
+		@Test
+		void shouldNotMoveTaskClientReplacedDuringTmQuery() {
+			TapdataTaskScheduler scheduler = new TapdataTaskScheduler();
+			ObjectId taskObjectId = new ObjectId();
+			String taskId = taskObjectId.toHexString();
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(taskObjectId);
+			taskDto.setName("rescheduled-task");
+
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(taskDto);
+			TaskClient<TaskDto> newRunTaskClient = mock(TaskClient.class);
+			Map<String, TaskClient<TaskDto>> localTaskClientMap = new ConcurrentHashMap<>();
+			localTaskClientMap.put(taskId, taskClient);
+			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap = (Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(scheduler, "internalStopTaskClientMap");
+			internalStopTaskClientMap.clear();
+
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+			TaskDto rescheduledTask = new TaskDto();
+			rescheduledTask.setId(taskObjectId);
+			rescheduledTask.setAgentId("fe2");
+			// While the TM query is in flight, the old run is stopped and a new run is started on this engine
+			when(clientMongoOperator.find(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class))).thenAnswer(invocation -> {
+				localTaskClientMap.put(taskId, newRunTaskClient);
+				return Collections.singletonList(rescheduledTask);
+			});
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(scheduler, "taskClientMap", localTaskClientMap);
+			ReflectionTestUtils.setField(scheduler, "instanceNo", "fe1");
+
+			try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class)) {
+				ReflectionTestUtils.invokeMethod(scheduler, "scanAndInternalStopRescheduledTasks");
+
+				assertSame(newRunTaskClient, localTaskClientMap.get(taskId));
+				assertFalse(internalStopTaskClientMap.containsKey(taskId));
+				tmStatusServiceMockedStatic.verify(() -> TmStatusService.removeTask(taskId), never());
+			}
+		}
+
+		@Test
+		void shouldNotMoveTaskClientRemovedDuringTmQuery() {
+			TapdataTaskScheduler scheduler = new TapdataTaskScheduler();
+			ObjectId taskObjectId = new ObjectId();
+			String taskId = taskObjectId.toHexString();
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(taskObjectId);
+			taskDto.setName("rescheduled-task");
+
+			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(taskDto);
+			Map<String, TaskClient<TaskDto>> localTaskClientMap = new ConcurrentHashMap<>();
+			localTaskClientMap.put(taskId, taskClient);
+			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap = (Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(scheduler, "internalStopTaskClientMap");
+			internalStopTaskClientMap.clear();
+
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+			TaskDto rescheduledTask = new TaskDto();
+			rescheduledTask.setId(taskObjectId);
+			rescheduledTask.setAgentId("fe2");
+			// The stop operation has already stopped, reported and removed this client
+			when(clientMongoOperator.find(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class))).thenAnswer(invocation -> {
+				localTaskClientMap.remove(taskId);
+				return Collections.singletonList(rescheduledTask);
+			});
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(scheduler, "taskClientMap", localTaskClientMap);
+			ReflectionTestUtils.setField(scheduler, "instanceNo", "fe1");
+
+			try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class)) {
+				ReflectionTestUtils.invokeMethod(scheduler, "scanAndInternalStopRescheduledTasks");
+
+				assertFalse(localTaskClientMap.containsKey(taskId));
+				assertFalse(internalStopTaskClientMap.containsKey(taskId));
+				tmStatusServiceMockedStatic.verify(() -> TmStatusService.removeTask(taskId), never());
+			}
+		}
 	}
 
 	@Nested
@@ -1007,6 +1117,135 @@ public class TapdataTaskSchedulerTest {
 			verify(taskClient).stop();
 			verifyNoInteractions(taskRetryFactory);
 			verifyNoInteractions(obsLoggerFactory);
+		}
+	}
+
+	@Nested
+	class ErrorOrStopTaskTest {
+		TapdataTaskScheduler scheduler;
+		ClientMongoOperator clientMongoOperator;
+		Map<String, TaskClient<TaskDto>> localTaskClientMap;
+		TaskClient<TaskDto> taskClient;
+		TaskDto taskDto;
+		String taskId;
+		TaskRetryFactory taskRetryFactory;
+
+		@BeforeEach
+		void init() {
+			scheduler = new TapdataTaskScheduler();
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			localTaskClientMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(scheduler, "logger", mock(Logger.class));
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(scheduler, "taskClientMap", localTaskClientMap);
+			ReflectionTestUtils.setField(scheduler, "instanceNo", "fe1");
+
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			taskDto.setName("share-cdc-collector");
+			taskDto.setTaskRecordId(new ObjectId().toHexString());
+			taskId = taskDto.getId().toHexString();
+			taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(taskDto);
+			when(taskClient.getTerminalMode()).thenReturn(TerminalMode.STOP_GRACEFUL);
+			when(taskClient.stop()).thenReturn(true);
+			localTaskClientMap.put(taskId, taskClient);
+
+			// TM accepts reports by default, so without the stale-client guard the scan would go on to clear the task by key
+			TaskOpRespDto taskOpRespDto = new TaskOpRespDto();
+			taskOpRespDto.setSuccessIds(Collections.singletonList(taskId));
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), eq(taskId), eq(TaskOpRespDto.class))).thenReturn(taskOpRespDto);
+
+			taskRetryFactory = mock(TaskRetryFactory.class);
+			TaskRetryService taskRetryService = mock(TaskRetryService.class);
+			when(taskRetryService.canTaskRetry()).thenReturn(new TaskRetryService.TaskRetryResult(true));
+			when(taskRetryFactory.getTaskRetryService(taskId)).thenReturn(Optional.of(taskRetryService));
+		}
+
+		@Test
+		void shouldNotReportStoppedWhenStopOperationAlreadyRemovedTaskClient() {
+			when(taskClient.isRunning()).thenAnswer(invocation -> {
+				localTaskClientMap.remove(taskId);
+				return false;
+			});
+
+			runErrorOrStopTask();
+
+			verify(taskClient, never()).stop();
+			verify(clientMongoOperator, never()).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+		}
+
+		@ParameterizedTest
+		@EnumSource(TerminalMode.class)
+		void shouldSkipTaskClientReplacedByNewRun(TerminalMode terminalMode) {
+			when(taskClient.getTerminalMode()).thenReturn(terminalMode);
+			TaskClient<TaskDto> newRunTaskClient = mock(TaskClient.class);
+			when(taskClient.isRunning()).thenAnswer(invocation -> {
+				localTaskClientMap.put(taskId, newRunTaskClient);
+				return false;
+			});
+
+			runErrorOrStopTask();
+
+			// Every branch would otherwise stop the old client and then clear the task by key, dropping the new run
+			assertSame(newRunTaskClient, localTaskClientMap.get(taskId));
+			verify(taskClient, never()).stop();
+			verify(newRunTaskClient, never()).stop();
+			verify(clientMongoOperator, never()).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(taskRetryFactory, never()).getTaskRetryService(anyString());
+		}
+
+		@Test
+		void shouldReportStoppedForCurrentTaskClient() {
+			when(taskClient.isRunning()).thenReturn(false);
+
+			runErrorOrStopTask();
+
+			verify(taskClient).stop();
+			verify(clientMongoOperator).updateById(any(Update.class),
+					argThat((String resource) -> resource.startsWith(ConnectorConstant.TASK_COLLECTION + "/stopped")
+							&& resource.contains("taskRecordId=" + taskDto.getTaskRecordId())),
+					eq(taskId), eq(TaskOpRespDto.class));
+			assertFalse(localTaskClientMap.containsKey(taskId));
+		}
+
+		@Test
+		void shouldIgnoreRejectedStoppedInsteadOfReportingRunError() {
+			when(taskClient.isRunning()).thenReturn(false);
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), eq(taskId), eq(TaskOpRespDto.class)))
+					.thenThrow(new RuntimeException("Transition.Not.Supported"));
+
+			runErrorOrStopTask();
+
+			verify(clientMongoOperator).updateById(any(Update.class),
+					argThat((String resource) -> resource.startsWith(ConnectorConstant.TASK_COLLECTION + "/stopped")),
+					eq(taskId), eq(TaskOpRespDto.class));
+			verify(clientMongoOperator, never()).updateById(any(Update.class),
+					argThat((String resource) -> resource.contains("/runError")), anyString(), any(Class.class));
+			assertFalse(localTaskClientMap.containsKey(taskId));
+		}
+
+		@Test
+		void shouldKeepTaskClientForRetryWhenStopReportFailed() {
+			when(taskClient.isRunning()).thenReturn(false);
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), eq(taskId), eq(TaskOpRespDto.class)))
+					.thenThrow(new RuntimeException("Read timed out"));
+
+			runErrorOrStopTask();
+
+			verify(clientMongoOperator, never()).updateById(any(Update.class),
+					argThat((String resource) -> resource.contains("/runError")), anyString(), any(Class.class));
+			assertSame(taskClient, localTaskClientMap.get(taskId));
+		}
+
+		private void runErrorOrStopTask() {
+			try (MockedStatic<TmStatusService> ignoredTmStatusService = mockStatic(TmStatusService.class);
+				 MockedStatic<TaskRetryFactory> taskRetryFactoryMockedStatic = mockStatic(TaskRetryFactory.class);
+				 MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)) {
+				taskRetryFactoryMockedStatic.when(TaskRetryFactory::getInstance).thenReturn(taskRetryFactory);
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+				scheduler.errorOrStopTask();
+			}
 		}
 	}
 
