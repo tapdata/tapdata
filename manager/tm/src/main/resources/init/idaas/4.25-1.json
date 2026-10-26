@@ -1,0 +1,370 @@
+[
+  {
+    "update": "Permission",
+    "updates": [
+      {
+        "q": {
+          "name": "v2_ops-center"
+        },
+        "u": {
+          "$set": {
+            "parentId": "",
+            "description": "运维中心",
+            "name": "v2_ops-center",
+            "need_permission": true,
+            "order": 8,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_ops-center",
+                "path": ""
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_alarm_event"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_ops-center",
+            "description": "告警事件",
+            "name": "v2_alarm_event",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_alarm_event",
+                "path": "/alarm-events"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_alarm_event_ack_close"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_alarm_event",
+            "description": "告警事件-关闭",
+            "name": "v2_alarm_event_ack_close",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_alarm_event_ack_close"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_message-center"
+        },
+        "u": {
+          "$set": {
+            "parentId": "",
+            "description": "消息与通知",
+            "name": "v2_message-center",
+            "need_permission": true,
+            "order": 9,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_message-center",
+                "path": ""
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_notification_record"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_message-center",
+            "description": "通知记录",
+            "name": "v2_notification_record",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_notification_record",
+                "path": "/notification-records"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_audit_log"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_system-management",
+            "description": "操作审计",
+            "name": "v2_audit_log",
+            "need_permission": true,
+            "order": 4,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_audit_log",
+                "path": ""
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_audit_log_list"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_audit_log",
+            "description": "操作审计-列表",
+            "name": "v2_audit_log_list",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_audit_log_list",
+                "path": "/operation-audit"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "update": "RoleMapping",
+    "updates": [
+      {
+        "q": {
+          "principalId": "v2_ops-center",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_ops-center",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_alarm_event",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_alarm_event",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_alarm_event_ack_close",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_alarm_event_ack_close",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_message-center",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_message-center",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_notification_record",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_notification_record",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_audit_log",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_audit_log",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_audit_log_list",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_audit_log_list",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "NotificationDelivery",
+    "indexes": [
+      {
+        "name": "alarm_channel_status",
+        "key": {
+          "alarmEventId": 1,
+          "channel": 1,
+          "status": 1
+        },
+        "background": true
+      },
+      {
+        "name": "message_channel_status",
+        "key": {
+          "messageId": 1,
+          "channel": 1,
+          "status": 1
+        },
+        "background": true
+      },
+      {
+        "name": "recipient_created",
+        "key": {
+          "recipientAddress": 1,
+          "createTime": -1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Message",
+    "indexes": [
+      {
+        "name": "alarmEventId_1_createTime_-1",
+        "key": {
+          "alarmEventId": 1,
+          "createTime": -1
+        },
+        "background": true
+      }
+    ]
+  }
+]

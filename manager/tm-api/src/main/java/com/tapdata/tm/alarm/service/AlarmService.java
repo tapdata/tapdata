@@ -137,4 +137,17 @@ public interface AlarmService {
     }
 
     void ingestTaskAlert(TaskAlertRequest request);
+
+    /**
+     * 按当前语言渲染告警摘要；企业版补齐模板参数后渲染，默认直接返回原始摘要。
+     */
+    default String renderSummary(AlarmInfo info, Locale locale) {
+        return info == null ? null : info.getSummary();
+    }
+
+    /**
+     * 任务新建运行记录时归档该任务的告警事件，保留历史并使新一轮运行重新聚合；默认无告警可归档。
+     */
+    default void archiveTaskAlarms(String taskId) {
+    }
 }

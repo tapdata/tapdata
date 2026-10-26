@@ -39,10 +39,14 @@ import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.service.UserLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,12 +58,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.apache.commons.lang3.StringUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * @author jiuyetx
@@ -76,6 +82,7 @@ public class AlarmController extends BaseController {
     private AlarmSettingService alarmSettingService;
     private InspectService inspectService;
     private UserService userService;
+    private UserLogService userLogService;
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -101,7 +108,24 @@ public class AlarmController extends BaseController {
     @Operation(summary = "close alarm")
     @PostMapping("close")
     public ResponseMessage<Void> close(@RequestParam String[] ids) {
-        alarmService.close(ids, getLoginUser());
+        UserDetail user = getLoginUser();
+        // 只关闭并审计真实存在的告警，非法或不存在的 ID 忽略
+        List<ObjectId> objectIds = ids == null ? Collections.emptyList() : Arrays.stream(ids).map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (objectIds.isEmpty()) {
+            return success();
+        }
+        Query query = Query.query(Criteria.where("_id").in(objectIds));
+        query.fields().include("_id");
+        String[] existing = alarmService.query(query).stream().map(a -> a.getId().toHexString()).toArray(String[]::new);
+        if (existing.length == 0) {
+            return success();
+        }
+        alarmService.close(existing, user);
+        // 关闭只表示结束跟踪，不代表问题恢复；写入操作审计便于追溯
+        for (String id : existing) {
+            userLogService.addUserLog(Modular.ALARM, com.tapdata.tm.userLog.constant.Operation.CLOSE, user, id, id);
+        }
         return success();
     }
 
