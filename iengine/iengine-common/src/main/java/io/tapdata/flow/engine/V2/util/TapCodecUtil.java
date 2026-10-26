@@ -114,7 +114,9 @@ public class TapCodecUtil {
 		if (scale == null || scale < 0 || scale > 9) {
 			return fromTapDateTimeValue(tapValue);
 		}
-		Timestamp timestamp = tapValue.getValue().toTimestamp();
+		// SQL Server datetime has no time zone. Preserve the source wall-clock
+		// value when creating a JDBC Timestamp instead of treating it as an instant.
+		Timestamp timestamp = Timestamp.valueOf(tapValue.getValue().toLocalDateTime());
 		if (timestamp == null) return null;
 		int quantum = (int) Math.pow(10, 9 - scale);
 		timestamp.setNanos((timestamp.getNanos() / quantum) * quantum);

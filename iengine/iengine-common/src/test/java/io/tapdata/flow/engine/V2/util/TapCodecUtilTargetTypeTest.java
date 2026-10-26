@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.TimeZone;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -140,6 +141,31 @@ class TapCodecUtilTargetTypeTest {
 
         assertInstanceOf(Timestamp.class, values.get("event_time"));
         assertEquals(123000000, ((Timestamp) values.get("event_time")).getNanos());
+    }
+
+    @Test
+    void mssqlDatetimePreservesWallClockInShanghaiTimeZone() {
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
+            TapDateTimeValue sourceValue = new TapDateTimeValue(new DateTime(
+                    LocalDateTime.of(2026, 10, 21, 12, 13, 14, 123456700)));
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("event_time", sourceValue);
+            Map<String, TapField> logicalFields = Collections.singletonMap(
+                    "event_time", new TapField("event_time", "datetime2").scale(7));
+            Map<String, TapField> physicalFields = Collections.singletonMap(
+                    "event_time", new TapField("event_time", "datetime").scale(3));
+
+            TapCodecUtil.convertForPhysicalTarget(values, logicalFields, physicalFields,
+                    Collections.singleton("event_time"), TapCodecsRegistry.create());
+
+            Timestamp timestamp = assertInstanceOf(Timestamp.class, values.get("event_time"));
+            assertEquals(LocalDateTime.of(2026, 10, 21, 12, 13, 14, 123000000),
+                    timestamp.toLocalDateTime());
+        } finally {
+            TimeZone.setDefault(original);
+        }
     }
 
     @Test
