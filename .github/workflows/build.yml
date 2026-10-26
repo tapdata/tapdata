@@ -81,12 +81,31 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Patch Maven Dependens
         env:
           RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
@@ -141,6 +160,14 @@ jobs:
           cp -r output/* $temp_dir/
           printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Connectors:
     runs-on: office-scan
@@ -149,12 +176,31 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
@@ -214,6 +260,14 @@ jobs:
           cp -r output/* $temp_dir/
           printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Frontend:
     runs-on: office-scan
@@ -222,12 +276,31 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
@@ -278,6 +351,14 @@ jobs:
           cp -r output/* $temp_dir/
           printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Image:
     runs-on: office-scan
@@ -299,12 +380,31 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
@@ -356,6 +456,14 @@ jobs:
           repository: 'tapdata-application'
           commit_user_name: 'cicd'
           commit_user_email: 'cicd@tapdata.io'
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Make-Tar-File:
     runs-on: office-scan
@@ -369,12 +477,31 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
@@ -396,6 +523,14 @@ jobs:
           rm -rf output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m arm64
           rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-arm64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@fileserver.tapdata.net:873/data/enterprise-artifact/gz/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Clean-Build-Temp:
     runs-on: office-scan
