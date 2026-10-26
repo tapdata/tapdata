@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractCacheGetter implements ICacheGetter {
 
@@ -28,6 +29,13 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	protected IDataSourceRowsGetter dataSourceRowsGetter;
 
 	private final ICacheStore cacheStore;
+
+	/**
+	 * 正在进行的回源查询数，getter 被淘汰后用于判断何时可以关闭回源连接器
+	 */
+	private final AtomicInteger dataSourceLookups = new AtomicInteger();
+
+	private volatile boolean dataSourceReleased;
 
 	public AbstractCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats, ClientMongoOperator clientMongoOperator) {
 		this.cacheConfig = cacheConfig;
@@ -63,7 +71,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
 		Map<String, Object> record = getRecord(cacheName, cacheKeys);
 		if (record == null && lookup) {
-			List<Map<String, Object>> rows = projectFields(getDataSourceRowsGetter().getRows(cacheKeys));
+			List<Map<String, Object>> rows = projectFields(getSourceRows(cacheKeys));
 			if (CollectionUtils.isNotEmpty(rows)) {
 				String key = CacheUtil.cacheKey(cacheKeys);
 				cacheStore.cacheRow(cacheName, key, rows);
@@ -80,8 +88,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
 		List<Map<String, Object>> recordList = getRecordList(cacheName, cacheKeys);
 		if (CollectionUtils.isEmpty(recordList) && lookup) {
-			IDataSourceRowsGetter iDataSourceRowsGetter = getDataSourceRowsGetter();
-			List<Map<String, Object>> rows = projectFields(iDataSourceRowsGetter.getRows(cacheKeys));
+			List<Map<String, Object>> rows = projectFields(getSourceRows(cacheKeys));
 			if (CollectionUtils.isNotEmpty(rows)) {
 				recordList = new ArrayList<>(rows.size());
 				for (Map<String, Object> row : rows) {
@@ -111,8 +118,22 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	}
 
 
+	/**
+	 * 回源查询；getter 被淘汰后由最后一个结束的在途查询关闭回源连接器
+	 */
+	protected List<Map<String, Object>> getSourceRows(Object[] cacheKeys) {
+		dataSourceLookups.incrementAndGet();
+		try {
+			return getDataSourceRowsGetter().getRows(cacheKeys);
+		} finally {
+			if (dataSourceLookups.decrementAndGet() == 0 && dataSourceReleased) {
+				closeDataSourceRowsGetter();
+			}
+		}
+	}
+
 	@Override
-	public IDataSourceRowsGetter getDataSourceRowsGetter() {
+	public synchronized IDataSourceRowsGetter getDataSourceRowsGetter() {
 		if (dataSourceRowsGetter == null) {
 			Connections sourceConnection = getSourceConnection(cacheConfig);
 			try {
@@ -145,9 +166,23 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	}
 
 	@Override
-	public void close() {
-		if (dataSourceRowsGetter != null) {
-			dataSourceRowsGetter.close();
+	public void releaseDataSource() {
+		dataSourceReleased = true;
+		if (dataSourceLookups.get() == 0) {
+			closeDataSourceRowsGetter();
 		}
+	}
+
+	protected synchronized void closeDataSourceRowsGetter() {
+		if (dataSourceRowsGetter != null) {
+			IDataSourceRowsGetter rowsGetter = dataSourceRowsGetter;
+			dataSourceRowsGetter = null;
+			rowsGetter.close();
+		}
+	}
+
+	@Override
+	public void close() {
+		closeDataSourceRowsGetter();
 	}
 }

@@ -52,10 +52,15 @@ public abstract class AbstractCacheService implements ICacheService {
 	public AbstractCacheService(ClientMongoOperator clientMongoOperator) {
 		this.clientMongoOperator = clientMongoOperator;
 		this.cacheGetterMap = new CacheMap<>();
+		// voovan CacheMap.supplier(fn) 会把 autoRemove 重置为 false，autoRemove(true) 必须在其后设置；
+		// 否则过期时直接用 supplier 覆盖旧 getter 而不触发 destory，旧 getter 的回源连接器永不释放（TAP-13150）
 		this.cacheGetterMap.destory((k, getter) -> {
-			getter.close();
+			// 只释放回源连接器，不调用 close：close 会销毁新旧 getter 共用的缓存数据
+			if (getter != null) {
+				getter.releaseDataSource();
+			}
 			return -1L;
-		}).autoRemove(true).maxSize(100).interval(60).expire(300).supplier(this::getCacheGetterInstance).create();
+		}).supplier(this::getCacheGetterInstance).autoRemove(true).maxSize(100).interval(60).expire(300).create();
 		this.cacheStoreMap = new ConcurrentHashMap<>();
 		this.lastLogTSMap = new ConcurrentHashMap<>();
 		this.cacheStatusLockMap = new ConcurrentHashMap<>();
