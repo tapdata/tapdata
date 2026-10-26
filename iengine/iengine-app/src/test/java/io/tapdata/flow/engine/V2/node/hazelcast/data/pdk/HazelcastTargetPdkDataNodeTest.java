@@ -100,6 +100,29 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
         ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "skipErrorTable", skipErrorTable);
     }
 
+	@Test
+	void fromTapValueUsesDiscoveredPhysicalFieldsWithoutChangingLogicalModel() {
+		Map<String, Map<String, TapField>> discoveredFields = new ConcurrentHashMap<>();
+		ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "discoveredTargetFieldMaps", discoveredFields);
+		doCallRealMethod().when(hazelcastTargetPdkDataNode).cacheDiscoveredTargetFields(any(TapTable.class));
+		doCallRealMethod().when(hazelcastTargetPdkDataNode).targetFieldMapForFromTapValue(anyString(), anyMap());
+
+		LinkedHashMap<String, TapField> physicalFields = new LinkedHashMap<>();
+		physicalFields.put("birth_date", new TapField("birth_date", "DATE"));
+		TapTable physicalTable = new TapTable();
+		physicalTable.setId("target_table");
+		physicalTable.setNameFieldMap(physicalFields);
+		Map<String, TapField> logicalFields = Collections.singletonMap(
+				"birth_date", new TapField("birth_date", "CHAR(10)"));
+
+		hazelcastTargetPdkDataNode.cacheDiscoveredTargetFields(physicalTable);
+		Map<String, TapField> resolvedFields = hazelcastTargetPdkDataNode.targetFieldMapForFromTapValue(
+				"target_table", logicalFields);
+
+		assertSame(physicalFields, resolvedFields);
+		assertEquals("CHAR(10)", logicalFields.get("birth_date").getDataType());
+	}
+
 	@Nested
 	@DisplayName("ProcessEvents Method Test")
 	class processEventsTest {

@@ -56,6 +56,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.value.*;
@@ -86,6 +87,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Tap
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
+import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.flow.engine.V2.util.TaskAnalyze;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -164,6 +166,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     public static final int TARGET_QUEUE_FACTOR = 2;
     public static final int COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD = 100;
     protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, TapField>> discoveredTargetFieldMaps = new ConcurrentHashMap<>();
     private AtomicBoolean firstBatchEvent = new AtomicBoolean();
     private AtomicBoolean firstStreamEvent = new AtomicBoolean();
     protected Map<String, List<String>> updateConditionFieldsMap = new HashMap<>();
@@ -220,6 +223,52 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private final Map<String, Long> lastCDCTimestampMap = new ConcurrentHashMap<>();
 	protected int sourceNodeCount;
 	protected StreamReadTag streamReadTag;
+
+	@Override
+	protected Map<String, TapField> targetFieldMapForFromTapValue(String targetTableName, Map<String, TapField> logicalFieldMap) {
+		Map<String, TapField> physicalFieldMap = discoveredTargetFieldMaps.get(targetTableName);
+		return MapUtils.isNotEmpty(physicalFieldMap) ? physicalFieldMap : logicalFieldMap;
+	}
+
+	protected void cacheDiscoveredTargetFields(TapTable physicalTable) {
+		if (null == physicalTable || StringUtils.isBlank(physicalTable.getId())
+				|| MapUtils.isEmpty(physicalTable.getNameFieldMap())) {
+			return;
+		}
+		discoveredTargetFieldMaps.put(physicalTable.getId(), physicalTable.getNameFieldMap());
+	}
+
+	/**
+	 * Discover sink physical schema separately from the task's logical model. The logical
+	 * TapTableMap remains unchanged, while value codecs can use existing target column types.
+	 */
+	protected void discoverTargetPhysicalFields(Collection<String> targetTableNames) {
+		if (CollectionUtils.isEmpty(targetTableNames) || null == getConnectorNode()) {
+			return;
+		}
+		try {
+			List<String> tableNames = targetTableNames.stream()
+					.filter(StringUtils::isNotBlank)
+					.filter(name -> !ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME.equals(name))
+					.distinct()
+					.collect(Collectors.toList());
+			if (CollectionUtils.isEmpty(tableNames)) {
+				return;
+			}
+			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), tableNames, physicalTable -> {
+				cacheDiscoveredTargetFields(physicalTable);
+			});
+			if (obsLogger != null) {
+				obsLogger.info("Discovered physical target fields for {} of {} target tables",
+						discoveredTargetFieldMaps.size(), tableNames.size());
+			}
+		} catch (Exception error) {
+			if (obsLogger != null) {
+				obsLogger.warn("Could not discover physical target schema; value codecs will fall back to the logical model: {}",
+						error.getMessage());
+			}
+		}
+	}
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);

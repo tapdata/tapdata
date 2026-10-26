@@ -13,6 +13,9 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 
 /**
@@ -32,6 +35,7 @@ public class TapCodecUtil {
 	public static final ObjectSerializable OBJECT_SERIALIZABLE = new ObjectSerializableImplV2();
 	public static final String TAG = TapCodecUtil.class.getSimpleName();
 	protected static final byte[] TAG_BYTES = TAG.getBytes(StandardCharsets.UTF_8);
+	private static final TapCodecsRegistry TARGET_VALUE_CODECS = registerTargetAwareDateTimeCodecs(TapCodecsRegistry.create());
 
 	public static TapCodecsFilterManager createEngineCodecsFilterManger() {
 		TapCodecsFilterManager tapCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
@@ -45,8 +49,50 @@ public class TapCodecUtil {
 		tapCodecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_YEAR_BYTE_TAG_V2));
 		tapCodecsRegistry.registerFromTapValue(TapDateValue.class, TapCodecUtil::fromTapDateValue);
 		tapCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_TIME_BYTE_TAG_V2));
-		tapCodecsRegistry.registerFromTapValueV2(TapDateTimeValue.class, TapCodecUtil::fromTapDateTimeValue);
-		tapCodecsRegistry.registerFromTapValueV2(TapDateValue.class, TapCodecUtil::fromTapDateValue);
+		registerTargetAwareDateTimeCodecs(tapCodecsRegistry);
+	}
+
+	private static TapCodecsRegistry registerTargetAwareDateTimeCodecs(TapCodecsRegistry registry) {
+		return registry.registerFromTapValueV2(TapDateTimeValue.class, TapCodecUtil::fromTapDateTimeValue)
+				.registerFromTapValueV2(TapDateValue.class, TapCodecUtil::fromTapDateValue);
+	}
+
+	/** Convert fields only when the discovered target type differs from the logical model. */
+	public static void convertForPhysicalTarget(Map<String, Object> values, Map<String, TapField> logicalFields,
+			Map<String, TapField> physicalFields, Set<String> eligibleFields, TapCodecsRegistry connectorCodecs) {
+		if (values == null || values.isEmpty() || physicalFields == null || physicalFields.isEmpty()) return;
+		values.forEach((fieldName, value) -> {
+			if (eligibleFields != null && !eligibleFields.contains(fieldName)) return;
+			TapField targetField = physicalFields.get(fieldName);
+			if (targetField == null) return;
+			TapField logicalField = logicalFields == null ? null : logicalFields.get(fieldName);
+			if (logicalField != null && sameTargetType(logicalField, targetField)) return;
+			if (value instanceof TapDateValue) {
+				if (connectorCodecs != null && connectorCodecs.getCustomFromTapValueCodecV2(TapDateValue.class) != null) return;
+				TapDateValue dateValue = (TapDateValue) value;
+				if (dateValue.getValue() != null && !dateValue.getValue().isContainsIllegal()
+						&& isDateType(targetField.getDataType())) {
+					values.put(fieldName, TARGET_VALUE_CODECS.getCustomFromTapValueCodecV2(TapDateValue.class)
+							.fromTapValue(dateValue, targetField));
+				}
+			} else if (value instanceof TapDateTimeValue) {
+				if (connectorCodecs != null && connectorCodecs.getCustomFromTapValueCodecV2(TapDateTimeValue.class) != null) return;
+				TapDateTimeValue dateTimeValue = (TapDateTimeValue) value;
+				Integer scale = targetField.getScale();
+				if (dateTimeValue.getValue() != null && !dateTimeValue.getValue().isContainsIllegal()
+						&& isDateTimeType(targetField.getDataType()) && scale != null && scale >= 0 && scale <= 9) {
+					values.put(fieldName, TARGET_VALUE_CODECS.getCustomFromTapValueCodecV2(TapDateTimeValue.class)
+							.fromTapValue(dateTimeValue, targetField));
+				}
+			}
+		});
+	}
+
+	private static boolean sameTargetType(TapField logicalField, TapField physicalField) {
+		String logicalType = logicalField.getDataType() == null ? "" : logicalField.getDataType().trim().toLowerCase(Locale.ROOT);
+		String physicalType = physicalField.getDataType() == null ? "" : physicalField.getDataType().trim().toLowerCase(Locale.ROOT);
+		if (!logicalType.equals(physicalType)) return false;
+		return !isDateTimeType(physicalType) || Objects.equals(logicalField.getScale(), physicalField.getScale());
 	}
 
 	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue) {
