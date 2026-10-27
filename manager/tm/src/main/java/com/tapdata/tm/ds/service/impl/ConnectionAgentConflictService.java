@@ -10,6 +10,13 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.ConnectionAgentConflictReport;
+import com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest;
+import com.tapdata.tm.ds.dto.ConnectionTaskAgentResult;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.task.entity.TaskEntity;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Update;
 import com.tapdata.tm.ds.exception.ConnectionAgentConflictException;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
@@ -32,11 +39,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-/** Reads proposed settings without persisting connections or changing task policies. */
+/** Checks proposed connections and saves explicitly requested task policy edits separately. */
 @Service
 @Setter
 public class ConnectionAgentConflictService {
     private static final int SCAN_SIZE = 200;
+    @Autowired private MongoTemplate mongoTemplate;
     @Autowired @Lazy private TaskService taskService;
     @Autowired @Lazy private TaskScheduleService taskScheduleService;
     @Autowired @Lazy private InspectService inspectService;
@@ -57,7 +65,7 @@ public class ConnectionAgentConflictService {
                     Criteria.where("dag.nodes.connectionId").in(overrides.keySet()),
                     Criteria.where("dag.nodes.connectionIds").in(overrides.keySet())));
             query.fields().include("_id", "name", "syncType", "status", "dag", "accessNodeType",
-                    "accessNodeProcessId", "priorityProcessId", "user_id", "shareCache");
+                    "accessNodeProcessId", "priorityProcessId", "user_id", "shareCache", "lastUpdAt");
             List<TaskDto> tasks = taskService.findAll(query);
             if (tasks == null || tasks.isEmpty()) break;
             for (TaskDto task : tasks) {
@@ -80,6 +88,88 @@ public class ConnectionAgentConflictService {
         }
         report.setHasConflicts(report.getTotal() > 0 || report.getHiddenCount() > 0);
         return report;
+    }
+
+    /** Explicitly saves task policies first. Connection settings are saved separately. */
+    public ConnectionTaskAgentResult updateTaskAgents(Map<String, DataSourceConnectionDto> overrides,
+                                                     ConnectionTaskAgentRequest request, UserDetail user) {
+        if (request.getTaskEdits() == null || request.getTaskEdits().isEmpty()
+                || request.getTaskEdits().size() > 100 || request.getTaskSettings() == null) {
+            throw new BizException("IllegalArgument", "Select 1-100 tasks and an Agent policy");
+        }
+        BatchPolicy policy = new BatchPolicy(request.getTaskSettings());
+        Set<String> unique = new HashSet<>();
+        for (ConnectionTaskAgentRequest.TaskEdit edit : request.getTaskEdits()) {
+            if (edit == null || edit.getId() == null || !ObjectId.isValid(edit.getId()) || !unique.add(edit.getId())) {
+                throw new BizException("IllegalArgument", "Invalid or duplicate task id");
+            }
+        }
+        ConnectionTaskAgentResult result = new ConnectionTaskAgentResult();
+        for (ConnectionTaskAgentRequest.TaskEdit edit : request.getTaskEdits()) {
+            try {
+                Query query = Query.query(Criteria.where("_id").is(new ObjectId(edit.getId()))
+                        .and("customId").is(user.getCustomerId()).and("is_deleted").ne(true));
+                List<TaskDto> found = taskService.findAll(query);
+                TaskDto task = found == null || found.size() != 1 ? null : found.get(0);
+                if (task == null || !task.usesConnectionAgentPolicy() || !canView(task, task.getSyncType(), user)
+                        || !canEdit(task, user)) throw new BizException("Datasource.NotFound");
+                if (!editableStatus(task.getStatus())) throw new BizException("IllegalArgument", "Task must be stopped");
+                Long revision = task.getLastUpdAt() == null ? null : task.getLastUpdAt().getTime();
+                if (!Objects.equals(revision, edit.getRevision())) throw new BizException("IllegalArgument", "Task changed; refresh conflicts");
+                if (affectedConnections(task, overrides).isEmpty()) throw new BizException("IllegalArgument", "Task does not reference these connections");
+                TaskDto candidate = new TaskDto();
+                BeanUtils.copyProperties(task, candidate, "accessNodeProcessIdList");
+                candidate.setAccessNodeType(policy.type);
+                candidate.setAccessNodeProcessId(policy.processId);
+                candidate.setPriorityProcessId(policy.priority);
+                taskScheduleService.validateConnectionAgentPolicy(candidate, user, overrides);
+                query.addCriteria(Criteria.where("status").is(task.getStatus()).and("lastUpdAt").is(task.getLastUpdAt())
+                        .and("accessNodeType").is(task.getAccessNodeType())
+                        .and("accessNodeProcessId").is(task.getAccessNodeProcessId())
+                        .and("priorityProcessId").is(task.getPriorityProcessId()).and("dag").is(task.getDag()));
+                Update update = new Update().set("accessNodeType", policy.type).set("accessNodeProcessId", policy.processId)
+                        .set("priorityProcessId", policy.priority).set("accessNodeProcessIdList", Collections.emptyList())
+                        .set("lastUpdAt", new Date()).set("lastUpdBy", user.getUserId());
+                if (task.getAttrs() != null) {
+                    update.set("attrs." + TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED, false);
+                }
+                if (mongoTemplate.updateFirst(query, update, TaskEntity.class).getMatchedCount() != 1) {
+                    throw new BizException("IllegalArgument", "Task changed; refresh conflicts");
+                }
+                result.getUpdatedTaskIds().add(edit.getId());
+            } catch (BizException e) {
+                ConnectionTaskAgentResult.Failure failure = new ConnectionTaskAgentResult.Failure();
+                failure.setId(edit.getId()); failure.setCode(e.getErrorCode()); result.getFailures().add(failure);
+            } catch (org.springframework.dao.DataAccessException e) {
+                ConnectionTaskAgentResult.Failure failure = new ConnectionTaskAgentResult.Failure();
+                failure.setId(edit.getId()); failure.setCode("Task.AgentUpdateFailed"); result.getFailures().add(failure);
+            }
+        }
+        return result;
+    }
+
+    protected boolean canEdit(TaskDto task, UserDetail user) {
+        DataPermissionMenuEnums menu = DataPermissionMenuEnums.ofTaskSyncType(task.getSyncType());
+        return menu != null && DataPermissionHelper.check(user, menu, DataPermissionActionEnums.Edit,
+                menu.getDataType(), task.getId().toHexString(), () -> true, () -> false);
+    }
+
+    static boolean editableStatus(String status) {
+        return Arrays.asList("edit", "ready", "stop", "wait_start", "stopped").contains(status);
+    }
+
+    private static class BatchPolicy {
+        final String type, processId, priority;
+        BatchPolicy(com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest.AgentSettings settings) {
+            type = settings.getAccessNodeType();
+            if (!AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(type)
+                    && !AccessNodeTypeEnum.isManually(type)) throw new BizException("IllegalArgument", "Invalid Agent policy");
+            processId = AccessNodeTypeEnum.isManually(type) ? settings.getAccessNodeProcessId() : null;
+            priority = AccessNodeTypeEnum.isGroupManually(type) ? settings.getPriorityProcessId() : null;
+            if (AccessNodeTypeEnum.isManually(type) && (processId == null || processId.isBlank())) {
+                throw new BizException("IllegalArgument", "Agent or group is required");
+            }
+        }
     }
 
     private Query candidates(UserDetail user, ObjectId after, Criteria reference) {
@@ -109,6 +199,8 @@ public class ConnectionAgentConflictService {
             item.setName(task.getName());
             item.setSyncType(type);
             item.setStatus(task.getStatus());
+            item.setRevision(task.getLastUpdAt() == null ? null : task.getLastUpdAt().getTime());
+            item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && canEdit(task, user));
             item.setCode(e.getErrorCode());
             item.setReason(MessageUtil.getMessage("Task.AgentConflict"));
             item.setConnections(affectedConnections(task, overrides));

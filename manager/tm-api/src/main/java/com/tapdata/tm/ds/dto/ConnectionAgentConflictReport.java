@@ -17,6 +17,8 @@ public class ConnectionAgentConflictReport {
         private String name;
         private String syncType;
         private String status;
+        private boolean editable;
+        private Long revision;
         private String code;
         private String reason;
         private List<Connection> connections;
