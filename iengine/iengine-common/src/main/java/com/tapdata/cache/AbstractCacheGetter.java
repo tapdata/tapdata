@@ -14,7 +14,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractCacheGetter implements ICacheGetter {
 
@@ -31,11 +30,11 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	private final ICacheStore cacheStore;
 
 	/**
-	 * 正在进行的回源查询数，getter 被淘汰后用于判断何时可以关闭回源连接器
+	 * 正在进行的回源查询数，getter 被淘汰后用于判断何时可以关闭回源连接器；与 dataSourceReleased 均由 this 监视器保护
 	 */
-	private final AtomicInteger dataSourceLookups = new AtomicInteger();
+	private int dataSourceLookups;
 
-	private volatile boolean dataSourceReleased;
+	private boolean dataSourceReleased;
 
 	public AbstractCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats, ClientMongoOperator clientMongoOperator) {
 		this.cacheConfig = cacheConfig;
@@ -119,15 +118,22 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 
 
 	/**
-	 * 回源查询；getter 被淘汰后由最后一个结束的在途查询关闭回源连接器
+	 * 回源查询；getter 被淘汰后由最后一个结束的在途查询关闭回源连接器。
+	 * 取连接器与计数在同一监视器内完成，释放判断也在该监视器内，不会关闭一个已被取走、正在使用的连接器
 	 */
 	protected List<Map<String, Object>> getSourceRows(Object[] cacheKeys) {
-		dataSourceLookups.incrementAndGet();
+		IDataSourceRowsGetter rowsGetter;
+		synchronized (this) {
+			rowsGetter = getDataSourceRowsGetter();
+			dataSourceLookups++;
+		}
 		try {
-			return getDataSourceRowsGetter().getRows(cacheKeys);
+			return rowsGetter.getRows(cacheKeys);
 		} finally {
-			if (dataSourceLookups.decrementAndGet() == 0 && dataSourceReleased) {
-				closeDataSourceRowsGetter();
+			synchronized (this) {
+				if (--dataSourceLookups == 0 && dataSourceReleased) {
+					closeDataSourceRowsGetter();
+				}
 			}
 		}
 	}
@@ -166,9 +172,9 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	}
 
 	@Override
-	public void releaseDataSource() {
+	public synchronized void releaseDataSource() {
 		dataSourceReleased = true;
-		if (dataSourceLookups.get() == 0) {
+		if (dataSourceLookups == 0) {
 			closeDataSourceRowsGetter();
 		}
 	}
@@ -181,8 +187,11 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 		}
 	}
 
+	/**
+	 * 标记为已释放：close 之后仍拿着本 getter 的线程回源时，新建的连接器在用完后关闭
+	 */
 	@Override
 	public void close() {
-		closeDataSourceRowsGetter();
+		releaseDataSource();
 	}
 }
