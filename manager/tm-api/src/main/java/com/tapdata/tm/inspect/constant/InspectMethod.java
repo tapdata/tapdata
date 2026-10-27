@@ -1,5 +1,6 @@
 package com.tapdata.tm.inspect.constant;
 
+/** Supported methods: row count, field, joint field, CDC count, JUnit, hash, and custom query. */
 public enum InspectMethod {
     ROW_COUNT("row_count"),
     FIELD("field"),
@@ -7,6 +8,7 @@ public enum InspectMethod {
     CDC_COUNT("cdcCount"),
     JUNIT_TEST("junitTest"),
     HASH("hash"),
+    CUSTOM_QUERY("custom_query")
     ;
 
     private final String value;

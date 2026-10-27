@@ -169,6 +169,38 @@ public class GroupInfoServiceTest {
         ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", resourceHandlerRegistry);
     }
 
+    @Test
+    void inspectTaskComparisonIgnoresFieldMappingInsertionOrderButKeepsContent() {
+        com.tapdata.tm.inspect.bean.Task first = inspectTaskWithMapping(
+                "SELECT id, total FROM source_rows", "id", "target_id", "total", "target_total");
+        com.tapdata.tm.inspect.bean.Task reordered = inspectTaskWithMapping(
+                "SELECT id, total FROM source_rows", "total", "target_total", "id", "target_id");
+        com.tapdata.tm.inspect.bean.Task changed = inspectTaskWithMapping(
+                "SELECT id, amount FROM source_rows", "id", "target_id", "total", "target_total");
+
+        Boolean reorderedTasksEqual = ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
+                Collections.singletonList(first), Collections.singletonList(reordered));
+        Boolean changedTasksEqual = ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
+                Collections.singletonList(first), Collections.singletonList(changed));
+
+        assertTrue(Boolean.TRUE.equals(reorderedTasksEqual));
+        assertFalse(Boolean.TRUE.equals(changedTasksEqual));
+    }
+
+    private com.tapdata.tm.inspect.bean.Task inspectTaskWithMapping(
+            String query, String firstKey, String firstValue, String secondKey, String secondValue) {
+        com.tapdata.tm.inspect.bean.Task task = new com.tapdata.tm.inspect.bean.Task();
+        com.tapdata.tm.inspect.bean.Source source = new com.tapdata.tm.inspect.bean.Source();
+        source.setCustomQuery(query);
+        task.setSource(source);
+        Map<String, String> mapping = new LinkedHashMap<>();
+        mapping.put(firstKey, firstValue);
+        mapping.put(secondKey, secondValue);
+        task.setFieldMapping(mapping);
+        task.setSortFields(Arrays.asList("id", "total"));
+        return task;
+    }
+
     @Nested
     @DisplayName("groupList Tests")
     class GroupListTests {

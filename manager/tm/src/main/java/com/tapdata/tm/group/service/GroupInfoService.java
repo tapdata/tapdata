@@ -1947,28 +1947,39 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     ((Map<String, Object>) sideObj).remove("nodeId");
                 }
             }
-            return map;
+            return canonicalizeInspectJson(map);
         } catch (Exception e) {
             log.warn("Failed to normalize inspect task item", e);
             return Collections.emptyMap();
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private String buildInspectTaskKey(Map<String, Object> normalizedTask) {
-        // uniqueness: source(connectionName+nodeName+databaseType+table) + target(same)
-        StringBuilder sb = new StringBuilder();
-        for (String side : new String[]{"source", "target"}) {
-            Object sideObj = normalizedTask.get(side);
-            if (sideObj instanceof Map) {
-                Map<String, Object> m = (Map<String, Object>) sideObj;
-                sb.append(m.getOrDefault("connectionName", "")).append("|")
-                  .append(m.getOrDefault("nodeName", "")).append("|")
-                  .append(m.getOrDefault("databaseType", "")).append("|")
-                  .append(m.getOrDefault("table", "")).append("||");
-            }
+    private Map<String, Object> canonicalizeInspectJson(Map<String, Object> value) {
+        Map<String, Object> canonical = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : value.entrySet()) {
+            canonical.put(entry.getKey(), canonicalizeInspectJsonValue(entry.getValue()));
         }
-        return sb.toString();
+        return canonical;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object canonicalizeInspectJsonValue(Object value) {
+        if (value instanceof Map) {
+            return canonicalizeInspectJson((Map<String, Object>) value);
+        }
+        if (value instanceof List) {
+            List<Object> canonical = new ArrayList<>(((List<?>) value).size());
+            for (Object item : (List<?>) value) canonical.add(canonicalizeInspectJsonValue(item));
+            return canonical;
+        }
+        return value;
+    }
+
+    private String buildInspectTaskKey(Map<String, Object> normalizedTask) {
+        // Sort by the complete comparison payload so custom queries and other task fields
+        // disambiguate tasks that share the same source/target table identity.
+        String json = JsonUtil.toJsonUseJackson(normalizedTask);
+        return json != null ? json : "";
     }
 
     /** API 对比时排除的顶层字段：环境相关、运行时状态字段 */
