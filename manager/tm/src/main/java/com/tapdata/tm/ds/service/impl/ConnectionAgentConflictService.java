@@ -126,7 +126,7 @@ public class ConnectionAgentConflictService {
                 query.addCriteria(Criteria.where("status").is(task.getStatus()).and("lastUpdAt").is(task.getLastUpdAt())
                         .and("accessNodeType").is(task.getAccessNodeType())
                         .and("accessNodeProcessId").is(task.getAccessNodeProcessId())
-                        .and("priorityProcessId").is(task.getPriorityProcessId()).and("dag").is(task.getDag()));
+                        .and("priorityProcessId").is(task.getPriorityProcessId()));
                 Update update = new Update().set("accessNodeType", policy.type).set("accessNodeProcessId", policy.processId)
                         .set("priorityProcessId", policy.priority).set("accessNodeProcessIdList", Collections.emptyList())
                         .set("lastUpdAt", new Date()).set("lastUpdBy", user.getUserId());
