@@ -139,11 +139,31 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
-      - name: Set SSH Key
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          echo '${{ secrets.GITEE_SSH_KEY }}' > /root/.ssh/id_rsa
-          chmod 600 /root/.ssh/id_rsa
-          echo '${{ secrets.GITEE_KNOWN_HOSTS }}' > /root/.ssh/known_hosts
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Code
         run: |
           set -euo pipefail
@@ -258,6 +278,14 @@ jobs:
           cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch="$SONAR_BRANCH" "${pr_args[@]}" \
              --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
              --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Deploy-Test:
     runs-on: ubuntu-latest
