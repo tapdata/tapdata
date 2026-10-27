@@ -1954,21 +1954,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
-    @SuppressWarnings("unchecked")
     private String buildInspectTaskKey(Map<String, Object> normalizedTask) {
-        // uniqueness: source(connectionName+nodeName+databaseType+table) + target(same)
-        StringBuilder sb = new StringBuilder();
-        for (String side : new String[]{"source", "target"}) {
-            Object sideObj = normalizedTask.get(side);
-            if (sideObj instanceof Map) {
-                Map<String, Object> m = (Map<String, Object>) sideObj;
-                sb.append(m.getOrDefault("connectionName", "")).append("|")
-                  .append(m.getOrDefault("nodeName", "")).append("|")
-                  .append(m.getOrDefault("databaseType", "")).append("|")
-                  .append(m.getOrDefault("table", "")).append("||");
-            }
-        }
-        return sb.toString();
+        // Sort by the complete comparison payload so custom queries and other task fields
+        // disambiguate tasks that share the same source/target table identity.
+        String json = JsonUtil.toJsonUseJackson(normalizedTask);
+        return json != null ? json : "";
     }
 
     /** API 对比时排除的顶层字段：环境相关、运行时状态字段 */

@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * @author lg<lirufei0808 @ gmail.com>
  * @date 2020/9/9 1:10 上午
- * @description
+ * @description Supported methods: row count, field, joint field, CDC count, JUnit, hash, and custom query.
  */
 public enum InspectMethod {
 	ROW_COUNT("row_count"),
@@ -51,6 +51,6 @@ public enum InspectMethod {
 			return inspectMethod;
 		}
 
-		return FIELD;
+		throw new IllegalArgumentException("Unsupported inspect method: " + name);
 	}
 }

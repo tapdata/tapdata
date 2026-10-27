@@ -42,7 +42,10 @@ public class InspectTask implements Serializable {
 	/** Maps source result column names to target result column names. */
 	private Map<String, String> fieldMapping;
 
-	/** Result columns used to deterministically order multi-row custom_query results. */
+	/**
+	 * Names of columns returned by both custom queries, used to deterministically order
+	 * multi-row {@code custom_query} results.
+	 */
 	private List<String> sortFields;
 
 	private InspectLimit limit;

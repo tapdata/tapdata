@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -42,7 +43,7 @@ class CustomQueryInspectContractTest {
 		assertEquals(Map.of("account_id", "id", "total", "amount"), restored.getFieldMapping());
 		assertEquals(List.of("account_id"), restored.getSortFields());
 		assertEquals(InspectMethod.CUSTOM_QUERY, InspectMethod.get("custom_query"));
-		assertEquals(InspectMethod.FIELD, InspectMethod.get("aggregate"));
+		assertThrows(IllegalArgumentException.class, () -> InspectMethod.get("aggregate"));
 	}
 
 	@Test
