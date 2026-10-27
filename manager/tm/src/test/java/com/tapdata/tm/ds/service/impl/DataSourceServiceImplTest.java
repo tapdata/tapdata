@@ -78,10 +78,29 @@ class DataSourceServiceImplTest {
         private WorkerService workerService;
         private UserDetail userDetail;
 
+        private org.mockito.MockedStatic<DataPermissionHelper> permissionScope;
+
+        @AfterEach
+        void closePermissionScope() { permissionScope.close(); }
+
         @BeforeEach
         void setUp() {
+            permissionScope = mockStatic(DataPermissionHelper.class);
+            permissionScope.when(() -> DataPermissionHelper.check(any(), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(call -> ((java.util.function.Supplier<?>) call.getArgument(5)).get());
             dataSourceRepository = mock(DataSourceRepository.class);
             dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "connectionAgentConflictService", mock(ConnectionAgentConflictService.class));
+            doAnswer(call -> {
+                Query query = call.getArgument(0);
+                List<ObjectId> ids = ((Document) query.getQueryObject().get("_id")).getList("$in", ObjectId.class);
+                return ids.stream().map(id -> {
+                    DataSourceConnectionDto connection = new DataSourceConnectionDto();
+                    connection.setId(id);
+                    connection.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                    return connection;
+                }).collect(Collectors.toList());
+            }).when(dataSourceService).findAllDto(any(Query.class), any(UserDetail.class));
             agentGroupService = mock(AgentGroupService.class);
             workerService = mock(WorkerService.class);
             userDetail = mock(UserDetail.class);
@@ -263,6 +282,28 @@ class DataSourceServiceImplTest {
             mockUpdateResult(2, 1);
 
             assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+        }
+
+        @Test
+        void shouldBlockConflictingBatchBeforeAnyWriteAndUsePolicyProjection() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), "agent-b", null);
+            mockUpdateResult(2, 2);
+            ConnectionAgentConflictService checker = (ConnectionAgentConflictService) ReflectionTestUtils.getField(dataSourceService, "connectionAgentConflictService");
+            com.tapdata.tm.ds.dto.ConnectionAgentConflictReport report = new com.tapdata.tm.ds.dto.ConnectionAgentConflictReport();
+            report.setHasConflicts(true);
+            doThrow(new com.tapdata.tm.ds.exception.ConnectionAgentConflictException(report)).when(checker).assertNoConflicts(anyMap(), eq(userDetail));
+            assertThrows(com.tapdata.tm.ds.exception.ConnectionAgentConflictException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+            ArgumentCaptor<Map<String, DataSourceConnectionDto>> changes = ArgumentCaptor.forClass(Map.class);
+            verify(checker).assertNoConflicts(changes.capture(), eq(userDetail));
+            assertEquals(2, changes.getValue().size());
+            assertTrue(changes.getValue().values().stream().allMatch(connection -> "agent-b".equals(connection.getAccessNodeProcessId())));
+            ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+            verify(dataSourceService).findAllDto(query.capture(), eq(userDetail));
+            assertEquals(Set.of("_id", "name", "user_id", "accessNodeType", "accessNodeProcessId", "priorityProcessId"), query.getValue().getFieldsObject().keySet());
         }
 
         private BatchUpdateAgentSettingsRequest request(
