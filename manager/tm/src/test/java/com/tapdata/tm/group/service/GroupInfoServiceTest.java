@@ -178,10 +178,13 @@ public class GroupInfoServiceTest {
         com.tapdata.tm.inspect.bean.Task changed = inspectTaskWithMapping(
                 "SELECT id, amount FROM source_rows", "id", "target_id", "total", "target_total");
 
-        assertTrue(ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
-                Collections.singletonList(first), Collections.singletonList(reordered)));
-        assertFalse(ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
-                Collections.singletonList(first), Collections.singletonList(changed)));
+        Boolean reorderedTasksEqual = ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
+                Collections.singletonList(first), Collections.singletonList(reordered));
+        Boolean changedTasksEqual = ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
+                Collections.singletonList(first), Collections.singletonList(changed));
+
+        assertTrue(Boolean.TRUE.equals(reorderedTasksEqual));
+        assertFalse(Boolean.TRUE.equals(changedTasksEqual));
     }
 
     private com.tapdata.tm.inspect.bean.Task inspectTaskWithMapping(
