@@ -18,6 +18,10 @@ import java.net.URLEncoder;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
@@ -26,7 +30,27 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
 
-	private final CacheMap<String, ICacheGetter> cacheGetterMap;
+	/**
+	 * getter 满 {@link #CACHE_GETTER_EXPIRE_MS} 后在下一次访问时重建以加载最新配置，替换下来的旧 getter 释放回源连接器。
+	 * 不用 voovan CacheMap：它的过期重建不是原子的，定时器移除条目时也不触发淘汰回调，被覆盖或移除的 getter
+	 * 不会再被释放，其回源连接器（MongoDB 连接器持有 MongoClient）永久泄漏（TAP-13150）
+	 */
+	private final Map<String, CacheGetterEntry> cacheGetterMap = new ConcurrentHashMap<>();
+
+	// 每个 cacheName 一把 getter 替换锁，与 cacheDestroyLockMap 分开，避免读缓存等待耗时的物理销毁
+	private final Map<String, Object> cacheGetterLockMap = new ConcurrentHashMap<>();
+
+	static final long CACHE_GETTER_EXPIRE_MS = TimeUnit.SECONDS.toMillis(300);
+
+	/**
+	 * 释放旧 getter 会执行连接器 STOP，可能阻塞；放到独立的单线程执行，不占用读缓存的线程。
+	 * 全进程共享：脚本试运行每次都会新建 MemoryCacheService
+	 */
+	private static final ExecutorService CACHE_GETTER_RELEASE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+		Thread thread = new Thread(r, "shared-cache-getter-release");
+		thread.setDaemon(true);
+		return thread;
+	});
 
 	private final Map<String, ICacheStore> cacheStoreMap;
 
@@ -51,21 +75,12 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	public AbstractCacheService(ClientMongoOperator clientMongoOperator) {
 		this.clientMongoOperator = clientMongoOperator;
-		this.cacheGetterMap = new CacheMap<>();
-		// voovan CacheMap.supplier(fn) 会把 autoRemove 重置为 false，autoRemove(true) 必须在其后设置；
-		// 否则过期时直接用 supplier 覆盖旧 getter 而不触发 destory，旧 getter 的回源连接器永不释放（TAP-13150）
-		this.cacheGetterMap.destory((k, getter) -> {
-			// 只释放回源连接器，不调用 close：close 会销毁新旧 getter 共用的缓存数据
-			if (getter != null) {
-				getter.releaseDataSource();
-			}
-			return -1L;
-		}).supplier(this::getCacheGetterInstance).autoRemove(true).maxSize(100).interval(60).expire(300).create();
 		this.cacheStoreMap = new ConcurrentHashMap<>();
 		this.lastLogTSMap = new ConcurrentHashMap<>();
 		this.cacheStatusLockMap = new ConcurrentHashMap<>();
 		this.cacheConfigMap = new CacheMap<>();
-		this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(600).supplier(cacheName -> {
+		// 配置过期后用 supplier 向 TM 重新查询并原地刷新，不移除（autoRemove=false），getConfig 不会返回 null
+		this.cacheConfigMap.maxSize(100).interval(60).expire(600).supplier(cacheName -> {
 			String encodeCacheName;
 			try {
 				encodeCacheName = URLEncoder.encode(cacheName, "UTF-8");
@@ -84,13 +99,59 @@ public abstract class AbstractCacheService implements ICacheService {
 				registerCache(cacheConfig);
 			}
 			return cacheConfig;
-		}).create();
+		}, false).create();
 
 	}
 
 	private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
 		waitCacheNodeCompletedInitialIfNeed(cacheName);
-		return this.cacheGetterMap.computeIfAbsent(cacheName, f -> getCacheGetterInstance(cacheName));
+		CacheGetterEntry entry = this.cacheGetterMap.get(cacheName);
+		if (entry != null && !entry.isExpired(currentTimeMillis())) {
+			return entry.getter;
+		}
+		// 创建与替换按 cacheName 串行，保证同一时刻只有一个 getter，替换下来的旧 getter 都会被释放
+		synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
+			entry = this.cacheGetterMap.get(cacheName);
+			long now = currentTimeMillis();
+			if (entry != null && !entry.isExpired(now)) {
+				return entry.getter;
+			}
+			ICacheGetter getter = getCacheGetterInstance(cacheName);
+			if (getter == null) {
+				return null;
+			}
+			this.cacheGetterMap.put(cacheName, new CacheGetterEntry(getter, now));
+			if (entry != null) {
+				releaseExpiredGetter(cacheName, entry.getter);
+			}
+			return getter;
+		}
+	}
+
+	/**
+	 * 只释放旧 getter 的回源连接器，不调用 close：close 会销毁新旧 getter 共用的缓存数据
+	 */
+	private void releaseExpiredGetter(String cacheName, ICacheGetter getter) {
+		Runnable release = () -> {
+			try {
+				getter.releaseDataSource();
+			} catch (Exception e) {
+				logger.warn("Release data source of expired cache getter [{}] failed: {}", cacheName, e.getMessage(), e);
+			}
+		};
+		try {
+			getCacheGetterReleaseExecutor().execute(release);
+		} catch (RejectedExecutionException e) {
+			logger.warn("Submit release of expired cache getter [{}] failed: {}", cacheName, e.getMessage());
+		}
+	}
+
+	protected Executor getCacheGetterReleaseExecutor() {
+		return CACHE_GETTER_RELEASE_EXECUTOR;
+	}
+
+	protected long currentTimeMillis() {
+		return System.currentTimeMillis();
 	}
 
 	private Lock getCacheStatusLock(String cacheName) {
@@ -132,9 +193,12 @@ public abstract class AbstractCacheService implements ICacheService {
 				}
 				this.cacheStatusMap.remove(cacheName);
 				this.cacheConfigMap.remove(cacheName);
-				ICacheGetter cacheGetter = this.cacheGetterMap.remove(cacheName);
-				if (cacheGetter != null) {
-					cacheGetter.close();
+				CacheGetterEntry entry;
+				synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
+					entry = this.cacheGetterMap.remove(cacheName);
+				}
+				if (entry != null) {
+					entry.getter.close();
 				}
 			} catch (Exception e) {
 				logger.error("cache destroy error: " + cacheName, e);
@@ -223,5 +287,19 @@ public abstract class AbstractCacheService implements ICacheService {
 //			}
 //		}
 
+	}
+
+	private static class CacheGetterEntry {
+		private final ICacheGetter getter;
+		private final long createTime;
+
+		private CacheGetterEntry(ICacheGetter getter, long createTime) {
+			this.getter = getter;
+			this.createTime = createTime;
+		}
+
+		private boolean isExpired(long now) {
+			return now - createTime >= CACHE_GETTER_EXPIRE_MS;
+		}
 	}
 }

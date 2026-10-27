@@ -70,4 +70,16 @@ public class MongoRowsGetter implements IDataSourceRowsGetter {
 
 		return results;
 	}
+
+	/**
+	 * 释放构造时创建的脚本连接（持有 MongoClient）
+	 */
+	@Override
+	public void close() {
+		ScriptConnection connection = scriptConnection;
+		scriptConnection = null;
+		if (connection != null) {
+			connection.close();
+		}
+	}
 }
