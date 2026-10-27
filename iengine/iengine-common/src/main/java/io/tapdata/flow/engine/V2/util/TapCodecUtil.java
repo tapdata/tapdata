@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.util;
 
 import com.tapdata.constant.DateUtil;
+import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
@@ -11,11 +12,11 @@ import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.text.ParseException;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.TimeZone;
 
 /**
@@ -59,10 +60,11 @@ public class TapCodecUtil {
 
 	/** Convert fields only when the discovered target type differs from the logical model. */
 	public static void convertForPhysicalTarget(Map<String, Object> values, Map<String, TapField> logicalFields,
-			Map<String, TapField> physicalFields, Set<String> eligibleFields, TapCodecsRegistry connectorCodecs) {
+			Map<String, TapField> physicalFields, TapCodecsRegistry connectorCodecs) {
 		if (values == null || values.isEmpty() || physicalFields == null || physicalFields.isEmpty()) return;
 		values.forEach((fieldName, value) -> {
-			if (eligibleFields != null && !eligibleFields.contains(fieldName)) return;
+			// CDC fields may already be TapValue before this node; the set of fields
+			// converted during this pass cannot be used to filter them.
 			TapField targetField = physicalFields.get(fieldName);
 			if (targetField == null) return;
 			TapField logicalField = logicalFields == null ? null : logicalFields.get(fieldName);
@@ -81,8 +83,10 @@ public class TapCodecUtil {
 				Integer scale = targetField.getScale();
 				if (dateTimeValue.getValue() != null && !dateTimeValue.getValue().isContainsIllegal()
 						&& isDateTimeType(targetField.getDataType()) && scale != null && scale >= 0 && scale <= 9) {
-					values.put(fieldName, TARGET_VALUE_CODECS.getCustomFromTapValueCodecV2(TapDateTimeValue.class)
-							.fromTapValue(dateTimeValue, targetField));
+					FromTapValueCodec<TapDateTimeValue> connectorCodec = connectorCodecs == null ? null
+							: connectorCodecs.getCustomFromTapValueCodec(TapDateTimeValue.class);
+					Object connectorValue = connectorCodec == null ? null : connectorCodec.fromTapValue(dateTimeValue);
+					values.put(fieldName, fromTapDateTimeValue(dateTimeValue, targetField, connectorValue));
 				}
 			}
 		});
@@ -105,6 +109,10 @@ public class TapCodecUtil {
 	}
 
 	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue, TapField targetField) {
+		return fromTapDateTimeValue(tapValue, targetField, null);
+	}
+
+	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue, TapField targetField, Object connectorValue) {
 		if (tapValue == null || tapValue.getValue() == null) return null;
 		if (targetField == null || !isDateTimeType(targetField.getDataType())
 				|| tapValue.getValue().isContainsIllegal()) {
@@ -114,13 +122,19 @@ public class TapCodecUtil {
 		if (scale == null || scale < 0 || scale > 9) {
 			return fromTapDateTimeValue(tapValue);
 		}
-		// SQL Server datetime has no time zone. Preserve the source wall-clock
-		// value when creating a JDBC Timestamp instead of treating it as an instant.
-		Timestamp timestamp = Timestamp.valueOf(tapValue.getValue().toLocalDateTime());
-		if (timestamp == null) return null;
+		// Keep the wall-clock value. SQL Server's CDC SQL formatter writes
+		// LocalDateTime with only the significant fractional digits; formatting
+		// a Timestamp there produces six digits even for millisecond values.
+		LocalDateTime dateTime;
+		if (connectorValue instanceof LocalDateTime) {
+			dateTime = (LocalDateTime) connectorValue;
+		} else if (connectorValue instanceof Timestamp) {
+			dateTime = ((Timestamp) connectorValue).toLocalDateTime();
+		} else {
+			dateTime = tapValue.getValue().toLocalDateTime();
+		}
 		int quantum = (int) Math.pow(10, 9 - scale);
-		timestamp.setNanos((timestamp.getNanos() / quantum) * quantum);
-		return timestamp;
+		return dateTime.withNano((dateTime.getNano() / quantum) * quantum);
 	}
 
 	private static Object fromTapDateValue(TapDateValue tapValue) {

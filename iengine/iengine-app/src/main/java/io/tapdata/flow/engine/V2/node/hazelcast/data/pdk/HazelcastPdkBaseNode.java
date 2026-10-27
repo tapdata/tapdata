@@ -444,7 +444,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 		LinkedHashMap<String, TapField> logicalFields = getTableFiledMap(targetTableName);
 		Map<String, TapField> targetFields = targetFieldMapForFromTapValue(targetTableName, logicalFields);
-		if (targetFields != logicalFields) TapCodecUtil.convertForPhysicalTarget(data, logicalFields, targetFields, null,
+		if (targetFields != logicalFields) TapCodecUtil.convertForPhysicalTarget(data, logicalFields, targetFields,
 				tapCodecsFilterManager.getCodecsRegistry());
 		tapCodecsFilterManager.transformFromTapValueMap(data, logicalFields, targetFields, getSkipDetector());
 	}
@@ -455,7 +455,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 		Map<String, TapField> logicalFields = tapTable.getNameFieldMap();
 		Map<String, TapField> targetFields = targetFieldMapForFromTapValue(tapTable.getId(), logicalFields);
-		if (targetFields != logicalFields) TapCodecUtil.convertForPhysicalTarget(data, logicalFields, targetFields, null,
+		if (targetFields != logicalFields) TapCodecUtil.convertForPhysicalTarget(data, logicalFields, targetFields,
 				tapCodecsFilterManager.getCodecsRegistry());
 		tapCodecsFilterManager.transformFromTapValueMap(data, logicalFields, targetFields, getSkipDetector());
 	}
@@ -472,7 +472,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		LinkedHashMap<String, TapField> tableFiledMap = getTableFiledMap(targetTableName);
 		Map<String, TapField> targetFields = targetFieldMapForFromTapValue(targetTableName, tableFiledMap);
 		if (targetFields != tableFiledMap) TapCodecUtil.convertForPhysicalTarget(data, tableFiledMap, targetFields,
-				transformedToTapValueFieldNames, tapCodecsFilterManager.getCodecsRegistry());
+				tapCodecsFilterManager.getCodecsRegistry());
 		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
 			((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformFromTapValueMap(
 					data,
