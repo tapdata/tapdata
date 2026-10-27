@@ -24,6 +24,7 @@ public class Source {
     /** */
     private String direction;
 
+    /** Legacy table-inspection sort column; custom_query ordering is configured on Task.sortFields. */
     private String sortColumn;
     /** */
     private String table;

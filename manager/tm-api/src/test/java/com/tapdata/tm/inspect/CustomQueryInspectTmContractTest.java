@@ -6,6 +6,8 @@ import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectMethod;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -123,5 +125,25 @@ public class CustomQueryInspectTmContractTest {
         assertEquals("target-connection", deserialized.getTarget().getConnectionId());
         assertEquals(task.getFieldMapping(), deserialized.getFieldMapping(), "完整配置序列化往返后应一致");
         assertEquals(task.getSortFields(), deserialized.getSortFields(), "排序字段序列化往返后应一致");
+    }
+
+    @Test
+    public void testSharedCustomQueryTaskFixture() throws Exception {
+        Task task = mapper.readValue(readSharedFixture(), Task.class);
+
+        assertEquals("SELECT category, SUM(amount) AS total FROM source_orders GROUP BY category",
+                task.getSource().getCustomQuery());
+        assertEquals("target_total", task.getFieldMapping().get("total"));
+        assertEquals(Arrays.asList("category", "total"), task.getSortFields());
+    }
+
+    private String readSharedFixture() throws Exception {
+        Path directory = Path.of("").toAbsolutePath();
+        while (directory != null) {
+            Path fixture = directory.resolve("test-fixtures/custom-query-inspect-task.json");
+            if (Files.isRegularFile(fixture)) return Files.readString(fixture);
+            directory = directory.getParent();
+        }
+        throw new IllegalStateException("Cannot find shared custom-query contract fixture");
     }
 }

@@ -9,8 +9,8 @@ import io.tapdata.exception.TapExCode;
  * @create 2023-03-16 19:20
  **/
 @TapExClass(code = 27, module = "Task Inspect", prefix = "TIN", describe = "Task Inspect")
-public final class TaskInspectExCode_27 {
-	private TaskInspectExCode_27() {
+public final class TaskInspectExCode27 {
+	private TaskInspectExCode27() {
 	}
 
 	@TapExCode
@@ -52,10 +52,10 @@ public final class TaskInspectExCode_27 {
 	public static final String INSPECT_CUSTOM_QUERY_CONFIG_MISSING = "27011";
 
 	@TapExCode(
-		describe = "Query result exceeds the maximum row limit",
-		describeCN = "查询结果超过最大行数限制",
-		solution = "Reduce the query result size or increase the configured maximum row limit",
-		solutionCN = "缩小查询结果范围，或调整允许的最大行数限制"
+		describe = "Source or target custom query result exceeds the 1000-row limit",
+		describeCN = "源端或目标端自定义查询结果超过 1000 行限制",
+		solution = "Reduce each source and target query result to no more than 1000 rows",
+		solutionCN = "分别缩小源端和目标端查询结果至不超过 1000 行"
 	)
 	public static final String INSPECT_RESULT_EXCEEDS_LIMIT = "27012";
 }

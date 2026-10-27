@@ -1947,11 +1947,32 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     ((Map<String, Object>) sideObj).remove("nodeId");
                 }
             }
-            return map;
+            return canonicalizeInspectJson(map);
         } catch (Exception e) {
             log.warn("Failed to normalize inspect task item", e);
             return Collections.emptyMap();
         }
+    }
+
+    private Map<String, Object> canonicalizeInspectJson(Map<String, Object> value) {
+        Map<String, Object> canonical = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : value.entrySet()) {
+            canonical.put(entry.getKey(), canonicalizeInspectJsonValue(entry.getValue()));
+        }
+        return canonical;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object canonicalizeInspectJsonValue(Object value) {
+        if (value instanceof Map) {
+            return canonicalizeInspectJson((Map<String, Object>) value);
+        }
+        if (value instanceof List) {
+            List<Object> canonical = new ArrayList<>(((List<?>) value).size());
+            for (Object item : (List<?>) value) canonical.add(canonicalizeInspectJsonValue(item));
+            return canonical;
+        }
+        return value;
     }
 
     private String buildInspectTaskKey(Map<String, Object> normalizedTask) {

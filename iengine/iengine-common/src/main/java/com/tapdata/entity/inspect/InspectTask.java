@@ -39,12 +39,15 @@ public class InspectTask implements Serializable {
 	private InspectDataSource source;
 	private InspectDataSource target;
 
-	/** Maps source result column names to target result column names. */
+	/** Maps source custom-query result column names/aliases to target result column names/aliases. */
 	private Map<String, String> fieldMapping;
 
 	/**
-	 * Names of columns returned by both custom queries, used to deterministically order
-	 * multi-row {@code custom_query} results.
+	 * Source custom-query result column names/aliases used to order multi-row {@code custom_query}
+	 * results. Target rows are mapped through {@link #fieldMapping} before these names are applied.
+	 * This is separate from the legacy per-side {@code sortColumn}, which is used by table-based
+	 * inspection and does not control custom-query result ordering. Every configured name must be
+	 * present in the source results and in the mapped target results.
 	 */
 	private List<String> sortFields;
 

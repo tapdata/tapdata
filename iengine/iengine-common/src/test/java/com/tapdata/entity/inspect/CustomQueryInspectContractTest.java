@@ -1,11 +1,13 @@
 package com.tapdata.entity.inspect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.tapdata.error.TaskInspectExCode_27;
+import io.tapdata.error.TaskInspectExCode27;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -57,16 +59,36 @@ class CustomQueryInspectContractTest {
 	}
 
 	@Test
+	void sharedTmCustomQueryTaskFixtureRemainsReadable() throws Exception {
+		InspectTask restored = objectMapper.readValue(readSharedFixture(), InspectTask.class);
+
+		assertEquals("SELECT category, SUM(amount) AS total FROM source_orders GROUP BY category",
+				restored.getSource().getCustomQuery());
+		assertEquals("target_total", restored.getFieldMapping().get("total"));
+		assertEquals(List.of("category", "total"), restored.getSortFields());
+	}
+
+	private String readSharedFixture() throws Exception {
+		Path directory = Path.of("").toAbsolutePath();
+		while (directory != null) {
+			Path fixture = directory.resolve("test-fixtures/custom-query-inspect-task.json");
+			if (Files.isRegularFile(fixture)) return Files.readString(fixture);
+			directory = directory.getParent();
+		}
+		throw new IllegalStateException("Cannot find shared custom-query contract fixture");
+	}
+
+	@Test
 	void customQueryErrorCodesAreUniqueWithinInspectErrorCodeGroup() throws Exception {
 		Set<String> codes = new HashSet<>();
-		for (Field field : TaskInspectExCode_27.class.getDeclaredFields()) {
+		for (Field field : TaskInspectExCode27.class.getDeclaredFields()) {
 			if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
 				assertFalse("".equals(field.get(null)), field.getName() + " must have a code");
 				assertFalse(!codes.add((String) field.get(null)), "Duplicate inspect error code: " + field.get(null));
 			}
 		}
 
-		assertEquals("27011", TaskInspectExCode_27.INSPECT_CUSTOM_QUERY_CONFIG_MISSING);
-		assertEquals("27012", TaskInspectExCode_27.INSPECT_RESULT_EXCEEDS_LIMIT);
+		assertEquals("27011", TaskInspectExCode27.INSPECT_CUSTOM_QUERY_CONFIG_MISSING);
+		assertEquals("27012", TaskInspectExCode27.INSPECT_RESULT_EXCEEDS_LIMIT);
 	}
 }
