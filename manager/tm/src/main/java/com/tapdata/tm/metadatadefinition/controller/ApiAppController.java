@@ -1,5 +1,9 @@
 package com.tapdata.tm.metadatadefinition.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.metadatadefinition.dto.ApiAppDetail;
@@ -41,6 +45,7 @@ public class ApiAppController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.API_APP_CREATE, objectId = "#result?.id", objectName = "#metadataDefinition.value")
     public ResponseMessage<MetadataDefinitionDto> save(@RequestBody MetadataDefinitionDto metadataDefinition) {
         metadataDefinition.setId(null);
         List<String> itemType = new ArrayList<>();
@@ -92,6 +97,7 @@ public class ApiAppController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.API_APP_UPDATE, objectId = "#id")
     public ResponseMessage<MetadataDefinitionDto> updateById(@PathVariable("id") String id, @RequestBody MetadataDefinitionDto metadataDefinition) {
         metadataDefinition.setId(MongoUtils.toObjectId(id));
         return success(apiAppService.updateById(MongoUtils.toObjectId(id), metadataDefinition, getLoginUser()));
@@ -124,6 +130,7 @@ public class ApiAppController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.API_APP_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         metadataDefinitionService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
         return success();
@@ -137,6 +144,7 @@ public class ApiAppController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @PutMapping("move/{id}")
+    @Audited(value = AuditAction.API_APP_UPDATE, objectId = "#id", summary = "'move to ' + #moveId")
     public ResponseMessage<Void> delete(@PathVariable("id") String id, @RequestParam("moveId") String moveId) {
         apiAppService.move(id, moveId, getLoginUser());
         return success();

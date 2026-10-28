@@ -16,6 +16,9 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.Audited;
+import com.tapdata.tm.audit.SettingsChangeAudit;
 import lombok.Setter;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +36,7 @@ import java.util.Map;
 public class SettingsController extends BaseController {
     private SettingsService settingsService;
     private AlarmSettingService alarmSettingService;
+    private SettingsChangeAudit settingsChangeAudit;
 
     /**
      * flowEgine启动时候调用
@@ -63,6 +67,7 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("/update")
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "#whereJson")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
         Where where = parseWhere(whereJson);
         Document body = Document.parse(reqBody);
@@ -79,6 +84,7 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "企业版修改配置")
     @PostMapping("/enterpriseUpdate")
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "#whereJson")
     public ResponseMessage enterpriseUpdate(@RequestParam("where") String whereJson, @RequestBody EnterpriseUpdateParam enterpriseUpdateParam) {
         Where where = parseWhere(whereJson);
         Long count = settingsService.enterpriseUpdate(where, JsonUtil.toJson(enterpriseUpdateParam));
@@ -90,12 +96,13 @@ public class SettingsController extends BaseController {
     @Operation(summary = "Settings save")
     @PatchMapping("/save")
     public ResponseMessage<Void> save(@RequestBody List<SettingsDto> settingsDto) {
-        settingsService.save(settingsDto);
+        settingsChangeAudit.save(settingsDto, getLoginUser(), () -> settingsService.save(settingsDto));
         return success();
     }
 
     @Operation(summary = "alarm save")
     @PostMapping("/alarm_save")
+    @Audited(AuditAction.ALARM_RULE_UPDATE)
     public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
         alarmSettingService.saveAlarmSetting(alarms, getLoginUser());
         return success();
@@ -109,6 +116,7 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "update rule by key")
     @PostMapping("/alarm_update")
+    @Audited(AuditAction.ALARM_RULE_UPDATE)
     public ResponseMessage<Void> updateAlarm(@RequestBody UpdateRuleDto ruleDto) {
         alarmSettingService.updateSystemNotify(ruleDto, getLoginUser());
 
@@ -118,6 +126,7 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "test send mail")
     @PostMapping("testEmail")
+    @Audited(value = AuditAction.SETTINGS_TEST, summary = "'SMTP'")
     public ResponseMessage<TestResponseDto> testSendMail(@RequestBody TestMailDto testMailDto) {
         TestResponseDto res = settingsService.testSendMail(testMailDto);
         return success(res);

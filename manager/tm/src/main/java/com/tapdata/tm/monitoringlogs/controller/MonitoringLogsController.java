@@ -1,5 +1,9 @@
 package com.tapdata.tm.monitoringlogs.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -100,6 +104,7 @@ public class MonitoringLogsController extends BaseController {
      */
     @Operation(summary = "Export all instances of the monitoring logs matched by filter from the data source.")
     @PostMapping("export")
+    @Audited(value = AuditAction.TASK_DOWNLOAD_LOG, objectId = "#param.taskId")
     public void export(
             @RequestBody MonitoringLogExportParam param,
             HttpServletResponse response

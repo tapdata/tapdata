@@ -1,5 +1,9 @@
 package com.tapdata.tm.modules.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
@@ -102,6 +106,7 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "新增module")
   @PostMapping
+  @Audited(value = AuditAction.API_CREATE, objectId = "#result?.id", objectName = "#modulesDto.name")
   public ResponseMessage<ModulesDto> save(@RequestBody ModulesDto modulesDto) {
     modulesDto.setId(null);
     return success(modulesService.save(modulesDto, getLoginUser()));
@@ -115,6 +120,7 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "修改 发布  modules")
   @PatchMapping()
+  @Audited(value = AuditAction.API_UPDATE, action = "T(com.tapdata.tm.audit.AuditSpel).moduleAction(#module)", objectId = "#module.id", objectName = "#module.name")
   public ResponseMessage<ModulesDto> update(HttpServletRequest request,@RequestBody ModulesDto module) {
     UserDetail userDetail = getLoginUser();
     return success(dataPermissionCheckOfId(request,userDetail,module.getId(),resolveUpdateAction(module),
@@ -123,6 +129,7 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "更新权限")
   @PatchMapping("updatePermissions")
+  @Audited(value = AuditAction.API_UPDATE_SECURITY, objectId = "#permissions.moduleId")
   public ResponseMessage<Void> updatePermissions(HttpServletRequest request, @RequestBody ModulesPermissionsDto permissions) {
     UserDetail userDetail = getLoginUser();
     Optional.ofNullable(permissions.getModuleId()).ifPresent(id -> checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish));
@@ -133,6 +140,7 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "更新所属应用")
   @PatchMapping("updateTags")
+  @Audited(value = AuditAction.API_UPDATE, objectId = "#modulesTagsDto.moduleId", summary = "'update tags'")
   public ResponseMessage<Void> updateTags(HttpServletRequest request, @RequestBody ModulesTagsDto modulesTagsDto) {
     UserDetail userDetail = getLoginUser();
     checkModulePermission(request, userDetail, modulesTagsDto.getModuleId(), DataPermissionActionEnums.Publish);
@@ -148,6 +156,7 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "生成  modules")
   @PatchMapping("generate")
+  @Audited(value = AuditAction.API_PUBLISH, objectId = "#module.id", objectName = "#module.name")
   public ResponseMessage<ModulesDto> generate(HttpServletRequest request, @Validated @RequestBody ModulesDto module) {
     UserDetail userDetail = getLoginUser();
     return success(dataPermissionCheckOfId(request, userDetail, module.getId(), DataPermissionActionEnums.Publish,
@@ -165,12 +174,14 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = " 批量修改所属类别")
   @PatchMapping("batchUpdateListtags")
+  @Audited(value = AuditAction.API_UPDATE, objectId = "#batchUpdateParam.id", summary = "'update tags'")
   public ResponseMessage<List<String>> batchUpdateListtags(@RequestBody BatchUpdateParam batchUpdateParam) {
     return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Publish,
             () -> metadataDefinitionService.batchUpdateListTags("Modules", batchUpdateParam, getLoginUser())));
   }
   @Operation(summary = "批量修改 发布  modules")
   @PatchMapping("batchUpdate")
+  @Audited(value = AuditAction.API_UPDATE, objectId = "#modules.![id]")
   public ResponseMessage<List<ModulesDto>> batchUpdate(HttpServletRequest request, @RequestBody List<ModulesDto> modules) {
     UserDetail userDetail = getLoginUser();
     List<ModulesDto> modulesDtoList = new ArrayList<>();
@@ -210,6 +221,7 @@ public class ModulesController extends BaseController {
    * Support dynamic modification of encryption rules: (for web post)
    * */
   @PostMapping("update-param-encryption")
+  @Audited(value = AuditAction.API_UPDATE_SECURITY, summary = "'param encryption'")
   public ResponseMessage<Void> updateParamEncryption(HttpServletRequest request, @RequestBody UpdateEncryptionParam param) {
     UserDetail userDetail = getLoginUser();
     checkModulePermission(request, userDetail, param.getApiId(), DataPermissionActionEnums.Publish);
@@ -226,6 +238,7 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "Delete a model instance by {{id}} from the data source")
   @DeleteMapping("{id}")
+  @Audited(value = AuditAction.API_DELETE, objectId = "#id")
   public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
     UserDetail userDetail = getLoginUser();
     return success(dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(id), DataPermissionActionEnums.Delete, () -> {
@@ -244,6 +257,7 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "Delete a model instance by {{id}} from the data source")
   @PostMapping("{id}/copy")
+  @Audited(value = AuditAction.API_COPY, objectId = "#id")
   public ResponseMessage<Void> copy(HttpServletRequest request, @PathVariable("id") String id) {
     UserDetail userDetail = getLoginUser();
     modulesService.copy(id, userDetail);
@@ -251,6 +265,7 @@ public class ModulesController extends BaseController {
   }
 
   @PostMapping("updateOutParameter/{id}")
+  @Audited(value = AuditAction.API_UPDATE, objectId = "#id", summary = "'output parameters'")
   public ResponseMessage<Void> updateOutParameter(HttpServletRequest request, @PathVariable("id")String id,@RequestBody DiscoveryFieldDto discoveryFieldDto) {
     UserDetail userDetail = getLoginUser();
     checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish);
@@ -259,6 +274,7 @@ public class ModulesController extends BaseController {
   }
 
   @PostMapping("updateIntParameter/{id}")
+  @Audited(value = AuditAction.API_UPDATE, objectId = "#id", summary = "'input parameters'")
   public ResponseMessage<Void> updateIntParameter(HttpServletRequest request, @PathVariable("id")String id,@RequestBody Param param) {
     UserDetail userDetail = getLoginUser();
     checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish);
@@ -389,12 +405,14 @@ public class ModulesController extends BaseController {
 
 	@Operation(summary = "api导出")
 	@GetMapping("batch/load")
+	@Audited(value = AuditAction.API_EXPORT, objectId = "#id")
 	public void batchLoadTasks(@RequestParam("id") List<String> id, HttpServletResponse response) {
 		modulesService.batchLoadTask(response, id, getLoginUser());
 	}
 
 	@Operation(summary = "api导入")
 	@PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.API_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<Void> uploadWithMode(@RequestParam(value = "file") MultipartFile file,
                                                 @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode) {
       com.tapdata.tm.commons.task.dto.ImportModeEnum mode = com.tapdata.tm.commons.task.dto.ImportModeEnum.fromValue(importMode);
@@ -404,6 +422,7 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "api文档导出")
   @GetMapping("api/export")
+  @Audited(value = AuditAction.API_EXPORT_DOC, objectId = "#id")
   public void batchLoadApis(@RequestParam("id") List<String> id,@RequestParam("ip") String ip, HttpServletResponse response) {
     modulesService.saveWord(response, id,ip, getLoginUser());
   }

@@ -107,14 +107,9 @@ public class LoginUserResolver {
 		switch (resolution.getStatus()) {
 			case FOUND -> {
 				markQueryDeprecation(resolution);
-				AccessTokenEntity accessTokenEntity = null;
-				ObjectId userId;
-				if (resolution.getSource() == AccessTokenSource.QUERY) {
-					accessTokenEntity = accessTokenService.validateEntity(resolution.getToken(), isCountAsActivity(request));
-					userId = accessTokenEntity == null ? null : accessTokenEntity.getUserId();
-				} else {
-					userId = accessTokenService.validate(resolution.getToken(), isCountAsActivity(request));
-				}
+				// 头部与查询参数两种来源都加载 token 实体，以便审计按 authType 区分 UI 与 OpenAPI。
+				AccessTokenEntity accessTokenEntity = accessTokenService.validateEntity(resolution.getToken(), isCountAsActivity(request));
+				ObjectId userId = accessTokenEntity == null ? null : accessTokenEntity.getUserId();
 				if (userId == null) {
 					throw new BizException("NotLogin");
 				}

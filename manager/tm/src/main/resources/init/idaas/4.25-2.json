@@ -1,0 +1,182 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "audit.log.retention.days"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "category_sort": 98,
+            "default_value": 90,
+            "documentation": "Audit_Log_Retention_Days_doc",
+            "hot_reloading": true,
+            "key": "audit.log.retention.days",
+            "key_label": "Audit Log Retention Days",
+            "last_update": 0,
+            "last_update_by": "",
+            "scope": "global",
+            "sort": 20,
+            "user_visible": true,
+            "min": 30,
+            "max": 3650
+          },
+          "$setOnInsert": {
+            "value": 90
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "update": "Permission",
+    "updates": [
+      {
+        "q": {
+          "name": "v2_audit_log"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_system-management",
+            "description": "审计日志",
+            "name": "v2_audit_log",
+            "need_permission": true,
+            "order": 4,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_audit_log",
+                "path": ""
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_audit_log_list"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_audit_log",
+            "description": "审计日志-列表",
+            "name": "v2_audit_log_list",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_audit_log_list",
+                "path": "/operation-audit"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_audit_log_export"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_audit_log",
+            "description": "审计日志-导出",
+            "name": "v2_audit_log_export",
+            "need_permission": true,
+            "order": 2,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_audit_log_export"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "update": "RoleMapping",
+    "updates": [
+      {
+        "q": {
+          "principalId": "v2_audit_log_export",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_audit_log_export",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "UserLogs",
+    "indexes": [
+      {
+        "name": "eventId_1",
+        "key": {
+          "eventId": 1
+        },
+        "background": true,
+        "sparse": true
+      },
+      {
+        "name": "operationId_1_timestamp_1",
+        "key": {
+          "operationId": 1,
+          "timestamp": 1
+        },
+        "background": true,
+        "sparse": true
+      },
+      {
+        "name": "type_1_timestamp_-1_eventId_-1",
+        "key": {
+          "type": 1,
+          "timestamp": -1,
+          "eventId": -1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "AuditOperations",
+    "indexes": [
+      {
+        "name": "createdAt_ttl",
+        "key": {
+          "createdAt": 1
+        },
+        "expireAfterSeconds": 604800,
+        "background": true
+      }
+    ]
+  }
+]

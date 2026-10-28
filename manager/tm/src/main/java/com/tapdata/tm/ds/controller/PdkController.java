@@ -1,5 +1,9 @@
 package com.tapdata.tm.ds.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.controller.BaseController;
@@ -41,6 +45,7 @@ public class PdkController extends BaseController {
     private ProductComponent productComponent;
 
     @PostMapping(path = "upload/source", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.CONNECTOR_INSTALL, summary = "#source")
     public ResponseMessage<Void> uploadJar(@RequestPart(value = "file") MultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest, HttpServletRequest request) {
 
         log.debug("Process upload pdk source, file size: {}, source size: {}, latest: {}", file.length, sourceJsons.size(), latest);

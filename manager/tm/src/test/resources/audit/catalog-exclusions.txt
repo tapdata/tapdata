@@ -1,0 +1,182 @@
+# 审计目录覆盖测试的排除清单：未声明 @Audited 的写接口必须在此登记并写明理由。
+# 格式：<类全名>#<方法名|*>  # 理由。新增写接口优先登记审计事件（docs/audit-event-catalog.md）。
+
+com.tapdata.tm.DataCatalogs.controller.DataCatalogsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.Settings.controller.SettingsController#save  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.alarm.controller.AlarmController#addMsg  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.alarm.controller.AlarmController#findListByTask  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.alarm.controller.AlarmController#ingestTaskAlert  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.alarm.controller.AlarmController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.apiCalls.controller.ApiCallController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.apiServer.controller.ApiServerController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.apiServer.controller.ApiServerController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.apicallminutestats.controller.ApiCallMinuteStatsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.apicallstats.controller.ApiCallStatsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.application.controller.ApplicationController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.application.controller.ApplicationController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.autoinspect.AutoInspectResultsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.cdcEvents.CdcEventsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.classification.controller.ClassificationController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.cluster.controller.ClusterStateController#componentStopped  # 服务停止由 ServiceLifecycleAudit 记录为 SYSTEM 事件
+com.tapdata.tm.cluster.controller.ClusterStateController#put  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#replaceById2  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#replceById  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#save  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#updataStatus  # 集群操作由 ClusterOperationAudit 按动作显式记录
+com.tapdata.tm.cluster.controller.ClusterStateController#update  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#updateAgent  # 集群操作由 ClusterOperationAudit 按动作显式记录
+com.tapdata.tm.cluster.controller.ClusterStateController#updateById  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.cluster.controller.ClusterStateController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.connectorRecord.controller.ConnectorRecordController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.customNode.controller.CustomNodeController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.databasetags.controller.DatabaseTagsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.datacategory.controller.DataCategoryController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.dataflow.controller.DataFlowController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.dataflowinsight.controller.DataFlowInsightController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.dataflowsdebug.controller.DataFlowsDebugController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.datarules.controller.DataRulesController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.deleteCaches.controller.DeleteCachesController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.dictionary.controller.DictionaryController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.discovery.controller.DisCoveryController#addListTags  # 数据目录标签，不在需求第 9 章目录；纳入时按第 21 章评审
+com.tapdata.tm.discovery.controller.DisCoveryController#updateListTags  # 数据目录标签，不在需求第 9 章目录；纳入时按第 21 章评审
+com.tapdata.tm.ds.controller.DataSourceController#checkAgentSettings  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#loadPartTables  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#loadPartTablesByName  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#refreshModel  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.ds.controller.DataSourceController#updateByWhereNotChangeLast  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#updateConnectionOptions  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#updatePartialSchema  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.ds.controller.DataSourceController#validateTable  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.ds.controller.DataSourceDefinitionController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.events.controller.EventsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.externalStorage.controller.ExternalStorageController#checkConnectionSharedCDCEnable  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.externalStorage.controller.ExternalStorageController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.externalStorage.controller.ExternalStorageController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.file.controller.FileController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.foreignKeyConstraint.controller.ForeignKeyConstraintController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.function.controller.JsFunctionController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.group.controller.GroupInfoController#previewApis  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.group.controller.GroupInfoController#previewConnections  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.group.controller.GroupInfoController#previewImport  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.group.controller.GroupInfoController#previewMigrateTasks  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.group.controller.GroupInfoController#previewSyncTasks  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.group.controller.GroupInfoController#previewTasks  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.hazelcastPersistence.controller.HazelcastPersistenceController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.insights.controller.InsightsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.inspect.controller.InspectController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#delete  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#put  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#save  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#update  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#updateById  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectDetailsController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.inspect.controller.InspectResultController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.job.controller.JobController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.jobddlhistories.controller.JobDDLHistoriesController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.libSupported.controller.LibSupportedsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.lineage.controller.LineageController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.lineagegraph.controller.LineageGraphController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.log.controller.LogController#save  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.message.controller.MessageController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.metaData.controller.MetadataController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.metadatadefinition.controller.MetadataDefinitionController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.metadatainstance.controller.MetaDataHistoryController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.metadatainstance.controller.MetadataInstancesController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.metrics.controller.MetricsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.modules.controller.ModulesController#apiDetail  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.modules.controller.ModulesController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.modules.controller.ModulesController#updatePublishStatus  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.modules.controller.ModulesController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.monitor.controller.MeasureController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.monitoringlogs.controller.MonitoringLogsController#batchJson  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.monitoringlogs.controller.MonitoringLogsController#count  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.monitoringlogs.controller.MonitoringLogsController#query  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.monitoringlogs.controller.MonitoringLogsController#save  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.openapi.generator.controller.AsyncCodeGenerationController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.proxy.controller.HttpReceiverController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.proxy.controller.ProxyController#call  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxy.controller.ProxyController#command  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxy.controller.ProxyController#generateSubscriptionToken  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxy.controller.ProxyController#generateTokenForEngineToProxy  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxy.controller.ProxyController#memory  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxy.controller.ProxyController#proxyCallNew  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxy.controller.ProxyController#rawDataCallback  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.role.controller.RoleController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.roleMapping.controller.RoleMappingController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.scheduleTasks.controller.ScheduleTaskController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.sdk.controller.SDKController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.sdkModule.controller.SdkModuleController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.sdkVersion.controller.SdkVersionController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.shareCdcTableMapping.controller.ShareCdcTableMappingController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.shareCdcTableMetrics.controller.ShareCdcTableMetricsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.sso.controller.SsoConfigController#validate  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.sso.controller.SsoConfigController#validateImport  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.sso.controller.SsoLoginController#acs  # SAML 登录成功/失败由 LoginAuditRecorder 显式记录
+com.tapdata.tm.statemachine.controller.StateMachineController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.task.controller.CacheTaskController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.task.controller.CacheTaskController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.task.controller.LdpController#multiSearch  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.LogCollectorController#ensureTables  # 共享挖掘建表确认，由任务启动流程内部调用，无独立用户操作
+com.tapdata.tm.task.controller.SnapshotEdgeProgressController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.task.controller.TaskAutoInspectResultsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.task.controller.TaskConsoleController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.task.controller.TaskController#analyzeTask  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#checkName  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#complete  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#put  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.task.controller.TaskController#refreshSchemas  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#runError  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#running  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#saveMergeTableCacheInfo  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#saveResult  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#skipErrorEvents  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#stopTaskByAgentId  # 按 Agent 停止任务由任务停止事件逐个记录
+com.tapdata.tm.task.controller.TaskController#stopped  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#systemStop  # 系统内部触发的任务停止
+com.tapdata.tm.task.controller.TaskController#tranModelVersionControl  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#transformSchema  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#transformerResult  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#transformerResultHistory  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.task.controller.TaskController#updateDag  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#updateDagAndHistory  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#updateErrorEvents  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#updateMergeTablePropertiesRebuildStatus  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#updateNode  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#updateSyncProgress  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.task.controller.TaskController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.task.controller.TaskDatabaseRuntimeInfoController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.task.controller.TaskNodeRuntimeInfoController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.task.controller.TaskResetLogController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.taskhistory.controller.TaskHistoryController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.taskrebalance.controller.TaskRebalanceController#preview  # 只读预览（解析上传文件或计算方案），不改变对象
+com.tapdata.tm.trace.controller.TraceController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.transform.controller.MetadataTransformerItemController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.typemappings.controller.TypeMappingsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.uploadlog.controller.UploadLogController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.user.controller.UserController#generateToken  # 认证事件由 LoginAuditRecorder 显式记录
+com.tapdata.tm.user.controller.UserController#generatetoken  # 引擎表单方式换取 token，认证失败由 LoginAuditRecorder 显式记录
+com.tapdata.tm.user.controller.UserController#login  # 认证事件由 UserController/LoginAuditRecorder 显式记录
+com.tapdata.tm.user.controller.UserController#logout  # 由 AccessTokenService 迁移后的统一事件记录
+com.tapdata.tm.user.controller.UserController#sendValidateCode  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.userGroup.controller.UserGroupController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.userLog.controller.UserLogController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.v2.api.schema.controller.ReLoadApiSchemaController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.verison.controller.VersionController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.worker.controller.ApiWorkerController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
+com.tapdata.tm.worker.controller.WorkerController#health  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.worker.controller.WorkerController#postTest  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.worker.controller.WorkerController#put  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.worker.controller.WorkerController#replaceById2  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.worker.controller.WorkerController#replceById  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.worker.controller.WorkerController#save  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.worker.controller.WorkerController#singletonLock  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.worker.controller.WorkerController#update  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.worker.controller.WorkerController#updateById  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.worker.controller.WorkerController#updateWorkerStatus  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.worker.controller.WorkerController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口

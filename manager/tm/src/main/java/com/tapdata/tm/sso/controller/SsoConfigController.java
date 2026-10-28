@@ -1,5 +1,9 @@
 package com.tapdata.tm.sso.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.sso.dto.IdpMetadata;
@@ -63,6 +67,7 @@ public class SsoConfigController extends BaseController {
 
     @Operation(summary = "Save the SAML configuration")
     @PostMapping("/save")
+    @Audited(AuditAction.SSO_CONFIG_UPDATE)
     public ResponseMessage<Void> save(@RequestBody SamlConfigForm form) {
         samlConfigService.saveConfig(form);
         return success();
@@ -76,12 +81,14 @@ public class SsoConfigController extends BaseController {
 
     @Operation(summary = "Test the SAML configuration")
     @PostMapping("/test")
+    @Audited(AuditAction.SSO_CONFIG_TEST)
     public ResponseMessage<SamlValidationResult> test(@RequestBody SamlConfigForm form) {
         return success(samlValidationService.validate(form));
     }
 
     @Operation(summary = "Parse an IdP metadata XML document to prefill IdP fields")
     @PostMapping("/import-idp-metadata")
+    @Audited(value = AuditAction.SSO_CONFIG_UPDATE, summary = "'import idp metadata'")
     public ResponseMessage<IdpMetadata> importIdpMetadata(@RequestBody MetadataImportRequest request) {
         String xml = request == null ? null : request.getMetadataXml();
         return success(samlMetadataService.parseIdpMetadata(xml));
@@ -100,6 +107,7 @@ public class SsoConfigController extends BaseController {
      */
     @Operation(summary = "Generate and store a new SP key pair; returns only the certificate")
     @PostMapping("/generate-keypair")
+    @Audited(value = AuditAction.SSO_CONFIG_UPDATE, summary = "'generate keypair'")
     public ResponseMessage<Map<String, String>> generateKeyPair() {
         SamlConfig config = samlConfigService.getConfig();
         String subjectDn = StringUtils.isNotBlank(config.getSpEntityId())
@@ -142,6 +150,7 @@ public class SsoConfigController extends BaseController {
 
     @Operation(summary = "Apply an SSO batch user import file")
     @PostMapping(path = "/user-import/confirm", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.USER_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<ImportPreviewResult> confirmImport(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "mode", required = false, defaultValue = "SKIP") String mode) {

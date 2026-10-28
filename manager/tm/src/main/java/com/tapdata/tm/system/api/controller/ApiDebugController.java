@@ -1,5 +1,9 @@
 package com.tapdata.tm.system.api.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -50,6 +54,7 @@ public class ApiDebugController extends BaseController {
 
     @Operation(summary = "API debug")
     @PostMapping
+    @Audited(value = AuditAction.API_DEBUG, objectId = "#debugDto.apiId")
     public ResponseMessage<DebugVo> debug(@RequestBody DebugDto debugDto) throws ExecutionException {
         //1. Asynchronous retrieval of API sensitive field configuration and interface request results separately
         //2. Desensitize the returned data

@@ -6,6 +6,10 @@
  */
 package com.tapdata.tm.role.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -49,6 +53,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Create a new instance of the model and persist it into the data source")
 	@PostMapping
+	@Audited(value = AuditAction.ROLE_CREATE, objectId = "#result?.id", objectName = "#roleDto.name")
 	public ResponseMessage<RoleDto> save(@RequestBody RoleDto roleDto) {
 		if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
 			if (roleDto == null) {
@@ -72,6 +77,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Patch an existing model instance or insert a new one into the data source")
 	@PatchMapping()
+	@Audited(value = AuditAction.ROLE_UPDATE, objectId = "#roleDto.id", objectName = "#roleDto.name")
 	public ResponseMessage<RoleDto> update(@RequestBody RoleDto roleDto) {
 		if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
 			return success(roleService.save(roleDto, getLoginUser()));
@@ -107,6 +113,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Replace an existing model instance or insert a new one into the data source")
 	@PutMapping
+	@Audited(value = AuditAction.ROLE_UPDATE, objectId = "#roleDto.id", objectName = "#roleDto.name")
 	public ResponseMessage<RoleDto> put(@RequestBody RoleDto roleDto) {
 		if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
 			return success(roleService.replaceOrInsert(roleDto, getLoginUser()));
@@ -136,6 +143,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Patch attributes for a model instance and persist it into the data source")
 	@PatchMapping("{id}")
+	@Audited(value = AuditAction.ROLE_UPDATE, objectId = "#id")
 	public ResponseMessage<RoleDto> updateById(@PathVariable("id") String id, @RequestBody RoleDto roleDto) {
 		if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
 			roleDto.setId(MongoUtils.toObjectId(id));
@@ -167,6 +175,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
 	@PutMapping("{id}")
+	@Audited(value = AuditAction.ROLE_UPDATE, objectId = "#id")
 	public ResponseMessage<RoleDto> replceById(@PathVariable("id") String id, @RequestBody RoleDto roleDto) {
 		return success(roleService.replaceById(MongoUtils.toObjectId(id), roleDto, getLoginUser()));
 	}
@@ -178,6 +187,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
 	@PostMapping("{id}/replace")
+	@Audited(value = AuditAction.ROLE_UPDATE, objectId = "#id")
 	public ResponseMessage<RoleDto> replaceById2(@PathVariable("id") String id, @RequestBody RoleDto roleDto) {
 		return success(roleService.replaceById(MongoUtils.toObjectId(id), roleDto, getLoginUser()));
 	}
@@ -191,6 +201,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Delete a model instance by {{id}} from the data source")
 	@DeleteMapping("{id}")
+	@Audited(value = AuditAction.ROLE_DELETE, objectId = "#id")
 	public ResponseMessage<Void> delete(@PathVariable("id") String id) {
 		DataPermissionHelper.cleanAuthOfRoleDelete(Collections.singleton(id));
 		roleService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
@@ -255,6 +266,7 @@ public class RoleController extends BaseController {
 	 */
 	@Operation(summary = "Update instances of the model matched by {{where}} from the data source")
 	@PostMapping("update")
+	@Audited(value = AuditAction.ROLE_UPDATE, objectId = "T(com.tapdata.tm.audit.AuditSpel).idFromWhere(#whereJson)")
 	public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
 		Where where = parseWhere(whereJson);
 		Document update = Document.parse(reqBody);

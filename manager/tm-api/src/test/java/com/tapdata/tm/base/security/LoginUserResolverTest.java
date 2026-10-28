@@ -113,13 +113,14 @@ class LoginUserResolverTest {
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			request.addHeader("Authorization", "Bearer bearer-token");
 			UserDetail userDetail = user("bearer");
-			when(accessTokenService.validate("bearer-token", true)).thenReturn(userId);
+			when(accessTokenService.validateEntity("bearer-token", true)).thenReturn(token(userId, "username_login"));
 			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
-			verify(accessTokenService).validate("bearer-token", true);
+			assertEquals("username_login", actual.getAuthType());
+			verify(accessTokenService).validateEntity("bearer-token", true);
 		}
 
 		@Test
@@ -129,14 +130,14 @@ class LoginUserResolverTest {
 			request.addHeader("Authorization", "Bearer A");
 			request.setQueryString("access_token=B");
 			UserDetail userDetail = user("bearer");
-			when(accessTokenService.validate("A", true)).thenReturn(userId);
+			when(accessTokenService.validateEntity("A", true)).thenReturn(token(userId));
 			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
 			UserDetail actual = loginUserResolver.resolve(request);
 
 			assertSame(userDetail, actual);
-			verify(accessTokenService).validate("A", true);
-			verify(accessTokenService, never()).validate(org.mockito.ArgumentMatchers.eq("B"),
+			verify(accessTokenService).validateEntity("A", true);
+			verify(accessTokenService, never()).validateEntity(org.mockito.ArgumentMatchers.eq("B"),
 					org.mockito.ArgumentMatchers.anyBoolean());
 		}
 
@@ -147,7 +148,7 @@ class LoginUserResolverTest {
 			request.setQueryString("access_token=valid");
 
 			assertThrows(BizException.class, () -> loginUserResolver.resolve(request));
-			verify(accessTokenService, never()).validate(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+			verify(accessTokenService, never()).validateEntity(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
 		}
 
 		@Test

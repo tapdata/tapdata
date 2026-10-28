@@ -1,5 +1,9 @@
 package com.tapdata.tm.customer.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.config.security.UserDetail;
@@ -47,6 +51,7 @@ public class CustomerController extends BaseController {
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping
+    @Audited(AuditAction.CUSTOMER_UPDATE)
     public ResponseMessage<CustomerDto> update(@RequestBody @Validated CustomerDto customer) {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();

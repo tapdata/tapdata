@@ -1,5 +1,9 @@
 package com.tapdata.tm.notification.record.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -60,6 +64,7 @@ public class NotificationRecordController extends BaseController {
 
     @Operation(summary = "batch update read state with explicit ids")
     @PatchMapping("read-state")
+    @Audited(AuditAction.MESSAGE_READ)
     public ResponseMessage<Long> updateReadState(@RequestBody ReadStateRequest request) {
         if (request == null || request.getRead() == null) {
             throw new BizException("IllegalArgument", "read");
@@ -85,6 +90,7 @@ public class NotificationRecordController extends BaseController {
 
     @Operation(summary = "update read state of one record")
     @PatchMapping("{id}/read-state")
+    @Audited(value = AuditAction.MESSAGE_READ, objectId = "#id")
     public ResponseMessage<Long> updateReadState(@PathVariable("id") String id, @RequestBody ReadStateRequest request) {
         if (request == null || request.getRead() == null) {
             throw new BizException("IllegalArgument", "read");

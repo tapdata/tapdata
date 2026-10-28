@@ -1,5 +1,9 @@
 package com.tapdata.tm.log.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.log.dto.LogDto;
@@ -70,6 +74,7 @@ public class LogController extends BaseController {
 
     @Operation(summary = "Export logs by where to download")
     @GetMapping("/export")
+    @Audited(value = AuditAction.TASK_DOWNLOAD_LOG, summary = "#whereJson")
     public void export(@RequestParam("where") String whereJson, HttpServletResponse response) throws IOException {
         Where where = parseWhere(whereJson);
 

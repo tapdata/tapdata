@@ -1,5 +1,8 @@
 package com.tapdata.tm.modules.service;
 
+import com.tapdata.tm.audit.AuditOperationFinisher;
+import com.tapdata.tm.audit.AuditOutcome;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
@@ -151,6 +154,7 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	private AuditOperationFinisher auditOperationFinisher;
 	public static final String USER_ID = "user_id";
 	public static final String MODULES_BASE_PATH_AND_VERSION_EXISTED = "Modules.BasePathAndVersion.Existed";
 	private static final String URI = "uri";
@@ -765,6 +769,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			return;
 		}
 		bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
+		if (auditOperationFinisher != null) {
+			// API Server 回报发布结果：空消息为发布成功，否则为失败原因
+			apiStatus.forEach((id, msg) -> auditOperationFinisher.finish("api", id, null,
+					org.apache.commons.lang3.StringUtils.isBlank(msg) ? AuditOutcome.SUCCESS : AuditOutcome.FAILED, msg));
+		}
 	}
 
 	protected void bulkUpsert(Map<String, String> entities,

@@ -1,5 +1,8 @@
 package com.tapdata.tm.worker.service;
 
+import com.tapdata.tm.audit.ClusterOperationAudit;
+import com.tapdata.tm.audit.ServiceLifecycleAudit;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
@@ -99,6 +102,11 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class WorkerServiceImpl extends WorkerService{
+    @Autowired(required = false)
+    private ClusterOperationAudit clusterOperationAudit;
+    @Autowired(required = false)
+    private ServiceLifecycleAudit serviceLifecycleAudit;
+
 
     @Autowired
     private DataFlowService dataFlowService;
@@ -640,7 +648,10 @@ public class WorkerServiceImpl extends WorkerService{
                 workUpdate.set("updatePingTime", now.getTime());
 //                update(workerQuery, workUpdate);
                 repository.getMongoOperations().updateMulti(workerQuery, workUpdate, Worker.class);
-
+                if (clusterOperationAudit != null && ("done".equals(status) || "fail".equals(status))) {
+                    clusterOperationAudit.finished(ClusterOperationAudit.UPGRADE_OBJECT_TYPE, processId,
+                            "done".equals(status), "audit_reason_upgrade_failed");
+                }
             }
         }
     }
@@ -839,6 +850,9 @@ public class WorkerServiceImpl extends WorkerService{
                 convertToEntity(Worker.class, worker), loginUser
         );
         workerPing.increment(worker.getWorkerType(), worker.getVersion());
+        if (serviceLifecycleAudit != null) {
+            serviceLifecycleAudit.onHeartbeat(worker.getWorkerType(), worker.getProcessId(), worker.getHostname(), worker.getWorkerIp());
+        }
         Query query = Query.query(where);
         query.fields().include("process_id", "worker_type", "isDeleted");
         Optional<Worker> workerOptional = repository.findOne(query);

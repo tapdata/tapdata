@@ -1,5 +1,9 @@
 package com.tapdata.tm.task.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -54,6 +58,7 @@ public class CacheTaskController extends BaseController {
      */
     @Operation(summary = "创建共享缓存依赖任务")
     @PostMapping
+    @Audited(value = AuditAction.LIVE_CACHE_CREATE, objectId = "#result?.id", objectName = "#saveShareCacheParam.name")
     public ResponseMessage<TaskDto> save(@RequestBody SaveShareCacheParam saveShareCacheParam,
                                          HttpServletRequest request,
                                          HttpServletResponse response) {
@@ -107,6 +112,7 @@ public class CacheTaskController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.LIVE_CACHE_UPDATE, objectId = "#id")
     public ResponseMessage<TaskDto> updateById(@PathVariable("id") String id, @RequestBody SaveShareCacheParam saveShareCacheParam) {
         UserDetail userDetail = getLoginUser();
         boolean canStart = Boolean.TRUE.equals(dataPermissionCheckOfId(
@@ -149,6 +155,7 @@ public class CacheTaskController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.LIVE_CACHE_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete, () -> {
@@ -221,6 +228,7 @@ public class CacheTaskController extends BaseController {
 
     @Operation(summary = "复制同步任务")
     @PutMapping("copy/{id}")
+    @Audited(value = AuditAction.LIVE_CACHE_COPY, objectId = "#id")
     public ResponseMessage<TaskDto> copy(@PathVariable("id") String id) {
         return success(taskService.copy(MongoUtils.toObjectId(id), getLoginUser()));
     }
@@ -228,6 +236,7 @@ public class CacheTaskController extends BaseController {
 
     @Operation(summary = "启动同步任务")
     @PutMapping("start/{id}")
+    @Audited(value = AuditAction.TASK_START, objectId = "#id")
     public ResponseMessage<Void> start(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
@@ -241,6 +250,7 @@ public class CacheTaskController extends BaseController {
 
     @Operation(summary = "暂停同步任务")
     //@PutMapping("pause/{id}")
+    @Audited(value = AuditAction.TASK_STOP, objectId = "#id")
     public ResponseMessage<Void> pause(@PathVariable("id") String id
             , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
         taskService.pause(MongoUtils.toObjectId(id), getLoginUser(), force);
@@ -249,6 +259,7 @@ public class CacheTaskController extends BaseController {
 
     @Operation(summary = "重置同步任务")
     @PutMapping("renew/{id}")
+    @Audited(value = AuditAction.TASK_RESET, objectId = "#id")
     public ResponseMessage<Void> renew(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Reset, () -> {
@@ -260,6 +271,7 @@ public class CacheTaskController extends BaseController {
 
     @Operation(summary = "停止同步任务")
     @PutMapping("stop/{id}")
+    @Audited(value = AuditAction.TASK_STOP, objectId = "#id")
     public ResponseMessage<TaskDto> stop(@PathVariable("id") String id
             , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
         UserDetail userDetail = getLoginUser();
@@ -272,6 +284,7 @@ public class CacheTaskController extends BaseController {
 
 
     @PutMapping("batchStart")
+    @Audited(value = AuditAction.TASK_START, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds,
                                                                  HttpServletRequest request,
                                                                  HttpServletResponse response) {
@@ -290,6 +303,7 @@ public class CacheTaskController extends BaseController {
     }
 
     @PutMapping("batchStop")
+    @Audited(value = AuditAction.TASK_STOP, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds,
                                                                 HttpServletRequest request,
                                                                 HttpServletResponse response) {
@@ -305,6 +319,7 @@ public class CacheTaskController extends BaseController {
     }
 
     @DeleteMapping("batchDelete")
+    @Audited(value = AuditAction.LIVE_CACHE_DELETE, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds,
                                                                   HttpServletRequest request,
                                                                   HttpServletResponse response) {
