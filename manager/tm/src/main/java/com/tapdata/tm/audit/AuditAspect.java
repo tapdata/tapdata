@@ -126,6 +126,17 @@ public class AuditAspect {
 	private void recordResult(AuditAction action, ProceedingJoinPoint jp, Audited audited, List<String> ids, Map<String, String> names, Object result) {
 		Object data = result instanceof ResponseMessage<?> rm ? rm.getData() : result;
 		List<String> resolvedIds = ids.isEmpty() ? safeIds(jp, audited, data) : ids;
+		if (ids.isEmpty() && resolvedIds.size() == 1 && StringUtils.isNotBlank(audited.objectName())) {
+			// 对象 ID 来自返回值（如新建）时，执行前无法预取名称，执行后再取一次
+			try {
+				Object name = evaluate(audited.objectName(), jp, data);
+				if (name != null) {
+					names.put(resolvedIds.get(0), String.valueOf(name));
+				}
+			} catch (Exception e) {
+				log.debug("Evaluate audit object name failed: {}", audited.objectName(), e);
+			}
+		}
 		AuditEvent event;
 		if (result instanceof ResponseMessage<?> rm && !ResponseMessage.OK.equals(rm.getCode())) {
 			event = AuditEvent.of(action, AuditOutcome.FAILED);

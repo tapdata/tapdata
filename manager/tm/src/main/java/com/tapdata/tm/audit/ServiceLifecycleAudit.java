@@ -79,7 +79,7 @@ public class ServiceLifecycleAudit {
 	@SchedulerLock(name = "audit_service_lost_lock", lockAtMostFor = "25s", lockAtLeastFor = "5s")
 	public void detectLost() {
 		try {
-			int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+			int overTime = heartbeatOvertimeSeconds();
 			long deadline = System.currentTimeMillis() - overTime * 1000L;
 			Query query = Query.query(Criteria.where("state").is(UP).and("kind").in("connector", "api-server"));
 			for (Document state : mongoTemplate.find(query, Document.class, COLLECTION)) {
@@ -151,6 +151,15 @@ public class ServiceLifecycleAudit {
 		event.object(processId, service + (hostname == null ? "" : " @ " + hostname));
 		event.setReason(reason);
 		auditEventService.record(event, null);
+	}
+
+	/** 心跳超时秒数；设置尚不可读时使用默认 30 秒，失联检测不因此中断。 */
+	static int heartbeatOvertimeSeconds() {
+		try {
+			return SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+		} catch (RuntimeException e) {
+			return 30;
+		}
 	}
 
 	private static Long toLong(Object value) {
