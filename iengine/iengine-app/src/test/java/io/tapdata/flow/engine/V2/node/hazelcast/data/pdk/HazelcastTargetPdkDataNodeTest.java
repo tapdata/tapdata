@@ -1730,6 +1730,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		ObsLogger obsLogger = mock(ObsLogger.class);
 		ReflectionTestUtils.setField(targetPdkDataNode, "ddlEventHandlers", ddlEventHandlers);
 		ReflectionTestUtils.setField(targetPdkDataNode, "obsLogger", obsLogger);
+		Map<String, Map<String, TapField>> physicalFields = new ConcurrentHashMap<>();
+		physicalFields.put("test", Collections.singletonMap("event_time", new TapField("event_time", "datetime").scale(3)));
+		ReflectionTestUtils.setField(targetPdkDataNode, "discoveredTargetFieldMaps", physicalFields);
+		when(ddlEventHandlers.handle(any())).thenReturn(true);
 
 
 		List<TapEvent> events = new ArrayList<>();
@@ -1746,16 +1750,23 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		partitionTable.setPartitionInfo(new TapPartition());
 		createEvent.setTable(partitionTable);
 		events.add(createEvent);
+		TapAlterFieldAttributesEvent alterEvent = new TapAlterFieldAttributesEvent();
+		alterEvent.setTableId("test");
+		events.add(alterEvent);
 		TapDropTableEvent dropEvent = new TapDropTableEvent();
 		dropEvent.setTableId("test_1");
 		events.add(dropEvent);
 
 		targetPdkDataNode.writeDDL(events);
+		assertFalse(physicalFields.containsKey("test"));
+		Map<String, TapField> updatedLogicalFields = Collections.singletonMap(
+				"event_time", new TapField("event_time", "datetime2").scale(7));
+		assertSame(updatedLogicalFields, targetPdkDataNode.targetFieldMapForFromTapValue("test", updatedLogicalFields));
 
 		targetPdkDataNode.syncTargetPartitionTableEnable = false;
 		targetPdkDataNode.writeDDL(events);
 
-		verify(ddlEventHandlers,times(5)).handle(any());
+		verify(ddlEventHandlers,times(7)).handle(any());
 	}
 
 	@Test

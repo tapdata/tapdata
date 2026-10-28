@@ -11,6 +11,9 @@ import io.tapdata.entity.schema.value.TapDateValue;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -20,6 +23,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class TapCodecUtilTargetTypeTest {
+    @Test
+    void stringCodecRetainsDaylightSavingTimeConversion() {
+        TapCodecsRegistry registry = TapCodecsRegistry.create();
+        registry.registerFromTapValue(TapDateTimeValue.class, value ->
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS")
+                        .withZone(ZoneId.of("America/New_York"))
+                        .format(value.getValue().toInstant()));
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("EVENT_TIME", new TapDateTimeValue(new DateTime(
+                Instant.parse("2026-07-01T12:00:00.123456Z"))));
+        Map<String, TapField> logical = Collections.singletonMap(
+                "EVENT_TIME", new TapField("EVENT_TIME", "datetime(6)").scale(6));
+        Map<String, TapField> physical = Collections.singletonMap(
+                "EVENT_TIME", new TapField("EVENT_TIME", "datetime").scale(3));
+
+        TapCodecUtil.convertForPhysicalTarget(values, logical, physical, registry);
+        TapCodecsFilterManager.create(registry).transformFromTapValueMap(values, logical, physical);
+
+        assertEquals("2026-07-01 08:00:00.123456", values.get("EVENT_TIME"));
+    }
+
     @Test
     void physicalDateConversionPrecedesConnectorLegacyCodec() {
         TapCodecsRegistry registry = TapCodecsRegistry.create();
@@ -81,7 +105,7 @@ class TapCodecUtilTargetTypeTest {
     }
 
     @Test
-    void physicalDateTimeConversionPrecedesConnectorLegacyCodec() {
+    void physicalDateTimeKeepsUnsupportedConnectorLegacyCodec() {
         TapCodecsRegistry registry = TapCodecsRegistry.create();
         registry.registerFromTapValue(TapDateTimeValue.class, value -> "legacy-datetime");
         TapCodecsFilterManager manager = TapCodecsFilterManager.create(registry);
@@ -96,8 +120,7 @@ class TapCodecUtilTargetTypeTest {
         TapCodecUtil.convertForPhysicalTarget(values, logicalFields, physicalFields, registry);
         manager.transformFromTapValueMap(values, logicalFields, physicalFields);
 
-        assertEquals(LocalDateTime.of(2026, 10, 21, 12, 13, 14, 123000000),
-                assertInstanceOf(LocalDateTime.class, values.get("EVENT_TIME")));
+        assertEquals("legacy-datetime", values.get("EVENT_TIME"));
 
         values.put("EVENT_TIME", new TapDateTimeValue(new DateTime(
                 LocalDateTime.of(2026, 10, 21, 12, 13, 14, 123456789))));

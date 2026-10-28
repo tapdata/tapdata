@@ -809,6 +809,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 		for (TapDDLEvent tapDDLEvent : tapDDLEvents) {
 			Object result = ddlEventHandlers.handle(tapDDLEvent);
+			if (Boolean.TRUE.equals(result) && (tapDDLEvent instanceof TapNewFieldEvent
+					|| tapDDLEvent instanceof TapAlterFieldNameEvent
+					|| tapDDLEvent instanceof TapAlterFieldAttributesEvent
+					|| tapDDLEvent instanceof TapDropFieldEvent
+					|| (tapDDLEvent instanceof TapCreateTableEvent
+						&& !Boolean.TRUE.equals(tapDDLEvent.getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY))))) {
+				invalidateDiscoveredTargetFields(tapDDLEvent.getTableId());
+			}
 			if (null == result) {
 				obsLogger.warn("DDL event: " + tapDDLEvent.getClass().getSimpleName() + " does not supported");
 			}
