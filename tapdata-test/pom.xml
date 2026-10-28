@@ -61,7 +61,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-common</artifactId>
-            <version>0.2.23-SNAPSHOT</version>
+            <version>2.3-SNAPSHOT</version>
         </dependency>
         <!-- 测试框架 -->
         <dependency>
