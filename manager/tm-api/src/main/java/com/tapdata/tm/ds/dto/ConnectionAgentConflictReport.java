@@ -18,6 +18,9 @@ public class ConnectionAgentConflictReport {
         private String syncType;
         private String status;
         private boolean editable;
+        private boolean canEdit;
+        private boolean autoResolvable;
+        private String blockedReason;
         private Long revision;
         private String code;
         private String reason;

@@ -45,6 +45,7 @@ import java.util.*;
 public class ConnectionAgentConflictService {
     private static final int SCAN_SIZE = 200;
     @Autowired private MongoTemplate mongoTemplate;
+    @Autowired @Lazy private DataSourceService dataSourceService;
     @Autowired @Lazy private TaskService taskService;
     @Autowired @Lazy private TaskScheduleService taskScheduleService;
     @Autowired @Lazy private InspectService inspectService;
@@ -200,12 +201,73 @@ public class ConnectionAgentConflictService {
             item.setSyncType(type);
             item.setStatus(task.getStatus());
             item.setRevision(task.getLastUpdAt() == null ? null : task.getLastUpdAt().getTime());
-            item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && canEdit(task, user));
+            boolean permission = "inspect".equals(type) ? canEditInspection(task, user) : canEdit(task, user);
+            item.setCanEdit(permission);
+            item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && permission);
+            item.setAutoResolvable(item.isEditable() && automaticResolves(task, overrides, user));
+            item.setBlockedReason(!permission ? "no_edit_permission"
+                    : !editableStatus(task.getStatus()) ? "task_active"
+                    : "Task.SourceAgentConflict".equals(e.getErrorCode()) ? "connection_conflict"
+                    : "inspect".equals(type) ? "unsupported_policy"
+                    : item.isAutoResolvable() ? null : "policy_conflict");
             item.setCode(e.getErrorCode());
             item.setReason(MessageUtil.getMessage("Task.AgentConflict"));
-            item.setConnections(affectedConnections(task, overrides));
+            item.setConnections("Task.SourceAgentConflict".equals(e.getErrorCode())
+                    ? conflictConnections(task, overrides, user) : affectedConnections(task, overrides));
             report.getItems().add(item);
         }
+    }
+
+    protected boolean automaticResolves(TaskDto task, Map<String, DataSourceConnectionDto> overrides, UserDetail user) {
+        TaskDto automatic = new TaskDto();
+        BeanUtils.copyProperties(task, automatic, "accessNodeProcessIdList");
+        automatic.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        automatic.setAccessNodeProcessId(null);
+        automatic.setPriorityProcessId(null);
+        try {
+            taskScheduleService.validateConnectionAgentPolicy(automatic, user, overrides);
+            return true;
+        } catch (BizException e) {
+            if ("Task.SourceAgentConflict".equals(e.getErrorCode()) || "Task.AgentConflict".equals(e.getErrorCode())) return false;
+            throw e;
+        }
+    }
+
+    protected boolean canEditInspection(TaskDto task, UserDetail user) {
+        DataPermissionMenuEnums menu = DataPermissionMenuEnums.INSPECT_TACK;
+        return DataPermissionHelper.check(user, menu, DataPermissionActionEnums.Edit,
+                menu.getDataType(), task.getId().toHexString(), () -> true, () -> false);
+    }
+
+    protected boolean canViewConnection(String id, UserDetail user) {
+        return DataPermissionHelper.check(user, DataPermissionMenuEnums.Connections,
+                DataPermissionActionEnums.View, DataPermissionMenuEnums.Connections.getDataType(), id,
+                () -> true, () -> false);
+    }
+
+    private List<ConnectionAgentConflictReport.Connection> conflictConnections(TaskDto task,
+            Map<String, DataSourceConnectionDto> overrides, UserDetail user) {
+        Map<String, DataSourceConnectionDto> all = new LinkedHashMap<>(overrides);
+        Set<String> ids = new LinkedHashSet<>();
+        if (task.getDag() != null && task.getDag().getNodes() != null) {
+            for (Node node : task.getDag().getNodes()) {
+                if (node instanceof DataParentNode<?> data && data.getConnectionId() != null) ids.add(data.getConnectionId());
+                if (node instanceof LogCollectorNode log && log.getConnectionIds() != null) ids.addAll(log.getConnectionIds());
+            }
+        }
+        if (dataSourceService != null && !ids.isEmpty()) {
+            Query query = Query.query(Criteria.where("_id").in(ids));
+            query.fields().include("_id", "name");
+            List<DataSourceConnectionDto> connections = dataSourceService.findAll(query);
+            if (connections != null) for (DataSourceConnectionDto connection : connections) {
+                if (connection.getId() == null) continue;
+                String id = connection.getId().toHexString();
+                if (all.containsKey(id)) continue;
+                boolean visible = canViewConnection(id, user);
+                if (visible) all.put(id, connection);
+            }
+        }
+        return affectedConnections(task, all);
     }
 
     protected boolean canView(TaskDto task, String type, UserDetail user) {

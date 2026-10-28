@@ -55,8 +55,45 @@ class ConnectionAgentConflictServiceTest {
         service.setTaskService(tasks);
         service.setTaskScheduleService(scheduler);
         service.setInspectService(inspections);
+        service.setDataSourceService(sources);
+        doReturn(true).when(service).canViewConnection(anyString(), eq(user));
+        doReturn(false).when(service).canEditInspection(any(TaskDto.class), eq(user));
         doReturn(true).when(service).canView(any(TaskDto.class), anyString(), eq(user));
         doReturn(true).when(service).canEdit(any(TaskDto.class), eq(user));
+    }
+
+    @Test
+    void predictsAutomaticResolutionWithoutMutatingTaskAndExplainsPermission() {
+        TaskDto task = task("manual", "stop", "agent-a");
+        when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
+        ConnectionAgentConflictReport.Item item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
+        assertTrue(item.isAutoResolvable());
+        assertTrue(item.isCanEdit());
+        assertNull(item.getBlockedReason());
+        assertEquals("agent-a", task.getAccessNodeProcessId());
+        doReturn(false).when(service).canEdit(task, user);
+        item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
+        assertFalse(item.isAutoResolvable());
+        assertEquals("no_edit_permission", item.getBlockedReason());
+    }
+
+    @Test
+    void distinguishesConnectionConflictAndActiveTaskFromAutomaticResolution() {
+        TaskDto task = task("manual", "stop", "agent-a");
+        when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
+        ConnectionAgentConflictReport.Item item = service.findConflicts(
+                Map.of(source.getId().toHexString(), changed(source, "agent-b")), user, 0, 20).getItems().get(0);
+        assertFalse(item.isAutoResolvable());
+        assertEquals("connection_conflict", item.getBlockedReason());
+        assertEquals(2, item.getConnections().size());
+        doReturn(false).when(service).canViewConnection(eq(target.getId().toHexString()), eq(user));
+        item = service.findConflicts(Map.of(source.getId().toHexString(), changed(source, "agent-b")), user, 0, 20).getItems().get(0);
+        assertEquals(1, item.getConnections().size());
+        task.setStatus("running");
+        item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
+        assertFalse(item.isEditable());
+        assertFalse(item.isAutoResolvable());
+        assertEquals("task_active", item.getBlockedReason());
     }
 
     private ConnectionTaskAgentRequest edits(TaskDto task, String agent) {
