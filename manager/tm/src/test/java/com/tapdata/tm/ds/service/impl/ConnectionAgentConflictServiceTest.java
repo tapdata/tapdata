@@ -24,6 +24,11 @@ import com.tapdata.tm.task.service.impl.TaskScheduleServiceImpl;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.MockedStatic;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.task.service.TaskScheduleService;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -107,6 +112,57 @@ class ConnectionAgentConflictServiceTest {
         settings.setAccessNodeProcessId(agent);
         request.setTaskSettings(settings);
         return request;
+    }
+
+    @ParameterizedTest
+    @EnumSource(AccessNodeTypeEnum.class)
+    void roundTripsPolicyThroughRealEntityDtoConversion(AccessNodeTypeEnum mode) {
+        TaskDto original = task("round-trip", "stop", "agent-a");
+        when(tasks.findAll(any(Query.class))).thenReturn(List.of(original));
+        service.setTaskScheduleService(mock(TaskScheduleService.class));
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        service.setMongoTemplate(mongo);
+        when(mongo.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+        ConnectionTaskAgentRequest request = edits(original, "agent-b");
+        request.getTaskSettings().setAccessNodeType(mode.name());
+        request.getTaskSettings().setPriorityProcessId("agent-b");
+        if (mode == AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP) {
+            request.getTaskSettings().setAccessNodeProcessId("group-b");
+        }
+        ConnectionTaskAgentResult result = service.updateTaskAgents(both("agent-b"), request, user);
+        assertTrue(result.getFailures().isEmpty());
+        assertEquals(List.of(original.getId().toHexString()), result.getUpdatedTaskIds());
+        ArgumentCaptor<Update> captured = ArgumentCaptor.forClass(Update.class);
+        verify(mongo).updateFirst(any(Query.class), captured.capture(), eq(TaskEntity.class));
+        org.bson.Document fields = (org.bson.Document) captured.getValue().getUpdateObject().get("$set");
+        TaskEntity stored = new TaskEntity();
+        stored.setId(original.getId());
+        stored.setAccessNodeType((String) fields.get("accessNodeType"));
+        stored.setAccessNodeProcessId((String) fields.get("accessNodeProcessId"));
+        stored.setPriorityProcessId((String) fields.get("priorityProcessId"));
+        stored.setAccessNodeProcessIdList(((List<?>) fields.get("accessNodeProcessIdList"))
+                .stream().map(String.class::cast).collect(java.util.stream.Collectors.toList()));
+        when(tasks.convertToDto(any(TaskEntity.class), eq(TaskDto.class))).thenCallRealMethod();
+        try (MockedStatic<DataPermissionHelper> permissions = mockStatic(DataPermissionHelper.class)) {
+            TaskDto reloaded = tasks.convertToDto(stored, TaskDto.class);
+            assertNotNull(reloaded);
+            assertEquals(mode.name(), reloaded.getAccessNodeType());
+            if (mode == AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER) {
+                assertEquals("agent-b", reloaded.getAccessNodeProcessId());
+                assertEquals(List.of("agent-b"), stored.getAccessNodeProcessIdList());
+                assertEquals(List.of("agent-b"), reloaded.getAccessNodeProcessIdList());
+                assertNull(reloaded.getPriorityProcessId());
+            } else if (mode == AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP) {
+                assertEquals("group-b", reloaded.getAccessNodeProcessId());
+                assertEquals("agent-b", reloaded.getPriorityProcessId());
+                assertTrue(stored.getAccessNodeProcessIdList().isEmpty());
+            } else {
+                assertEquals("", reloaded.getAccessNodeProcessId());
+                assertNull(reloaded.getPriorityProcessId());
+                assertTrue(stored.getAccessNodeProcessIdList().isEmpty());
+            }
+        }
     }
 
     @Test

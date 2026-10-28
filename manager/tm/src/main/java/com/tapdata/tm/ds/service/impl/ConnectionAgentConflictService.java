@@ -129,7 +129,9 @@ public class ConnectionAgentConflictService {
                         .and("accessNodeProcessId").is(task.getAccessNodeProcessId())
                         .and("priorityProcessId").is(task.getPriorityProcessId()));
                 Update update = new Update().set("accessNodeType", policy.type).set("accessNodeProcessId", policy.processId)
-                        .set("priorityProcessId", policy.priority).set("accessNodeProcessIdList", Collections.emptyList())
+                        .set("priorityProcessId", policy.priority)
+                        .set("accessNodeProcessIdList", AccessNodeTypeEnum.isUserManually(policy.type)
+                                ? Collections.singletonList(policy.processId) : Collections.emptyList())
                         .set("lastUpdAt", new Date()).set("lastUpdBy", user.getUserId());
                 if (task.getAttrs() != null) {
                     update.set("attrs." + TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED, false);
