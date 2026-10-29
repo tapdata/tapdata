@@ -1770,6 +1770,46 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 	}
 
 	@Test
+	void unrelatedNewFieldKeepsPhysicalDateTimeWhileAlterInvalidatesOnlyChangedField() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+		Node<?> node = new DatabaseNode();
+		node.setId("test");
+		node.setName("test");
+		doReturn(node).when(context).getNode();
+
+		HazelcastTargetPdkDataNode target = new HazelcastTargetPdkDataNode(context);
+		target.uploadDagService = new AtomicBoolean();
+		ClassHandlers handlers = mock(ClassHandlers.class);
+		when(handlers.handle(any())).thenReturn(true);
+		ReflectionTestUtils.setField(target, "ddlEventHandlers", handlers);
+		ReflectionTestUtils.setField(target, "obsLogger", mock(ObsLogger.class));
+		Map<String, Map<String, TapField>> discovered = new ConcurrentHashMap<>();
+		Map<String, TapField> physical = new LinkedHashMap<>();
+		physical.put("event_time", new TapField("event_time", "datetime").scale(3));
+		discovered.put("test", physical);
+		ReflectionTestUtils.setField(target, "discoveredTargetFieldMaps", discovered);
+		Map<String, TapField> logical = new LinkedHashMap<>();
+		logical.put("event_time", new TapField("event_time", "datetime2").scale(7));
+		logical.put("note", new TapField("note", "varchar(64)"));
+
+		TapNewFieldEvent addNote = new TapNewFieldEvent().field(new TapField("note", "varchar(64)"));
+		addNote.setTableId("test");
+		target.writeDDL(Collections.singletonList(addNote));
+		assertSame(physical.get("event_time"),
+				target.targetFieldMapForFromTapValue("test", logical).get("event_time"));
+
+		TapAlterFieldAttributesEvent alterTime = new TapAlterFieldAttributesEvent();
+		alterTime.setTableId("test");
+		alterTime.setFieldName("event_time");
+		target.writeDDL(Collections.singletonList(alterTime));
+		assertSame(logical, target.targetFieldMapForFromTapValue("test", logical));
+	}
+
+	@Test
 	@DisplayName("Skip physical table creation when create table event only updates models")
 	void testSkipCreateTableForModelUpdate() {
 		TapCreateTableEvent createTableEvent = new TapCreateTableEvent();

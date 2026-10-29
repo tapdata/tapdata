@@ -87,7 +87,10 @@ public class TapCodecUtil {
 							: connectorCodecs.getCustomFromTapValueCodec(TapDateTimeValue.class);
 					Object connectorValue = connectorCodec == null ? null : connectorCodec.fromTapValue(dateTimeValue);
 					if (connectorCodec != null && !(connectorValue instanceof LocalDateTime)
-							&& !(connectorValue instanceof Timestamp)) return;
+							&& !(connectorValue instanceof Timestamp)) {
+						values.put(fieldName, connectorValue);
+						return;
+					}
 					values.put(fieldName, fromTapDateTimeValue(dateTimeValue, targetField, connectorValue));
 				}
 			}

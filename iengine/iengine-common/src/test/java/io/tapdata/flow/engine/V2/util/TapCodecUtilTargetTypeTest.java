@@ -18,6 +18,7 @@ import java.util.TimeZone;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -26,10 +27,13 @@ class TapCodecUtilTargetTypeTest {
     @Test
     void stringCodecRetainsDaylightSavingTimeConversion() {
         TapCodecsRegistry registry = TapCodecsRegistry.create();
-        registry.registerFromTapValue(TapDateTimeValue.class, value ->
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS")
+        AtomicInteger calls = new AtomicInteger();
+        registry.registerFromTapValue(TapDateTimeValue.class, value -> {
+                calls.incrementAndGet();
+                return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS")
                         .withZone(ZoneId.of("America/New_York"))
-                        .format(value.getValue().toInstant()));
+                        .format(value.getValue().toInstant());
+        });
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("EVENT_TIME", new TapDateTimeValue(new DateTime(
                 Instant.parse("2026-07-01T12:00:00.123456Z"))));
@@ -42,6 +46,16 @@ class TapCodecUtilTargetTypeTest {
         TapCodecsFilterManager.create(registry).transformFromTapValueMap(values, logical, physical);
 
         assertEquals("2026-07-01 08:00:00.123456", values.get("EVENT_TIME"));
+        assertEquals(1, calls.get());
+
+        Map<String, Object> cdcValues = new LinkedHashMap<>();
+        cdcValues.put("EVENT_TIME", new TapDateTimeValue(new DateTime(
+                Instant.parse("2026-07-01T12:00:00.123456Z"))));
+        TapCodecUtil.convertForPhysicalTarget(cdcValues, logical, physical, registry);
+        new TapCodecsFilterManagerSchemaEnforced(registry)
+                .transformFromTapValueMap(cdcValues, logical, physical, Collections.emptySet());
+        assertEquals("2026-07-01 08:00:00.123456", cdcValues.get("EVENT_TIME"));
+        assertEquals(2, calls.get());
     }
 
     @Test

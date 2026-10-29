@@ -242,6 +242,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (StringUtils.isNotBlank(tableId)) discoveredTargetFieldMaps.remove(tableId);
 	}
 
+	protected void invalidateDiscoveredTargetField(String tableId, String fieldName) {
+		if (StringUtils.isBlank(tableId) || StringUtils.isBlank(fieldName)) return;
+		discoveredTargetFieldMaps.computeIfPresent(tableId, (id, fields) -> {
+			Map<String, TapField> retained = new LinkedHashMap<>(fields);
+			retained.remove(fieldName);
+			return retained.isEmpty() ? null : retained;
+		});
+	}
+
 	/**
 	 * Discover sink physical schema separately from the task's logical model. The logical
 	 * TapTableMap remains unchanged, while value codecs can use existing target column types.
