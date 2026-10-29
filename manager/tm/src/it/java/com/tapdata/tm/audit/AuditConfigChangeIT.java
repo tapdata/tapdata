@@ -78,4 +78,23 @@ class AuditConfigChangeIT {
 		assertThat(fixture.only(AuditAction.TASK_UPDATE).getDetailLevel()).isEqualTo("BASIC");
 		assertThat(fixture.only(AuditAction.TASK_UPDATE).getChanges()).isNull();
 	}
+
+	@Test
+	@DisplayName("修复前写入的变更没有 label，读取时按设置 key 回查 key_label（历史记录同样显示可读名称）")
+	void should_fill_missing_labels_when_reading() throws Exception {
+		fixture.put("Settings", new Document("_id", "h1").append("category", "SMTP").append("key", "smtp.server.host")
+				.append("key_label", "SMTP Server Host").append("value", "mail.a.com"));
+		com.tapdata.tm.userLog.entity.UserLogs doc = new com.tapdata.tm.userLog.entity.UserLogs();
+		doc.setSchemaVersion(2);
+		doc.setEventId("evt-hist");
+		doc.setAction("settings.update");
+		doc.setChanges(java.util.List.of(new AuditChange("SMTP.smtp.server.host", "a", "b", null)));
+		com.tapdata.tm.audit.query.AuditQueryService service = new com.tapdata.tm.audit.query.AuditQueryService(fixture.mongoTemplate,
+				org.mockito.Mockito.mock(com.tapdata.tm.userLog.service.UserLogServiceImpl.class));
+		java.lang.reflect.Method toVo = com.tapdata.tm.audit.query.AuditQueryService.class.getDeclaredMethod("toVo",
+				com.tapdata.tm.userLog.entity.UserLogs.class, java.util.Locale.class);
+		toVo.setAccessible(true);
+		com.tapdata.tm.audit.query.AuditEventVo vo = (com.tapdata.tm.audit.query.AuditEventVo) toVo.invoke(service, doc, java.util.Locale.SIMPLIFIED_CHINESE);
+		assertThat(vo.getChanges().get(0).getLabel()).isEqualTo("SMTP Server Host");
+	}
 }

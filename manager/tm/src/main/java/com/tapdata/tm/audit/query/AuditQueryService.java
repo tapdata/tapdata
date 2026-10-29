@@ -2,6 +2,7 @@ package com.tapdata.tm.audit.query;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditChange;
 import com.tapdata.tm.audit.AuditValues;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -206,6 +207,7 @@ public class AuditQueryService {
 			return vo;
 		}
 		BeanUtil.copyProperties(e, vo);
+		fillMissingChangeLabels(e, vo);
 		AuditAction action = AuditAction.ofKey(e.getAction());
 		vo.setActionName(action == null ? e.getAction()
 				: StringUtils.defaultIfBlank(MessageUtil.getBundleMessageOrNull(locale, "auditMessages", action.messageKey()), e.getAction()));
@@ -223,6 +225,39 @@ public class AuditQueryService {
 		fields.put("sourceName", e.getParameter1());
 		fields.put("sourceId", e.getSourceId() == null ? null : e.getSourceId().toHexString());
 		return fields;
+	}
+
+	/** 修复前记录的变更没有 label，读取时按「分类.键」回查设置项 key_label，历史记录同样显示可读名称。 */
+	void fillMissingChangeLabels(UserLogs e, AuditEventVo vo) {
+		List<AuditChange> changes = vo.getChanges();
+		if (changes == null || changes.isEmpty()) {
+			return;
+		}
+		boolean missing = changes.stream().anyMatch(c -> StringUtils.isBlank(c.getLabel()) && c.getField() != null && c.getField().contains("."));
+		if (!missing) {
+			return;
+		}
+		List<String> keys = changes.stream().filter(c -> StringUtils.isBlank(c.getLabel()) && c.getField() != null)
+				.map(c -> c.getField().substring(c.getField().indexOf('.') + 1)).filter(StringUtils::isNotBlank).distinct().toList();
+		if (keys.isEmpty()) {
+			return;
+		}
+		Map<String, String> labels = new LinkedHashMap<>();
+		try {
+			for (Document doc : mongoTemplate.find(Query.query(Criteria.where("key").in(keys)), Document.class, "Settings")) {
+				String label = doc.getString("key_label");
+				if (StringUtils.isNotBlank(label)) {
+					labels.putIfAbsent(doc.getString("key"), label);
+				}
+			}
+		} catch (Exception ex) {
+			return;
+		}
+		changes.forEach(c -> {
+			if (StringUtils.isBlank(c.getLabel()) && c.getField() != null && c.getField().contains(".")) {
+				c.setLabel(labels.get(c.getField().substring(c.getField().indexOf('.') + 1)));
+			}
+		});
 	}
 
 	static String keyOf(UserLogs e) {
