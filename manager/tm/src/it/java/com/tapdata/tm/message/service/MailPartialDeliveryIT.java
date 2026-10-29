@@ -224,7 +224,12 @@ class MailPartialDeliveryIT {
                         }
                         write(out, "250 OK");
                     } else if (upper.startsWith("RCPT TO")) {
-                        String address = line.substring(line.indexOf(':') + 1).trim().replaceAll("[<>]", "");
+                        int colonIdx = line.indexOf(':');
+                        if (colonIdx < 0) {
+                            write(out, "500 Unrecognized");
+                            continue;
+                        }
+                        String address = line.substring(colonIdx + 1).trim().replaceAll("[<>]", "");
                         if (REJECTED_ADDRESS.equals(address)) {
                             write(out, "550 5.1.0 Address rejected.");
                         } else {

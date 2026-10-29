@@ -679,6 +679,9 @@ class MailUtilsTest {
             assertEquals("true", sendStatus.getStatus());
             assertTrue(sendStatus.getErrorMessage().contains("bad@tapdata.io"));
             assertTrue(sendStatus.getErrorMessage().contains("ok@tapdata.io"));
+            // 部分送达走告警路径而非错误路径：运维需要能从日志区分这两种情况
+            verify(log).warn(contains("partial sent"), eq("邮件发送异常"), any(), any());
+            verify(log, never()).error(eq("邮件发送异常"), any(Throwable.class));
         }
     }
 

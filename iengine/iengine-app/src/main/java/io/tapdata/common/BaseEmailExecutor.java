@@ -150,6 +150,13 @@ public class BaseEmailExecutor {
 		return true;
 	}
 
+	/**
+	 * 在异常链中查找 {@link SendFailedException}。
+	 *
+	 * <p>manager/tm-api 的 MailUtils 中有一份等价实现：这两个模块（manager/tm-api 与
+	 * iengine/iengine-app）互不依赖，也没有共同的下层工具模块，无法共享同一份代码。
+	 * 修改时需同步两处，避免行为分叉。
+	 */
 	private static SendFailedException findSendFailedException(Throwable error) {
 		Throwable current = error;
 		while (current != null) {
@@ -167,9 +174,18 @@ public class BaseEmailExecutor {
 		return validSent != null && validSent.length > 0;
 	}
 
+	/**
+	 * 生成部分送达的失败说明，区分「被服务端拒绝」与「尚未投递」两类地址，
+	 * 便于运维判断是该清理收件人还是检查 SMTP 限流。
+	 */
 	protected String partialSentMessage(SendFailedException failure) {
-		return "Partial delivery, failed addresses: " + describe(failure.getInvalidAddresses())
-				+ describe(failure.getValidUnsentAddresses());
+		StringBuilder message = new StringBuilder("Partial delivery, rejected addresses: ")
+				.append(describe(failure.getInvalidAddresses()));
+		Address[] unsent = failure.getValidUnsentAddresses();
+		if (unsent != null && unsent.length > 0) {
+			message.append("; not yet delivered: ").append(describe(unsent));
+		}
+		return message.toString();
 	}
 
 	private String describe(Address[] addresses) {

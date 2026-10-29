@@ -586,6 +586,13 @@ public class MailUtils {
         return failed;
     }
 
+    /**
+     * 在异常链中查找 {@link SendFailedException}。
+     *
+     * <p>iengine 的 BaseEmailExecutor 中有一份等价实现：这两个模块（manager/tm-api 与
+     * iengine/iengine-app）互不依赖，也没有共同的下层工具模块，无法共享同一份代码。
+     * 修改时需同步两处，避免行为分叉。
+     */
     @Nullable
     private static SendFailedException findSendFailedException(Throwable error) {
         Throwable current = error;
@@ -749,10 +756,11 @@ public class MailUtils {
             Set<String> validSentAddresses = extractValidSentAddresses(e);
             if (!validSentAddresses.isEmpty()) {
                 // 部分地址被拒但邮件已投递给其余收件人：记为成功，避免失败重试造成重复通知
+                Set<String> failedAddresses = extractFailedAddresses(e);
                 log.warn("{} partial sent, delivered to {}, failed addresses: {}",
-                        errorMessage, validSentAddresses, extractFailedAddresses(e));
+                        errorMessage, validSentAddresses, failedAddresses);
                 sendStatus.setStatus("true");
-                sendStatus.setErrorMessage(buildPartialFailureMessage(validSentAddresses, extractFailedAddresses(e)));
+                sendStatus.setErrorMessage(buildPartialFailureMessage(validSentAddresses, failedAddresses));
             } else {
                 log.error(errorMessage, e);
                 sendStatus.setErrorMessage(e.getMessage());
