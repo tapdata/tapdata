@@ -201,10 +201,13 @@ class ModuleAccessIT {
         }
         assertThat(perms).containsKeys(DataPermissionEnumsName.V2_AUDIT_LOG, "v2_audit_log_list", DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT);
         assertParent(perms, DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT, DataPermissionEnumsName.V2_AUDIT_LOG);
+        // 角色页以页面节点开启访问，模块节点必须同时是页面（F-01：否则被授予页面的用户接口 401）
+        assertThat(perms.get(DataPermissionEnumsName.V2_AUDIT_LOG).get("resources").get(0).get("type").asText()).isEqualTo("page");
+        assertPage(perms, DataPermissionEnumsName.V2_AUDIT_LOG, "/operation-audit");
         assertThat(perms.get(DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT).get("resources").get(0).get("type").asText()).isEqualTo("button");
         assertThat(perms.get(DataPermissionEnumsName.V2_AUDIT_LOG).get("description").asText()).isEqualTo("审计日志");
         assertPage(perms, "v2_audit_log_list", "/operation-audit");
-        assertThat(granted).containsExactly(DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT);
+        assertThat(granted).containsExactlyInAnyOrder(DataPermissionEnumsName.V2_AUDIT_LOG_LIST, DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT);
         assertThat(retention).isNotNull();
         assertThat(retention.get("$set").get("key").asText()).isEqualTo("audit.log.retention.days");
         assertThat(retention.get("$setOnInsert").get("value").asInt()).isEqualTo(90);

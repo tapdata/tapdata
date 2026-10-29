@@ -43,4 +43,6 @@ public class AuditEventVo {
 	private Map<String, String> context;
 	/** 历史记录的原自然语言描述。 */
 	private String legacyMessage;
+	/** 历史记录用于还原原描述的字段（modular、operation、parameter1~3 等）。 */
+	private Map<String, String> legacyFields;
 }

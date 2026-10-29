@@ -190,6 +190,11 @@ public class AuditAspect {
 		}
 		AuditEvent event = AuditEvent.of(action, outcome);
 		event.setBatch(batch);
+		if (batch.getTotal() == 1) {
+			// 只操作一个对象（例如前端单行操作也走批量接口）时补齐顶层对象，列表与详情据此识别对象
+			AuditBatchItem only = batch.getItems().get(0);
+			event.object(only.getObjectId(), only.getObjectName());
+		}
 		return event;
 	}
 

@@ -202,6 +202,7 @@ public class AuditQueryService {
 			vo.setObjectName(e.getParameter1());
 			UserLogDto dto = BeanUtil.copyProperties(e, UserLogDto.class);
 			vo.setLegacyMessage(userLogService.renderLegacyMessage(dto, locale));
+			vo.setLegacyFields(legacyFields(e));
 			return vo;
 		}
 		BeanUtil.copyProperties(e, vo);
@@ -209,6 +210,19 @@ public class AuditQueryService {
 		vo.setActionName(action == null ? e.getAction()
 				: StringUtils.defaultIfBlank(MessageUtil.getBundleMessageOrNull(locale, "auditMessages", action.messageKey()), e.getAction()));
 		return vo;
+	}
+
+	/** 历史记录字段，供页面按原渲染组件还原描述（含占位符替换）。 */
+	static Map<String, String> legacyFields(UserLogs e) {
+		Map<String, String> fields = new LinkedHashMap<>();
+		fields.put("modular", e.getModular());
+		fields.put("operation", e.getOperation());
+		fields.put("parameter1", e.getParameter1());
+		fields.put("parameter2", e.getParameter2());
+		fields.put("parameter3", e.getParameter3());
+		fields.put("sourceName", e.getParameter1());
+		fields.put("sourceId", e.getSourceId() == null ? null : e.getSourceId().toHexString());
+		return fields;
 	}
 
 	static String keyOf(UserLogs e) {

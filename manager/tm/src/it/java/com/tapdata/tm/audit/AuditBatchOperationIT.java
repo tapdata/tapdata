@@ -42,6 +42,16 @@ class AuditBatchOperationIT {
 			assertThat(fixture.registry.peek("task", a)).isNotNull();
 			assertThat(fixture.registry.peek("task", b)).isNull();
 
+			// 只操作一个对象时补齐顶层对象字段（F-02：前端单行操作也走批量接口）
+			String single = AuditItFixture.oid();
+			fixture.put("Task", new org.bson.Document("_id", new org.bson.types.ObjectId(single)).append("name", "orders-sync"));
+			controller.batchStart(java.util.List.of(single), java.util.List.of());
+			UserLogs one = fixture.events(AuditAction.TASK_START).stream()
+					.filter(e -> single.equals(e.getObjectId())).findFirst().orElseThrow();
+			assertThat(one.getObjectId()).isEqualTo(single);
+			assertThat(one.getObjectName()).isEqualTo("orders-sync");
+			assertThat(one.getBatch().getTotal()).isEqualTo(1);
+
 			UserLogs delete = fixture.only(AuditAction.TASK_DELETE);
 			assertThat(delete.getOutcome()).isEqualTo("FAILED");
 			assertThat(delete.getBatch().getFailed()).isEqualTo(2);

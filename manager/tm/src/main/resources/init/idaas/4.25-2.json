@@ -47,9 +47,9 @@
             "order": 4,
             "resources": [
               {
-                "type": "button",
+                "type": "page",
                 "code": "v2_audit_log",
-                "path": ""
+                "path": "/operation-audit"
               }
             ],
             "status": "enable",
@@ -113,6 +113,26 @@
   {
     "update": "RoleMapping",
     "updates": [
+      {
+        "q": {
+          "principalId": "v2_audit_log_list",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_audit_log_list",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
       {
         "q": {
           "principalId": "v2_audit_log_export",

@@ -60,7 +60,7 @@ public class SettingsChangeAudit {
 			if (item == retention || isMasked(item)) {
 				continue;
 			}
-			AuditChange change = AuditRedactor.change(item.getCategory() + "." + item.getKey(), before.get(key(item)), item.getValue());
+			AuditChange change = AuditRedactor.change(fieldName(item), before.get(key(item)), item.getValue());
 			if (change != null) {
 				changes.add(change);
 			}
@@ -114,6 +114,11 @@ public class SettingsChangeAudit {
 		} catch (RuntimeException ignore) {
 			// 保持原错误；启动对齐会再次以设置值为准
 		}
+	}
+
+	/** 变更字段名保持“分类.键”，前端按设置项标签翻译展示。 */
+	static String fieldName(SettingsDto dto) {
+		return dto.getCategory() + "." + dto.getKey();
 	}
 
 	private static String key(SettingsDto dto) {
