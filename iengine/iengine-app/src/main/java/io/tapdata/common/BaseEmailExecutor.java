@@ -139,39 +139,37 @@ public class BaseEmailExecutor {
 	 * @return 部分送达返回 true，调用方应直接返回该事件；否则返回 false 交调用方按失败处理
 	 */
 	protected boolean completeAsPartialSent(Event event, Exception e, Logger logger) {
-		if (!isPartiallySent(e)) {
+		SendFailedException failure = findSendFailedException(e);
+		if (failure == null || !hasDeliveredRecipient(failure)) {
 			return false;
 		}
-		logger.warn("{} partial sent: {}", TapLog.ERROR_0001.getMsg(), partialSentMessage(e));
+		logger.warn("{} partial sent: {}", TapLog.ERROR_0001.getMsg(), partialSentMessage(failure));
 		event.setConsume_ts(System.currentTimeMillis());
 		event.setEvent_status(Event.EVENT_STATUS_SUCCESSED);
 		logger.info(TapLog.JOB_LOG_0005.getMsg(), event.getName(), event.getEvent_status());
 		return true;
 	}
 
-	private boolean isPartiallySent(Throwable error) {
+	private static SendFailedException findSendFailedException(Throwable error) {
 		Throwable current = error;
 		while (current != null) {
 			if (current instanceof SendFailedException) {
-				Address[] validSent = ((SendFailedException) current).getValidSentAddresses();
-				return validSent != null && validSent.length > 0;
+				return (SendFailedException) current;
 			}
 			current = current.getCause();
 		}
-		return false;
+		return null;
 	}
 
-	protected String partialSentMessage(Throwable error) {
-		Throwable current = error;
-		while (current != null) {
-			if (current instanceof SendFailedException) {
-				SendFailedException failure = (SendFailedException) current;
-				return "Partial delivery, failed addresses: " + describe(failure.getInvalidAddresses())
-						+ describe(failure.getValidUnsentAddresses());
-			}
-			current = current.getCause();
-		}
-		return "Partial delivery";
+	/** 是否至少有一个收件地址已实际投递；仅全部被拒时才应按失败处理。 */
+	private static boolean hasDeliveredRecipient(SendFailedException failure) {
+		Address[] validSent = failure.getValidSentAddresses();
+		return validSent != null && validSent.length > 0;
+	}
+
+	protected String partialSentMessage(SendFailedException failure) {
+		return "Partial delivery, failed addresses: " + describe(failure.getInvalidAddresses())
+				+ describe(failure.getValidUnsentAddresses());
 	}
 
 	private String describe(Address[] addresses) {
