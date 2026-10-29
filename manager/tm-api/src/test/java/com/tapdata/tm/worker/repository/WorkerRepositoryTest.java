@@ -19,7 +19,6 @@ import com.mongodb.client.result.UpdateResult;
 
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -58,7 +57,6 @@ class WorkerRepositoryTest {
             assertDoesNotThrow(() -> repository.upsert(new Query(), worker, userDetail));
 
             verify(mongoTemplate, times(2)).upsert(any(Query.class), any(Update.class), eq(Worker.class));
-            assertFalse(worker.getDelete());
         }
     }
 }

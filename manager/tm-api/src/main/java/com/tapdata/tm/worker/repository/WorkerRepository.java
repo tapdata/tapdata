@@ -44,8 +44,5 @@ public class WorkerRepository extends BaseRepository<Worker, ObjectId> {
         if (entity.getPingTime() == null || entity.getPingTime() == 0) {
             entity.setPingTime(new Date().getTime());
         }
-        if ("api-server".equals(entity.getWorkerType()) && entity.getDelete() == null) {
-            entity.setDelete(false);
-        }
     }
 }
