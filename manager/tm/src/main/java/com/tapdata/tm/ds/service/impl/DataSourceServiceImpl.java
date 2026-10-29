@@ -1407,7 +1407,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         connection.setDefinitionPdkId(definitionDto.getPdkId());
         connection.setDefinitionTags(definitionDto.getTags());
         connection.setCapabilities(definitionDto.getCapabilities());
-
         //检查是否存在名称相同的数据源连接，存在的话，则不允许。（导入场景跳过，用 _id 保证唯一性）
         if (!skipRepeatNameCheck) {
             checkRepeatName(user, connection.getName(), connection.getId());
@@ -1707,7 +1706,6 @@ public class DataSourceServiceImpl extends DataSourceService{
 
             Criteria criteria = Criteria.where("_id").is(new ObjectId((String) where.get("_id")));
             DataSourceConnectionDto oldConnectionDto = findOne(new Query(criteria));
-
             user = userService.loadUserById(MongoUtils.toObjectId(oldConnectionDto.getUserId()));
 
             DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(oldConnectionDto.getDatabase_type(), user);

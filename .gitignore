@@ -145,3 +145,5 @@ run-resources
 **/.proxy-instance-id
 
 /apiserver-jars/
+
+/docs/proxy-process/

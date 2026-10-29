@@ -12,6 +12,8 @@ import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.proxy.service.impl.RemoteCaller;
 import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
+import com.tapdata.tm.proxyprocess.dto.AgentProcessQueryDto;
+import com.tapdata.tm.proxyprocess.service.AgentProcessService;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -77,6 +79,8 @@ public class ProxyController extends BaseController {
     private WorkerService workerService;
 	@Autowired
 	RemoteCaller remoteCaller;
+	@Autowired
+	private AgentProcessService agentProcessService;
 
 	private static final int wsPort = 8246;
 
@@ -286,10 +290,13 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @PostMapping("command")
-    public void command(@RequestBody CommandInfo commandInfo, HttpServletRequest request, HttpServletResponse response) {
+    public ResponseMessage<?> command(@RequestBody CommandInfo commandInfo, HttpServletRequest request, HttpServletResponse response) {
         if(commandInfo == null)
             throw new BizException("commandInfo is illegal");
         UserDetail userDetail = getLoginUser();
+        if (isAgentProcessListCommand(commandInfo)) {
+            return success(agentProcessService.list(toAgentProcessQuery(commandInfo)));
+        }
 
         Locale locale = WebUtils.getLocale(request);
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
@@ -319,6 +326,48 @@ public class ProxyController extends BaseController {
 //            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
 //            eventQueueService.offer(message);
 //        }
+		return null;
+	}
+
+	private boolean isAgentProcessListCommand(CommandInfo commandInfo) {
+		return StringUtils.equals("agent-process", commandInfo.getType())
+				&& StringUtils.equals("list", commandInfo.getCommand());
+	}
+
+	private AgentProcessQueryDto toAgentProcessQuery(CommandInfo commandInfo) {
+		Map<String, Object> argMap = commandInfo.getArgMap();
+		AgentProcessQueryDto query = new AgentProcessQueryDto();
+		if (argMap == null) {
+			query.setPageSize(1000);
+			return query;
+		}
+		query.setAgentType(stringValue(argMap.get("agentType")));
+		query.setProxyProcessId(stringValue(argMap.get("proxyProcessId")));
+		query.setStatus(stringValue(argMap.get("status")));
+		query.setSortBy(stringValue(argMap.get("sortBy")));
+		query.setSortOrder(stringValue(argMap.get("sortOrder")));
+		Integer page = integerValue(argMap.get("page"));
+		Integer pageSize = integerValue(argMap.get("pageSize"));
+		if (pageSize == null) {
+			pageSize = integerValue(argMap.get("size"));
+		}
+		query.setPage(page == null ? 1 : page);
+		query.setPageSize(pageSize == null ? 1000 : pageSize);
+		return query;
+	}
+
+	private String stringValue(Object value) {
+		return value == null ? null : String.valueOf(value);
+	}
+
+	private Integer integerValue(Object value) {
+		if (value == null) {
+			return null;
+		}
+		if (value instanceof Number) {
+			return ((Number) value).intValue();
+		}
+		return Integer.valueOf(String.valueOf(value));
 	}
 
     @Operation(summary = "External callback url")
