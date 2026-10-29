@@ -4,12 +4,14 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
 import org.apache.commons.lang3.StringUtils;
+import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +37,7 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
@@ -608,5 +611,78 @@ class MailUtilsTest {
                 mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
             }
         }
+
+        @Test
+        @DisplayName("partial delivery keeps result successful and reports delivered and failed addresses")
+        void testPartialDelivery() throws Exception {
+            Logger log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            try (MockedStatic<Transport> mb = Mockito.mockStatic(Transport.class)) {
+                when(parms.getProtocol()).thenReturn("SSL");
+                SendFailedException failure = sendFailedException(
+                        new Address[]{new InternetAddress("ok@tapdata.io")},
+                        new Address[]{new InternetAddress("bad@tapdata.io")});
+                mb.when(() -> Transport.send(any(MimeMessage.class))).thenThrow(failure);
+
+                TestResponseDto response = MailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+
+                assertTrue(response.isResult(), "partial delivery must not be reported as a total failure");
+                assertEquals(Collections.singleton("ok@tapdata.io"), response.getValidSentAddresses());
+                assertEquals(Collections.singleton("bad@tapdata.io"), response.getFailedAddresses());
+                verify(log, never()).error(anyString(), any(Object.class), any(Throwable.class));
+            }
+        }
+
+        @Test
+        @DisplayName("all recipients rejected keeps result failed and reports failed addresses")
+        void testAllRejected() throws Exception {
+            Logger log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            try (MockedStatic<Transport> mb = Mockito.mockStatic(Transport.class)) {
+                when(parms.getProtocol()).thenReturn("SSL");
+                SendFailedException failure = sendFailedException(
+                        null, new Address[]{new InternetAddress("bad@tapdata.io")});
+                mb.when(() -> Transport.send(any(MimeMessage.class))).thenThrow(failure);
+
+                TestResponseDto response = MailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+
+                assertFalse(response.isResult());
+                assertTrue(response.getValidSentAddresses().isEmpty());
+                assertEquals(Collections.singleton("bad@tapdata.io"), response.getFailedAddresses());
+            }
+        }
+
+        @Test
+        @DisplayName("sendEmail records success with failed addresses when delivery is partial")
+        void testSendEmailPartialKeepsSuccess() throws Exception {
+            Logger log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            Transport transport = mock(Transport.class);
+            MimeMessage mimeMessage = mock(MimeMessage.class);
+            MailUtils spyUtils = spy(mailUtils);
+            // 跳过真实的 SMTP 配置读取，只验证部分送达时的状态判定
+            doReturn(mimeMessage).when(spyUtils).message(any(Session.class), anyList(), anyString(), anyString());
+            when(mimeMessage.getAllRecipients()).thenReturn(new Address[]{
+                    new InternetAddress("ok@tapdata.io"), new InternetAddress("bad@tapdata.io")});
+            doReturn(transport).when(spyUtils).connectSMTP(any(Session.class));
+            doNothing().when(spyUtils).closeTransport(any(Transport.class));
+            SendFailedException failure = sendFailedException(
+                    new Address[]{new InternetAddress("ok@tapdata.io")},
+                    new Address[]{new InternetAddress("bad@tapdata.io")});
+            doThrow(failure).when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+
+            SendStatus sendStatus = new SendStatus("false", "");
+            spyUtils.sendEmail(Jsoup.parse("<html><body>hi</body></html>"), sendStatus,
+                    new ArrayList<>(List.of("ok@tapdata.io", "bad@tapdata.io")), "subject", "邮件发送异常");
+
+            // 部分送达必须记为成功，否则失败重试会让正常收件人重复收到通知
+            assertEquals("true", sendStatus.getStatus());
+            assertTrue(sendStatus.getErrorMessage().contains("bad@tapdata.io"));
+            assertTrue(sendStatus.getErrorMessage().contains("ok@tapdata.io"));
+        }
+    }
+
+    private static SendFailedException sendFailedException(Address[] validSent, Address[] invalid) {
+        return new SendFailedException("Invalid Addresses", null, validSent, null, invalid);
     }
 }
