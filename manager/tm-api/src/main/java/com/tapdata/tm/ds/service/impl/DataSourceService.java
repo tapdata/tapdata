@@ -50,6 +50,9 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast);
 
+    public abstract com.tapdata.tm.ds.dto.ConnectionTaskAgentResult updateConflictTaskAgents(
+            com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request, UserDetail user);
+
     public abstract ConnectionAgentConflictReport checkConnectionAgentSettings(ConnectionAgentCheckRequest request, UserDetail user);
 
     public abstract BatchUpdateAgentSettingsResponse batchUpdateAgentSettings(

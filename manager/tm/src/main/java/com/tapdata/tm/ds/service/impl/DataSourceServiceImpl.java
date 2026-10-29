@@ -417,6 +417,13 @@ public class DataSourceServiceImpl extends DataSourceService{
         return connectionAgentConflictService.findConflicts(change.overrides, user, request.getSkip(), request.getLimit());
     }
 
+    @Override
+    public com.tapdata.tm.ds.dto.ConnectionTaskAgentResult updateConflictTaskAgents(
+            com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request, UserDetail user) {
+        PreparedAgentChange change = prepareAgentChange(request, user);
+        return connectionAgentConflictService.updateTaskAgents(change.overrides, request, user);
+    }
+
     private PreparedAgentChange prepareAgentChange(BatchUpdateAgentSettingsRequest request, UserDetail userDetail) {
         if (request == null || request.getSettings() == null || CollectionUtils.isEmpty(request.getConnectionIds())) {
             throw new BizException("IllegalArgument", "connectionIds and settings are required");
