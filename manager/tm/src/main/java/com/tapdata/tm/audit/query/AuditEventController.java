@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.ZoneId;
@@ -112,7 +111,7 @@ public class AuditEventController extends BaseController {
 			}
 			String name = "audit-logs-" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()) + ".csv";
 			response.setContentType("text/csv;charset=UTF-8");
-			response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + URLEncoder.encode(name, StandardCharsets.UTF_8));
+			response.setHeader("Content-Disposition", "attachment; filename=\"" + name + "\"");
 			Locale locale = MessageUtil.getLocale();
 			Writer writer = new OutputStreamWriter(response.getOutputStream(), StandardCharsets.UTF_8);
 			AuditCsvWriter csv = new AuditCsvWriter(writer, zone(timeZone), locale);
