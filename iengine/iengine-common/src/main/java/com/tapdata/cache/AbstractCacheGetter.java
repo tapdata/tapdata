@@ -29,6 +29,13 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 
 	private final ICacheStore cacheStore;
 
+	/**
+	 * 正在进行的回源查询数，getter 被淘汰后用于判断何时可以关闭回源连接器；与 dataSourceReleased 均由 this 监视器保护
+	 */
+	private int dataSourceLookups;
+
+	private boolean dataSourceReleased;
+
 	public AbstractCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats, ClientMongoOperator clientMongoOperator) {
 		this.cacheConfig = cacheConfig;
 		this.cacheStats = cacheStats;
@@ -63,7 +70,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
 		Map<String, Object> record = getRecord(cacheName, cacheKeys);
 		if (record == null && lookup) {
-			List<Map<String, Object>> rows = projectFields(getDataSourceRowsGetter().getRows(cacheKeys));
+			List<Map<String, Object>> rows = projectFields(getSourceRows(cacheKeys));
 			if (CollectionUtils.isNotEmpty(rows)) {
 				String key = CacheUtil.cacheKey(cacheKeys);
 				cacheStore.cacheRow(cacheName, key, rows);
@@ -80,8 +87,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
 		List<Map<String, Object>> recordList = getRecordList(cacheName, cacheKeys);
 		if (CollectionUtils.isEmpty(recordList) && lookup) {
-			IDataSourceRowsGetter iDataSourceRowsGetter = getDataSourceRowsGetter();
-			List<Map<String, Object>> rows = projectFields(iDataSourceRowsGetter.getRows(cacheKeys));
+			List<Map<String, Object>> rows = projectFields(getSourceRows(cacheKeys));
 			if (CollectionUtils.isNotEmpty(rows)) {
 				recordList = new ArrayList<>(rows.size());
 				for (Map<String, Object> row : rows) {
@@ -111,8 +117,29 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	}
 
 
+	/**
+	 * 回源查询；getter 被淘汰后由最后一个结束的在途查询关闭回源连接器。
+	 * 取连接器与计数在同一监视器内完成，释放判断也在该监视器内，不会关闭一个已被取走、正在使用的连接器
+	 */
+	protected List<Map<String, Object>> getSourceRows(Object[] cacheKeys) {
+		IDataSourceRowsGetter rowsGetter;
+		synchronized (this) {
+			rowsGetter = getDataSourceRowsGetter();
+			dataSourceLookups++;
+		}
+		try {
+			return rowsGetter.getRows(cacheKeys);
+		} finally {
+			synchronized (this) {
+				if (--dataSourceLookups == 0 && dataSourceReleased) {
+					closeDataSourceRowsGetter();
+				}
+			}
+		}
+	}
+
 	@Override
-	public IDataSourceRowsGetter getDataSourceRowsGetter() {
+	public synchronized IDataSourceRowsGetter getDataSourceRowsGetter() {
 		if (dataSourceRowsGetter == null) {
 			Connections sourceConnection = getSourceConnection(cacheConfig);
 			try {
@@ -145,9 +172,26 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	}
 
 	@Override
-	public void close() {
-		if (dataSourceRowsGetter != null) {
-			dataSourceRowsGetter.close();
+	public synchronized void releaseDataSource() {
+		dataSourceReleased = true;
+		if (dataSourceLookups == 0) {
+			closeDataSourceRowsGetter();
 		}
+	}
+
+	protected synchronized void closeDataSourceRowsGetter() {
+		if (dataSourceRowsGetter != null) {
+			IDataSourceRowsGetter rowsGetter = dataSourceRowsGetter;
+			dataSourceRowsGetter = null;
+			rowsGetter.close();
+		}
+	}
+
+	/**
+	 * 标记为已释放：close 之后仍拿着本 getter 的线程回源时，新建的连接器在用完后关闭
+	 */
+	@Override
+	public void close() {
+		releaseDataSource();
 	}
 }

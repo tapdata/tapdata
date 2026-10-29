@@ -162,6 +162,14 @@ public class DataSourceController extends BaseController {
                 () -> dataSourceService.checkConnectionAgentSettings(request, user)));
     }
 
+    @PostMapping("agent-settings-conflicts/tasks")
+    public ResponseMessage<com.tapdata.tm.ds.dto.ConnectionTaskAgentResult> updateConflictTaskAgents(
+            @RequestBody com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request) {
+        UserDetail user = getLoginUser();
+        return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.Edit,
+                () -> dataSourceService.updateConflictTaskAgents(request, user)));
+    }
+
     @Operation(summary = "Batch update connection agent settings")
     @PatchMapping("batch-agent-settings")
     @Audited(value = AuditAction.DATASOURCE_UPDATE_AGENT, objectId = "#request.connectionIds")
