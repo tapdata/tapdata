@@ -3,6 +3,7 @@ package com.tapdata.tm.audit;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.service.ModuleAccess;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -40,6 +41,7 @@ public class SettingsChangeAudit {
 	public void save(List<SettingsDto> settings, UserDetail user, Runnable save) {
 		List<SettingsDto> items = settings == null ? List.of() : settings.stream().filter(Objects::nonNull).toList();
 		Map<String, Object> before = currentValues(items);
+		Map<String, String> labels = keyLabels(items);
 		SettingsDto retention = items.stream().filter(s -> AuditRetentionManager.SETTING_KEY.equals(s.getKey())).findFirst().orElse(null);
 		Integer oldDays = null;
 		Integer newDays = null;
@@ -62,6 +64,7 @@ public class SettingsChangeAudit {
 			}
 			AuditChange change = AuditRedactor.change(fieldName(item), before.get(key(item)), item.getValue());
 			if (change != null) {
+				change.setLabel(StringUtils.defaultIfBlank(labels.get(key(item)), null));
 				changes.add(change);
 			}
 		}
@@ -92,6 +95,26 @@ public class SettingsChangeAudit {
 			event.setSummary("audit_summary_settings_no_field_changed");
 		}
 		auditEventService.record(event, user);
+	}
+
+	/** 设置项可读名称（key_label），供审计详情展示，避免直接显示内部配置键。 */
+	private Map<String, String> keyLabels(List<SettingsDto> items) {
+		Map<String, String> labels = new HashMap<>();
+		for (SettingsDto item : items) {
+			labels.put(key(item), StringUtils.defaultIfBlank(item.getKey_label(), null));
+		}
+		List<String> keys = items.stream().map(SettingsDto::getKey).filter(Objects::nonNull).toList();
+		if (keys.isEmpty()) {
+			return labels;
+		}
+		for (Document doc : mongoTemplate.find(Query.query(Criteria.where("key").in(keys)), Document.class, "Settings")) {
+			String k = doc.getString("category") + "|" + doc.getString("key");
+			String label = doc.getString("key_label");
+			if (StringUtils.isNotBlank(label)) {
+				labels.put(k, label);
+			}
+		}
+		return labels;
 	}
 
 	private Map<String, Object> currentValues(List<SettingsDto> items) {

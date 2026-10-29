@@ -13,6 +13,15 @@ public class AuditChange {
 	private String before;
 	private String after;
 	private String secretState;
+	/** 可读字段名（设置项按 key_label 展示）；为空时页面使用 field。 */
+	private String label;
+
+	public AuditChange(String field, String before, String after, String secretState) {
+		this.field = field;
+		this.before = before;
+		this.after = after;
+		this.secretState = secretState;
+	}
 
 	public static AuditChange secret(String field, String state) {
 		return new AuditChange(field, null, null, state);

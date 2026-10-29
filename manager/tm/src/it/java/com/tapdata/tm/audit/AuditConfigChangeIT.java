@@ -40,7 +40,8 @@ class AuditConfigChangeIT {
 	@Test
 	@DisplayName("修改普通设置记录前后值，修改 SMTP 密码只记已替换；未变化时记录基础审计与无字段变化说明；任务配置保存为基础审计")
 	void should_record_settings_diff_and_basic_level_label() {
-		fixture.put("Settings", new Document("_id", "s1").append("category", "SMTP").append("key", "smtp.server.host").append("value", "mail.a.com"));
+		fixture.put("Settings", new Document("_id", "s1").append("category", "SMTP").append("key", "smtp.server.host")
+				.append("key_label", "SMTP Server Host").append("value", "mail.a.com"));
 		fixture.put("Settings", new Document("_id", "s2").append("category", "SMTP").append("key", "smtp.server.password").append("value", "old-secret"));
 		fixture.put("Settings", new Document("_id", "s3").append("category", "Log").append("key", "log.upload.max").append("value", "100"));
 		AuditWebContext.begin("", "10.7.0.1", null, AuditItFixture.user("u1", "admin@corp.com", "username_login"));
@@ -55,6 +56,8 @@ class AuditConfigChangeIT {
 			assertThat(c.getField()).isEqualTo("SMTP.smtp.server.host");
 			assertThat(c.getBefore()).isEqualTo("mail.a.com");
 			assertThat(c.getAfter()).isEqualTo("mail.b.com");
+			// F-06：详情使用设置项可读名称，不直接展示内部配置键
+			assertThat(c.getLabel()).isEqualTo("SMTP Server Host");
 		});
 		assertThat(event.getChanges()).anySatisfy(c -> {
 			assertThat(c.getField()).isEqualTo("SMTP.smtp.server.password");

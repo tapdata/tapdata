@@ -191,9 +191,13 @@ public class AuditEventServiceImpl implements AuditEventService {
 			if (change.getSecretState() != null || AuditRedactor.isSecretKey(change.getField())) {
 				String state = change.getSecretState() != null ? change.getSecretState()
 						: AuditRedactor.secretState(change.getBefore(), change.getAfter());
-				result.add(AuditChange.secret(change.getField(), state));
+				AuditChange secret = AuditChange.secret(change.getField(), state);
+				secret.setLabel(change.getLabel());
+				result.add(secret);
 			} else {
-				result.add(new AuditChange(change.getField(), AuditRedactor.text(change.getBefore()), AuditRedactor.text(change.getAfter()), null));
+				AuditChange normal = new AuditChange(change.getField(), AuditRedactor.text(change.getBefore()), AuditRedactor.text(change.getAfter()), null);
+				normal.setLabel(change.getLabel());
+				result.add(normal);
 			}
 		}
 		return result;
