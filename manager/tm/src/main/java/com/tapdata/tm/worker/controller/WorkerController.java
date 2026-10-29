@@ -403,8 +403,13 @@ public class WorkerController extends BaseController {
     @PostMapping("upsertWithWhere")
     public ResponseMessage<WorkerDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody WorkerDto worker) {
         Where where = parseWhere(whereJson);
-        updateWorker(worker);
-        return success(workerService.upsertByWhere(where, worker, getLoginUser()));
+        WorkerOrServerStatus status = updateWorker(worker, false);
+        UserDetail loginUser = getLoginUser();
+        WorkerDto result = workerService.upsertByWhere(where, worker, loginUser);
+        if (status != null) {
+            workerService.updateWorkerStatus(status, loginUser);
+        }
+        return success(result);
     }
     @Operation(summary = "单例启动检测")
     @PostMapping("singleton-lock/upsertWithWhere")
@@ -515,6 +520,11 @@ public class WorkerController extends BaseController {
     }
 
     void updateWorker(WorkerDto worker) {
+        updateWorker(worker, true);
+    }
+
+    WorkerOrServerStatus updateWorker(WorkerDto worker, boolean updateStatus) {
+        WorkerOrServerStatus status = null;
         if ("api-server".equals(worker.getWorkerType())) {
             List<ServerUsage> usages = new ArrayList<>();
             worker.setPingTime(new Date().getTime());
@@ -526,18 +536,19 @@ public class WorkerController extends BaseController {
                 usage.withConnectionPollInfo(workerStatus.getConnectionPool());
                 usage.setCpuCores(workerStatus.getCpuCores());
                 usages.add(usage);
-                WorkerOrServerStatus status = new WorkerOrServerStatus();
-                status.setStatus(String.valueOf(workerStatus.getStatus()));
-                status.setProcessId(processId);
-                status.setTime(new Date().getTime());
-                status.setWorkerStatus(new HashMap<>());
-                status.setCpuMemStatus(new HashMap<>());
-                status.setWorkerBaseInfo(new HashMap<>());
-                status.setProcessCpuMemStatus(workerStatus.getMetricValues());
-                status.setAuditLogPushMaxDelay(workerStatus.getAuditLogPushMaxDelay());
-                status.setCpuCores(workerStatus.getCpuCores());
+                WorkerOrServerStatus apiServerStatus = new WorkerOrServerStatus();
+                status = apiServerStatus;
+                apiServerStatus.setStatus(String.valueOf(workerStatus.getStatus()));
+                apiServerStatus.setProcessId(processId);
+                apiServerStatus.setTime(new Date().getTime());
+                apiServerStatus.setWorkerStatus(new HashMap<>());
+                apiServerStatus.setCpuMemStatus(new HashMap<>());
+                apiServerStatus.setWorkerBaseInfo(new HashMap<>());
+                apiServerStatus.setProcessCpuMemStatus(workerStatus.getMetricValues());
+                apiServerStatus.setAuditLogPushMaxDelay(workerStatus.getAuditLogPushMaxDelay());
+                apiServerStatus.setCpuCores(workerStatus.getCpuCores());
                 Optional.ofNullable(workerStatus.getWorkerProcessId())
-                        .ifPresent(status::setPid);
+                        .ifPresent(apiServerStatus::setPid);
                 Map<String, ApiServerWorkerInfo> workers = workerStatus.getWorkers();
                 if (null != workers && !workers.isEmpty()) {
                     workers.forEach((key, workerInfo) -> {
@@ -545,19 +556,22 @@ public class WorkerController extends BaseController {
                         String wStatus = workerInfo.getWorkerStatus();
                         if (null != oid
                                 && StringUtils.isNotBlank(wStatus)) {
-                            status.getWorkerStatus().put(oid, wStatus);
-                            status.getCpuMemStatus().put(oid, workerInfo.getMetricValues());
-                            status.getWorkerBaseInfo().put(oid, workerInfo);
+                            apiServerStatus.getWorkerStatus().put(oid, wStatus);
+                            apiServerStatus.getCpuMemStatus().put(oid, workerInfo.getMetricValues());
+                            apiServerStatus.getWorkerBaseInfo().put(oid, workerInfo);
                             ServerUsage  u = MetricInfo.toUsage(workerInfo.getMetricValues(), processId, oid, ServerUsage.ProcessType.API_SERVER_WORKER);
                             u.setCpuCores(workerStatus.getCpuCores());
                             usages.add(u);
                         }
                     });
                 }
-                workerService.updateWorkerStatus(status, getLoginUser());
+                if (updateStatus) {
+                    workerService.updateWorkerStatus(status, getLoginUser());
+                }
                 workerService.appendUsage(usages);
             }
             worker.setWorkerStatus(null);
         }
+        return status;
     }
 }

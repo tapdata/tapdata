@@ -62,6 +62,7 @@ public class WorkerDto extends BaseDto {
     private Boolean stopping;
     private Boolean isDeleted;
     private Boolean deleted; // 冗余字段，flow engine 同时使用了 isDeleted 和 deleted 字段
+    private Boolean delete;
 
     @JsonProperty("tm_user_id")
     private String tmUserId;

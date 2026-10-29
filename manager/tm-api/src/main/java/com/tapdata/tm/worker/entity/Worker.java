@@ -64,6 +64,7 @@ public class Worker extends BaseEntity {
     private Boolean stopping;
     private Boolean isDeleted;
     private Boolean deleted;
+    private Boolean delete;
 
     @Field("ping_date")
     @Indexed(name = "ping_date_index", expireAfterSeconds = 60 * 60)
