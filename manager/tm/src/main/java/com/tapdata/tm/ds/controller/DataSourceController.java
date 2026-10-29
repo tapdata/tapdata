@@ -163,6 +163,7 @@ public class DataSourceController extends BaseController {
     }
 
     @PostMapping("agent-settings-conflicts/tasks")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#request.taskEdits?.![id]", summary = "'update task agent settings'")
     public ResponseMessage<com.tapdata.tm.ds.dto.ConnectionTaskAgentResult> updateConflictTaskAgents(
             @RequestBody com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request) {
         UserDetail user = getLoginUser();
