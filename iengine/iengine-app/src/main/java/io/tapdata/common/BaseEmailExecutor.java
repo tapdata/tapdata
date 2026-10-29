@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.entity.Event;
 import com.tapdata.entity.Setting;
 import com.tapdata.entity.TapLog;
 import org.apache.commons.lang3.StringUtils;
@@ -132,8 +133,23 @@ public class BaseEmailExecutor {
 	/**
 	 * 群发时若仅部分收件地址被拒绝（如 550），邮件仍已投递给其余收件人。
 	 * 这类异常不应被当作整体失败，否则会触发失败重试导致重复通知。
+	 *
+	 * @param event  当前邮件事件；部分送达时会被标记为成功
+	 * @param logger 调用方日志器，保持各 executor 自己的日志来源
+	 * @return 部分送达返回 true，调用方应直接返回该事件；否则返回 false 交调用方按失败处理
 	 */
-	protected boolean isPartiallySent(Throwable error) {
+	protected boolean completeAsPartialSent(Event event, Exception e, Logger logger) {
+		if (!isPartiallySent(e)) {
+			return false;
+		}
+		logger.warn("{} partial sent: {}", TapLog.ERROR_0001.getMsg(), partialSentMessage(e));
+		event.setConsume_ts(System.currentTimeMillis());
+		event.setEvent_status(Event.EVENT_STATUS_SUCCESSED);
+		logger.info(TapLog.JOB_LOG_0005.getMsg(), event.getName(), event.getEvent_status());
+		return true;
+	}
+
+	private boolean isPartiallySent(Throwable error) {
 		Throwable current = error;
 		while (current != null) {
 			if (current instanceof SendFailedException) {

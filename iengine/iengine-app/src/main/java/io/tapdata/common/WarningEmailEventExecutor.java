@@ -98,12 +98,7 @@ public class WarningEmailEventExecutor extends BaseEmailExecutor implements Even
 
 			logger.info(TapLog.JOB_LOG_0005.getMsg(), event.getName(), event.getEvent_status());
 		} catch (Exception e) {
-			if (isPartiallySent(e)) {
-				// 部分地址被拒但邮件已投递给其余收件人，记为成功以避免重试重复通知
-				logger.warn("{} partial sent: {}", TapLog.ERROR_0001.getMsg(), partialSentMessage(e));
-				event.setConsume_ts(System.currentTimeMillis());
-				event.setEvent_status(Event.EVENT_STATUS_SUCCESSED);
-				logger.info(TapLog.JOB_LOG_0005.getMsg(), event.getName(), event.getEvent_status());
+			if (completeAsPartialSent(event, e, logger)) {
 				return event;
 			}
 			logger.error(TapLog.ERROR_0001.getMsg(), e.getMessage(), e);
