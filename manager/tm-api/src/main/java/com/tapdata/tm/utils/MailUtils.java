@@ -555,7 +555,7 @@ public class MailUtils {
                 // 已设置 sendpartial：部分地址被拒时邮件仍会投递给可用地址，仅有失败地址未送达
                 log.warn("mail partially sent, delivered to {}, failed addresses: {}, cause: {}",
                         validSentAddresses, failedAddresses, e.getMessage());
-                return new TestResponseDto(true, e.getMessage(), validSentAddresses, failedAddresses);
+                return new TestResponseDto(true, TapSimplify.getStackTrace(e), validSentAddresses, failedAddresses);
             }
             flag = false;
             log.error("mail send error：{}", e.getMessage(), e);
