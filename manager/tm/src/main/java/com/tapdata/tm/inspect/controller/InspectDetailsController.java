@@ -1,5 +1,9 @@
 package com.tapdata.tm.inspect.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -227,6 +231,7 @@ public class InspectDetailsController extends BaseController {
      */
     @Operation(summary = "Export different data from the inspectDetail.")
     @PostMapping("export")
+    @Audited(value = AuditAction.INSPECT_EXPORT_RESULT, objectId = "#inspectDetails.inspect_id", summary = "'difference export'")
     public void export(@RequestBody InspectDetailsDto inspectDetails,
                        HttpServletResponse response) throws IOException {
         String date = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());

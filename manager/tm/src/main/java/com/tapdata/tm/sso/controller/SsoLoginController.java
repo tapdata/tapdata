@@ -1,5 +1,12 @@
 package com.tapdata.tm.sso.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
+import com.tapdata.tm.audit.AuditSource;
+import com.tapdata.tm.audit.LoginAuditRecorder;
+
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
@@ -80,6 +87,7 @@ public class SsoLoginController extends BaseController {
     private AccessTokenService accessTokenService;
     private UserService userService;
     private MongoTemplate mongoTemplate;
+    private LoginAuditRecorder loginAuditRecorder;
 
     @Setter(AccessLevel.NONE)
     @Value("${security.auth.url-token-mode:COMPAT}")
@@ -160,6 +168,7 @@ public class SsoLoginController extends BaseController {
             }
             AccessTokenDto token = accessTokenService.save(user, AuthType.SAML_LOGIN.getValue());
             recordSession(subject, user, token);
+            auditSamlLogin(user, null);
             clearRequestIdCookie(response);
             response.sendRedirect(buildSuccessRedirect(config, relayState, token.getId()));
         } catch (SamlValidationException e) {
@@ -167,10 +176,29 @@ public class SsoLoginController extends BaseController {
             // browser back to the SPA login page carrying a stable reason code so the
             // user sees a clear localized message instead of a raw 401 error page.
             log.warn("SAML ACS validation failed: {}", e.getMessage());
+            auditSamlLogin(null, resolveErrorCode(e));
             response.sendRedirect(buildLoginErrorRedirect(resolveErrorCode(e)));
         } catch (Exception e) {
             log.error("SAML ACS processing error", e);
+            auditSamlLogin(null, SamlLoginError.SSO_FAILED.getCode());
             response.sendRedirect(buildLoginErrorRedirect(SamlLoginError.SSO_FAILED.getCode()));
+        }
+    }
+
+    /** SAML 登录审计：失败时断言内容不可信，不记录主体，只记录稳定的错误码。 */
+    private void auditSamlLogin(User user, String errorCode) {
+        if (loginAuditRecorder == null) {
+            return;
+        }
+        try {
+            if (user != null) {
+                loginAuditRecorder.succeeded(user.getId().toHexString(),
+                        StringUtils.defaultIfBlank(user.getUsername(), user.getEmail()), LoginAuditRecorder.METHOD_SAML, AuditSource.UI);
+            } else {
+                loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_SAML, errorCode, AuditSource.UI);
+            }
+        } catch (Exception e) {
+            log.warn("SAML login audit failed", e);
         }
     }
 
@@ -181,6 +209,7 @@ public class SsoLoginController extends BaseController {
      */
     @Operation(summary = "Start SP-Initiated Single Logout; returns the URL the browser navigates to next")
     @PostMapping("/logout")
+    @Audited(value = AuditAction.LOGOUT, summary = "'saml'")
     public ResponseMessage<Map<String, String>> startLogout(@RequestBody(required = false) Map<String, String> body,
                                                             HttpServletRequest request) {
         String relayState = body == null ? null : body.get("relayState");

@@ -1,5 +1,9 @@
 package com.tapdata.tm.ds.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -94,6 +98,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "添加数据源连接")
     @PostMapping
+    @Audited(value = AuditAction.DATASOURCE_CREATE, objectId = "#result?.id", objectName = "#connection.name")
     public ResponseMessage<DataSourceConnectionDto> add(@RequestBody DataSourceConnectionDto connection, @RequestParam(name = "id", required = false) String id) {
         if (StringUtils.isNotBlank(id)) {
             connection.setId(new ObjectId(id));
@@ -112,6 +117,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "修改数据源连接")
     @PatchMapping
+    @Audited(value = AuditAction.DATASOURCE_UPDATE, objectId = "#updateDto.id", objectName = "#updateDto.name")
     public ResponseMessage<DataSourceConnectionDto> update(@RequestBody DataSourceConnectionDto updateDto) {
 			UserDetail userDetail = getLoginUser();
 			DataSourceConnectionDto resultDto = DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.Edit, () -> {
@@ -130,6 +136,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.DATASOURCE_UPDATE, objectId = "#id")
     public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
 			UserDetail userDetail = getLoginUser();
 			DataPermissionActionEnums actionEnums = Optional.ofNullable(dataSource).map(ds -> {
@@ -156,6 +163,7 @@ public class DataSourceController extends BaseController {
     }
 
     @PostMapping("agent-settings-conflicts/tasks")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#request.taskEdits?.![id]", summary = "'update task agent settings'")
     public ResponseMessage<com.tapdata.tm.ds.dto.ConnectionTaskAgentResult> updateConflictTaskAgents(
             @RequestBody com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request) {
         UserDetail user = getLoginUser();
@@ -165,6 +173,7 @@ public class DataSourceController extends BaseController {
 
     @Operation(summary = "Batch update connection agent settings")
     @PatchMapping("batch-agent-settings")
+    @Audited(value = AuditAction.DATASOURCE_UPDATE_AGENT, objectId = "#request.connectionIds")
     public ResponseMessage<BatchUpdateAgentSettingsResponse> batchUpdateAgentSettings(
             @RequestBody BatchUpdateAgentSettingsRequest request) {
         UserDetail userDetail = getLoginUser();
@@ -288,6 +297,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
+    @Audited(value = AuditAction.DATASOURCE_UPDATE, objectId = "#dataSource.id", objectName = "#dataSource.name")
     public ResponseMessage<DataSourceConnectionDto> put(@RequestBody DataSourceConnectionDto dataSource) {
         return success(dataSourceService.replaceOrInsert(dataSource, getLoginUser()));
     }
@@ -314,6 +324,7 @@ public class DataSourceController extends BaseController {
     @Deprecated
     @Operation(summary = "给数据源连接修改资源分类")
     @PatchMapping("batchUpdateListtag")
+    @Audited(value = AuditAction.DATASOURCE_UPDATE_TAGS, objectId = "#updateTagsDto.id")
     public ResponseMessage<DataSourceConnectionDto> updateTag(@RequestBody UpdateTagsDto updateTagsDto) {
         dataSourceService.updateTag(getLoginUser(), updateTagsDto);
         return success();
@@ -348,6 +359,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
+    @Audited(value = AuditAction.DATASOURCE_UPDATE, objectId = "#id")
     public ResponseMessage<DataSourceConnectionDto> replaceById(@PathVariable("id") String id, @RequestBody DataSourceConnectionDto dataSource) {
         UserDetail user = getLoginUser();
         Boolean submit = dataSource.getSubmit();
@@ -366,6 +378,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
+    @Audited(value = AuditAction.DATASOURCE_UPDATE, objectId = "#id")
     public ResponseMessage<DataSourceConnectionDto> replaceById2(@PathVariable("id") String id, @RequestBody DataSourceConnectionDto dataSource) {
         UserDetail user = getLoginUser();
         Boolean submit = dataSource.getSubmit();
@@ -383,6 +396,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "删除数据源连接")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.DATASOURCE_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
@@ -492,6 +506,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "复制数据源")
     @PostMapping("{id}/copy")
+    @Audited(value = AuditAction.DATASOURCE_COPY, objectId = "#id")
     public ResponseMessage<DataSourceConnectionDto> copy(@PathVariable("id") String id, HttpServletRequest request) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
@@ -629,6 +644,7 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
+    @Audited(value = AuditAction.DATASOURCE_UPDATE_TAGS, objectId = "#batchApplyListTagsParam.ids")
     public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
         return success(metadataDefinitionService.batchApplyListTags("Connections", batchApplyListTagsParam, getLoginUser()));
     }
@@ -762,6 +778,7 @@ public class DataSourceController extends BaseController {
 
     @Operation(summary = "添加数据源连接")
     @PostMapping("/addConnection")
+    @Audited(value = AuditAction.DATASOURCE_CREATE, objectId = "#result", objectName = "#connection.name")
     public ResponseMessage<String> addConnection(@RequestBody DataSourceConnectionDto connection) {
         connection.setId(null);
         DataSourceConnectionDto dataSourceConnectionDto =  dataSourceService.addConnection(connection, getLoginUser());
@@ -823,12 +840,14 @@ public class DataSourceController extends BaseController {
     }
     @Operation(summary = "数据源导出")
     @GetMapping("batch/load")
+    @Audited(value = AuditAction.DATASOURCE_EXPORT, objectId = "#connectionId")
     public void batchLoadTasks(@RequestParam("connectionId") List<String> connectionId, HttpServletResponse response) {
         dataSourceService.batchLoadConnection(response, connectionId, getLoginUser());
     }
 
     @Operation(summary = "数据源导入")
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.DATASOURCE_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode,
                                         @RequestParam(value = "listtags", required = false) String listtags) throws IOException {

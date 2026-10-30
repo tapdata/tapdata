@@ -1,5 +1,9 @@
 package com.tapdata.tm.cluster.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -211,6 +215,7 @@ public class ClusterStateController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.CLUSTER_NODE_REMOVE, objectId = "#id")
     public ResponseMessage<Boolean> delete(@PathVariable("id") String id) {
         if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
             return success(clusterStateService.deleteCluster(MongoUtils.toObjectId(id), getLoginUser()));
@@ -318,6 +323,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "add monitor")
     @PostMapping("/addMonitor")
+    @Audited(value = AuditAction.CLUSTER_MONITOR_UPDATE, summary = "'add monitor'")
     public ResponseMessage<Map<String, Integer>> addMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.AddMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
         if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
             Integer result = clusterStateService.addMonitor(editMonitorRequest,getLoginUser());
@@ -330,6 +336,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "edit monitor")
     @PostMapping("/editMonitor")
+    @Audited(value = AuditAction.CLUSTER_MONITOR_UPDATE, summary = "'edit monitor'")
     public ResponseMessage<Map<String, Integer>> editMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.EditMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
         if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
             Integer result = clusterStateService.editMonitor(editMonitorRequest);
@@ -343,6 +350,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "remove monitor")
     @PostMapping("/removeMonitor")
+    @Audited(value = AuditAction.CLUSTER_MONITOR_UPDATE, summary = "'remove monitor'")
     public ResponseMessage<Map<String, Integer>> removeMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.RemoveMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
         if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
             Integer result = clusterStateService.removeMonitor(editMonitorRequest, getLoginUser());
@@ -382,6 +390,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "Execute Oracle Log Parser command, start/stop/restart")
     @PostMapping("/oracle-log-parser")
+    @Audited(value = AuditAction.CLUSTER_MONITOR_UPDATE, objectId = "#serverId", summary = "'oracle log parser command'")
     public ResponseMessage<OracleLogParserCommandExecResult> executeCommand(
             @RequestParam(value = "serverId") String serverId,
             @RequestParam(value = "command") String command) {
@@ -391,6 +400,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "Upgrade Oracle Log Parser sn file")
     @PostMapping("/oracle-log-parser/upgrade-sn")
+    @Audited(value = AuditAction.CLUSTER_MONITOR_UPDATE, objectId = "#serverId", summary = "'oracle log parser upgrade sn'")
     public ResponseMessage<OracleLogParserUpgradeSNResult> upgradeOracleLogParserSN(
             @RequestParam(value = "serverId") String serverId,
             @RequestParam("file") MultipartFile file) {
@@ -431,6 +441,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "Update Oracle Log Parser config")
     @PostMapping("/oracle-log-parser/update-config")
+    @Audited(value = AuditAction.CLUSTER_MONITOR_UPDATE, objectId = "#serverId", summary = "'oracle log parser config'")
     public ResponseMessage<OracleLogParserUpdateConfigResult> updateOracleLogParserConfig(
             @RequestParam(value = "serverId") String serverId,
             @RequestBody OracleLogParserConfigParam parma) {
@@ -439,6 +450,7 @@ public class ClusterStateController extends BaseController {
 
     @Operation(summary = "remove Oracle Log Parser in list")
     @DeleteMapping("/oracle-log-parser")
+    @Audited(value = AuditAction.CLUSTER_NODE_REMOVE, objectId = "#serverId", summary = "'oracle log parser'")
     public ResponseMessage<Boolean> removeUselessServerInfo(
             @RequestParam(value = "serverId") String serverId) {
         return success(oracleLogParserService.removeUselessServerInfo(serverId));

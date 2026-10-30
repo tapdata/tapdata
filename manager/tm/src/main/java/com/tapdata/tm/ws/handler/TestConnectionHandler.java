@@ -6,6 +6,10 @@
  */
 package com.tapdata.tm.ws.handler;
 
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.WebSocketAudit;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.ConnectionString;
 import com.tapdata.tm.agent.service.AgentGroupService;
@@ -68,6 +72,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final AgentGroupService agentGroupService;
 
+	@Autowired(required = false)
+	private WebSocketAudit webSocketAudit;
+
 	public TestConnectionHandler(AgentGroupService agentGroupService, MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
 			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
 		this.messageQueueService = messageQueueService;
@@ -109,6 +116,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 		if (userDetail == null){
 			WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
 			return;
+		}
+		if (webSocketAudit != null) {
+			webSocketAudit.testRequested(AuditAction.DATASOURCE_TEST, userDetail, data);
 		}
 		if (config != null) {
 			String database_type = (String)data.get("database_type");

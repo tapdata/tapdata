@@ -1,5 +1,9 @@
 package com.tapdata.tm.webhook.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -60,6 +64,7 @@ public class WebHookHistoryController extends BaseController {
 
     @Operation(summary = "Re-send a history message")
     @PostMapping("re-send")
+    @Audited(value = AuditAction.WEBHOOK_TEST, summary = "'re-send'")
     public ResponseMessage<WebHookHistoryInfoVo> reSend(@RequestBody HookOneHistoryDto historyDto) {
         return success(webHookHistoryService.reSend(historyDto, getLoginUser()));
     }

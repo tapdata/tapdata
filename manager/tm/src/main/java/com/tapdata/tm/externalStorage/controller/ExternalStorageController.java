@@ -1,5 +1,9 @@
 package com.tapdata.tm.externalStorage.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -59,6 +63,7 @@ public class ExternalStorageController extends BaseController {
 	 */
 	@Operation(summary = "Create a new instance of the model and persist it into the data source")
 	@PostMapping
+	@Audited(value = AuditAction.EXTERNAL_STORAGE_CREATE, objectId = "#result?.id", objectName = "#externalStorage?.name")
 	public ResponseMessage<ExternalStorageDto> save(@RequestBody(required = false) ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
 			return success(maskSensitiveData(externalStorageService.save(externalStorage, getLoginUser())));
@@ -75,6 +80,7 @@ public class ExternalStorageController extends BaseController {
 	 */
 	@Operation(summary = "Patch an existing model instance or insert a new one into the data source")
 	@PatchMapping()
+	@Audited(value = AuditAction.EXTERNAL_STORAGE_UPDATE, objectId = "#externalStorage.id", objectName = "#externalStorage.name")
 	public ResponseMessage<ExternalStorageDto> update(@RequestBody ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
 			return success(maskSensitiveData(externalStorageService.update(externalStorage, getLoginUser())));
@@ -142,6 +148,7 @@ public class ExternalStorageController extends BaseController {
 	 */
 	@Operation(summary = "Patch attributes for a model instance and persist it into the data source")
 	@PatchMapping("{id}")
+	@Audited(value = AuditAction.EXTERNAL_STORAGE_UPDATE, objectId = "#id")
 	public ResponseMessage<ExternalStorageDto> updateById(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
 			externalStorage.setId(MongoUtils.toObjectId(id));
@@ -176,6 +183,7 @@ public class ExternalStorageController extends BaseController {
 	 */
 	@Operation(summary = "Delete a model instance by {{id}} from the data source")
 	@DeleteMapping("{id}")
+	@Audited(value = AuditAction.EXTERNAL_STORAGE_DELETE, objectId = "#id")
 	public ResponseMessage<Void> delete(@PathVariable("id") String id) {
 		List<TaskDto> usingTasks = externalStorageService.findUsingTasks(id);
 		if (CollectionUtils.isEmpty(usingTasks)) {
@@ -301,6 +309,7 @@ public class ExternalStorageController extends BaseController {
 
 	@Operation(summary = "Set default external storage")
 	@PatchMapping("{id}/default")
+	@Audited(value = AuditAction.EXTERNAL_STORAGE_SET_DEFAULT, objectId = "#id")
 	public ResponseMessage<Void> defaultExternalStorage(@PathVariable("id") String id) {
 		externalStorageService.update(Query.query(Criteria.where("defaultStorage").is(true)), Update.update("defaultStorage", false), getLoginUser());
 		externalStorageService.updateById(id, Update.update("defaultStorage", true), getLoginUser());

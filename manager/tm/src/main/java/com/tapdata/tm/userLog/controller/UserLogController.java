@@ -1,5 +1,7 @@
 package com.tapdata.tm.userLog.controller;
 
+import com.tapdata.tm.base.exception.BizException;
+
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
@@ -8,7 +10,6 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.permissions.service.ModuleAccess;
-import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.param.AddUserLogParam;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -44,19 +45,13 @@ public class UserLogController extends BaseController {
         return success(userLogService.find(filter, user, moduleAccess.allData(user, DataPermissionEnumsName.V2_AUDIT_LOG)));
     }
 
-    @Operation(summary = "添加操作日志")
+    /**
+     * 审计记录只能由 TapData 服务端产生；该入口曾允许任意登录用户写入伪造记录，现已禁止（需求 BR-13）。
+     */
+    @Operation(summary = "添加操作日志（已禁止）")
     @PostMapping
     public ResponseMessage<Page<UserLogDto>> add(@RequestBody AddUserLogParam addUserLogParam) {
-        try {
-            userLogService.addUserLog(Modular.of(addUserLogParam.getModular())
-                    , com.tapdata.tm.userLog.constant.Operation.of(addUserLogParam.getOperation()),
-                    getLoginUser(), addUserLogParam.getSourceId(), addUserLogParam.getParameter1(),
-                    addUserLogParam.getParameter2(), addUserLogParam.getRename());
-        } catch (Exception e) {
-            log.error("添加操作日志异常", e);
-            return failed("添加操作日志异常");
-        }
-        return success();
+        throw new BizException("Audit.Log.ReadOnly");
     }
 
 

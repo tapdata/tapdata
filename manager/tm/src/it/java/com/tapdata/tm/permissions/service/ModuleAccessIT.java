@@ -44,6 +44,7 @@ import static org.mockito.Mockito.when;
 @Timeout(10)
 class ModuleAccessIT {
     private static final String SEED_VERSION = "4.25-1";
+    private static final String AUDIT_SEED_VERSION = "4.25-2";
     private static final String ADMIN_ROLE = "5b9a0a383fcba02649524bf1";
     private GenericApplicationContext context;
     private ModuleAccess access;
@@ -117,7 +118,6 @@ class ModuleAccessIT {
     @Test
     @DisplayName("AC10 权限种子：新增权限树、页面路径与前端路由一致，并授予内置 admin 角色；同时创建通知链路索引")
     void should_seed_permissions_for_admin() throws IOException {
-        assertThat(read("init/idaas/version").trim()).isEqualTo(SEED_VERSION);
         JsonNode seed = new ObjectMapper().readTree(read("init/idaas/" + SEED_VERSION + ".json"));
 
         Map<String, JsonNode> perms = new HashMap<>();
@@ -168,6 +168,51 @@ class ModuleAccessIT {
                 .getAnnotation(org.springframework.data.mongodb.core.index.CompoundIndexes.class);
         assertThat(java.util.Arrays.stream(declared.value()).map(org.springframework.data.mongodb.core.index.CompoundIndex::name))
                 .containsExactlyInAnyOrder("alarm_channel_status", "message_channel_status", "recipient_created");
+    }
+
+    @Test
+    @DisplayName("TAP-13018 审计种子：导出权限挂在审计日志下并授予内置 admin，保留期设置默认 90 天，审计查询与异步登记索引")
+    void should_seed_audit_permissions() throws IOException {
+        assertThat(read("init/idaas/version").trim()).isEqualTo(AUDIT_SEED_VERSION);
+        JsonNode seed = new ObjectMapper().readTree(read("init/idaas/" + AUDIT_SEED_VERSION + ".json"));
+        Map<String, JsonNode> perms = new HashMap<>();
+        Set<String> granted = new HashSet<>();
+        Map<String, Set<String>> indexes = new HashMap<>();
+        JsonNode retention = null;
+        for (JsonNode block : seed) {
+            if (block.has("createIndexes")) {
+                block.get("indexes").forEach(i -> indexes.computeIfAbsent(block.get("createIndexes").asText(), k -> new HashSet<>())
+                        .add(i.get("name").asText()));
+                continue;
+            }
+            for (JsonNode update : block.get("updates")) {
+                assertThat(update.get("upsert").asBoolean()).isTrue();
+                JsonNode set = update.get("u").get("$set");
+                switch (block.get("update").asText()) {
+                    case "Permission" -> perms.put(set.get("name").asText(), set);
+                    case "RoleMapping" -> {
+                        assertThat(update.get("q").get("roleId").get("$oid").asText()).isEqualTo(ADMIN_ROLE);
+                        granted.add(set.get("principalId").asText());
+                    }
+                    case "Settings" -> retention = update.get("u");
+                    default -> throw new AssertionError("unexpected seed block " + block.get("update"));
+                }
+            }
+        }
+        assertThat(perms).containsKeys(DataPermissionEnumsName.V2_AUDIT_LOG, "v2_audit_log_list", DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT);
+        assertParent(perms, DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT, DataPermissionEnumsName.V2_AUDIT_LOG);
+        // 角色页以页面节点开启访问，模块节点必须同时是页面（F-01：否则被授予页面的用户接口 401）
+        assertThat(perms.get(DataPermissionEnumsName.V2_AUDIT_LOG).get("resources").get(0).get("type").asText()).isEqualTo("page");
+        assertPage(perms, DataPermissionEnumsName.V2_AUDIT_LOG, "/operation-audit");
+        assertThat(perms.get(DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT).get("resources").get(0).get("type").asText()).isEqualTo("button");
+        assertThat(perms.get(DataPermissionEnumsName.V2_AUDIT_LOG).get("description").asText()).isEqualTo("审计日志");
+        assertPage(perms, "v2_audit_log_list", "/operation-audit");
+        assertThat(granted).containsExactlyInAnyOrder(DataPermissionEnumsName.V2_AUDIT_LOG_LIST, DataPermissionEnumsName.V2_AUDIT_LOG_EXPORT);
+        assertThat(retention).isNotNull();
+        assertThat(retention.get("$set").get("key").asText()).isEqualTo("audit.log.retention.days");
+        assertThat(retention.get("$setOnInsert").get("value").asInt()).isEqualTo(90);
+        assertThat(indexes.get("UserLogs")).contains("eventId_1", "operationId_1_timestamp_1", "type_1_timestamp_-1_eventId_-1");
+        assertThat(indexes.get("AuditOperations")).containsExactly("createdAt_ttl");
     }
 
     private static void assertParent(Map<String, JsonNode> perms, String name, String parent) {

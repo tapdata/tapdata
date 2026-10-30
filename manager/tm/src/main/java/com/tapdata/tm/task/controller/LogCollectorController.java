@@ -1,5 +1,9 @@
 package com.tapdata.tm.task.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
@@ -111,6 +115,7 @@ public class LogCollectorController extends BaseController {
 
     @PatchMapping("{id}")
     @Operation(summary = "更新挖掘任务")
+    @Audited(value = AuditAction.LOG_CACHE_UPDATE, objectId = "#id")
     public ResponseMessage<Void> update(@PathVariable("id") String id, @RequestBody LogCollectorEditVo logCollectorEditVo) {
         logCollectorEditVo.setId(id);
         UserDetail userDetail = getLoginUser();
@@ -158,6 +163,7 @@ public class LogCollectorController extends BaseController {
 
 
     @PatchMapping("/system/config")
+    @Audited(AuditAction.LOG_CACHE_UPDATE_CONFIG)
     public ResponseMessage<Void> updateSystemConfig(@RequestBody LogSystemConfigDto logSystemConfigDto) {
         logCollectorService.updateSystemConfig(logSystemConfigDto, getLoginUser());
         return success();
@@ -222,6 +228,7 @@ public class LogCollectorController extends BaseController {
 
     @PostMapping("cancel/merge")
     @Operation(summary = "取消当前连接的合并")
+    @Audited(value = AuditAction.LOG_CACHE_CANCEL_MERGE, objectId = "#taskId")
     public ResponseMessage<Void> cancelMerge(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId) {
 
         logCollectorService.cancelMerge(taskId, connectionId, getLoginUser());
@@ -231,6 +238,7 @@ public class LogCollectorController extends BaseController {
 
     @PostMapping("exclusionTables/{taskId}")
     @Operation(summary = "排除表挖掘")
+    @Audited(value = AuditAction.LOG_CACHE_STOP_TABLES, objectId = "#taskId", summary = "'tables: ' + #params.size()")
     public ResponseMessage<Void> exclusionTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
         logCollectorService.configTables(taskId, params, "exclusion",  getLoginUser());
         return success();
@@ -238,6 +246,7 @@ public class LogCollectorController extends BaseController {
 
 	@PostMapping("addTables/{taskId}")
 	@Operation(summary = "增加表挖掘")
+	@Audited(value = AuditAction.LOG_CACHE_RESUME_TABLES, objectId = "#taskId", summary = "'tables: ' + #params.size()")
 	public ResponseMessage<Void> addTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
 		logCollectorService.configTables(taskId, params, "add", getLoginUser());
 		return success();
@@ -259,12 +268,14 @@ public class LogCollectorController extends BaseController {
 
     @PostMapping
     @Operation(summary = "手动创建共享挖掘任务，若数据源已存在挖掘任务则合并")
+    @Audited(AuditAction.LOG_CACHE_CREATE)
     public ResponseMessage<Map<String, String>> createShareCdcTask(@RequestBody TableLogCollectorParam param) {
         return success(logCollectorService.createShareCdcTask(param, getLoginUser()));
     }
 
     @PostMapping("/start-and-wait")
     @Operation(summary = "手动创建共享挖掘任务，若数据源已存在挖掘任务则合并")
+    @Audited(AuditAction.LOG_CACHE_CREATE)
     public ResponseMessage<Map<String, String>> createShareCdcTaskAndWait(@RequestBody TableLogCollectorParam param) {
         return success(logCollectorService.createShareCdcTaskAndWait(param, getLoginUser()));
     }

@@ -9,4 +9,6 @@ public class DataPermissionEnumsName {
     public static final String V2_ALARM_EVENT_ACK_CLOSE = "v2_alarm_event_ack_close";
     public static final String V2_NOTIFICATION_RECORD = "v2_notification_record";
     public static final String V2_AUDIT_LOG = "v2_audit_log";
+    public static final String V2_AUDIT_LOG_LIST = "v2_audit_log_list";
+    public static final String V2_AUDIT_LOG_EXPORT = "v2_audit_log_export";
 }

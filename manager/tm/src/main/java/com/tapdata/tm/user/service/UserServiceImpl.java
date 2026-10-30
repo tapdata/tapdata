@@ -1265,7 +1265,8 @@ public class UserServiceImpl extends UserService{
         field.put("accesscode", 1);
         UserDto userDto = findById(new ObjectId(userDetail.getUserId()), field);
         if (updateResult.getModifiedCount() > 0) {
-            userLogService.addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), userDto.getAccessCode());
+            // 不记录新访问码本身，只记录发生了重置
+            userLogService.addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), null);
         }
         return userDto.getAccessCode();
     }

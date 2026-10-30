@@ -1,5 +1,9 @@
 package com.tapdata.tm.webhook.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -53,6 +57,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "create a web hook info")
     @PostMapping("create")
+    @Audited(value = AuditAction.WEBHOOK_CREATE, objectId = "#result?.id", objectName = "#dto.hookName")
     public ResponseMessage<WebHookInfoVo> create(@RequestBody WebHookInfoDto dto, HttpServletRequest request) {
         Locale locale = WebUtils.getLocale(request);
         dto.setLocale(locale);
@@ -67,6 +72,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "update web hook info")
     @PostMapping("update")
+    @Audited(value = AuditAction.WEBHOOK_UPDATE, objectId = "#dto.id", objectName = "#dto.hookName")
     public ResponseMessage<WebHookInfoVo> update(@RequestBody WebHookInfoDto dto) {
         return success(webHookService.update(dto, getLoginUser()));
     }
@@ -74,6 +80,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "close one web hook info by hook id")
     @PostMapping("closeOne/{id}")
+    @Audited(value = AuditAction.WEBHOOK_DISABLE, objectId = "#hookId")
     public ResponseMessage<WebHookInfoVo> closeOneWebHookByHookId(@PathVariable(value = "id") String hookId) {
         List<WebHookInfoVo> closed = webHookService.close(new String[]{hookId}, getLoginUser());
         if (closed.isEmpty()) {
@@ -84,6 +91,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "close many web hook info by hook ids")
     @PostMapping("close")
+    @Audited(value = AuditAction.WEBHOOK_DISABLE, objectId = "#ids")
     public ResponseMessage<List<WebHookInfoVo>> closeWebHookByHookIds(@RequestParam(value = "ids") String[] ids) {
         return success(webHookService.close(ids, getLoginUser()));
     }
@@ -91,6 +99,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "Re-Open one web hook info by hook id")
     @PostMapping("re-open-one/{id}")
+    @Audited(value = AuditAction.WEBHOOK_ENABLE, objectId = "#hookId")
     public ResponseMessage<WebHookInfoVo> reOpenOne(@PathVariable(value = "id") String hookId) {
         List<WebHookInfoVo> closed = webHookService.reOpen(new String[]{hookId}, getLoginUser());
         if (closed.isEmpty()) {
@@ -101,6 +110,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "Re-Open many web hook info by hook ids")
     @PostMapping("re-open")
+    @Audited(value = AuditAction.WEBHOOK_ENABLE, objectId = "#ids")
     public ResponseMessage<List<WebHookInfoVo>> reOpenAll(@RequestParam(value = "ids") String[] ids) {
         return success(webHookService.reOpen(ids, getLoginUser()));
     }
@@ -108,6 +118,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "delete one web hook info by hook id")
     @DeleteMapping("deleteOne/{id}")
+    @Audited(value = AuditAction.WEBHOOK_DELETE, objectId = "#hookId")
     public ResponseMessage<Void> deleteOneWebHookByHookId(@PathVariable(value = "id") String hookId) {
         webHookService.delete(new String[]{hookId}, getLoginUser());
         return success();
@@ -115,6 +126,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "delete many web hook info by hook ids")
     @DeleteMapping("delete")
+    @Audited(value = AuditAction.WEBHOOK_DELETE, objectId = "#ids")
     public ResponseMessage<Void> deleteWebHookByHookIds(@RequestParam(value = "ids") String[] ids) {
         webHookService.delete(ids, getLoginUser());
         return success();
@@ -122,6 +134,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "ping test")
     @PostMapping("ping")
+    @Audited(value = AuditAction.WEBHOOK_TEST, objectName = "#webHookEvent.hookName")
     public ResponseMessage<HookOneHistoryDto> ping(@RequestBody WebHookInfoDto webHookEvent) {
         ResponseMessage<HookOneHistoryDto> success = success(webHookService.ping(webHookEvent, getLoginUser()));
         success.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));

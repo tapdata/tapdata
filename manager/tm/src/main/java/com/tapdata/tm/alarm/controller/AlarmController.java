@@ -1,5 +1,9 @@
 package com.tapdata.tm.alarm.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
@@ -107,6 +111,7 @@ public class AlarmController extends BaseController {
 
     @Operation(summary = "close alarm")
     @PostMapping("close")
+    @Audited(value = AuditAction.ALARM_CLOSE, objectId = "#ids")
     public ResponseMessage<Void> close(@RequestParam String[] ids) {
         UserDetail user = getLoginUser();
         // 只关闭并审计真实存在的告警，非法或不存在的 ID 忽略
@@ -261,6 +266,7 @@ public class AlarmController extends BaseController {
     }
 
     @PostMapping("/updateTaskAlarm")
+    @Audited(value = AuditAction.ALARM_RECEIVER_UPDATE, objectId = "#alarm.taskId")
     public ResponseMessage<Void> updateTaskAlarm(HttpServletRequest request, @RequestBody AlarmVO alarm){
         UserDetail user = getLoginUser();
         ObjectId taskId = MongoUtils.toObjectId(alarm.getTaskId());

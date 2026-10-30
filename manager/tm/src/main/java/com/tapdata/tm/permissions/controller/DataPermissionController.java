@@ -1,5 +1,9 @@
 package com.tapdata.tm.permissions.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -55,6 +59,7 @@ public class DataPermissionController extends BaseController {
 	}
 
 	@PostMapping("/permissions")
+	@Audited(value = AuditAction.DATA_PERMISSION_UPDATE, objectId = "#vo.dataId", summary = "#vo.dataType")
 	public ResponseMessage<Long> postDataPermissions(@RequestBody DataPermissionSaveVo vo) {
 		DataPermissionDataTypeEnums dataPermissionDataTypeEnums = DataPermissionDataTypeEnums.parse(vo.getDataType());
 		if (null == dataPermissionDataTypeEnums) throw new BizException("IllegalArgument", "dataType");
@@ -99,6 +104,7 @@ public class DataPermissionController extends BaseController {
 	}
 
 	@PostMapping("/data-auth")
+	@Audited(value = AuditAction.DATA_PERMISSION_UPDATE, objectId = "#vo.dataIds", summary = "#vo.dataType")
 	public ResponseMessage<Object> dataAuth(@RequestBody DataPermissionAuthVo vo) {
 		DataPermissionDataTypeEnums dataPermissionDataType = DataPermissionDataTypeEnums.parse(vo.getDataType());
 		if (null == dataPermissionDataType) throw new BizException("IllegalArgument", "dataType");

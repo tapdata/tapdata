@@ -1,5 +1,9 @@
 package com.tapdata.tm.ds.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.controller.BaseController;
@@ -41,6 +45,8 @@ public class PdkController extends BaseController {
     private ProductComponent productComponent;
 
     @PostMapping(path = "upload/source", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.CONNECTOR_INSTALL, objectId = "#root.auditIds(#sourceJsons)",
+            objectName = "#root.auditNames(#sourceJsons)", summary = "#source")
     public ResponseMessage<Void> uploadJar(@RequestPart(value = "file") MultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest, HttpServletRequest request) {
 
         log.debug("Process upload pdk source, file size: {}, source size: {}, latest: {}", file.length, sourceJsons.size(), latest);
@@ -71,6 +77,42 @@ public class PdkController extends BaseController {
         boolean uploadOnlyRegistration = !interactiveRegistration;
         pkdSourceService.uploadPdk(file, pdkSourceDtos, latest, user, uploadOnlyRegistration);
         return success();
+    }
+
+    /** 审计用：本次声明上传的连接器 id 列表；解析失败时返回空列表，不影响上传（TAP-13018 F-14）。 */
+    public List<String> auditIds(List<String> sourceJsons) {
+        return auditSources(sourceJsons).stream().map(PdkSourceDto::getId)
+                .filter(Objects::nonNull).toList();
+    }
+
+    /** 审计用：与 {@link #auditIds} 一一对应的连接器名称。 */
+    public List<String> auditNames(List<String> sourceJsons) {
+        return auditSources(sourceJsons).stream()
+                .map(dto -> dto.getName() != null ? dto.getName() : dto.getRealName())
+                .map(name -> name != null ? name : "")
+                .toList();
+    }
+
+    private List<PdkSourceDto> auditSources(List<String> sourceJsons) {
+        if (sourceJsons == null || sourceJsons.isEmpty()) {
+            return List.of();
+        }
+        List<PdkSourceDto> sources = new ArrayList<>();
+        try {
+            for (String sourceJson : sourceJsons) {
+                if (StringUtils.isBlank(sourceJson)) {
+                    continue;
+                }
+                PdkSourceDto dto = JsonUtil.parseJsonUseJackson(sourceJson, PdkSourceDto.class);
+                if (dto != null) {
+                    sources.add(dto);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Parse pdk source for audit failed", e);
+            return List.of();
+        }
+        return sources;
     }
 
 

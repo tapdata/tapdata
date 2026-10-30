@@ -1,5 +1,7 @@
 package com.tapdata.tm.clusterOperation.service;
 
+import com.tapdata.tm.audit.ClusterOperationAudit;
+
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.service.BaseService;
@@ -36,6 +38,9 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
 /*    @Autowired
     WorkerService workerService;*/
     @Lazy
+    @Autowired(required = false)
+    private ClusterOperationAudit clusterOperationAudit;
+
     @Autowired
     WebSocketClusterServer webSocketClusterServer;
 
@@ -98,6 +103,9 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
                 update.set("msg", "执行超时");
                 Query updateQuery = Query.query(Criteria.where("id").is(clusterOperationDto.getId()));
                 update(updateQuery, update);
+                if (clusterOperationAudit != null && clusterOperationDto.getId() != null) {
+                    clusterOperationAudit.finished(clusterOperationDto.getId().toHexString(), false, "audit_reason_timeout");
+                }
             });
         }
     }
@@ -143,6 +151,10 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
         Update update = new Update();
         update.set("status", status);
         update(query, update);
+        if (clusterOperationAudit != null) {
+            Object msg = ((Map) objectData).get("msg");
+            clusterOperationAudit.finished(id.toString(), status == 2, msg == null ? "audit_reason_agent_failed" : String.valueOf(msg));
+        }
         Object server = ((Map) objectData).get("server");
 
         String queryData = server + "Operation";

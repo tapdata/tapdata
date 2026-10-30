@@ -1,5 +1,9 @@
 package com.tapdata.tm.alarmrule.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -23,6 +27,7 @@ public class AlarmRuleController extends BaseController {
 
     @Operation(summary = "alarm rule save")
     @PostMapping("/save")
+    @Audited(AuditAction.ALARM_RULE_UPDATE)
     public ResponseMessage<Void> alarmRuleSave(@RequestBody List<AlarmRuleDto> rules) {
         alarmRuleService.saveAlarm(rules, getLoginUser());
         return success();
