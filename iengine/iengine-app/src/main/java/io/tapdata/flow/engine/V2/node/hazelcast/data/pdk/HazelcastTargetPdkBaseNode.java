@@ -227,7 +227,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	protected Map<String, TapField> targetFieldMapForFromTapValue(String targetTableName, Map<String, TapField> logicalFieldMap) {
 		Map<String, TapField> physicalFieldMap = discoveredTargetFieldMaps.get(targetTableName);
-		return MapUtils.isNotEmpty(physicalFieldMap) ? physicalFieldMap : logicalFieldMap;
+		if (MapUtils.isEmpty(physicalFieldMap)) return logicalFieldMap;
+		if (MapUtils.isEmpty(logicalFieldMap)) return physicalFieldMap;
+		Map<String, TapField> targetFields = new LinkedHashMap<>(logicalFieldMap);
+		targetFields.putAll(physicalFieldMap);
+		return targetFields;
 	}
 
 	protected void cacheDiscoveredTargetFields(TapTable physicalTable) {
