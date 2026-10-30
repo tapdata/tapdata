@@ -647,7 +647,8 @@ public class WorkerServiceImpl extends WorkerService{
 
 
     public Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("worker_type").is("api-server"));
+        Query query = Query.query(Criteria.where("worker_type").is("api-server")
+                .and("delete").ne(true));
         query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
         query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
         WorkerDto worker = findOne(query);

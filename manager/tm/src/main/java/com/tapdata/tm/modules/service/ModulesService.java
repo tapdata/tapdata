@@ -878,7 +878,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (null == workerCount || workerCount <= 0) {
 			return new ArrayList<>();
 		}
-		Criteria criteria = Criteria.where("deleted").ne(true);
+		Criteria criteria = Criteria.where("deleted").ne(true)
+				.and("delete").ne(true);
 		criteria.and("worker_type").is("api-server");
 		criteria.and("process_id").is(processId);
 		Query query = Query.query(criteria);
