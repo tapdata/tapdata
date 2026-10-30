@@ -320,6 +320,11 @@ public class EventsServiceImpl extends EventsService {
         MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(messageDto.getMsg());
         SystemEnum systemEnum = SystemEnum.getEnumByValue(messageDto.getSystem());
         String toAddress = excludeDelivered(events.getReceivers(), events.getFailResult());
+        if (StringUtils.isBlank(toAddress)) {
+            // 收件人已全部送达，没有需要重发的地址：结束该事件，避免重复通知
+            log.info("all recipients already delivered, finish retry for message: {}", messageDto.getId());
+            return new SendStatus("true", "");
+        }
 
 //        String emailHref = mailUtils.getHrefClick(messageDto.getSourceId(), systemEnum, msgTypeEnum);
         String mailContent = mailUtils.getMailContent(systemEnum, msgTypeEnum);
@@ -331,10 +336,14 @@ public class EventsServiceImpl extends EventsService {
     /**
      * 重发时排除上次已送达的地址，避免已收到通知的人重复收到同一封邮件。
      *
-     * <p>收件人无法全部排除时保持原样：宁可重复通知，也不能让收件人凭空丢失。
+     * <p>返回 {@code null} 表示没有需要重发的地址，调用方应结束该事件，
+     * 不能退回原收件人重发，否则已送达者会重复收到。
      */
     static String excludeDelivered(String receivers, FailResult failResult) {
-        if (StringUtils.isBlank(receivers) || failResult == null || failResult.getDelivered_addresses().isEmpty()) {
+        if (StringUtils.isBlank(receivers)) {
+            return receivers;
+        }
+        if (failResult == null || failResult.getDelivered_addresses().isEmpty()) {
             return receivers;
         }
         Set<String> delivered = failResult.getDelivered_addresses().stream()
@@ -346,7 +355,7 @@ public class EventsServiceImpl extends EventsService {
                 .filter(StringUtils::isNotBlank)
                 .filter(receiver -> !delivered.contains(receiver))
                 .collect(Collectors.toList());
-        return remaining.isEmpty() ? receivers : String.join(",", remaining);
+        return remaining.isEmpty() ? null : String.join(",", remaining);
     }
 
     private SendStatus sendSms(MessageDto messageDto, UserDetail userDetail, EventsDto events) {

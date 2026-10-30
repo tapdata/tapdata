@@ -35,6 +35,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -150,13 +151,23 @@ class EventsServiceTest {
     }
 
     @Test
-    void testExcludeDeliveredKeepsAllWhenEveryAddressAlreadyDelivered() {
+    void testExcludeDeliveredReturnsNullWhenEveryAddressAlreadyDelivered() {
         FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
                 Arrays.asList("a@tapdata.io", "b@tapdata.io"));
 
-        // 全部已送达时不能返回空收件人，否则重试会变成无收件人发送
-        assertEquals("a@tapdata.io,b@tapdata.io",
-                EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", failResult));
+        // 全部已送达时没有需重发地址，必须返回 null 让调用方结束事件；
+        // 退回原收件人会让已收到的人重复收到
+        assertNull(EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", failResult));
+    }
+
+    @Test
+    void testExcludeDeliveredKeepsPendingRecipientAlongsideDelivered() {
+        // 真实场景：用户邮箱已送达，额外配置的收件人被 450 临时拒绝
+        FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
+                List.of("owner@example.com"));
+
+        assertEquals("busy@example.com",
+                EventsServiceImpl.excludeDelivered("owner@example.com,busy@example.com", failResult));
     }
 
     @Test
