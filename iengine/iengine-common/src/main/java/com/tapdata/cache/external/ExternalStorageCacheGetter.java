@@ -88,7 +88,7 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 	}
 
 	@Override
-	public IDataSourceRowsGetter getDataSourceRowsGetter() {
+	public synchronized IDataSourceRowsGetter getDataSourceRowsGetter() {
 		if (dataSourceRowsGetter == null) {
 			logger.info("construct a data source rows getter for cache [{}]", cacheConfig.getCacheName());
 			this.dataSourceRowsGetter = new PdkDataSourceRowsGetter(cacheConfig, clientMongoOperator, hazelcastInstance);
