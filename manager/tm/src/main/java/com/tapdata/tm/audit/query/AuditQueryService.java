@@ -2,7 +2,9 @@ package com.tapdata.tm.audit.query;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditBatch;
 import com.tapdata.tm.audit.AuditChange;
+import com.tapdata.tm.audit.AuditOutcome;
 import com.tapdata.tm.audit.AuditValues;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -185,10 +187,29 @@ public class AuditQueryService {
 		AuditEventVo last = events.stream().filter(e -> "FINAL".equals(e.getPhase())).reduce((a, b) -> b).orElse(null);
 		op.setInitiator(initiator);
 		op.setTimestamp(initiator.getTimestamp());
-		op.setOutcome(last != null ? last.getOutcome() : initiator.getOutcome());
+		op.setOutcome(resolveOutcome(initiator, last));
 		op.setFinalTimestamp(last == null ? null : last.getTimestamp());
 		op.setPending(last == null && "REQUEST".equals(initiator.getPhase()) && "ACCEPTED".equals(initiator.getOutcome()));
 		return op;
+	}
+
+	/**
+	 * 操作级结果：批量部分成功与失败并存时保持 PARTIAL，不能被异步最终成功覆盖（TAP-13018 F-08）。
+	 * 请求事件本身已带对象级结果，最终事件只描述本次受理是否完成，二者需合并而非覆盖。
+	 */
+	static String resolveOutcome(AuditEventVo initiator, AuditEventVo last) {
+		String requested = initiator == null ? null : initiator.getOutcome();
+		String finalOutcome = last == null ? null : last.getOutcome();
+		AuditBatch batch = initiator == null ? null : initiator.getBatch();
+		boolean partialBatch = batch != null && batch.getSuccess() > 0 && batch.getFailed() > 0;
+		if (AuditOutcome.PARTIAL.name().equals(requested) || partialBatch) {
+			// 请求阶段已有对象级失败：最终结果再成功也不改变「部分成功」
+			return AuditOutcome.PARTIAL.name();
+		}
+		if (finalOutcome != null) {
+			return finalOutcome;
+		}
+		return requested;
 	}
 
 	AuditEventVo toVo(UserLogs e, Locale locale) {

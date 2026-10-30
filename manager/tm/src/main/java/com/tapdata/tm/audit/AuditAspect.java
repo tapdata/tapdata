@@ -211,28 +211,46 @@ public class AuditAspect {
 		}
 		if (ids.size() == 1) {
 			String id = ids.get(0);
-			event.object(id, names.getOrDefault(id, objectResolver.resolveName(event.getObjectType(), id)));
+			event.object(id, names.getOrDefault(id, resolveName(event.getObjectType(), id)));
 			return;
 		}
 		AuditBatch batch = new AuditBatch();
 		for (String id : ids) {
-			batch.add(new AuditBatchItem(id, names.getOrDefault(id, objectResolver.resolveName(event.getObjectType(), id)),
+			batch.add(new AuditBatchItem(id, names.getOrDefault(id, resolveName(event.getObjectType(), id)),
 					event.getOutcome(), event.getOutcome() == AuditOutcome.FAILED ? event.getReason() : null));
 		}
 		event.setBatch(batch);
 	}
 
+	/** 连接器以 pdkId 为对象标识，其余类型按文档 _id 解析。 */
+	private String resolveName(String objectType, String id) {
+		if ("connector".equals(objectType)) {
+			return objectResolver.resolveConnectorName(id);
+		}
+		return objectResolver.resolveName(objectType, id);
+	}
+
 	private Map<String, String> prefetchNames(AuditAction action, List<String> ids, ProceedingJoinPoint jp, Audited audited) {
 		Map<String, String> names = new HashMap<>();
 		try {
-			if (StringUtils.isNotBlank(audited.objectName()) && ids.size() == 1) {
+			if (StringUtils.isNotBlank(audited.objectName())) {
 				Object value = evaluate(audited.objectName(), jp, null);
-				if (value != null) {
+				if (ids.size() == 1 && value != null) {
 					names.put(ids.get(0), String.valueOf(value));
+				} else if (ids.size() > 1 && value instanceof Collection<?> collection) {
+					// 批量接口（如一次上传多个连接器）按声明顺序配对，长度不一致时不猜测（TAP-13018 F-14）
+					List<Object> values = new ArrayList<>(collection);
+					if (values.size() == ids.size()) {
+						for (int i = 0; i < ids.size(); i++) {
+							if (values.get(i) != null) {
+								names.put(ids.get(i), String.valueOf(values.get(i)));
+							}
+						}
+					}
 				}
 			}
 			for (String id : ids) {
-				names.computeIfAbsent(id, key -> objectResolver.resolveName(action.getObjectType(), key));
+				names.computeIfAbsent(id, key -> resolveName(action.getObjectType(), key));
 			}
 			names.values().removeIf(v -> v == null);
 		} catch (Exception e) {

@@ -57,4 +57,26 @@ public class AuditObjectResolver {
 			return null;
 		}
 	}
+
+	/**
+	 * 连接器以 pdkId 作为对象标识（同一连接器可有多个版本记录），按 pdkId 取可读名称（TAP-13018 F-14）。
+	 */
+	public String resolveConnectorName(String pdkId) {
+		if (pdkId == null || pdkId.isBlank()) {
+			return null;
+		}
+		try {
+			Query query = Query.query(Criteria.where("pdkId").is(pdkId).and("is_deleted").is(false));
+			query.fields().include("name");
+			Document doc = mongoTemplate.findOne(query, Document.class, "DatabaseTypes");
+			if (doc == null) {
+				return null;
+			}
+			Object value = doc.get("name");
+			return value == null ? null : String.valueOf(value);
+		} catch (Exception e) {
+			log.debug("Resolve connector name failed, pdkId={}", pdkId, e);
+			return null;
+		}
+	}
 }

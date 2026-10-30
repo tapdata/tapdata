@@ -14,9 +14,20 @@ import java.util.Map;
 @Component
 public class WebSocketAudit {
 	private final AuditEventService auditEventService;
+	private AuditObjectResolver objectResolver;
 
 	public WebSocketAudit(AuditEventService auditEventService) {
+		this(auditEventService, null);
+	}
+
+	public WebSocketAudit(AuditEventService auditEventService, AuditObjectResolver objectResolver) {
 		this.auditEventService = auditEventService;
+		this.objectResolver = objectResolver;
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	public void setObjectResolver(AuditObjectResolver objectResolver) {
+		this.objectResolver = objectResolver;
 	}
 
 	public void testRequested(AuditAction action, UserDetail user, Map<String, Object> data) {
@@ -27,7 +38,13 @@ public class WebSocketAudit {
 			event.setSourceIpNote(SourceIpResolver.NOTE_UNAVAILABLE);
 			Object id = data == null ? null : data.get("id");
 			Object name = data == null ? null : data.get("name");
-			event.object(id == null ? null : String.valueOf(id), name == null ? null : String.valueOf(name));
+			String objectId = id == null ? null : String.valueOf(id);
+			String objectName = name == null ? null : String.valueOf(name);
+			if (objectName == null && objectId != null && action != null && objectResolver != null) {
+				// 前端只传配置 id 时按对象类型反查名称，与 HTTP 侧口径一致（TAP-13018 F-15）
+				objectName = objectResolver.resolveName(action.getObjectType(), objectId);
+			}
+			event.object(objectId, objectName);
 			event.setSummary("audit_summary_test_dispatched");
 			auditEventService.record(event, user);
 		} catch (Exception e) {

@@ -1,7 +1,9 @@
 package com.tapdata.tm.audit;
 
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
 /** 登录与凭据换取 token 的审计：成功记录真实用户，失败记录「未认证」与脱敏尝试账号（需求 US-02）。 */
@@ -15,9 +17,20 @@ public class LoginAuditRecorder {
 	public static final String METHOD_OAUTH2 = "oauth2";
 
 	private final AuditEventService auditEventService;
+	private UserService userService;
 
 	public LoginAuditRecorder(AuditEventService auditEventService) {
+		this(auditEventService, null);
+	}
+
+	public LoginAuditRecorder(AuditEventService auditEventService, UserService userService) {
 		this.auditEventService = auditEventService;
+		this.userService = userService;
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	public void setUserService(UserService userService) {
+		this.userService = userService;
 	}
 
 	public void succeeded(String userId, String username, String method, AuditSource source) {
@@ -29,6 +42,31 @@ public class LoginAuditRecorder {
 		event.getContext().put("login_method", method);
 		event.object(userId, username);
 		auditEventService.record(event, null);
+	}
+
+	/**
+	 * 凭据换取 token 的成功事件：调用方只有 userId，按用户回填可读标识，
+	 * 否则操作人与操作对象都只剩内部 ID（TAP-13018 F-13）。
+	 */
+	public void succeeded(String userId, String method, AuditSource source) {
+		succeeded(userId, displayName(userId), method, source);
+	}
+
+	/** 查不到用户或标识异常时返回 null，由页面显示替代值，不影响登录。 */
+	String displayName(String userId) {
+		if (userService == null || userId == null || !ObjectId.isValid(userId)) {
+			return null;
+		}
+		try {
+			UserDetail user = userService.loadUserById(new ObjectId(userId));
+			if (user == null) {
+				return null;
+			}
+			return user.getUsername() != null ? user.getUsername() : user.getEmail();
+		} catch (Exception e) {
+			log.debug("Resolve login audit user name failed: {}", userId, e);
+			return null;
+		}
 	}
 
 	public void succeeded(UserDetail user, String method, AuditSource source) {

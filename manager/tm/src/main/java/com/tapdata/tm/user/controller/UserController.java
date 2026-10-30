@@ -188,7 +188,7 @@ public class UserController extends BaseController {
             loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_ACCESS_CODE, "AccessCode.No.User", AuditSource.OPENAPI);
             return failed("AccessCode.No.User");
         } else {
-            loginAuditRecorder.succeeded(generateToken.getUserId(), null, LoginAuditRecorder.METHOD_ACCESS_CODE, AuditSource.OPENAPI);
+            loginAuditRecorder.succeeded(generateToken.getUserId(), LoginAuditRecorder.METHOD_ACCESS_CODE, AuditSource.OPENAPI);
             return success(generateToken);
         }
     }
@@ -220,6 +220,8 @@ public class UserController extends BaseController {
             loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_ACCESS_CODE, "AccessCode.No.User", AuditSource.OPENAPI);
             return failed("AccessCode.No.User");
         } else {
+            // 表单版与 JSON 版是同一动作，成功分支同样记录，否则该入口的认证事件缺失（TAP-13018 F-13）
+            loginAuditRecorder.succeeded(generateToken.getUserId(), LoginAuditRecorder.METHOD_ACCESS_CODE, AuditSource.OPENAPI);
             return success(generateToken);
         }
     }

@@ -57,6 +57,22 @@ class AuditAuthenticationIT {
 	}
 
 	@Test
+	@DisplayName("access code 换 token 成功时按 userId 回填可读标识，操作人与对象不再只有内部 ID")
+	void should_resolve_readable_identity_for_access_code_success() {
+		// TAP-13018 F-13：登录成功事件回读 User 补 username/email；查不到用户时退回 null 并由页面显示替代值
+		String userId = AuditItFixture.oid();
+		LoginAuditRecorder withUser = new LoginAuditRecorder(fixture.auditEventService, null);
+		withUser.succeeded(userId, LoginAuditRecorder.METHOD_ACCESS_CODE, AuditSource.OPENAPI);
+
+		UserLogs event = fixture.events(AuditAction.API_AUTHENTICATE).get(0);
+		assertThat(event.getOutcome()).isEqualTo("SUCCESS");
+		assertThat(event.getUserId()).isEqualTo(userId);
+		assertThat(event.getObjectId()).isEqualTo(userId);
+		assertThat(event.getSource()).isEqualTo("OPENAPI");
+		assertThat(event.getContext()).containsEntry("login_method", "access_code");
+	}
+
+	@Test
 	@DisplayName("携带无效凭据的未登录请求记为 OpenAPI 认证失败且 5 分钟内去重；匿名请求不记录")
 	void should_record_openapi_invalid_credential_but_not_anonymous() {
 		StaticListableBeanFactory beans = new StaticListableBeanFactory();

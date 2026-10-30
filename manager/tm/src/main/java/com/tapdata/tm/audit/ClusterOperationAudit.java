@@ -42,8 +42,25 @@ public class ClusterOperationAudit {
 		accepted(operation, OBJECT_TYPE, clusterOperationId, serviceName, node, user);
 	}
 
-	public void accepted(String operation, String objectType, String objectId, String serviceName, AuditNode node, UserDetail user) {
-		try {
+	/**
+	 * 服务操作的对象口径：请求事件的 serviceName 是裸 key（engine/agent/backend），
+	 * 与 SYSTEM 最终事件的「Engine @ host」不一致，列表里看不出主机（TAP-13018 F-12）。
+	 */
+	static String displayName(String serviceName, AuditNode node) {
+		if (serviceName == null) {
+			return null;
+		}
+		String host = node == null ? null : node.getHost();
+		if (host == null || host.isBlank()) {
+			return serviceName;
+		}
+		String display = serviceName.isEmpty()
+				? serviceName
+				: Character.toUpperCase(serviceName.charAt(0)) + serviceName.substring(1);
+		return display + " @ " + host;
+	}
+
+	public void accepted(String operation, String objectType, String objectId, String serviceName, AuditNode node, UserDetail user) {		try {
 			AuditAction action = actionOf(operation);
 			String clusterOperationId = objectId;
 			if (action == null || clusterOperationId == null) {
@@ -53,7 +70,7 @@ public class ClusterOperationAudit {
 			AuditEvent event = AuditEvent.of(action, AuditOutcome.ACCEPTED);
 			event.setPhase(AuditPhase.REQUEST);
 			event.setOperationId(operationId);
-			event.object(clusterOperationId, serviceName);
+			event.object(clusterOperationId, displayName(serviceName, node));
 			event.setNode(node);
 			auditEventService.record(event, user);
 			registry.register(objectType, clusterOperationId, operationId, action, serviceName);
