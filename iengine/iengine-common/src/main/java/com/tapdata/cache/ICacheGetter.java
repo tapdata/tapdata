@@ -74,6 +74,13 @@ public interface ICacheGetter {
 		throw new RuntimeException("not support...");
 	}
 
+	/**
+	 * getter 过期淘汰时调用：只释放回源连接器等资源，不销毁共享缓存数据。
+	 * 默认不做任何事，不能委托 close（close 可能销毁新旧 getter 共用的缓存数据）；持有回源连接器的实现必须覆写
+	 */
+	default void releaseDataSource() {
+	}
+
 	default void close() {
 	}
 }
