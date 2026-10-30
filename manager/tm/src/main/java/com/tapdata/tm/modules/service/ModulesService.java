@@ -83,6 +83,8 @@ import com.tapdata.tm.modules.vo.Source;
 import com.tapdata.tm.module.dto.TextEncryption;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
@@ -878,10 +880,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (null == workerCount || workerCount <= 0) {
 			return new ArrayList<>();
 		}
-		Criteria criteria = Criteria.where("deleted").ne(true)
-				.and("delete").ne(true);
-		criteria.and("worker_type").is("api-server");
-		criteria.and("process_id").is(processId);
+		Criteria criteria = Criteria.where(WorkerField.DELETED.field()).ne(true);
+		criteria.and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType());
+		criteria.and(WorkerField.PROCESS_ID.field()).is(processId);
 		Query query = Query.query(criteria);
 		query.limit(1);
 		WorkerDto one = workerService.findOne(query);

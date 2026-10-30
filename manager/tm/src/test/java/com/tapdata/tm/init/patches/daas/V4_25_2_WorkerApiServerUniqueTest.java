@@ -7,8 +7,18 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class V4_25_2_WorkerApiServerUniqueTest {
+
+    @Test
+    void activeWorkerQueryUsesWorkerDeletedField() {
+        Document query = V4_25_2_WorkerApiServerUnique.activeWorkersQuery().getQueryObject();
+
+        assertTrue(query.containsKey("deleted"));
+        assertFalse(query.containsKey("delete"));
+    }
 
     @Test
     void canonicalWorkerPrefersValidStatusBeforeRecency() {

@@ -1,11 +1,12 @@
 package com.tapdata.tm.worker.service;
 
-import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.worker.dto.ApiServerInfo;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -36,20 +37,22 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class ApiWorkerServer {
     public static final String WORKERS = "Workers";
-    public static final String PROCESS_ID = "process_id";
+    public static final String PROCESS_ID = WorkerField.PROCESS_ID.field();
     MongoTemplate mongoOperations;
 
     public void delete(String processId, String workerOid) {
         if (StringUtils.isBlank(processId)) {
             return;
         }
+        Criteria apiServerCriteria = Criteria.where(PROCESS_ID).is(processId)
+                .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType());
         if (StringUtils.isBlank(workerOid)) {
-            mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
-                    new org.springframework.data.mongodb.core.query.Update().set("delete", true),
+            mongoOperations.updateFirst(Query.query(apiServerCriteria),
+                    new org.springframework.data.mongodb.core.query.Update().set(WorkerField.DELETED.field(), true),
                     WORKERS);
             return;
         }
-        List<Worker> serverInfo = mongoOperations.find(Query.query(Criteria.where(PROCESS_ID).is(processId)), Worker.class);
+        List<Worker> serverInfo = mongoOperations.find(Query.query(apiServerCriteria), Worker.class);
         if (serverInfo.isEmpty()) {
             return;
         }
@@ -69,8 +72,8 @@ public class ApiWorkerServer {
                 );
         deleteItem.forEach(item -> {
             try {
-                mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
-                        new org.springframework.data.mongodb.core.query.Update().unset("worker_status.workers." + item),
+                mongoOperations.updateFirst(Query.query(apiServerCriteria),
+                        new org.springframework.data.mongodb.core.query.Update().unset(WorkerField.ApiServerStatus.WORKERS.field() + "." + item),
                         WORKERS);
             } catch (Exception e) {
                 log.error("Unable to remove worker from api server: {}, msg: {}", item, e.getMessage());
@@ -122,8 +125,8 @@ public class ApiWorkerServer {
             throw new BizException("api.call.metric.process.id.required");
         }
         Criteria cWorker = Criteria.where(PROCESS_ID).is(processId)
-                .and("worker_type").is("api-server")
-                .and(WorkerCallServiceImpl.Tag.DELETE).ne(true);
+                .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true);
         Query qWorker = Query.query(cWorker).limit(1);
         Worker server = mongoOperations.findOne(qWorker, Worker.class, WORKERS);
         if (server == null) {
@@ -165,8 +168,8 @@ public class ApiWorkerServer {
     }
 
     public List<ApiServerInfo> getApiServerWorkerInfo() {
-        Criteria cWorker = Criteria.where("worker_type").is("api-server")
-                .and(WorkerCallServiceImpl.Tag.DELETE).ne(true);
+        Criteria cWorker = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true);
         Query qWorker = Query.query(cWorker);
         List<Worker> server = mongoOperations.find(qWorker, Worker.class, WORKERS);
         if (server.isEmpty()) {

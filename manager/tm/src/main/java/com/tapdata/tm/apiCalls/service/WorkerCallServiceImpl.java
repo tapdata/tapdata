@@ -23,6 +23,8 @@ import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
@@ -311,8 +313,8 @@ public class WorkerCallServiceImpl implements WorkerCallService {
      * 按worker&时间分组（min）查询ApiCalls,
      */
     public void metric() {
-        final Criteria serverCriteria = Criteria.where("worker_type").is("api-server")
-                .and("delete").ne(true);
+        final Criteria serverCriteria = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true);
         final Query serverQuery = Query.query(serverCriteria);
         final List<WorkerDto> apiServers = workerService.findAll(serverQuery);
         apiServers.forEach(server -> {
