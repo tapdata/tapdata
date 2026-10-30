@@ -443,7 +443,7 @@ class ApiMetricsChartQueryTest {
 
             ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
             verify(workerRepository, times(2)).findAll(queryCaptor.capture());
-            assertEquals(Boolean.TRUE, ((Document) queryCaptor.getAllValues().get(0).getQueryObject().get("delete"))
+            assertEquals(Boolean.TRUE, ((Document) queryCaptor.getAllValues().get(0).getQueryObject().get("deleted"))
                     .getBoolean("$ne"));
         }
 

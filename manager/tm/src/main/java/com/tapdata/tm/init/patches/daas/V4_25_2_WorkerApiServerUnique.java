@@ -6,6 +6,8 @@ import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,8 +29,14 @@ import java.util.Map;
 @PatchAnnotation(appType = AppType.DAAS, version = "4.25-2")
 public class V4_25_2_WorkerApiServerUnique extends AbsPatch {
     static final String COLLECTION_NAME = "Workers";
-    static final String WORKER_TYPE = "api-server";
+    static final String WORKER_TYPE = WorkerType.API_SERVER.getType();
+    static final String WORKER_TYPE_FIELD = WorkerField.WORKER_TYPE.field();
+    static final String PROCESS_ID_FIELD = WorkerField.PROCESS_ID.field();
     static final String INDEX_NAME = "unq_worker_api_server_active_process";
+    static final String WORKER_STATUS_INDEX_NAME = "update_worker_status_index";
+    // Compatibility-only input from the superseded Worker field; never used by normal Worker logic.
+    static final String LEGACY_DELETE_FIELD = "delete";
+    static final String DELETED_FIELD = WorkerField.DELETED.field();
     private static final Logger logger = LogManager.getLogger(V4_25_2_WorkerApiServerUnique.class);
 
     public V4_25_2_WorkerApiServerUnique(PatchType type, PatchVersion version) {
@@ -40,42 +48,76 @@ public class V4_25_2_WorkerApiServerUnique extends AbsPatch {
         logger.info("Execute java patch: {}...", getClass().getName());
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
 
+        migrateLegacyDeleteField(mongoTemplate);
         Query activeWorkers = activeWorkersQuery();
         // Normalize the legacy missing/null flag so the partial unique index covers every
-        // active API Server record while still allowing delete=true history to remain.
-        mongoTemplate.updateMulti(activeWorkers, Update.update("delete", false), COLLECTION_NAME);
+        // active API Server record while still allowing deleted=true history to remain.
+        mongoTemplate.updateMulti(activeWorkers, Update.update(DELETED_FIELD, false), COLLECTION_NAME);
 
         List<Document> workers = mongoTemplate.getCollection(COLLECTION_NAME)
                 .find(activeWorkers.getQueryObject())
                 .into(new ArrayList<>());
         Map<String, List<Document>> workersByProcess = new HashMap<>();
         workers.forEach(worker -> workersByProcess
-                .computeIfAbsent(worker.getString("process_id"), key -> new ArrayList<>())
+                .computeIfAbsent(worker.getString(PROCESS_ID_FIELD), key -> new ArrayList<>())
                 .add(worker));
 
         workersByProcess.values().stream()
                 .filter(group -> group.size() > 1)
                 .forEach(group -> removeDuplicates(mongoTemplate, group));
 
+        Document activeWorkerKey = new Document(PROCESS_ID_FIELD, 1).append(WORKER_TYPE_FIELD, 1);
+        Document activeWorkerFilter = new Document(WORKER_TYPE_FIELD, WORKER_TYPE)
+                .append(DELETED_FIELD, false)
+                .append(PROCESS_ID_FIELD, new Document("$gt", ""));
         IndexOptions options = new IndexOptions()
                 .unique(true)
                 .name(INDEX_NAME)
-                .partialFilterExpression(new Document("worker_type", WORKER_TYPE)
-                        .append("delete", false)
-                        .append("process_id", new Document("$gt", "")));
-        boolean indexExists = mongoTemplate.getCollection(COLLECTION_NAME).listIndexes()
-                .into(new ArrayList<>()).stream()
-                .anyMatch(index -> INDEX_NAME.equals(index.getString("name")));
-        if (!indexExists) {
-            mongoTemplate.getCollection(COLLECTION_NAME)
-                    .createIndex(new Document("process_id", 1).append("worker_type", 1), options);
-        }
+                .partialFilterExpression(activeWorkerFilter);
+        ensureIndex(mongoTemplate, activeWorkerKey, options, true, activeWorkerFilter);
+
+        Document workerStatusKey = new Document(PROCESS_ID_FIELD, 1)
+                .append(WORKER_TYPE_FIELD, 1)
+                .append(DELETED_FIELD, 1);
+        ensureIndex(mongoTemplate, workerStatusKey,
+                new IndexOptions().name(WORKER_STATUS_INDEX_NAME).background(true), false, null);
     }
 
     static Query activeWorkersQuery() {
-        return Query.query(Criteria.where("worker_type").is(WORKER_TYPE)
-                .and("delete").ne(true)
-                .and("process_id").gt(""));
+        return Query.query(Criteria.where(WORKER_TYPE_FIELD).is(WORKER_TYPE)
+                .and(DELETED_FIELD).ne(true)
+                .and(PROCESS_ID_FIELD).gt(""));
+    }
+
+    private static void migrateLegacyDeleteField(MongoTemplate mongoTemplate) {
+        Query legacyDeletedWorkers = Query.query(Criteria.where(WORKER_TYPE_FIELD).is(WORKER_TYPE)
+                .and(LEGACY_DELETE_FIELD).is(true));
+        mongoTemplate.updateMulti(legacyDeletedWorkers,
+                new Update().set(DELETED_FIELD, true).unset(LEGACY_DELETE_FIELD), COLLECTION_NAME);
+
+        Query legacyWorkers = Query.query(Criteria.where(WORKER_TYPE_FIELD).is(WORKER_TYPE)
+                .and(LEGACY_DELETE_FIELD).exists(true));
+        mongoTemplate.updateMulti(legacyWorkers, new Update().unset(LEGACY_DELETE_FIELD), COLLECTION_NAME);
+    }
+
+    private static void ensureIndex(MongoTemplate mongoTemplate, Document expectedKey, IndexOptions options,
+                                    boolean expectedUnique, Document expectedPartialFilter) {
+        var collection = mongoTemplate.getCollection(COLLECTION_NAME);
+        Document existing = collection.listIndexes().into(new ArrayList<>()).stream()
+                .filter(index -> options.getName().equals(index.getString("name")))
+                .findFirst()
+                .orElse(null);
+        if (existing != null && expectedKey.equals(existing.get("key"))
+                && expectedUnique == existing.getBoolean("unique", false)
+                && (expectedPartialFilter == null
+                ? !existing.containsKey("partialFilterExpression")
+                : expectedPartialFilter.equals(existing.get("partialFilterExpression")))) {
+            return;
+        }
+        if (existing != null) {
+            collection.dropIndex(options.getName());
+        }
+        collection.createIndex(expectedKey, options);
     }
 
     static Document selectCanonical(List<Document> workers) {

@@ -53,6 +53,8 @@ import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -647,9 +649,9 @@ public class WorkerServiceImpl extends WorkerService{
 
 
     public Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("worker_type").is("api-server")
-                .and("delete").ne(true));
-        query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
+        Query query = Query.query(Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true));
+        query.addCriteria(Criteria.where(WorkerField.PING_TIME.field()).gte(System.currentTimeMillis() - 30000L));
         query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
         WorkerDto worker = findOne(query);
         log.debug("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
@@ -670,9 +672,9 @@ public class WorkerServiceImpl extends WorkerService{
 
     @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
-        final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
-                .and("worker_type").is("api-server")
-                .and("delete").ne(true);
+        final Criteria criteria = Criteria.where(WorkerField.PROCESS_ID.field()).is(status.getProcessId())
+                .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true);
         final Update update = new Update();
         final Query query = Query.query(criteria);
         final Long time = Optional.ofNullable(status.getTime()).orElse(new Date().getTime());

@@ -26,6 +26,7 @@ import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
 import io.swagger.v3.oas.annotations.Operation;
@@ -525,9 +526,10 @@ public class WorkerController extends BaseController {
 
     WorkerOrServerStatus updateWorker(WorkerDto worker, boolean updateStatus) {
         WorkerOrServerStatus status = null;
-        if ("api-server".equals(worker.getWorkerType())) {
+        if (WorkerType.API_SERVER.getType().equals(worker.getWorkerType())) {
             List<ServerUsage> usages = new ArrayList<>();
             worker.setPingTime(new Date().getTime());
+            worker.setDeleted(false);
             ApiServerStatus workerStatus = worker.getWorkerStatus();
             if (null != workerStatus && null != workerStatus.getUpdateCpuMem() && workerStatus.getUpdateCpuMem()) {
                 MetricInfo metricValues = workerStatus.getMetricValues();

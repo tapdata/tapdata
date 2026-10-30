@@ -92,6 +92,7 @@ class WorkerControllerTest {
             order.verify(workerService).upsertByWhere(any(), same(worker), same(userDetail));
             order.verify(workerService).updateWorkerStatus(any(), same(userDetail));
             assertNull(worker.getWorkerStatus());
+            assertEquals(false, worker.getDeleted());
             RequestContextHolder.resetRequestAttributes();
         }
     }
