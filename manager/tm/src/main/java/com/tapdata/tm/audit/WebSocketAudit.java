@@ -2,6 +2,7 @@ package com.tapdata.tm.audit;
 
 import com.tapdata.tm.config.security.UserDetail;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -14,20 +15,18 @@ import java.util.Map;
 @Component
 public class WebSocketAudit {
 	private final AuditEventService auditEventService;
-	private AuditObjectResolver objectResolver;
+	private final AuditObjectResolver objectResolver;
 
-	public WebSocketAudit(AuditEventService auditEventService) {
-		this(auditEventService, null);
-	}
-
+	/** 生产装配：构造器注入，Spring 只会用这一个构造器创建 Bean。 */
+	@Autowired
 	public WebSocketAudit(AuditEventService auditEventService, AuditObjectResolver objectResolver) {
 		this.auditEventService = auditEventService;
 		this.objectResolver = objectResolver;
 	}
 
-	@org.springframework.beans.factory.annotation.Autowired(required = false)
-	public void setObjectResolver(AuditObjectResolver objectResolver) {
-		this.objectResolver = objectResolver;
+	/** 仅供测试在无解析器时使用；不参与 Spring 装配。 */
+	WebSocketAudit(AuditEventService auditEventService) {
+		this(auditEventService, null);
 	}
 
 	public void testRequested(AuditAction action, UserDetail user, Map<String, Object> data) {

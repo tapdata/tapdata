@@ -4,6 +4,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** 登录与凭据换取 token 的审计：成功记录真实用户，失败记录「未认证」与脱敏尝试账号（需求 US-02）。 */
@@ -17,20 +18,18 @@ public class LoginAuditRecorder {
 	public static final String METHOD_OAUTH2 = "oauth2";
 
 	private final AuditEventService auditEventService;
-	private UserService userService;
+	private final UserService userService;
 
-	public LoginAuditRecorder(AuditEventService auditEventService) {
-		this(auditEventService, null);
-	}
-
+	/** 生产装配：构造器注入，Spring 只会用这一个构造器创建 Bean。 */
+	@Autowired
 	public LoginAuditRecorder(AuditEventService auditEventService, UserService userService) {
 		this.auditEventService = auditEventService;
 		this.userService = userService;
 	}
 
-	@org.springframework.beans.factory.annotation.Autowired(required = false)
-	public void setUserService(UserService userService) {
-		this.userService = userService;
+	/** 仅供单元/集成测试在无 UserService 时使用；不参与 Spring 装配。 */
+	LoginAuditRecorder(AuditEventService auditEventService) {
+		this(auditEventService, null);
 	}
 
 	public void succeeded(String userId, String username, String method, AuditSource source) {
