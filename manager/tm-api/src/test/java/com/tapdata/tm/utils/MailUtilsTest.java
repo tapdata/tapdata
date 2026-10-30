@@ -680,8 +680,67 @@ class MailUtilsTest {
             assertTrue(sendStatus.getErrorMessage().contains("bad@tapdata.io"));
             assertTrue(sendStatus.getErrorMessage().contains("ok@tapdata.io"));
             // 部分送达走告警路径而非错误路径：运维需要能从日志区分这两种情况
-            verify(log).warn(contains("partial sent"), eq("邮件发送异常"), any(), any());
+            verify(log).warn(contains("partially sent"), eq("邮件发送异常"), any(), any());
             verify(log, never()).error(eq("邮件发送异常"), any(Throwable.class));
+        }
+
+        @Test
+        @DisplayName("sendEmail keeps retryable status when some recipients are temporarily rejected")
+        void testSendEmailTemporarilyRejectedKeepsRetrying() throws Exception {
+            Logger log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            Transport transport = mock(Transport.class);
+            MimeMessage mimeMessage = mock(MimeMessage.class);
+            MailUtils spyUtils = spy(mailUtils);
+            doReturn(mimeMessage).when(spyUtils).message(any(Session.class), anyList(), anyString(), anyString());
+            when(mimeMessage.getAllRecipients()).thenReturn(new Address[]{
+                    new InternetAddress("ok@tapdata.io"), new InternetAddress("busy@tapdata.io")});
+            doReturn(transport).when(spyUtils).connectSMTP(any(Session.class));
+            doNothing().when(spyUtils).closeTransport(any(Transport.class));
+            // busy 地址在 validUnsentAddresses 中，代表 450/451 临时拒绝而非 550 永久无效
+            SendFailedException failure = new SendFailedException("Invalid Addresses", null,
+                    new Address[]{new InternetAddress("ok@tapdata.io")},
+                    new Address[]{new InternetAddress("busy@tapdata.io")},
+                    null);
+            doThrow(failure).when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+
+            SendStatus sendStatus = new SendStatus("false", "");
+            spyUtils.sendEmail(Jsoup.parse("<html><body>hi</body></html>"), sendStatus,
+                    new ArrayList<>(List.of("ok@tapdata.io", "busy@tapdata.io")), "subject", "邮件发送异常");
+
+            // 临时拒绝的收件人仍需重试，因此整体记为失败
+            assertEquals("false", sendStatus.getStatus());
+            assertTrue(sendStatus.getErrorMessage().contains("busy@tapdata.io"));
+            // 已送达地址必须回传，供重试方排除，避免 ok 重复收到
+            assertEquals(Collections.singleton("ok@tapdata.io"), sendStatus.getDeliveredAddresses());
+        }
+
+        @Test
+        @DisplayName("sendEmail reports permanently rejected only delivery as success without retry")
+        void testSendEmailPermanentlyRejectedIsNotRetried() throws Exception {
+            Logger log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            Transport transport = mock(Transport.class);
+            MimeMessage mimeMessage = mock(MimeMessage.class);
+            MailUtils spyUtils = spy(mailUtils);
+            doReturn(mimeMessage).when(spyUtils).message(any(Session.class), anyList(), anyString(), anyString());
+            when(mimeMessage.getAllRecipients()).thenReturn(new Address[]{
+                    new InternetAddress("ok@tapdata.io"), new InternetAddress("gone@tapdata.io")});
+            doReturn(transport).when(spyUtils).connectSMTP(any(Session.class));
+            doNothing().when(spyUtils).closeTransport(any(Transport.class));
+            // gone 地址在 invalidAddresses 中，代表 550 永久无效，重试也不会成功
+            SendFailedException failure = sendFailedException(
+                    new Address[]{new InternetAddress("ok@tapdata.io")},
+                    new Address[]{new InternetAddress("gone@tapdata.io")});
+            doThrow(failure).when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+
+            SendStatus sendStatus = new SendStatus("false", "");
+            spyUtils.sendEmail(Jsoup.parse("<html><body>hi</body></html>"), sendStatus,
+                    new ArrayList<>(List.of("ok@tapdata.io", "gone@tapdata.io")), "subject", "邮件发送异常");
+
+            assertEquals("true", sendStatus.getStatus());
+            assertTrue(sendStatus.getErrorMessage().contains("gone@tapdata.io"));
+            assertEquals(Collections.singleton("ok@tapdata.io"), sendStatus.getDeliveredAddresses());
         }
     }
 

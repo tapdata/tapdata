@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.entity.Events;
+import com.tapdata.tm.events.entity.FailResult;
 import com.tapdata.tm.events.repository.EventsRepository;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
@@ -32,6 +33,7 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -122,5 +124,36 @@ class EventsServiceTest {
         when(mockRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
         eventsServiceUnderTest.completeInform();
         verify(mockMailUtils,times(0)).sendHtmlMail(anyString(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testExcludeDeliveredRemovesAlreadyNotifiedAddresses() {
+        FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
+                Arrays.asList("ok1@tapdata.io", "ok2@tapdata.io"));
+
+        String remaining = EventsServiceImpl.excludeDelivered(
+                "ok1@tapdata.io,busy@tapdata.io,ok2@tapdata.io", failResult);
+
+        // 已送达的两人不再重发，只对临时失败地址重试
+        assertEquals("busy@tapdata.io", remaining);
+    }
+
+    @Test
+    void testExcludeDeliveredKeepsReceiversWhenNothingToExclude() {
+        assertEquals("a@tapdata.io,b@tapdata.io",
+                EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", null));
+        assertEquals("a@tapdata.io,b@tapdata.io",
+                EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io",
+                        new FailResult(1L, 0L, "failed", 0L)));
+    }
+
+    @Test
+    void testExcludeDeliveredKeepsAllWhenEveryAddressAlreadyDelivered() {
+        FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
+                Arrays.asList("a@tapdata.io", "b@tapdata.io"));
+
+        // 全部已送达时不能返回空收件人，否则重试会变成无收件人发送
+        assertEquals("a@tapdata.io,b@tapdata.io",
+                EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", failResult));
     }
 }

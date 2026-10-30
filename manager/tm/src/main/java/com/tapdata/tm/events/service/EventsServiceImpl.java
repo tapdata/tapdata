@@ -37,10 +37,14 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 
@@ -107,6 +111,10 @@ public class EventsServiceImpl extends EventsService {
                 failResult.setFail_message(sendStatus.getErrorMessage());
                 failResult.setNext_retry(DateUtil.offsetMinute(new Date(), 1).getTime());
                 failResult.setTs(new Date().getTime());
+                // 部分送达后仍需重试：记下已送达地址，重试时排除，避免已收到的人重复收到
+                if (!sendStatus.getDeliveredAddresses().isEmpty()) {
+                    failResult.setDelivered_addresses(new ArrayList<>(sendStatus.getDeliveredAddresses()));
+                }
             } else {
                 failResult.setRetry(0L);
                 failResult.setFail_message("");
@@ -179,6 +187,10 @@ public class EventsServiceImpl extends EventsService {
                 failResult.setFail_message(sendStatus.getErrorMessage());
                 failResult.setNext_retry(DateUtil.offsetMinute(new Date(), 1).getTime());
                 failResult.setTs(new Date().getTime());
+                // 部分送达后仍需重试：记下已送达地址，重试时排除，避免已收到的人重复收到
+                if (!sendStatus.getDeliveredAddresses().isEmpty()) {
+                    failResult.setDelivered_addresses(new ArrayList<>(sendStatus.getDeliveredAddresses()));
+                }
             } else {
                 failResult.setRetry(0L);
                 failResult.setFail_message("");
@@ -314,13 +326,34 @@ public class EventsServiceImpl extends EventsService {
         String serverName = messageDto.getServerName();
         MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(messageDto.getMsg());
         SystemEnum systemEnum = SystemEnum.getEnumByValue(messageDto.getSystem());
-        String toAddress = events.getReceivers();
+        String toAddress = excludeDelivered(events.getReceivers(), events.getFailResult());
 
 //        String emailHref = mailUtils.getHrefClick(messageDto.getSourceId(), systemEnum, msgTypeEnum);
         String mailContent = mailUtils.getMailContent(systemEnum, msgTypeEnum);
         String title = mailUtils.getMailTitle(systemEnum, msgTypeEnum);
         SendStatus sendStatus = mailUtils.sendHtmlMail(toAddress, username, serverName, title, mailContent);
         return sendStatus;
+    }
+
+    /**
+     * 重发时排除上次已送达的地址，避免已收到通知的人重复收到同一封邮件。
+     *
+     * <p>收件人无法全部排除时保持原样：宁可重复通知，也不能让收件人凭空丢失。
+     */
+    static String excludeDelivered(String receivers, FailResult failResult) {
+        if (StringUtils.isBlank(receivers) || failResult == null || failResult.getDelivered_addresses().isEmpty()) {
+            return receivers;
+        }
+        Set<String> delivered = failResult.getDelivered_addresses().stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<String> remaining = Arrays.stream(receivers.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .filter(receiver -> !delivered.contains(receiver))
+                .collect(Collectors.toList());
+        return remaining.isEmpty() ? receivers : String.join(",", remaining);
     }
 
     private SendStatus sendSms(MessageDto messageDto, UserDetail userDetail, EventsDto events) {

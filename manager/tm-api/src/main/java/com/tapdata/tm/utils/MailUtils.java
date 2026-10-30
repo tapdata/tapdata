@@ -593,6 +593,17 @@ public class MailUtils {
      * iengine/iengine-app）互不依赖，也没有共同的下层工具模块，无法共享同一份代码。
      * 修改时需同步两处，避免行为分叉。
      */
+    /**
+     * 取出仍可重试的收件地址，即尚未投递的地址。
+     *
+     * <p>与 {@link #extractFailedAddresses} 的区别：后者把「永久无效」和「尚未投递」合并，
+     * 适合展示；这里只保留可重试的部分，用于决定是否需要再次发送。
+     */
+    protected static Set<String> extractPendingAddresses(Throwable error) {
+        SendFailedException failure = findSendFailedException(error);
+        return failure == null ? Collections.emptySet() : toAddressSet(failure.getValidUnsentAddresses());
+    }
+
     @Nullable
     private static SendFailedException findSendFailedException(Throwable error) {
         Throwable current = error;
@@ -754,16 +765,27 @@ public class MailUtils {
             sendStatus.setStatus("true");
         } catch (Exception e) {
             Set<String> validSentAddresses = extractValidSentAddresses(e);
-            if (!validSentAddresses.isEmpty()) {
-                // 部分地址被拒但邮件已投递给其余收件人：记为成功，避免失败重试造成重复通知
+            Set<String> pendingAddresses = extractPendingAddresses(e);
+            if (!validSentAddresses.isEmpty() && pendingAddresses.isEmpty()) {
+                // 部分送达，其余地址为永久无效（如 550）：重试也不会成功，记为成功避免重复通知
                 Set<String> failedAddresses = extractFailedAddresses(e);
-                log.warn("{} partial sent, delivered to {}, failed addresses: {}",
+                log.warn("{} partially sent, delivered to {}, permanently rejected: {}",
                         errorMessage, validSentAddresses, failedAddresses);
                 sendStatus.setStatus("true");
                 sendStatus.setErrorMessage(buildPartialFailureMessage(validSentAddresses, failedAddresses));
+                sendStatus.setDeliveredAddresses(validSentAddresses);
+            } else if (!validSentAddresses.isEmpty()) {
+                // 部分送达，但仍有地址可重试（如 450/451 临时拒绝）：记为失败以触发重试，
+                // 同时带上已送达地址，重试方据此排除，避免已收到的人重复收到
+                log.warn("{} partially sent, delivered to {}, still pending: {}",
+                        errorMessage, validSentAddresses, pendingAddresses);
+                sendStatus.setStatus("false");
+                sendStatus.setErrorMessage(buildRetryableFailureMessage(validSentAddresses, pendingAddresses));
+                sendStatus.setDeliveredAddresses(validSentAddresses);
             } else {
                 log.error(errorMessage, e);
                 sendStatus.setErrorMessage(e.getMessage());
+                sendStatus.setDeliveredAddresses(Collections.emptySet());
             }
         } finally {
             closeTransport(transport);
@@ -771,6 +793,10 @@ public class MailUtils {
     }
 
     private static String buildPartialFailureMessage(Set<String> validSent, Set<String> failed) {
-        return String.format("Partial delivery: sent to %s; failed addresses: %s", validSent, failed);
+        return String.format("Partial delivery: sent to %s; rejected addresses: %s", validSent, failed);
+    }
+
+    private static String buildRetryableFailureMessage(Set<String> validSent, Set<String> pending) {
+        return String.format("Partial delivery: sent to %s; pending retry: %s", validSent, pending);
     }
 }
