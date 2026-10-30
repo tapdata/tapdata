@@ -86,6 +86,27 @@ public class EventsServiceImpl extends EventsService {
     }
 
 
+    /**
+     * 由发送结果构造失败记录。仅在状态为 false 时登记重试时间；
+     * 部分送达后仍需重试时记录已送达地址，供重发时排除。
+     */
+    static FailResult buildFailResult(SendStatus sendStatus, Integer retry) {
+        FailResult failResult = new FailResult();
+        if ("false".equals(sendStatus.getStatus())) {
+            failResult.setRetry(retry.longValue());
+            failResult.setFail_message(sendStatus.getErrorMessage());
+            failResult.setNext_retry(DateUtil.offsetMinute(new Date(), 1).getTime());
+            failResult.setTs(new Date().getTime());
+            if (!sendStatus.getDeliveredAddresses().isEmpty()) {
+                failResult.setDelivered_addresses(new ArrayList<>(sendStatus.getDeliveredAddresses()));
+            }
+        } else {
+            failResult.setRetry(0L);
+            failResult.setFail_message("");
+        }
+        return failResult;
+    }
+
     public Events recordEvents(String title, String content, String to, String messageId, String userId, SendStatus sendStatus, Integer retry, String eventType) {
         Events retEvents = null;
         try {
@@ -104,21 +125,7 @@ public class EventsServiceImpl extends EventsService {
             eventsEntity.setLastUpdAt(new Date());
             eventsEntity.setCreateAt(new Date());
 
-            FailResult failResult = new FailResult();
-            if ("false".equals(sendStatus.getStatus())) {
-                //发送失败
-                failResult.setRetry(retry.longValue());
-                failResult.setFail_message(sendStatus.getErrorMessage());
-                failResult.setNext_retry(DateUtil.offsetMinute(new Date(), 1).getTime());
-                failResult.setTs(new Date().getTime());
-                // 部分送达后仍需重试：记下已送达地址，重试时排除，避免已收到的人重复收到
-                if (!sendStatus.getDeliveredAddresses().isEmpty()) {
-                    failResult.setDelivered_addresses(new ArrayList<>(sendStatus.getDeliveredAddresses()));
-                }
-            } else {
-                failResult.setRetry(0L);
-                failResult.setFail_message("");
-            }
+            FailResult failResult = buildFailResult(sendStatus, retry);
             eventsEntity.setFailed_result(failResult);
             log.info(JSON.toJSONString(eventsEntity));
             retEvents = save(eventsEntity);
@@ -180,21 +187,7 @@ public class EventsServiceImpl extends EventsService {
             eventsEntity.setLastUpdAt(new Date());
             eventsEntity.setCreateAt(new Date());
 
-            FailResult failResult = new FailResult();
-            if ("false".equals(sendStatus.getStatus())) {
-                //发送失败
-                failResult.setRetry(retry.longValue());
-                failResult.setFail_message(sendStatus.getErrorMessage());
-                failResult.setNext_retry(DateUtil.offsetMinute(new Date(), 1).getTime());
-                failResult.setTs(new Date().getTime());
-                // 部分送达后仍需重试：记下已送达地址，重试时排除，避免已收到的人重复收到
-                if (!sendStatus.getDeliveredAddresses().isEmpty()) {
-                    failResult.setDelivered_addresses(new ArrayList<>(sendStatus.getDeliveredAddresses()));
-                }
-            } else {
-                failResult.setRetry(0L);
-                failResult.setFail_message("");
-            }
+            FailResult failResult = buildFailResult(sendStatus, retry);
             eventsEntity.setFailed_result(failResult);
             log.info(JSON.toJSONString(eventsEntity));
             retEvents = save(eventsEntity);

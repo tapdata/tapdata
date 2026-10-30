@@ -34,6 +34,8 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -155,5 +157,23 @@ class EventsServiceTest {
         // 全部已送达时不能返回空收件人，否则重试会变成无收件人发送
         assertEquals("a@tapdata.io,b@tapdata.io",
                 EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", failResult));
+    }
+
+    @Test
+    void testBuildFailResultCarriesDeliveredAddressesOnlyWhenRetrying() {
+        SendStatus partial = new SendStatus("false", "partial");
+        partial.setDeliveredAddresses(Set.of("ok@tapdata.io"));
+
+        FailResult retrying = EventsServiceImpl.buildFailResult(partial, 1);
+        assertEquals("false", retrying.getRetry() == null ? null : partial.getStatus());
+        assertEquals(List.of("ok@tapdata.io"), retrying.getDelivered_addresses());
+        assertNotNull(retrying.getNext_retry());
+
+        // 整体成功不登记重试信息，也不需要排除地址
+        SendStatus success = new SendStatus("true", null);
+        success.setDeliveredAddresses(Set.of("ok@tapdata.io"));
+        FailResult ok = EventsServiceImpl.buildFailResult(success, 1);
+        assertEquals(0L, ok.getRetry());
+        assertTrue(ok.getDelivered_addresses().isEmpty());
     }
 }
