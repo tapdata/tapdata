@@ -201,7 +201,9 @@ public class ApiMetricsChartQuery {
         String serverMatchName = param.getServerName();
         //find all server
         Criteria criteriaOfWorker = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
-                .and(WorkerField.DELETED.field()).ne(true);
+                .and(WorkerField.DELETED.field()).ne(true)
+                // Node API Server lifecycle marker is stored as the raw Mongo key "delete".
+                .and("delete").ne(true);
         if (StringUtils.isNotBlank(serverMatchName)) {
             serverMatchName = serverMatchName.trim();
             criteriaOfWorker.and(WorkerField.HOSTNAME.field()).regex(serverMatchName);
@@ -425,7 +427,8 @@ public class ApiMetricsChartQuery {
 
     protected Worker findServerById(String serverId) {
         Criteria criteriaOfServer = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
-                .and(WorkerField.PROCESS_ID.field()).is(serverId);
+                .and(WorkerField.PROCESS_ID.field()).is(serverId)
+                .and("delete").ne(true);
         Query queryServer = Query.query(criteriaOfServer);
         queryServer.limit(1);
         Worker worker = workerRepository.findOne(queryServer).orElse(null);
@@ -903,7 +906,8 @@ public class ApiMetricsChartQuery {
             return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
         }
         Criteria criteriaOfServer = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
-                .and(WorkerField.PROCESS_ID.field()).in(serverIds);
+                .and(WorkerField.PROCESS_ID.field()).in(serverIds)
+                .and("delete").ne(true);
         Query queryOfServer = Query.query(criteriaOfServer);
         List<Worker> serverList = workerRepository.findAll(queryOfServer);
         Map<String, ApiOfEachServer> serverMap = serverList.stream().collect(Collectors.toMap(Worker::getProcessId, e -> {
@@ -1077,7 +1081,8 @@ public class ApiMetricsChartQuery {
     protected Map<String, Worker> activeWorkers(Collection<String> ignoreIds) {
         Criteria criteriaOfServer = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
                 .and(WorkerField.DELETED.field()).ne(true)
-                .and(WorkerField.IS_DELETED.field()).ne(true);
+                .and(WorkerField.IS_DELETED.field()).ne(true)
+                .and("delete").ne(true);
         if (!CollectionUtils.isEmpty(ignoreIds)) {
             criteriaOfServer.and(WorkerField.PROCESS_ID.field()).nin(ignoreIds);
         }

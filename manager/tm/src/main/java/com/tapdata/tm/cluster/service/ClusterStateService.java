@@ -487,7 +487,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
             Map<String, Worker> apiMap;
             if (!apiServerId.isEmpty()) {
-                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId).and("worker_type").is(WorkerType.API_SERVER.getType())));
+                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId)
+                        .and("worker_type").is(WorkerType.API_SERVER.getType())
+                        .and("delete").ne(true)));
                 apiMap = allApiServerInfo.stream()
                         .filter(Objects::nonNull)
                         .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))

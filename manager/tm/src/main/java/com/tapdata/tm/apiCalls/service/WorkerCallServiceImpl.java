@@ -311,7 +311,8 @@ public class WorkerCallServiceImpl implements WorkerCallService {
      * 按worker&时间分组（min）查询ApiCalls,
      */
     public void metric() {
-        final Criteria serverCriteria = Criteria.where("worker_type").is("api-server");
+        final Criteria serverCriteria = Criteria.where("worker_type").is("api-server")
+                .and("delete").ne(true);
         final Query serverQuery = Query.query(serverCriteria);
         final List<WorkerDto> apiServers = workerService.findAll(serverQuery);
         apiServers.forEach(server -> {
