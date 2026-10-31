@@ -22,7 +22,7 @@
         "key": {
           "process_id": 1,
           "worker_type": 1,
-          "delete": 1
+          "deleted": 1
         },
         "name": "update_worker_status_index",
         "background": true

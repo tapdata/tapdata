@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -289,7 +291,8 @@ class ApiWorkerServerTest {
             when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
             when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
             apiWorkerServer.delete("processId", null);
-            verify(mongoOperations, times(1)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(1)).updateFirst(any(Query.class), argThat(update ->
+                    ((org.bson.Document) update.getUpdateObject().get("$set")).getBoolean("deleted")), eq("Workers"));
             verify(mongoOperations, times(0)).find(any(Query.class), any(Class.class));
         }
         @Test

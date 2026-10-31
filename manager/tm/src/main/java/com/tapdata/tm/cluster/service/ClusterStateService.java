@@ -32,6 +32,7 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerField;
 import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -487,7 +488,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
             Map<String, Worker> apiMap;
             if (!apiServerId.isEmpty()) {
-                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId).and("worker_type").is(WorkerType.API_SERVER.getType())));
+                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where(WorkerField.PROCESS_ID.field()).in(apiServerId)
+                        .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                        .and(WorkerField.DELETED.field()).ne(true)));
                 apiMap = allApiServerInfo.stream()
                         .filter(Objects::nonNull)
                         .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))

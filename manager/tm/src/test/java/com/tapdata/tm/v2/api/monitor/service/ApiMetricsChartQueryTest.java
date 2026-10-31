@@ -64,6 +64,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -426,6 +428,25 @@ class ApiMetricsChartQueryTest {
 
     @Nested
     class ServerOverviewListTest {
+        @Test
+        void serverOverviewListExcludesRawDeletedWorkerHistory() {
+            ServerListParam param = new ServerListParam();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            when(clusterRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            when(usageRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            when(workerRepository.findAll(any(Query.class))).thenReturn(List.of(createWorker("server1", "server1")));
+
+            apiMetricsChartQuery.serverOverviewList(param);
+
+            ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+            verify(workerRepository, times(2)).findAll(queryCaptor.capture());
+            assertEquals(Boolean.TRUE, ((Document) queryCaptor.getAllValues().get(0).getQueryObject().get("deleted"))
+                    .getBoolean("$ne"));
+        }
+
         @Test
         void testEmptyServerList() {
             ServerListParam param = new ServerListParam();
