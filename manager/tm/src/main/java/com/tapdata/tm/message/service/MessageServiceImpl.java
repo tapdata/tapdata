@@ -381,10 +381,12 @@ public class MessageServiceImpl extends MessageService{
             FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
                 if(checkSending(userDetail)){
                     SendStatus sendStatus = new SendStatus("", "false");
+                    List<String> mailReceivers = getMailAddressList(userDetail);
                     if (!MsgTypeEnum.DELETED.equals(msgTypeEnum)) {
-                        sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                        sendStatus = mailUtils.sendHtmlMail(mailReceivers, userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
                     }
-                    eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+                    // 事件需记录本次实际群发的完整收件人，重试才能只针对尚未送达的地址
+                    eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, joinReceivers(mailReceivers), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
             }, () -> {
@@ -565,8 +567,9 @@ public class MessageServiceImpl extends MessageService{
 //        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF);
         String clickHref = mailUtils.getHrefClick(sourceId, systemEnum, msgType);
         if(checkSending(userDetail)){
-            SendStatus sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), username, serverName, clickHref, systemEnum, msgType);
-            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+            List<String> mailReceivers = getMailAddressList(userDetail);
+            SendStatus sendStatus = mailUtils.sendHtmlMail(mailReceivers, username, serverName, clickHref, systemEnum, msgType);
+            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, joinReceivers(mailReceivers), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
             update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
         }
     }
@@ -673,8 +676,9 @@ public class MessageServiceImpl extends MessageService{
             Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
             String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), username, metadataName, clickHref, systemEnum, msgType);
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+                List<String> mailReceivers = getMailAddressList(userDetail);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(mailReceivers, username, metadataName, clickHref, systemEnum, msgType);
+                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, joinReceivers(mailReceivers), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
                 update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
             }
 
@@ -1094,6 +1098,18 @@ public class MessageServiceImpl extends MessageService{
 
     public boolean checkSending(UserDetail userDetail){
         return !settingsService.isCloud() || checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT);
+    }
+
+    /** 事件 receivers 使用逗号分隔的收件人串，与重试解析保持一致 */
+    static String joinReceivers(List<String> receivers) {
+        if (CollectionUtils.isEmpty(receivers)) {
+            return null;
+        }
+        return receivers.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.joining(","));
     }
 
     protected List<String> getMailAddressList(UserDetail userDetail){

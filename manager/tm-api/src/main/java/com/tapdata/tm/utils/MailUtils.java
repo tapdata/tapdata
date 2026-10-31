@@ -507,6 +507,8 @@ public class MailUtils {
         properties.put("mail.smtp.connectiontimeout", SMTP_CONNECTION_TIMEOUT_MILLIS);
         properties.put("mail.smtp.timeout", SMTP_READ_TIMEOUT_MILLIS);
         properties.put("mail.smtp.writetimeout", SMTP_WRITE_TIMEOUT_MILLIS);
+        // 群发时单个收件地址被拒（如 550）不应导致整封邮件失败，其余收件人继续投递
+        properties.put("mail.smtp.sendpartial", "true");
         if ("SSL".equals(parms.getProtocol())) {
             properties.put("mail.smtp.ssl.enable", "true");
             properties.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
@@ -547,12 +549,89 @@ public class MailUtils {
 
             Transport.send(message);
         } catch (Exception e) {
+            Set<String> validSentAddresses = extractValidSentAddresses(e);
+            Set<String> failedAddresses = extractFailedAddresses(e);
+            if (!validSentAddresses.isEmpty()) {
+                // 已设置 sendpartial：部分地址被拒时邮件仍会投递给可用地址，仅有失败地址未送达
+                log.warn("mail partially sent, delivered to {}, failed addresses: {}, cause: {}",
+                        validSentAddresses, failedAddresses, e.getMessage());
+                return new TestResponseDto(true, TapSimplify.getStackTrace(e), validSentAddresses, failedAddresses);
+            }
             flag = false;
             log.error("mail send error：{}", e.getMessage(), e);
-            return new TestResponseDto(flag, TapSimplify.getStackTrace(e));
+            return new TestResponseDto(flag, TapSimplify.getStackTrace(e), null, failedAddresses);
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
         return new TestResponseDto(flag,null);
+    }
+
+    /**
+     * 从群发异常链中取出实际投递成功的收件地址；没有 SendFailedException 时返回空集合。
+     */
+    protected static Set<String> extractValidSentAddresses(Throwable error) {
+        SendFailedException failure = findSendFailedException(error);
+        return failure == null ? Collections.emptySet() : toAddressSet(failure.getValidSentAddresses());
+    }
+
+    /**
+     * 从群发异常链中取出投递失败的收件地址，包含被服务端拒绝和尚未投递的地址。
+     */
+    protected static Set<String> extractFailedAddresses(Throwable error) {
+        SendFailedException failure = findSendFailedException(error);
+        if (failure == null) {
+            return Collections.emptySet();
+        }
+        Set<String> failed = new LinkedHashSet<>(toAddressSet(failure.getInvalidAddresses()));
+        failed.addAll(toAddressSet(failure.getValidUnsentAddresses()));
+        return failed;
+    }
+
+    /**
+     * 在异常链中查找 {@link SendFailedException}。
+     *
+     * <p>iengine 的 BaseEmailExecutor 中有一份等价实现：这两个模块（manager/tm-api 与
+     * iengine/iengine-app）互不依赖，也没有共同的下层工具模块，无法共享同一份代码。
+     * 修改时需同步两处，避免行为分叉。
+     */
+    /**
+     * 取出仍可重试的收件地址，即尚未投递的地址。
+     *
+     * <p>与 {@link #extractFailedAddresses} 的区别：后者把「永久无效」和「尚未投递」合并，
+     * 适合展示；这里只保留可重试的部分，用于决定是否需要再次发送。
+     */
+    protected static Set<String> extractPendingAddresses(Throwable error) {
+        SendFailedException failure = findSendFailedException(error);
+        return failure == null ? Collections.emptySet() : toAddressSet(failure.getValidUnsentAddresses());
+    }
+
+    @Nullable
+    private static SendFailedException findSendFailedException(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof SendFailedException) {
+                return (SendFailedException) current;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private static Set<String> toAddressSet(Address[] addresses) {
+        if (addresses == null || addresses.length == 0) {
+            return Collections.emptySet();
+        }
+        Set<String> result = new LinkedHashSet<>(addresses.length);
+        for (Address address : addresses) {
+            if (address == null) {
+                continue;
+            }
+            String email = address instanceof InternetAddress
+                    ? ((InternetAddress) address).getAddress() : address.toString();
+            if (StringUtils.isNotBlank(email)) {
+                result.add(email.trim());
+            }
+        }
+        return result;
     }
 
     protected static String assemblyMessageBody(String message) {
@@ -668,6 +747,8 @@ public class MailUtils {
         props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
         props.put("mail.smtp.ssl.checkserveridentity", "true");
         props.put("mail.smtp.socketFactory.fallback", "true");
+        // 群发时单个收件地址被拒不应导致整封邮件失败，其余收件人继续投递
+        props.put("mail.smtp.sendpartial", "true");
         Session session = Session.getDefaultInstance(props);
         session.setDebug(true);
         return session;
@@ -683,10 +764,39 @@ public class MailUtils {
             transport.sendMessage(message, message.getAllRecipients());
             sendStatus.setStatus("true");
         } catch (Exception e) {
-            log.error(errorMessage, e);
-            sendStatus.setErrorMessage(e.getMessage());
+            Set<String> validSentAddresses = extractValidSentAddresses(e);
+            Set<String> pendingAddresses = extractPendingAddresses(e);
+            if (!validSentAddresses.isEmpty() && pendingAddresses.isEmpty()) {
+                // 部分送达，其余地址为永久无效（如 550）：重试也不会成功，记为成功避免重复通知
+                Set<String> failedAddresses = extractFailedAddresses(e);
+                log.warn("{} partially sent, delivered to {}, permanently rejected: {}",
+                        errorMessage, validSentAddresses, failedAddresses);
+                sendStatus.setStatus("true");
+                sendStatus.setErrorMessage(buildPartialFailureMessage(validSentAddresses, failedAddresses));
+                sendStatus.setDeliveredAddresses(validSentAddresses);
+            } else if (!validSentAddresses.isEmpty()) {
+                // 部分送达，但仍有地址可重试（如 450/451 临时拒绝）：记为失败以触发重试，
+                // 同时带上已送达地址，重试方据此排除，避免已收到的人重复收到
+                log.warn("{} partially sent, delivered to {}, still pending: {}",
+                        errorMessage, validSentAddresses, pendingAddresses);
+                sendStatus.setStatus("false");
+                sendStatus.setErrorMessage(buildRetryableFailureMessage(validSentAddresses, pendingAddresses));
+                sendStatus.setDeliveredAddresses(validSentAddresses);
+            } else {
+                log.error(errorMessage, e);
+                sendStatus.setErrorMessage(e.getMessage());
+                sendStatus.setDeliveredAddresses(Collections.emptySet());
+            }
         } finally {
             closeTransport(transport);
         }
+    }
+
+    private static String buildPartialFailureMessage(Set<String> validSent, Set<String> failed) {
+        return String.format("Partial delivery: sent to %s; rejected addresses: %s", validSent, failed);
+    }
+
+    private static String buildRetryableFailureMessage(Set<String> validSent, Set<String> pending) {
+        return String.format("Partial delivery: sent to %s; pending retry: %s", validSent, pending);
     }
 }

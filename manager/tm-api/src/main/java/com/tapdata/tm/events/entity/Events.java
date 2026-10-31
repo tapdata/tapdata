@@ -15,6 +15,20 @@ public class Events extends BaseEntity {
 
     private FailResult failed_result;
 
+    /**
+     * {@link #failed_result} 的别名访问器。
+     *
+     * <p>EventsDto 的字段名为 failResult，转换依赖 BeanUtils.copyProperties 的属性名匹配；
+     * 提供同名 getter/setter 后，失败的投递信息才能带到重试链路。
+     */
+    public FailResult getFailResult() {
+        return failed_result;
+    }
+
+    public void setFailResult(FailResult failResult) {
+        this.failed_result = failResult;
+    }
+
     private String event_status;
     private String job_id;
     private  String name;

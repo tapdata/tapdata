@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.entity.Event;
 import com.tapdata.entity.Setting;
 import com.tapdata.entity.TapLog;
 import org.apache.commons.lang3.StringUtils;
@@ -9,6 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.simplejavamail.mailer.Mailer;
 import org.simplejavamail.mailer.MailerBuilder;
+
+import javax.mail.Address;
+import javax.mail.SendFailedException;
 
 /**
  * @author samuel
@@ -64,7 +68,9 @@ public class BaseEmailExecutor {
 						.withSMTPServer(host, Integer.valueOf(port), user, password).withDebugLogging(true)
 						.withProperty("tls.rejectUnauthorized", "false")
 						.withProperty("mail.smtp.ssl.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "SSL") ? "true" : "false")
-						.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false");
+						.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false")
+						// 群发时单个收件地址被拒（如 550）不应导致整封邮件失败，其余收件人继续投递
+						.withProperty("mail.smtp.sendpartial", "true");
 				if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
 					mailerBuilder.withProxy(proxyHost, Integer.valueOf(proxyPort), user, password);
 				}
@@ -122,5 +128,77 @@ public class BaseEmailExecutor {
 				"</html>";
 
 		return template;
+	}
+
+	/**
+	 * 群发时若仅部分收件地址被拒绝（如 550），邮件仍已投递给其余收件人。
+	 * 这类异常不应被当作整体失败，否则会触发失败重试导致重复通知。
+	 *
+	 * @param event  当前邮件事件；部分送达时会被标记为成功
+	 * @param logger 调用方日志器，保持各 executor 自己的日志来源
+	 * @return 部分送达返回 true，调用方应直接返回该事件；否则返回 false 交调用方按失败处理
+	 */
+	protected boolean completeAsPartialSent(Event event, Exception e, Logger logger) {
+		SendFailedException failure = findSendFailedException(e);
+		if (failure == null || !hasDeliveredRecipient(failure)) {
+			return false;
+		}
+		logger.warn("{} partial sent: {}", TapLog.ERROR_0001.getMsg(), partialSentMessage(failure));
+		event.setConsume_ts(System.currentTimeMillis());
+		event.setEvent_status(Event.EVENT_STATUS_SUCCESSED);
+		logger.info(TapLog.JOB_LOG_0005.getMsg(), event.getName(), event.getEvent_status());
+		return true;
+	}
+
+	/**
+	 * 在异常链中查找 {@link SendFailedException}。
+	 *
+	 * <p>manager/tm-api 的 MailUtils 中有一份等价实现：这两个模块（manager/tm-api 与
+	 * iengine/iengine-app）互不依赖，也没有共同的下层工具模块，无法共享同一份代码。
+	 * 修改时需同步两处，避免行为分叉。
+	 */
+	private static SendFailedException findSendFailedException(Throwable error) {
+		Throwable current = error;
+		while (current != null) {
+			if (current instanceof SendFailedException) {
+				return (SendFailedException) current;
+			}
+			current = current.getCause();
+		}
+		return null;
+	}
+
+	/** 是否至少有一个收件地址已实际投递；仅全部被拒时才应按失败处理。 */
+	private static boolean hasDeliveredRecipient(SendFailedException failure) {
+		Address[] validSent = failure.getValidSentAddresses();
+		return validSent != null && validSent.length > 0;
+	}
+
+	/**
+	 * 生成部分送达的失败说明，区分「被服务端拒绝」与「尚未投递」两类地址，
+	 * 便于运维判断是该清理收件人还是检查 SMTP 限流。
+	 */
+	protected String partialSentMessage(SendFailedException failure) {
+		StringBuilder message = new StringBuilder("Partial delivery, rejected addresses: ")
+				.append(describe(failure.getInvalidAddresses()));
+		Address[] unsent = failure.getValidUnsentAddresses();
+		if (unsent != null && unsent.length > 0) {
+			message.append("; not yet delivered: ").append(describe(unsent));
+		}
+		return message.toString();
+	}
+
+	private String describe(Address[] addresses) {
+		if (addresses == null || addresses.length == 0) {
+			return "";
+		}
+		StringBuilder builder = new StringBuilder();
+		for (Address address : addresses) {
+			if (builder.length() > 0) {
+				builder.append(", ");
+			}
+			builder.append(address);
+		}
+		return "[" + builder + "]";
 	}
 }

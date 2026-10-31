@@ -98,6 +98,9 @@ public class WarningEmailEventExecutor extends BaseEmailExecutor implements Even
 
 			logger.info(TapLog.JOB_LOG_0005.getMsg(), event.getName(), event.getEvent_status());
 		} catch (Exception e) {
+			if (completeAsPartialSent(event, e, logger)) {
+				return event;
+			}
 			logger.error(TapLog.ERROR_0001.getMsg(), e.getMessage(), e);
 			Map<String, Object> failedResult = event.getFailed_result();
 			if (failedResult == null) {
