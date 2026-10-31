@@ -124,6 +124,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
 			initTargetDB();
+			discoverTargetPhysicalFields(filterSubPartitionTableTableMap());
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 			this.writePolicyService.setStartTransactionMap(startTransactionMap);
 			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
@@ -808,6 +809,25 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 		for (TapDDLEvent tapDDLEvent : tapDDLEvents) {
 			Object result = ddlEventHandlers.handle(tapDDLEvent);
+			if (Boolean.TRUE.equals(result)) {
+				if (tapDDLEvent instanceof TapAlterFieldAttributesEvent) {
+					invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), ((TapAlterFieldAttributesEvent) tapDDLEvent).getFieldName());
+				} else if (tapDDLEvent instanceof TapAlterFieldNameEvent) {
+					ValueChange<String> change = ((TapAlterFieldNameEvent) tapDDLEvent).getNameChange();
+					if (change != null) {
+						invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), change.getBefore());
+						invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), change.getAfter());
+					}
+				} else if (tapDDLEvent instanceof TapDropFieldEvent) {
+					invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), ((TapDropFieldEvent) tapDDLEvent).getFieldName());
+				} else if (tapDDLEvent instanceof TapNewFieldEvent) {
+					List<TapField> newFields = ((TapNewFieldEvent) tapDDLEvent).getNewFields();
+					if (newFields != null) newFields.forEach(field -> invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), field.getName()));
+				} else if (tapDDLEvent instanceof TapCreateTableEvent
+						&& !Boolean.TRUE.equals(tapDDLEvent.getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY))) {
+					invalidateDiscoveredTargetFields(tapDDLEvent.getTableId());
+				}
+			}
 			if (null == result) {
 				obsLogger.warn("DDL event: " + tapDDLEvent.getClass().getSimpleName() + " does not supported");
 			}
