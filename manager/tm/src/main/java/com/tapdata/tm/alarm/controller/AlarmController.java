@@ -301,8 +301,16 @@ public class AlarmController extends BaseController {
     @GetMapping("/receiverCandidates")
     public ResponseMessage<AlarmReceiverCandidates> receiverCandidates(HttpServletRequest request,
                                                                         @RequestParam(required = false) String taskId,
-                                                                        @RequestParam(required = false) List<String> taskIds) {
+                                                                        @RequestParam(required = false) List<String> taskIds,
+                                                                        @RequestParam(required = false) Boolean inspectScope) {
         UserDetail user = getLoginUser();
+        if (Boolean.TRUE.equals(inspectScope) && !Boolean.TRUE.equals(DataPermissionHelper.check(
+                user, DataPermissionMenuEnums.INSPECT_TACK, DataPermissionActionEnums.Edit,
+                DataPermissionDataTypeEnums.INSPECT, null, () -> true, () -> false))) {
+            throw new BizException("insufficient.permissions",
+                    needAction(DataPermissionDataTypeEnums.INSPECT, List.of(DataPermissionActionEnums.Edit)),
+                    needAction(DataPermissionDataTypeEnums.INSPECT, List.of(DataPermissionActionEnums.Edit)));
+        }
         java.util.Set<String> ids = new java.util.LinkedHashSet<>();
         if (taskId != null && !taskId.isBlank()) {
             ids.add(taskId);
@@ -314,15 +322,32 @@ public class AlarmController extends BaseController {
         for (String id : ids) {
             ObjectId objectId = MongoUtils.toObjectId(id);
             if (objectId != null && Boolean.TRUE.equals(
-                    checkTask(request, user, objectId, DataPermissionActionEnums.Edit, () -> true, () -> false))) {
+                    checkTask(request, user, objectId,
+                            Boolean.TRUE.equals(inspectScope) ? DataPermissionActionEnums.View : DataPermissionActionEnums.Edit,
+                            () -> true, () -> false))) {
                 editableTaskIds.add(objectId.toHexString());
             }
+        }
+        boolean fullDirectory = alarmReceiverAccess.canViewUserDirectory(user);
+        if (editableTaskIds.isEmpty() && (ids.isEmpty() && Boolean.TRUE.equals(inspectScope))) {
+            if (user == null) {
+                throw insufficientPermissions(DataPermissionActionEnums.Edit);
+            }
+            // A new arbitrary-table inspect has no task ID yet. Limit its picker to the
+            // caller's own directory scope; privileged directory viewers keep full access.
+            AlarmReceiverCandidates candidates = alarmService.receiverCandidates(
+                    fullDirectory ? null : user.getUserId(), Collections.emptyList());
+            if (!fullDirectory && candidates != null && candidates.getUsers() != null) {
+                for (AlarmReceiverCandidates.CandidateUser candidateUser : candidates.getUsers()) {
+                    if (candidateUser != null) candidateUser.setEmail(null);
+                }
+            }
+            return success(candidates);
         }
         if (editableTaskIds.isEmpty()) {
             throw insufficientPermissions(DataPermissionActionEnums.Edit);
         }
         // 没有用户管理权限时只给本人所在组（含子组）的成员和组，外加这些任务已引用的接收人；邮箱一律不返回
-        boolean fullDirectory = alarmReceiverAccess.canViewUserDirectory(user);
         AlarmReceiverCandidates candidates = alarmService.receiverCandidates(
                 fullDirectory ? null : user.getUserId(), editableTaskIds);
         if (!fullDirectory && candidates != null && candidates.getUsers() != null) {
