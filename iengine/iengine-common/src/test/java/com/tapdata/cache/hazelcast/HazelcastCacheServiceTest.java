@@ -6,6 +6,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.cache.ICacheStore;
 import junit.framework.TestCase;
 
 import java.util.Arrays;
@@ -16,6 +17,15 @@ import java.util.Map;
 import java.util.Set;
 
 public class HazelcastCacheServiceTest extends TestCase {
+	private static class TestableHazelcastCacheService extends HazelcastCacheService {
+		TestableHazelcastCacheService(HazelcastInstance hazelcastInstance) {
+			super(hazelcastInstance, null);
+		}
+
+		ICacheStore getStore(String cacheName) {
+			return super.getCacheStore(cacheName);
+		}
+	}
 
 
 	private HazelcastCacheService getHazelcastCacheService() {
@@ -71,5 +81,30 @@ public class HazelcastCacheServiceTest extends TestCase {
 	}
 
 	public void testDestroy() {
+	}
+
+	public void testDestroyAndReregisterCreatesStoreFromNewConfiguration() {
+		HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance(HazelcastUtil.getConfig("agentId"));
+		try {
+			TestableHazelcastCacheService cacheService = new TestableHazelcastCacheService(hazelcastInstance);
+			String cacheName = "destroy-reregister-cache";
+			DataFlowCacheConfig originalConfig = cacheConfig(cacheName, Collections.singletonList("oldPk"));
+			cacheService.registerCache(originalConfig);
+			ICacheStore originalStore = cacheService.getStore(cacheName);
+
+			cacheService.destroy(cacheName);
+			DataFlowCacheConfig updatedConfig = cacheConfig(cacheName, Collections.singletonList("newPk"));
+			cacheService.registerCache(updatedConfig);
+			ICacheStore updatedStore = cacheService.getStore(cacheName);
+
+			assertNotSame(originalStore, updatedStore);
+		} finally {
+			hazelcastInstance.shutdown();
+		}
+	}
+
+	private DataFlowCacheConfig cacheConfig(String cacheName, java.util.List<String> primaryKeys) {
+		return new DataFlowCacheConfig("k1,k2", cacheName, "all", 1000L, 1000L, 10L,
+				new HashSet<>(Arrays.asList("k1", "v1")), null, null, "", null, primaryKeys);
 	}
 }
