@@ -28,6 +28,34 @@ public class AuditOperationRegistry {
 		this.mongoTemplate = mongoTemplate;
 	}
 
+	/**
+	 * 仅在没有既有登记时登记；已有登记属于更早的、仍待完成的操作，
+	 * 被新请求覆盖会让前一次操作失去 FINAL 归属（TAP-13018 review P2）。
+	 *
+	 * @return 本次是否成功占有登记
+	 */
+	public boolean registerIfAbsent(String objectType, String objectId, String operationId, AuditAction action, String objectName) {
+		if (objectId == null || operationId == null) {
+			return false;
+		}
+		try {
+			if (peek(objectType, objectId) != null) {
+				return false;
+			}
+			Query query = Query.query(Criteria.where("_id").is(key(objectType, objectId)));
+			Update update = new Update().set("operationId", operationId).set("action", action.getKey())
+					.set("objectType", objectType).set("objectId", objectId).set("objectName", objectName)
+					.set("createdAt", new Date());
+			mongoTemplate.upsert(query, update, COLLECTION);
+			// 以写入后回读为准，不依赖驱动的 upsert 返回值
+			Pending stored = peek(objectType, objectId);
+			return stored != null && operationId.equals(stored.getOperationId());
+		} catch (Exception e) {
+			log.warn("Register async audit operation failed, type={}, id={}", objectType, objectId, e);
+			return false;
+		}
+	}
+
 	public void register(String objectType, String objectId, String operationId, AuditAction action, String objectName) {
 		if (objectId == null || operationId == null) {
 			return;
@@ -61,6 +89,10 @@ public class AuditOperationRegistry {
 	 * 撤销仍属于该 Operation 的登记（预登记后业务失败、或同步完成已自行写最终事件时使用）。
 	 * 登记已被完成路径取走或已改属其它 Operation 时不做处理。
 	 */
+	/**
+	 * 撤销本次占有的登记。已经完成（登记被取走）或已属其它操作的记录不动，
+	 * 避免业务内完成的路径被误撤销后又被重新登记（TAP-13018 review P2）。
+	 */
 	public void release(String objectType, String objectId, String operationId) {
 		if (objectId == null || operationId == null) {
 			return;
@@ -74,7 +106,8 @@ public class AuditOperationRegistry {
 	}
 
 	/** 只读查看登记，不移除。 */
-	public Pending peek(String objectType, String objectId) {		try {
+	public Pending peek(String objectType, String objectId) {
+		try {
 			return mongoTemplate.findOne(Query.query(Criteria.where("_id").is(key(objectType, objectId))), Pending.class, COLLECTION);
 		} catch (Exception e) {
 			return null;

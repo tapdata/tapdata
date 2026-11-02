@@ -52,6 +52,10 @@ class AuditBatchOperationIT {
 			assertThat(one.getObjectName()).isEqualTo("orders-sync");
 			assertThat(one.getBatch().getTotal()).isEqualTo(1);
 
+			// 批量删除逐项失败时不应留下待完成登记（TAP-13018 review P2）
+			assertThat(fixture.registry.peek("task", a)).isNotNull();
+			assertThat(fixture.registry.peek("task", b)).isNull();
+
 			UserLogs delete = fixture.only(AuditAction.TASK_DELETE);
 			assertThat(delete.getOutcome()).isEqualTo("FAILED");
 			assertThat(delete.getBatch().getFailed()).isEqualTo(2);

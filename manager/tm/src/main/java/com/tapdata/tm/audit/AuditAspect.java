@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -70,19 +71,22 @@ public class AuditAspect {
 		}
 		Object result;
 		// 单对象异步操作在业务执行前登记受理对象：业务方法内部可能同步触发完成回调
-		// （例如 TaskServiceImpl.remove 的 noAgent 分支会立即调用 AuditFinalizer），
+		// 异步操作在业务执行前登记受理对象：业务方法内部会同步触发完成回调
+		// （TaskServiceImpl.afterRemove → AuditFinalizer，单对象与批量删除都走这条链），
 		// 若等到方法返回后才登记，完成路径查不到登记只能写兜底的 SINGLE 事件，
 		// 随后切面再登记就留下一条永远等不到 FINAL 的 pending（TAP-13018 review P2）。
-		// 批量操作不预登记：逐项结果只有方法返回后才确定，预登记会让未受理的对象也留下登记。
-		String operationId = action.isAsync() && ids.size() == 1 ? preRegister(action, ids, names) : null;
+		// registerIfAbsent 保证不会覆盖同一对象上更早的、仍待完成的操作。
+		String operationId = action.isAsync() ? auditEventService.currentOperationId() : null;
+		// 批量操作在返回后才逐项登记：执行前无法得知哪些对象会失败，预登记会给失败项留下登记。
+		List<String> claimed = action.isAsync() && ids.size() == 1 ? preRegister(action, operationId, ids, names) : List.of();
 		try {
 			result = joinPoint.proceed();
 		} catch (Throwable e) {
 			String opId = operationId;
 			safeRecord(() -> {
-				// 先撤销预登记：请求在校验阶段就失败，不会再有任何最终结果，
-				// 若先记失败事件，期间到达的完成回调会取走登记写入一条 FINAL
-				unregisterPending(action, ids, opId);
+				// 先撤销本次仍挂着的登记：请求在校验阶段就失败，不会再有任何最终结果。
+				// 已完成的对象（登记已被完成路径取走）不受影响，release 只删本次 Operation 的记录。
+				unregisterPending(action, claimed, opId);
 				recordFailure(action, joinPoint, audited, ids, names, e);
 			});
 			throw e;
@@ -91,39 +95,40 @@ public class AuditAspect {
 				context.setAuditedDepth(context.getAuditedDepth() - 1);
 			}
 		}
-		safeRecord(() -> recordResult(action, joinPoint, audited, ids, names, result));
+		safeRecord(() -> recordResult(action, joinPoint, audited, ids, names, claimed, result));
 		// 预登记未被完成路径取走（业务返回了校验失败等）时撤销，避免留下无法完成的登记
-		unregisterStale(action, ids, operationId, result);
+		unregisterStale(action, claimed, operationId, result);
 		return result;
 	}
 
 	/** 业务返回后仍未取走的预登记：说明这次调用最终没有受理该对象。 */
-	private void unregisterStale(AuditAction action, List<String> ids, String operationId, Object result) {
-		if (operationId == null) {
+	private void unregisterStale(AuditAction action, List<String> claimed, String operationId, Object result) {
+		if (claimed.isEmpty()) {
 			return;
 		}
 		if (result instanceof ResponseMessage<?> rm && !ResponseMessage.OK.equals(rm.getCode())) {
-			unregisterPending(action, ids, operationId);
-			return;
+			unregisterPending(action, claimed, operationId);
 		}
 		COMPLETED_IN_CONTROLLER.remove();
 	}
 
 	/**
-	 * 业务执行前登记已受理对象，返回 Operation ID。
-	 * 登记名称为空时由最终结果补齐；若业务同步完成，完成路径取走登记并写 FINAL。
+	 * 业务执行前登记已受理对象，返回本次真正占有的对象 ID 列表。
+	 * 只登记尚无可完成登记的对象：若同一对象已有更早的、仍待完成的操作，
+	 * 覆盖会让前一次操作失去 FINAL 归属（TAP-13018 review P2）。
 	 */
-	private String preRegister(AuditAction action, List<String> ids, Map<String, String> names) {
+	private List<String> preRegister(AuditAction action, String operationId, List<String> ids, Map<String, String> names) {
+		List<String> claimed = new ArrayList<>();
 		try {
-			String operationId = auditEventService.currentOperationId();
 			for (String id : ids) {
-				operationRegistry.register(action.getObjectType(), id, operationId, action, names.get(id));
+				if (operationRegistry.registerIfAbsent(action.getObjectType(), id, operationId, action, names.get(id))) {
+					claimed.add(id);
+				}
 			}
-			return operationId;
 		} catch (Exception e) {
 			log.debug("Pre-register audit operation failed: {}", action.getKey(), e);
-			return null;
 		}
+		return claimed;
 	}
 
 	private boolean isSkipped(ProceedingJoinPoint jp, Audited audited) {
@@ -166,7 +171,7 @@ public class AuditAspect {
 		auditEventService.record(event, loginUser());
 	}
 
-	private void recordResult(AuditAction action, ProceedingJoinPoint jp, Audited audited, List<String> ids, Map<String, String> names, Object result) {
+	private void recordResult(AuditAction action, ProceedingJoinPoint jp, Audited audited, List<String> ids, Map<String, String> names, List<String> claimed, Object result) {
 		Object data = result instanceof ResponseMessage<?> rm ? rm.getData() : result;
 		List<String> resolvedIds = ids.isEmpty() ? safeIds(jp, audited, data) : ids;
 		if (ids.isEmpty() && resolvedIds.size() == 1 && StringUtils.isNotBlank(audited.objectName())) {
@@ -198,86 +203,81 @@ public class AuditAspect {
 		String operationId = auditEventService.currentOperationId();
 		event.setOperationId(operationId);
 		auditEventService.record(event, loginUser());
-		if (event.getPhase() == AuditPhase.REQUEST && !completedInsideController(operationId)) {
-			registerPending(action, event, operationId);
+		if (event.getPhase() == AuditPhase.REQUEST) {
+			// 只补登记本次真正占有、且业务内尚未被取走的对象：
+			// 批量删除时每个对象在业务内各自完成并取走登记，不能再补回去（TAP-13018 review P2）
+			registerPending(action, event, operationId, claimed);
 		}
 		COMPLETED_IN_CONTROLLER.remove();
 	}
 
 	/**
-	 * 业务方法内部已经走完完成路径（预登记被完成路径取走）的标记。
-	 * 用于区分「业务内同步完成」与「仍在等待异步回调」，避免事后补登记留下 pending
-	 * （TAP-13018 review P2）。
+	 * 业务方法内部已经走完完成路径的对象标记（TAP-13018 review P2）。
+	 * 用于区分「业务内同步完成」与「仍在等待异步回调」，避免事后补登记留下 pending。
 	 */
-	private static final ThreadLocal<String> COMPLETED_IN_CONTROLLER = new ThreadLocal<>();
+	private static final ThreadLocal<Set<String>> COMPLETED_IN_CONTROLLER = ThreadLocal.withInitial(java.util.LinkedHashSet::new);
 
-	static void markCompletedInsideController(String operationId) {
-		if (operationId != null) {
-			COMPLETED_IN_CONTROLLER.set(operationId);
+	/** 记录在业务方法内部已完成的对象；operationId 为空表示完成路径没有可关联的登记。 */
+	static void markCompletedInsideController(String operationId, String objectId) {
+		if (objectId != null) {
+			COMPLETED_IN_CONTROLLER.get().add(objectId);
 		}
 	}
 
-	private boolean completedInsideController(String operationId) {
-		String completed = COMPLETED_IN_CONTROLLER.get();
-		return completed != null && completed.equals(operationId);
+	private boolean completedInsideController(String objectId) {
+		return objectId != null && COMPLETED_IN_CONTROLLER.get().contains(objectId);
 	}
 
 	/**
-	 * 业务在方法内部已同步完成（完成路径取走了预登记并写了 FINAL）时，
-	 * 不能再补登记，否则这条 REQUEST 会留下没有 FINAL 的 pending（TAP-13018 review P2）。
+	 * 补登记本次受理、但业务内未自行完成的对象。
+	 * claimed 为执行前已占有的对象：这些对象若仍挂在本 Operation 下说明还没完成，保留登记；
+	 * 业务内已完成的对象（登记已被完成路径取走）不再补回。
 	 */
-	private boolean alreadyFinished(AuditAction action, List<String> resolvedIds, AuditEvent event) {
-		List<String> ids = new ArrayList<>();
+	private void registerPending(AuditAction action, AuditEvent event, String operationId, List<String> claimed) {
 		if (event.getBatch() != null) {
 			for (AuditBatchItem item : event.getBatch().getItems()) {
-				if (item.getOutcome() != AuditOutcome.FAILED && item.getObjectId() != null) {
-					ids.add(item.getObjectId());
+				if (item.getOutcome() != AuditOutcome.FAILED) {
+					keepOrRegister(action, operationId, item.getObjectId(), item.getObjectName(), claimed);
 				}
 			}
 		} else if (event.getObjectId() != null) {
 			for (String id : event.getObjectId().split(",")) {
 				if (StringUtils.isNotBlank(id)) {
-					ids.add(id.trim());
+					keepOrRegister(action, operationId, id.trim(), event.getObjectName(), claimed);
 				}
 			}
-		} else if (resolvedIds != null) {
-			ids.addAll(resolvedIds);
 		}
-		if (ids.isEmpty()) {
-			return false;
-		}
-		for (String id : ids) {
-			if (operationRegistry.peek(action.getObjectType(), id) != null) {
-				// 仍有登记：说明没有在本方法内完成，正常等待回调
-				return false;
-			}
-		}
-		return true;
 	}
 
-	private void registerPending(AuditAction action, AuditEvent event, String operationId) {
-		if (event.getBatch() != null) {
-			for (AuditBatchItem item : event.getBatch().getItems()) {
-				if (item.getOutcome() != AuditOutcome.FAILED) {
-					operationRegistry.register(action.getObjectType(), item.getObjectId(), operationId, action, item.getObjectName());
-				}
-			}
-		} else if (event.getObjectId() != null) {
-			for (String id : event.getObjectId().split(",")) {
-				operationRegistry.register(action.getObjectType(), id, operationId, action, event.getObjectName());
-			}
+	/**
+	 * 业务内已完成（登记已被取走）的对象不再补登记；其余照常登记。
+	 * 依据是执行前是否占有：占有了却在业务后消失，说明本方法内已经完成。
+	 */
+	private void keepOrRegister(AuditAction action, String operationId, String objectId, String objectName, List<String> claimed) {
+		if (objectId == null) {
+			return;
 		}
+		if (completedInsideController(objectId)) {
+			// 业务方法内部已经完成该对象的操作，不能再补登记
+			return;
+		}
+		operationRegistry.register(action.getObjectType(), objectId, operationId, action, objectName);
+	}
+
+	/** 执行后对象是否仍留有登记（可能属于本次或更早的操作）。 */
+	private boolean stillRegistered(AuditAction action, String objectId) {
+		return operationRegistry.peek(action.getObjectType(), objectId) != null;
 	}
 
 	/**
 	 * 预登记后业务失败时撤销登记，避免在 AuditOperations 中留下永远不完成的记录。
 	 * 只撤销仍属于本次 Operation 的登记，已被完成路径取走的记录不动。
 	 */
-	private void unregisterPending(AuditAction action, List<String> ids, String operationId) {
-		if (operationId == null || ids == null) {
+	private void unregisterPending(AuditAction action, List<String> claimed, String operationId) {
+		if (claimed == null || claimed.isEmpty()) {
 			return;
 		}
-		for (String id : ids) {
+		for (String id : claimed) {
 			try {
 				operationRegistry.release(action.getObjectType(), id, operationId);
 			} catch (Exception e) {

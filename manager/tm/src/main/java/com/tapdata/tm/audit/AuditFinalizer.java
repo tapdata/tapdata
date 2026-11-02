@@ -71,10 +71,13 @@ public class AuditFinalizer implements AuditOperationFinisher {
 			AuditOperationRegistry.Pending pending = registry.peek(objectType, objectId);
 			if (pending != null) {
 				// 业务方法内部已完成：通知切面不要为这条 REQUEST 再登记 pending
-				AuditAspect.markCompletedInsideController(pending.getOperationId());
+				AuditAspect.markCompletedInsideController(pending.getOperationId(), objectId);
 				finish(objectType, objectId, objectName, AuditOutcome.SUCCESS, null);
 				return;
 			}
+			// 没有登记说明是业务方法内部完成的（例如批量删除逐项 afterRemove）：
+			// 记下该对象，切面返回后不再为它补登记（TAP-13018 review P2）
+			AuditAspect.markCompletedInsideController(null, objectId);
 			AuditEvent event = AuditEvent.of(fallback, AuditOutcome.SUCCESS);
 			event.object(objectId, objectName);
 			auditEventService.record(event, user);

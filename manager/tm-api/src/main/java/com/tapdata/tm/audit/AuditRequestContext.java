@@ -8,6 +8,8 @@ public class AuditRequestContext {
 	private static final ThreadLocal<AuditRequestContext> HOLDER = new ThreadLocal<>();
 
 	private String operationId;
+	/** 网关层请求标识（可能来自客户端），仅作排查线索，不用于审计操作的归属。 */
+	private String requestId;
 	private String sourceIp;
 	/** sourceIp 为 UNAVAILABLE 或经可信代理解析时的说明。 */
 	private String sourceIpNote;

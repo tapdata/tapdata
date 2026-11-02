@@ -95,6 +95,29 @@ class AuditOutcomeAggregationIT {
 		assertThat(op.getOutcome()).isEqualTo(AuditOutcome.FAILED.name());
 	}
 
+	@Test
+	@DisplayName("集群操作按节点产生多条 REQUEST 时按对象归并，不能只取第一条")
+	void should_merge_multiple_request_events() throws Exception {
+		// A 完成、B 未完成：保持 pending
+		AuditEventVo reqA = event("r1", AuditPhase.REQUEST, AuditOutcome.ACCEPTED, null, 1000L);
+		reqA.setObjectId("nodeA");
+		AuditEventVo reqB = event("r2", AuditPhase.REQUEST, AuditOutcome.ACCEPTED, null, 1010L);
+		reqB.setObjectId("nodeB");
+		AuditEventVo finA = event("f1", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 2000L);
+		finA.setObjectId("nodeA");
+		AuditOperationVo partial = aggregate(reqA, reqB, finA);
+		assertThat(partial.isPending()).isTrue();
+
+		// A 失败、B 成功：整体部分成功
+		AuditEventVo finAFailed = event("f2", AuditPhase.FINAL, AuditOutcome.FAILED, null, 2010L);
+		finAFailed.setObjectId("nodeA");
+		AuditEventVo finBOk = event("f3", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 2020L);
+		finBOk.setObjectId("nodeB");
+		AuditOperationVo mixed = aggregate(reqA, reqB, finAFailed, finBOk);
+		assertThat(mixed.getOutcome()).isEqualTo(AuditOutcome.PARTIAL.name());
+		assertThat(mixed.isPending()).isFalse();
+	}
+
 	private static AuditEventVo event(String id, AuditPhase phase, AuditOutcome outcome, AuditBatch batch, long ts) {
 		AuditEventVo vo = new AuditEventVo();
 		vo.setEventId(id);

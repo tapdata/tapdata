@@ -87,11 +87,24 @@ public class AuditQueryService {
 		if (seeds.isEmpty() && ObjectId.isValid(id)) {
 			seeds = mongoTemplate.find(Query.query(Criteria.where("_id").is(new ObjectId(id))), UserLogs.class);
 		}
-		if (scopeUserId != null && seeds.stream().noneMatch(e -> scopeUserId.equals(e.getUserId()))) {
-			return List.of();
+		if (scopeUserId != null) {
+			// 受限用户只能看到自己的事件：即使该 Operation ID 下混有他人记录，
+			// 也只返回本人可见的部分，不能借一条自己的记录带出整个操作（TAP-13018 review P1）
+			seeds = seeds.stream().filter(e -> scopeUserId.equals(e.getUserId())).toList();
+			if (seeds.isEmpty()) {
+				return List.of();
+			}
 		}
 		List<String> keys = seeds.stream().map(AuditQueryService::keyOf).distinct().toList();
-		return new ArrayList<>(load(keys).values());
+		List<AuditOperationVo> operations = new ArrayList<>(load(keys).values());
+		if (scopeUserId == null) {
+			return operations;
+		}
+		// 聚合结果可能包含他人的事件，这里按可见性重新裁剪
+		for (AuditOperationVo op : operations) {
+			op.setEvents(op.getEvents().stream().filter(e -> scopeUserId.equals(e.getUserId())).toList());
+		}
+		return operations;
 	}
 
 	public long count(AuditQuery query, String scopeUserId) {
@@ -188,58 +201,83 @@ public class AuditQueryService {
 		AuditOperationVo op = new AuditOperationVo();
 		op.setOperationId(key.contains("|") ? key.substring(0, key.indexOf('|')) : null);
 		op.setEvents(events);
-		AuditEventVo initiator = events.stream().filter(e -> !"FINAL".equals(e.getPhase())).findFirst().orElse(events.get(0));
+		// 同一 Operation 下可能有多个 REQUEST：集群操作按节点各产生一条受理事件（TAP-13018 review P1）。
+		List<AuditEventVo> requests = events.stream().filter(e -> !"FINAL".equals(e.getPhase())).toList();
+		AuditEventVo initiator = requests.isEmpty() ? events.get(0) : requests.get(0);
 		List<AuditEventVo> finals = events.stream().filter(e -> "FINAL".equals(e.getPhase())).toList();
 		AuditEventVo last = finals.isEmpty() ? null : finals.get(finals.size() - 1);
 		op.setInitiator(initiator);
 		op.setTimestamp(initiator.getTimestamp());
-		op.setOutcome(resolveOutcome(initiator, finals));
+		op.setOutcome(resolveOutcome(requests.isEmpty() ? List.of(initiator) : requests, finals));
 		op.setFinalTimestamp(last == null ? null : last.getTimestamp());
-		op.setPending(resolvePending(initiator, finals));
+		op.setPending(resolvePending(requests.isEmpty() ? List.of(initiator) : requests, finals));
 		return op;
 	}
 
 	/**
-	 * 操作级结果：按对象归并受理与最终事件（TAP-13018 review P1）。
-	 * 一个批量操作下每个对象各自上报最终结果，整体结果由各对象结果合并得出：
-	 * 全部成功才算成功，全部失败才算失败，混合即部分成功；请求阶段已失败的对象保持失败。
+	 * 操作级结果：按对象归并全部受理与最终事件（TAP-13018 review P1）。
+	 * 一个批量或集群操作下每个对象各自受理、各自上报最终结果，
+	 * 整体结果由各对象结果合并得出：全部成功才算成功，全部失败才算失败，混合即部分成功。
 	 */
-	static String resolveOutcome(AuditEventVo initiator, List<AuditEventVo> finals) {
-		String requested = initiator == null ? null : initiator.getOutcome();
-		AuditBatch batch = initiator == null ? null : initiator.getBatch();
-
-		// 请求阶段已有对象级结果：按逐项结果判定，最终事件只补充尚未得出结论的对象
-		if (batch != null && batch.getTotal() > 0) {
-			Map<String, String> perObject = new LinkedHashMap<>();
-			Set<String> accepted = new LinkedHashSet<>();
-			for (AuditBatchItem item : batch.getItems()) {
-				if (item == null || item.getObjectId() == null) {
-					continue;
+	static String resolveOutcome(List<AuditEventVo> requests, List<AuditEventVo> finals) {
+		Map<String, String> perObject = new LinkedHashMap<>();
+		Set<String> accepted = new LinkedHashSet<>();
+		for (AuditEventVo request : requests) {
+			AuditBatch batch = request.getBatch();
+			if (batch != null && batch.getTotal() > 0) {
+				for (AuditBatchItem item : batch.getItems()) {
+					if (item == null || item.getObjectId() == null) {
+						continue;
+					}
+					perObject.put(item.getObjectId(), item.getOutcome() == null ? null : item.getOutcome().name());
+					if (item.getOutcome() != AuditOutcome.FAILED) {
+						accepted.add(item.getObjectId());
+					}
 				}
-				perObject.put(item.getObjectId(), item.getOutcome() == null ? null : item.getOutcome().name());
-				if (item.getOutcome() != AuditOutcome.FAILED) {
-					accepted.add(item.getObjectId());
+				continue;
+			}
+			for (String objectId : splitIds(request.getObjectId())) {
+				perObject.put(objectId, request.getOutcome());
+				if (!AuditOutcome.FAILED.name().equals(request.getOutcome())) {
+					accepted.add(objectId);
 				}
 			}
-			for (AuditEventVo fin : finals) {
-				String objectId = fin.getObjectId();
-				if (objectId == null || !accepted.contains(objectId)) {
-					continue;
-				}
-				perObject.put(objectId, fin.getOutcome());
+		}
+		for (AuditEventVo fin : finals) {
+			List<String> targets = splitIds(fin.getObjectId());
+			if (targets.isEmpty()) {
+				// 最终事件未携带对象（单对象操作或历史数据）：作用于全部已受理对象
+				targets = new ArrayList<>(accepted);
 			}
-			return combine(perObject.values());
+			for (String objectId : targets) {
+				if (accepted.contains(objectId)) {
+					perObject.put(objectId, fin.getOutcome());
+				}
+			}
 		}
+		if (perObject.isEmpty()) {
+			// 请求未携带对象标识：退回请求结果与最终结果的简单合并
+			String requested = requests.isEmpty() ? null : requests.get(0).getOutcome();
+			String finalOutcome = finals.isEmpty() ? null : finals.get(finals.size() - 1).getOutcome();
+			if (AuditOutcome.FAILED.name().equals(requested) || AuditOutcome.PARTIAL.name().equals(requested)) {
+				return requested;
+			}
+			return finalOutcome != null ? finalOutcome : requested;
+		}
+		return combine(perObject.values());
+	}
 
-		// 非批量或请求阶段未带逐项结果：沿用请求结果，最终结果仅在请求未给出失败时覆盖
-		String finalOutcome = finals.isEmpty() ? null : finals.get(finals.size() - 1).getOutcome();
-		if (AuditOutcome.PARTIAL.name().equals(requested)) {
-			return AuditOutcome.PARTIAL.name();
+	private static List<String> splitIds(String objectId) {
+		if (StringUtils.isBlank(objectId)) {
+			return List.of();
 		}
-		if (AuditOutcome.FAILED.name().equals(requested)) {
-			return requested;
+		List<String> ids = new ArrayList<>();
+		for (String id : objectId.split(",")) {
+			if (StringUtils.isNotBlank(id)) {
+				ids.add(id.trim());
+			}
 		}
-		return finalOutcome != null ? finalOutcome : requested;
+		return ids;
 	}
 
 	/** 由各对象结果合并出整体结果；同一对象多次上报时取最后一次。 */
@@ -273,22 +311,31 @@ public class AuditQueryService {
 	/**
 	 * 异步操作只有在所有已受理对象都拿到最终结果后才结束 pending
 	 * （TAP-13018 review P1：部分对象完成就提前结束会让操作看起来已完成）。
+	 * 同一 Operation 下可能有多条 REQUEST（集群按节点受理），需要合并它们的受理对象。
 	 */
-	static boolean resolvePending(AuditEventVo initiator, List<AuditEventVo> finals) {
-		if (initiator == null || !"REQUEST".equals(initiator.getPhase())
-				|| !AuditOutcome.ACCEPTED.name().equals(initiator.getOutcome())
-				&& !AuditOutcome.PARTIAL.name().equals(initiator.getOutcome())) {
+	static boolean resolvePending(List<AuditEventVo> requests, List<AuditEventVo> finals) {
+		Set<String> accepted = new LinkedHashSet<>();
+		boolean anyAccepted = false;
+		for (AuditEventVo request : requests) {
+			if (!"REQUEST".equals(request.getPhase())) {
+				continue;
+			}
+			if (!AuditOutcome.ACCEPTED.name().equals(request.getOutcome())
+					&& !AuditOutcome.PARTIAL.name().equals(request.getOutcome())) {
+				continue;
+			}
+			anyAccepted = true;
+			accepted.addAll(acceptedObjects(request));
+		}
+		if (!anyAccepted) {
 			return false;
 		}
-		Set<String> accepted = acceptedObjects(initiator);
 		if (accepted.isEmpty()) {
 			return finals.isEmpty();
 		}
 		Set<String> finished = new HashSet<>();
 		for (AuditEventVo fin : finals) {
-			if (fin.getObjectId() != null) {
-				finished.add(fin.getObjectId());
-			}
+			finished.addAll(splitIds(fin.getObjectId()));
 		}
 		return !finished.containsAll(accepted);
 	}
@@ -305,12 +352,8 @@ public class AuditQueryService {
 			}
 			return accepted;
 		}
-		if (initiator.getObjectId() != null && !AuditOutcome.FAILED.name().equals(initiator.getOutcome())) {
-			for (String id : initiator.getObjectId().split(",")) {
-				if (StringUtils.isNotBlank(id)) {
-					accepted.add(id.trim());
-				}
-			}
+		if (!AuditOutcome.FAILED.name().equals(initiator.getOutcome())) {
+			accepted.addAll(splitIds(initiator.getObjectId()));
 		}
 		return accepted;
 	}

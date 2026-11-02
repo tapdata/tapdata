@@ -1,6 +1,7 @@
 package com.tapdata.tm.audit;
 
 import com.tapdata.tm.userLog.entity.UserLogs;
+import com.tapdata.tm.utils.ThreadLocalUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,23 @@ class AuditRequestContextIT {
 		UserLogs forged = record("10.0.0.2", "10.0.0.2", "not-an-ip");
 		assertThat(forged.getSourceIp()).isEqualTo(AuditValues.UNAVAILABLE);
 		assertThat(forged.getSourceIpNote()).isEqualTo(SourceIpResolver.NOTE_UNAVAILABLE);
+	}
+
+	@Test
+	@DisplayName("Operation ID 由服务端生成，不采用客户端可传的 reqId")
+	void should_generate_operation_id_on_server() {
+		// 客户端可通过 ?reqId= 或 requestId 头指定请求标识，但审计操作归属必须由服务端决定，
+		// 否则可构造相同 Operation ID 混入他人操作（TAP-13018 review P1）
+		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, "attacker-chosen-op");
+		try {
+			AuditWebContext.begin("", "10.7.0.1", null, AuditItFixture.user("u1", "a@corp.com", "username_login"));
+			AuditEvent event = AuditEvent.of(AuditAction.TASK_START, AuditOutcome.SUCCESS);
+			fixture.auditEventService.record(event, AuditItFixture.user("u1", "a@corp.com", "username_login"));
+		} finally {
+			ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, null);
+		}
+		UserLogs saved = fixture.only(AuditAction.TASK_START);
+		assertThat(saved.getOperationId()).isNotBlank().isNotEqualTo("attacker-chosen-op");
 	}
 
 	@Test

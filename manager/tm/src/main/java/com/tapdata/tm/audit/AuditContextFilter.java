@@ -53,9 +53,13 @@ public class AuditContextFilter implements Filter {
 		context.setSourceIp(ip.ip());
 		context.setSourceIpNote(ip.note());
 		context.setForwardedFor(forwarded);
-		context.setUserAgent(request.getHeader("User-Agent"));
-		String reqId = ThreadLocalUtils.get(ThreadLocalUtils.REQUEST_ID);
-		context.setOperationId(StringUtils.isNotBlank(reqId) ? reqId : UUID.randomUUID().toString());
+		String userAgent = request.getHeader("User-Agent");
+		// Operation ID 由服务端生成，不能复用客户端可传的 reqId/requestId：
+		// 否则构造相同 Operation ID 就能把自己的事件并进他人的操作，
+		// 详情接口会把该操作的其它用户记录一并返回（TAP-13018 review P1）。
+		context.setOperationId(UUID.randomUUID().toString());
+		context.setRequestId(ThreadLocalUtils.get(ThreadLocalUtils.REQUEST_ID));
+		context.setUserAgent(userAgent);
 		context.setCredentialPresented(hasCredential(request));
 		return context;
 	}

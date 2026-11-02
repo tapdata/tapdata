@@ -75,6 +75,26 @@ class AuditAsyncOperationIT {
 	}
 
 	@Test
+	@DisplayName("被拒绝的新请求不会清掉前一次合法操作的登记")
+	void should_not_release_previous_operation_registration() {
+		String id = AuditItFixture.oid();
+		AuditWebContext.begin("", "10.5.0.4", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+		// 第一次启动：正常受理并登记
+		controller.start(id);
+		assertThat(fixture.registry.peek("task", id)).isNotNull();
+		// 第二次启动：校验阶段被拒绝，不能把第一次的登记清掉
+		assertThatThrownBy(() -> controller.startRejected(id)).isInstanceOf(BizException.class);
+		assertThat(fixture.registry.peek("task", id)).isNotNull();
+		// 第一次操作随后完成，应能写出 FINAL
+		fixture.finalizer.onTaskStatus("task", id, "orders", "running");
+		assertThat(fixture.registry.peek("task", id)).isNull();
+		var finals = fixture.events(AuditAction.TASK_START).stream()
+				.filter(e -> "FINAL".equals(e.getPhase())).toList();
+		assertThat(finals).hasSize(1);
+		AuditWebContext.end();
+	}
+
+	@Test
 	@DisplayName("请求在权限或状态校验阶段失败时只有一条失败事件，不登记最终结果")
 	void should_write_single_failure_when_validation_fails() {
 		String id = AuditItFixture.oid();
