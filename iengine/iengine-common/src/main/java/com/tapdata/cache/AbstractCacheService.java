@@ -190,6 +190,7 @@ public abstract class AbstractCacheService implements ICacheService {
 				ICacheStore cacheStore = this.getCacheStore(cacheName);
 				if (cacheStore != null) {
 					cacheStore.destroy();
+					this.cacheStoreMap.remove(cacheName, cacheStore);
 				}
 				this.cacheStatusMap.remove(cacheName);
 				this.cacheConfigMap.remove(cacheName);
