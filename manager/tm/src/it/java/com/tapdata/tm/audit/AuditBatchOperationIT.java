@@ -22,6 +22,19 @@ class AuditBatchOperationIT {
 	}
 
 	@Test
+	@DisplayName("批量全部失败时不留执行前的登记")
+	void should_release_registrations_when_batch_all_fail() {
+		try (GenericApplicationContext context = AuditWebContext.aspectContext(fixture)) {
+			AuditDemoController controller = context.getBean(AuditDemoController.class);
+			String a = AuditItFixture.oid(), b = AuditItFixture.oid();
+			AuditWebContext.begin("", "10.6.0.3", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+			// 全部对象都失败：事件为 FAILED，不应残留登记
+			controller.batchDelete(List.of(a, b));
+			assertThat(fixture.collection(AuditOperationRegistry.COLLECTION)).isEmpty();
+		}
+	}
+
+	@Test
 	@DisplayName("批量删除中每个对象在业务内同步完成时，REQUEST 与 FINAL 可关联且不残留登记")
 	void should_link_batch_delete_request_and_final() {
 		try (GenericApplicationContext context = AuditWebContext.aspectContext(fixture)) {

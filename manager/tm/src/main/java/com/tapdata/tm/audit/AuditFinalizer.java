@@ -35,7 +35,14 @@ public class AuditFinalizer implements AuditOperationFinisher {
 			AuditAction action = AuditAction.ofKey(pending.getAction());
 			AuditOutcome outcome = taskOutcome(action, after);
 			if (outcome != null) {
-				finish(objectType, taskId, taskName, outcome, outcome == AuditOutcome.FAILED ? "audit_reason_status_" + after : null);
+				// 按读取到的 owner 消费：peek 与 take 之间登记可能已换成新的操作，
+				// 用旧 action 的结果写进新登记会误报成功（TAP-13018 review）
+				AuditOperationRegistry.Pending consumed =
+						registry.takeOwned(objectType, taskId, pending.getOperationId());
+				if (consumed != null) {
+					writeFinal(consumed, taskId, taskName, outcome,
+							outcome == AuditOutcome.FAILED ? "audit_reason_status_" + after : null);
+				}
 			}
 		} catch (Exception e) {
 			log.warn("Finalize task audit failed, task={}", taskId, e);

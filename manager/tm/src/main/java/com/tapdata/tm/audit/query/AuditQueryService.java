@@ -33,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -77,6 +78,15 @@ public class AuditQueryService {
 		}
 		Map<String, AuditOperationVo> operations = load(keys);
 		List<AuditOperationVo> items = keys.stream().map(operations::get).filter(o -> o != null).toList();
+		if (scopeUserId != null) {
+			// 列表与详情使用同一可见性规则：旧版本遗留的跨用户 Operation ID 冲突记录
+			// 不能通过列表带出他人的事件或 initiator（TAP-13018 review）
+			List<AuditOperationVo> masked = new ArrayList<>();
+			for (AuditOperationVo op : items) {
+				visibleOperation(op, scopeUserId).ifPresent(masked::add);
+			}
+			items = masked;
+		}
 		return new Page<>(total, items);
 	}
 
@@ -103,40 +113,83 @@ public class AuditQueryService {
 		}
 		List<AuditOperationVo> visible = new ArrayList<>();
 		for (AuditOperationVo op : operations) {
-			List<AuditEventVo> events = visibleEvents(op.getEvents(), scopeUserId);
-			if (events.isEmpty()) {
-				continue;
-			}
-			// 按可见集重新聚合，避免 initiator、结果与时间字段携带被排除事件的信息
-			List<AuditEventVo> ordered = new ArrayList<>(events);
-			visible.add(aggregate(op.getOperationId() == null ? "" : op.getOperationId() + "|" + keyAction(events), ordered));
+			visibleOperation(op, scopeUserId).ifPresent(visible::add);
 		}
 		return visible;
 	}
 
 	/**
-	 * 受限用户的可见事件：本人发起的事件，以及与本人 REQUEST 同 Operation 的 SYSTEM 最终事件。
-	 * 归属无法唯一确定的事件不扩大可见范围（TAP-13018 review）。
+	 * 受限用户可见的操作视图：按与列表/详情一致的规则裁剪事件后重新聚合。
+	 * 旧版本可能产生跨用户的 Operation ID 冲突记录，这里不能凭相同 Operation ID 就放行。
+	 */
+	Optional<AuditOperationVo> visibleOperation(AuditOperationVo op, String scopeUserId) {
+		List<AuditEventVo> events = visibleEvents(op.getEvents(), scopeUserId);
+		if (events.isEmpty()) {
+			return Optional.empty();
+		}
+		List<AuditEventVo> ordered = new ArrayList<>(events);
+		return Optional.of(aggregate(op.getOperationId() == null ? "" : op.getOperationId() + "|" + keyAction(events), ordered));
+	}
+
+	/**
+	 * 受限用户的可见事件：本人发起的事件，以及与本人 REQUEST 同 Operation
+	 * <strong>且同对象</strong> 的 SYSTEM 最终事件。
+	 *
+	 * <p>只按 Operation ID 放行会把旧冲突记录里他人对象的 FINAL 一并带出，
+	 * 因此 SYSTEM 事件必须能关联到本人该 Operation 下的某个对象；归属无法唯一确定的不扩大可见范围
+	 * （TAP-13018 review）。</p>
 	 */
 	List<AuditEventVo> visibleEvents(List<AuditEventVo> events, String scopeUserId) {
-		// 本人发起过的 Operation 集合：只有这些 Operation 的 SYSTEM 事件对本人可见
-		Set<String> ownOperations = new java.util.HashSet<>();
+		// 本人在每个 Operation 下发起过的对象集合
+		Map<String, Set<String>> ownObjects = new java.util.HashMap<>();
 		for (AuditEventVo e : events) {
 			if (scopeUserId.equals(e.getUserId()) && StringUtils.isNotBlank(e.getOperationId())) {
-				ownOperations.add(e.getOperationId());
+				Set<String> objects = ownObjects.computeIfAbsent(e.getOperationId(), k -> new LinkedHashSet<>());
+				objects.addAll(eventObjects(e));
 			}
 		}
 		List<AuditEventVo> visible = new ArrayList<>();
 		for (AuditEventVo e : events) {
 			if (scopeUserId.equals(e.getUserId())) {
 				visible.add(e);
-			} else if (AuditValues.SYSTEM.equals(e.getUserId())
-					&& StringUtils.isNotBlank(e.getOperationId())
-					&& ownOperations.contains(e.getOperationId())) {
+				continue;
+			}
+			if (!AuditValues.SYSTEM.equals(e.getUserId()) || StringUtils.isBlank(e.getOperationId())) {
+				continue;
+			}
+			Set<String> own = ownObjects.get(e.getOperationId());
+			if (own == null || own.isEmpty()) {
+				continue;
+			}
+			List<String> objects = eventObjects(e);
+			if (objects.isEmpty()) {
+				// 未携带对象的 SYSTEM 事件只能关联到「本人该 Operation 只有一个对象」的确定场景
+				if (own.size() == 1) {
+					visible.add(e);
+				}
+				continue;
+			}
+			if (own.containsAll(objects)) {
 				visible.add(e);
 			}
 		}
 		return visible;
+	}
+
+	/** 事件涉及的对象标识：批量取逐项明细，单对象取 objectId。 */
+	private static List<String> eventObjects(AuditEventVo event) {
+		List<String> objects = new ArrayList<>();
+		AuditBatch batch = event.getBatch();
+		if (batch != null && batch.getItems() != null) {
+			for (AuditBatchItem item : batch.getItems()) {
+				if (item != null && item.getObjectId() != null) {
+					objects.add(item.getObjectId());
+				}
+			}
+			return objects;
+		}
+		objects.addAll(splitIds(event.getObjectId()));
+		return objects;
 	}
 
 	private static String keyAction(List<AuditEventVo> events) {

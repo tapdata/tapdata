@@ -77,11 +77,11 @@ public class AuditAspect {
 		// （TaskServiceImpl.afterRemove → AuditFinalizer；单对象与批量删除逐项都走这条链），
 		// 若等到方法返回后才登记，完成路径查不到登记只能写无法关联的兜底事件，
 		// 随后切面再登记就留下一条永远等不到 FINAL 的 pending（TAP-13018 review）。
-		// 删除类动作的每个对象都会在业务内走完成路径，因此批量也同样预登记；
-		// registerIfAbsent 保证不会覆盖同一对象上更早的、仍待完成的操作。
-		boolean preRegisterAll = action.isAsync() && (ids.size() == 1 || isDeleteAction(action));
+		// 所有异步操作都在业务执行前登记：批量启动/停止/重置同样可能在接口返回前就产生完成回调，
+		// 返回后才登记的路径会让这些回调查不到登记，操作永久 pending（TAP-13018 review）。
+		// 业务返回后由 registerPending 按真实受理结果对齐：未受理项撤销、已受理项保留、已完成项不补回。
 		String operationId = action.isAsync() ? auditEventService.currentOperationId() : null;
-		List<String> claimed = preRegisterAll ? preRegister(action, operationId, ids, names) : List.of();
+		List<String> claimed = action.isAsync() ? preRegister(action, operationId, ids, names) : List.of();
 		try {
 			result = joinPoint.proceed();
 		} catch (Throwable e) {
@@ -210,11 +210,9 @@ public class AuditAspect {
 		String operationId = auditEventService.currentOperationId();
 		event.setOperationId(operationId);
 		auditEventService.record(event, loginUser());
-		if (event.getPhase() == AuditPhase.REQUEST) {
-			// 只补登记本次真正占有、且业务内尚未被取走的对象：
-			// 批量删除时每个对象在业务内各自完成并取走登记，不能再补回去（TAP-13018 review P2）
-			registerPending(action, event, operationId, claimed);
-		}
+		// 不论事件 phase 都要对齐：批量全部失败时事件是 FAILED/SINGLE，
+		// 若只在 REQUEST 阶段清理，失败对象会残留执行前的登记（TAP-13018 review）
+		registerPending(action, event, operationId, claimed);
 	}
 
 	/**
@@ -230,6 +228,10 @@ public class AuditAspect {
 	 * 业务内未完成且本次已受理：补登记，等待异步最终结果。</p>
 	 */
 	private void registerPending(AuditAction action, AuditEvent event, String operationId, List<String> claimed) {
+		if (claimed.isEmpty() && !action.isAsync()) {
+			// 同步操作不涉及异步最终结果
+			return;
+		}
 		Set<String> accepted = new LinkedHashSet<>();
 		Set<String> leftovers = new LinkedHashSet<>(claimed);
 		if (event.getBatch() != null) {

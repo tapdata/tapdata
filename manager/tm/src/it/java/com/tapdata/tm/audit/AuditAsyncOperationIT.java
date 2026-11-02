@@ -75,6 +75,29 @@ class AuditAsyncOperationIT {
 	}
 
 	@Test
+	@DisplayName("旧状态回调不会消费已被新操作接管的登记")
+	void should_not_consume_registration_owned_by_another_operation() {
+		String id = AuditItFixture.oid();
+		AuditWebContext.begin("", "10.5.0.6", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+		controller.start(id);
+		// 模拟另一实例已接管：同一对象换成 task.stop 的登记
+		AuditOperationRegistry.Pending replaced = new AuditOperationRegistry.Pending();
+		replaced.setId("task:" + id);
+		replaced.setOperationId("other-instance-op");
+		replaced.setAction(AuditAction.TASK_STOP.getKey());
+		replaced.setObjectType("task");
+		replaced.setObjectId(id);
+		fixture.collection(AuditOperationRegistry.COLLECTION).put("task:" + id,
+				new org.bson.Document("_id", "task:" + id).append("operationId", "other-instance-op")
+						.append("action", AuditAction.TASK_STOP.getKey()).append("objectType", "task").append("objectId", id));
+
+		// 旧的 running 回调（针对先前 start 的 peek 结果）不应写掉 stop 的登记
+		fixture.finalizer.onTaskStatus("task", id, "orders", "running");
+		assertThat(fixture.registry.peek("task", id)).isNotNull();
+		AuditWebContext.end();
+	}
+
+	@Test
 	@DisplayName("被拒绝的新请求不会清掉前一次合法操作的登记")
 	void should_not_release_previous_operation_registration() {
 		String id = AuditItFixture.oid();
