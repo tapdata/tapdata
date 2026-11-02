@@ -89,6 +89,32 @@ public class AuditDemoController {
 		return result;
 	}
 
+	/**
+	 * 模拟批量删除中每个对象在业务方法内部同步完成（TaskServiceImpl.batchDelete → afterRemove →
+	 * AuditFinalizer.finishOrRecord），用于验证完成早于切面返回时的登记时序（TAP-13018 review）。
+	 */
+	@Audited(value = AuditAction.TASK_DELETE, objectId = "#ids")
+	public ResponseMessage<List<MutiResponseMessage>> batchDeleteCompletedInline(List<String> ids) {
+		List<MutiResponseMessage> items = new ArrayList<>();
+		for (String id : ids) {
+			instantDelete.accept(id);
+			MutiResponseMessage item = new MutiResponseMessage();
+			item.setId(id);
+			items.add(item);
+		}
+		ResponseMessage<List<MutiResponseMessage>> result = new ResponseMessage<>();
+		result.setData(items);
+		return result;
+	}
+
+	/** 业务方法内部的完成回调（模拟 afterRemove）。 */
+	private java.util.function.Consumer<String> instantDelete = id -> {
+	};
+
+	public void setInstantDelete(java.util.function.Consumer<String> instantDelete) {
+		this.instantDelete = instantDelete;
+	}
+
 	@Audited(value = AuditAction.TASK_DOWNLOAD_LOG, objectId = "#taskId")
 	public void downloadLog(String taskId) {
 	}

@@ -88,9 +88,10 @@ public class AuditQueryService {
 			seeds = mongoTemplate.find(Query.query(Criteria.where("_id").is(new ObjectId(id))), UserLogs.class);
 		}
 		if (scopeUserId != null) {
-			// 受限用户只能看到自己的事件：即使该 Operation ID 下混有他人记录，
-			// 也只返回本人可见的部分，不能借一条自己的记录带出整个操作（TAP-13018 review P1）
-			seeds = seeds.stream().filter(e -> scopeUserId.equals(e.getUserId())).toList();
+			// 先定位所属操作，再按与列表相同的可见性规则加载，
+			// 避免本人 FINAL（actor=SYSTEM）因不是本人用户而看不到（TAP-13018 review）
+			seeds = seeds.stream().filter(e -> scopeUserId.equals(e.getUserId())
+					|| AuditValues.SYSTEM.equals(e.getUserId())).toList();
 			if (seeds.isEmpty()) {
 				return List.of();
 			}
@@ -100,11 +101,46 @@ public class AuditQueryService {
 		if (scopeUserId == null) {
 			return operations;
 		}
-		// 聚合结果可能包含他人的事件，这里按可见性重新裁剪
+		List<AuditOperationVo> visible = new ArrayList<>();
 		for (AuditOperationVo op : operations) {
-			op.setEvents(op.getEvents().stream().filter(e -> scopeUserId.equals(e.getUserId())).toList());
+			List<AuditEventVo> events = visibleEvents(op.getEvents(), scopeUserId);
+			if (events.isEmpty()) {
+				continue;
+			}
+			// 按可见集重新聚合，避免 initiator、结果与时间字段携带被排除事件的信息
+			List<AuditEventVo> ordered = new ArrayList<>(events);
+			visible.add(aggregate(op.getOperationId() == null ? "" : op.getOperationId() + "|" + keyAction(events), ordered));
 		}
-		return operations;
+		return visible;
+	}
+
+	/**
+	 * 受限用户的可见事件：本人发起的事件，以及与本人 REQUEST 同 Operation 的 SYSTEM 最终事件。
+	 * 归属无法唯一确定的事件不扩大可见范围（TAP-13018 review）。
+	 */
+	List<AuditEventVo> visibleEvents(List<AuditEventVo> events, String scopeUserId) {
+		// 本人发起过的 Operation 集合：只有这些 Operation 的 SYSTEM 事件对本人可见
+		Set<String> ownOperations = new java.util.HashSet<>();
+		for (AuditEventVo e : events) {
+			if (scopeUserId.equals(e.getUserId()) && StringUtils.isNotBlank(e.getOperationId())) {
+				ownOperations.add(e.getOperationId());
+			}
+		}
+		List<AuditEventVo> visible = new ArrayList<>();
+		for (AuditEventVo e : events) {
+			if (scopeUserId.equals(e.getUserId())) {
+				visible.add(e);
+			} else if (AuditValues.SYSTEM.equals(e.getUserId())
+					&& StringUtils.isNotBlank(e.getOperationId())
+					&& ownOperations.contains(e.getOperationId())) {
+				visible.add(e);
+			}
+		}
+		return visible;
+	}
+
+	private static String keyAction(List<AuditEventVo> events) {
+		return events.isEmpty() || events.get(0).getAction() == null ? "" : events.get(0).getAction();
 	}
 
 	public long count(AuditQuery query, String scopeUserId) {

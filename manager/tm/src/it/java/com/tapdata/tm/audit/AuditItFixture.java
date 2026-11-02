@@ -51,6 +51,20 @@ class AuditItFixture {
 			events.add(doc);
 			return doc;
 		}).when(mongoTemplate).insert(any(UserLogs.class));
+		// 登记表按 _id 唯一：已存在时抛 DuplicateKey，与真实 MongoDB 的唯一键语义一致，
+		// 这样并发占有测试验证的是真实约束而不是替身的宽松行为（TAP-13018 review）
+		when(mongoTemplate.insert(any(Document.class), eq(AuditOperationRegistry.COLLECTION))).thenAnswer(inv -> {
+			Document doc = inv.getArgument(0);
+			Map<Object, Document> target = collection(inv.getArgument(1));
+			Object key = doc.get("_id");
+			synchronized (target) {
+				if (target.containsKey(key)) {
+					throw new org.springframework.dao.DuplicateKeyException("duplicate key: " + key);
+				}
+				target.put(key, new Document(doc));
+			}
+			return doc;
+		});
 		when(mongoTemplate.upsert(any(Query.class), any(Update.class), anyString())).thenAnswer(inv -> {
 			Query query = inv.getArgument(0);
 			Update update = inv.getArgument(1);

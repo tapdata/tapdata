@@ -59,25 +59,20 @@ public class AuditFinalizer implements AuditOperationFinisher {
 	}
 
 	/**
-	 * 异步删除完成：有受理登记时写 SYSTEM 最终事件；没有登记（非用户接口触发的删除）时按发起用户记录一条完成事件，
-	 * 保证删除不漏记。
+	 * 异步删除完成。
 	 *
-	 * <p>兜底分支会带 {@link #COMPLETED_IN_CONTROLLER} 标记：说明完成发生在业务方法内部，
-	 * 切面返回后不能再补登记，否则这条 REQUEST 永远等不到 FINAL（TAP-13018 review P2）。</p>
+	 * <p>有受理登记时消费该登记并写 SYSTEM 最终事件（与 REQUEST 同 Operation，可关联）。
+	 * 没有登记说明这次删除不是由带审计的用户接口受理的（如定时任务），按发起用户记一条完成事件。
+	 * 登记已存在即代表「用户请求已受理」，因此两条路径都不会在事后留下 pending（TAP-13018 review）。</p>
 	 */
 	public void finishOrRecord(String objectType, String objectId, String objectName, AuditAction fallback,
 							   com.tapdata.tm.config.security.UserDetail user) {
 		try {
 			AuditOperationRegistry.Pending pending = registry.peek(objectType, objectId);
 			if (pending != null) {
-				// 业务方法内部已完成：通知切面不要为这条 REQUEST 再登记 pending
-				AuditAspect.markCompletedInsideController(pending.getOperationId(), objectId);
 				finish(objectType, objectId, objectName, AuditOutcome.SUCCESS, null);
 				return;
 			}
-			// 没有登记说明是业务方法内部完成的（例如批量删除逐项 afterRemove）：
-			// 记下该对象，切面返回后不再为它补登记（TAP-13018 review P2）
-			AuditAspect.markCompletedInsideController(null, objectId);
 			AuditEvent event = AuditEvent.of(fallback, AuditOutcome.SUCCESS);
 			event.object(objectId, objectName);
 			auditEventService.record(event, user);
@@ -93,6 +88,11 @@ public class AuditFinalizer implements AuditOperationFinisher {
 		if (pending == null) {
 			return;
 		}
+		writeFinal(pending, objectId, objectName, outcome, reason);
+	}
+
+	private void writeFinal(AuditOperationRegistry.Pending pending, String objectId, String objectName,
+							AuditOutcome outcome, String reason) {
 		AuditAction action = AuditAction.ofKey(pending.getAction());
 		if (action == null) {
 			return;

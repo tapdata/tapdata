@@ -29,29 +29,29 @@ public class AuditOperationRegistry {
 	}
 
 	/**
-	 * 仅在没有既有登记时登记；已有登记属于更早的、仍待完成的操作，
-	 * 被新请求覆盖会让前一次操作失去 FINAL 归属（TAP-13018 review P2）。
+	 * 原子占有登记：以 {@code _id = objectType:objectId} 的唯一键插入完成，
+	 * 已存在时数据库直接拒绝插入（DuplicateKey），不存在「先查再写」的竞态窗口。
 	 *
-	 * @return 本次是否成功占有登记
+	 * @return 本次是否成功占有登记；数据库不可用时抛出异常，由调用方区分「已有 owner」与「登记失败」
 	 */
 	public boolean registerIfAbsent(String objectType, String objectId, String operationId, AuditAction action, String objectName) {
 		if (objectId == null || operationId == null) {
 			return false;
 		}
+		String id = key(objectType, objectId);
+		Date now = new Date();
+		org.bson.Document doc = new org.bson.Document("_id", id)
+				.append("operationId", operationId)
+				.append("action", action.getKey())
+				.append("objectType", objectType)
+				.append("objectId", objectId)
+				.append("objectName", objectName)
+				.append("createdAt", now);
 		try {
-			if (peek(objectType, objectId) != null) {
-				return false;
-			}
-			Query query = Query.query(Criteria.where("_id").is(key(objectType, objectId)));
-			Update update = new Update().set("operationId", operationId).set("action", action.getKey())
-					.set("objectType", objectType).set("objectId", objectId).set("objectName", objectName)
-					.set("createdAt", new Date());
-			mongoTemplate.upsert(query, update, COLLECTION);
-			// 以写入后回读为准，不依赖驱动的 upsert 返回值
-			Pending stored = peek(objectType, objectId);
-			return stored != null && operationId.equals(stored.getOperationId());
-		} catch (Exception e) {
-			log.warn("Register async audit operation failed, type={}, id={}", objectType, objectId, e);
+			mongoTemplate.insert(doc, COLLECTION);
+			return true;
+		} catch (org.springframework.dao.DuplicateKeyException e) {
+			// 已有 owner：本次不占有，也不改写既有登记
 			return false;
 		}
 	}
@@ -81,6 +81,23 @@ public class AuditOperationRegistry {
 			return mongoTemplate.findAndRemove(query, Pending.class, COLLECTION);
 		} catch (Exception e) {
 			log.warn("Take async audit operation failed, type={}, id={}", objectType, objectId, e);
+			return null;
+		}
+	}
+
+	/**
+	 * 按 owner 消费：只有登记仍属于该 Operation 时才取出并删除。
+	 * peek 与 take 之间登记可能改属，带 owner 条件避免误取新记录（TAP-13018 review）。
+	 */
+	public Pending takeOwned(String objectType, String objectId, String operationId) {
+		if (objectId == null || operationId == null) {
+			return null;
+		}
+		try {
+			Query query = Query.query(Criteria.where("_id").is(key(objectType, objectId)).and("operationId").is(operationId));
+			return mongoTemplate.findAndRemove(query, Pending.class, COLLECTION);
+		} catch (Exception e) {
+			log.warn("Take owned async audit operation failed, type={}, id={}", objectType, objectId, e);
 			return null;
 		}
 	}
