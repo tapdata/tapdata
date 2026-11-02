@@ -275,6 +275,12 @@ public class EventsServiceImpl extends EventsService {
         update.inc("failed_result.retry", 1);
         update.set("failed_result.fail_message", sendStatus.getErrorMessage());
         update.set("event_status", sendStatus.getStatus());
+        // 多轮重试时累计本轮新送达的地址：用 $addToSet + $each 与已存地址合并去重，
+        // 否则下一轮会把本轮已送达的收件人再通知一遍
+        if (!sendStatus.getDeliveredAddresses().isEmpty()) {
+            update.addToSet("failed_result.delivered_addresses")
+                    .each(new ArrayList<>(sendStatus.getDeliveredAddresses()));
+        }
         return super.update(query, update);
     }
 

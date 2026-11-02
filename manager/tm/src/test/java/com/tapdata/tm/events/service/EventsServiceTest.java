@@ -24,6 +24,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -186,5 +187,35 @@ class EventsServiceTest {
         FailResult ok = EventsServiceImpl.buildFailResult(success, 1);
         assertEquals(0L, ok.getRetry());
         assertTrue(ok.getDelivered_addresses().isEmpty());
+    }
+
+    @Test
+    void testUpdateFailInfoMergesNewlyDeliveredAddresses() {
+        ObjectId id = new ObjectId();
+        UserDetail user = new UserDetail("u1", "customer", "user1", "unused", List.of());
+        SendStatus retryPartial = new SendStatus("false", "partial");
+        retryPartial.setDeliveredAddresses(Set.of("b@example.com"));
+
+        when(mockRepository.update(any(Query.class), any(Update.class)))
+                .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+
+        java.lang.reflect.Method method = Arrays.stream(EventsServiceImpl.class.getDeclaredMethods())
+                .filter(m -> m.getName().equals("updateFailInfo"))
+                .findFirst().orElseThrow();
+        method.setAccessible(true);
+        try {
+            method.invoke(eventsServiceUnderTest, id, user, retryPartial);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+
+        ArgumentCaptor<Update> captor = ArgumentCaptor.forClass(Update.class);
+        verify(mockRepository).update(any(Query.class), captor.capture());
+        org.bson.Document updateObject = captor.getValue().getUpdateObject();
+        // 多轮重试必须累计本轮新送达地址，否则下一轮会重复通知已收到的人
+        org.bson.Document addToSet = (org.bson.Document) updateObject.get("$addToSet");
+        assertNotNull(addToSet, "重试更新应包含 $addToSet 以累计已送达地址");
+        assertNotNull(addToSet.get("failed_result.delivered_addresses"));
+        assertTrue(addToSet.get("failed_result.delivered_addresses").toString().contains("b@example.com"));
     }
 }
