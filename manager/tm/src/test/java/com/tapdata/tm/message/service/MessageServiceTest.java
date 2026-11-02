@@ -15,6 +15,7 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.events.constant.Type;
 import com.tapdata.tm.events.service.EventsService;
 import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
@@ -31,6 +32,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -183,12 +185,21 @@ class MessageServiceTest {
             message.setId(MongoUtils.toObjectId("6552e10c61030809c4b3af30"));
             return message;
         });
+        AlarmMailDto alarmMailDto = new AlarmMailDto();
+        alarmMailDto.setEmailAddressList(new ArrayList<>(List.of("busy@example.com")));
+        when(alarmMailService.findOne(any(Query.class), eq(userDetail))).thenReturn(alarmMailDto);
+        SendStatus partial = new SendStatus("false", "pending retry", Set.of(userDetail.getEmail()));
+        when(mockMailUtils.sendHtmlMail(anyList(), anyString(), anyString(),
+                eq(SystemEnum.SYNC), eq(MsgTypeEnum.STARTED), anyString())).thenReturn(partial);
         // Run the test
         messageServiceUnderTest.addSync("serverName", "sourceId", MsgTypeEnum.STARTED, "title", Level.RECOVERY,
                 userDetail);
 
         // Verify the results，method call once
-        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
+        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("busy@example.com", "test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
+        verify(mockEventsService).recordEvents(anyString(), anyString(),
+                eq("busy@example.com,test@test.com"), eq("6552e10c61030809c4b3af30"),
+                eq(userDetail.getUserId()), same(partial), eq(0), eq(Type.NOTICE_MAIL));
     }
 
     @Test
