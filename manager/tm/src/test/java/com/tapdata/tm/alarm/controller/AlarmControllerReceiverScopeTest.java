@@ -5,6 +5,7 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.config.security.UserDetail;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.util.List;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -31,6 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class AlarmControllerReceiverScopeTest {
     private AlarmController controller;
@@ -90,6 +93,29 @@ class AlarmControllerReceiverScopeTest {
         assertThrows(BizException.class, () -> runAuthorized(() -> controller.updateTaskAlarm(request, alarm)));
 
         verify(alarmService, never()).updateTaskAlarm(any(), any());
+    }
+
+    @Test
+    void arbitraryTableInspectUsesOnlyCurrentUserDirectoryScope() {
+        when(user.getUserId()).thenReturn("current-user");
+        AlarmReceiverCandidates candidates = new AlarmReceiverCandidates();
+        when(alarmService.receiverCandidates("current-user", Collections.emptyList())).thenReturn(candidates);
+
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
+            assertSame(candidates, controller.receiverCandidates(request, null, null, true).getData());
+        }
+    }
+
+    @Test
+    void arbitraryTableInspectCandidateListRequiresInspectPermission() {
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
+            assertThrows(BizException.class, () -> controller.receiverCandidates(request, null, null, true));
+        }
+        verify(alarmService, never()).receiverCandidates(any(), any());
     }
 
     private AlarmVO alarm(List<AlarmReceiver> receivers) {
