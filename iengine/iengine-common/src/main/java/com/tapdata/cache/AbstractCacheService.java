@@ -24,11 +24,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
 
 public abstract class AbstractCacheService implements ICacheService {
 	protected final Logger logger = LogManager.getLogger(AbstractCacheService.class);
 
 	protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
+	// Voovan 在首次缺失时持有整个 CacheMap 的 monitor；TM 查询必须在该锁外执行。
+	private final Map<String, Object> cacheConfigLoadLockMap = new ConcurrentHashMap<>();
 
 	/**
 	 * getter 满 {@link #CACHE_GETTER_EXPIRE_MS} 后在下一次访问时重建以加载最新配置，替换下来的旧 getter 释放回源连接器。
@@ -228,7 +231,27 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	@Override
 	public DataFlowCacheConfig getConfig(String cacheName) {
-		return cacheConfigMap.get(cacheName);
+		synchronized (cacheConfigLoadLockMap.computeIfAbsent(cacheName, key -> new Object())) {
+			// 首次缺失时传入无 I/O 的 supplier；即使 TimeMark 同时被清理，也不会在全局锁内访问 TM。
+			DataFlowCacheConfig cached = cacheConfigMap.get(cacheName, key -> null, null, false);
+			if (cached != null) {
+				return cached;
+			}
+			Function<String, DataFlowCacheConfig> supplier = cacheConfigMap.getSupplier();
+			if (supplier == null) {
+				return null;
+			}
+			try {
+				DataFlowCacheConfig config = supplier.apply(cacheName);
+				if (config != null && !cacheConfigMap.getCacheMark().containsKey(cacheName)) {
+					cacheConfigMap.put(cacheName, config);
+				}
+				return config;
+			} catch (Exception e) {
+				logger.error("Create cache config with supplier failed: " + cacheName, e);
+				return null;
+			}
+		}
 	}
 
 
@@ -259,7 +282,7 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	private void waitCacheNodeCompletedInitialIfNeed(String cacheName) throws InterruptedException {
 
-		if (this.cacheConfigMap.get(cacheName) == null) {
+		if (getConfig(cacheName) == null) {
 			// 如果不存在，则向tm查询
 			TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
 			DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);

@@ -91,6 +91,95 @@ public class AbstractCacheServiceTest {
         }
     }
 
+    @DisplayName("a blocked TM lookup for one cache does not block another cache")
+    @Test
+    void configLookupIsNotSerializedAcrossCacheNames() throws Exception {
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig secondConfig = new DataFlowCacheConfig();
+        cacheService.cacheConfigMap.supplier(name -> {
+            if ("first".equals(name)) {
+                firstEntered.countDown();
+                try {
+                    if (!releaseFirst.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("first lookup was not released");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }
+            return "second".equals(name) ? secondConfig : new DataFlowCacheConfig();
+        }, false);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<DataFlowCacheConfig> first = executor.submit(() -> cacheService.getConfig("first"));
+            assertTrue(firstEntered.await(2, TimeUnit.SECONDS));
+            Future<DataFlowCacheConfig> second = executor.submit(() -> cacheService.getConfig("second"));
+            assertEquals(secondConfig, second.get(2, TimeUnit.SECONDS));
+            releaseFirst.countDown();
+            assertTrue(first.get(2, TimeUnit.SECONDS) != null);
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @DisplayName("concurrent requests for one missing cache load its config once")
+    @Test
+    void configLookupIsSerializedPerCacheName() throws Exception {
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicInteger loads = new AtomicInteger();
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        cacheService.cacheConfigMap.supplier(name -> {
+            loads.incrementAndGet();
+            firstEntered.countDown();
+            try {
+                if (!releaseFirst.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("lookup was not released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return config;
+        }, false);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<DataFlowCacheConfig> first = executor.submit(() -> cacheService.getConfig("same"));
+            assertTrue(firstEntered.await(2, TimeUnit.SECONDS));
+            Future<DataFlowCacheConfig> second = executor.submit(() -> cacheService.getConfig("same"));
+            releaseFirst.countDown();
+            assertEquals(config, first.get(2, TimeUnit.SECONDS));
+            assertEquals(config, second.get(2, TimeUnit.SECONDS));
+            assertEquals(1, loads.get());
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @DisplayName("expired cache config is refreshed through its supplier")
+    @Test
+    void expiredConfigStillRefreshes() throws InterruptedException {
+        TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig stale = new DataFlowCacheConfig();
+        DataFlowCacheConfig refreshed = new DataFlowCacheConfig();
+        AtomicInteger loads = new AtomicInteger();
+        cacheService.cacheConfigMap.supplier(name -> {
+            loads.incrementAndGet();
+            return refreshed;
+        }, false);
+        cacheService.cacheConfigMap.put("expired", stale, 1);
+        Thread.sleep(1100);
+
+        assertEquals(refreshed, cacheService.getConfig("expired"));
+        assertEquals(1, loads.get());
+    }
+
     @DisplayName("destroying one cache must not block destroying another")
     @Test
     void destroyIsNotSerializedAcrossCacheNames() throws Exception {
