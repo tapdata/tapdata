@@ -54,7 +54,13 @@ public class ServiceLifecycleAudit {
 		}
 		String key = workerType + ":" + processId;
 		if (Boolean.TRUE.equals(knownUp.get(key))) {
-			return;
+			// 缓存只能作为「本实例刚确认过」的快捷路径。另一 TM 可能已经把共享状态改为 LOST，
+			// 此时恢复心跳必须继续走数据库原子跃迁，否则会漏记 SERVICE_RECONNECT（TAP-13018 review P2）。
+			String shared = sharedState(key);
+			if (UP.equals(shared)) {
+				return;
+			}
+			knownUp.remove(key);
 		}
 		try {
 			String previous = transition(key, UP, workerType, processId, hostname, ip);
@@ -128,6 +134,17 @@ public class ServiceLifecycleAudit {
 			}
 		} catch (Exception e) {
 			log.warn("Audit service stop failed, key={}", key, e);
+		}
+	}
+
+	/** 读取共享状态；读不到时返回 null，让心跳继续走原子跃迁而不是被本地缓存挡住。 */
+	private String sharedState(String key) {
+		try {
+			Document state = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(key)), Document.class, COLLECTION);
+			return state == null ? null : state.getString("state");
+		} catch (Exception e) {
+			log.debug("Read shared service state failed, key={}", key, e);
+			return null;
 		}
 	}
 

@@ -3,6 +3,7 @@ package com.tapdata.tm.audit.query;
 import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.tm.audit.AuditAction;
 import com.tapdata.tm.audit.AuditBatch;
+import com.tapdata.tm.audit.AuditBatchItem;
 import com.tapdata.tm.audit.AuditChange;
 import com.tapdata.tm.audit.AuditOutcome;
 import com.tapdata.tm.audit.AuditValues;
@@ -23,12 +24,16 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -184,32 +189,130 @@ public class AuditQueryService {
 		op.setOperationId(key.contains("|") ? key.substring(0, key.indexOf('|')) : null);
 		op.setEvents(events);
 		AuditEventVo initiator = events.stream().filter(e -> !"FINAL".equals(e.getPhase())).findFirst().orElse(events.get(0));
-		AuditEventVo last = events.stream().filter(e -> "FINAL".equals(e.getPhase())).reduce((a, b) -> b).orElse(null);
+		List<AuditEventVo> finals = events.stream().filter(e -> "FINAL".equals(e.getPhase())).toList();
+		AuditEventVo last = finals.isEmpty() ? null : finals.get(finals.size() - 1);
 		op.setInitiator(initiator);
 		op.setTimestamp(initiator.getTimestamp());
-		op.setOutcome(resolveOutcome(initiator, last));
+		op.setOutcome(resolveOutcome(initiator, finals));
 		op.setFinalTimestamp(last == null ? null : last.getTimestamp());
-		op.setPending(last == null && "REQUEST".equals(initiator.getPhase()) && "ACCEPTED".equals(initiator.getOutcome()));
+		op.setPending(resolvePending(initiator, finals));
 		return op;
 	}
 
 	/**
-	 * 操作级结果：批量部分成功与失败并存时保持 PARTIAL，不能被异步最终成功覆盖（TAP-13018 F-08）。
-	 * 请求事件本身已带对象级结果，最终事件只描述本次受理是否完成，二者需合并而非覆盖。
+	 * 操作级结果：按对象归并受理与最终事件（TAP-13018 review P1）。
+	 * 一个批量操作下每个对象各自上报最终结果，整体结果由各对象结果合并得出：
+	 * 全部成功才算成功，全部失败才算失败，混合即部分成功；请求阶段已失败的对象保持失败。
 	 */
-	static String resolveOutcome(AuditEventVo initiator, AuditEventVo last) {
+	static String resolveOutcome(AuditEventVo initiator, List<AuditEventVo> finals) {
 		String requested = initiator == null ? null : initiator.getOutcome();
-		String finalOutcome = last == null ? null : last.getOutcome();
 		AuditBatch batch = initiator == null ? null : initiator.getBatch();
-		boolean partialBatch = batch != null && batch.getSuccess() > 0 && batch.getFailed() > 0;
-		if (AuditOutcome.PARTIAL.name().equals(requested) || partialBatch) {
-			// 请求阶段已有对象级失败：最终结果再成功也不改变「部分成功」
+
+		// 请求阶段已有对象级结果：按逐项结果判定，最终事件只补充尚未得出结论的对象
+		if (batch != null && batch.getTotal() > 0) {
+			Map<String, String> perObject = new LinkedHashMap<>();
+			Set<String> accepted = new LinkedHashSet<>();
+			for (AuditBatchItem item : batch.getItems()) {
+				if (item == null || item.getObjectId() == null) {
+					continue;
+				}
+				perObject.put(item.getObjectId(), item.getOutcome() == null ? null : item.getOutcome().name());
+				if (item.getOutcome() != AuditOutcome.FAILED) {
+					accepted.add(item.getObjectId());
+				}
+			}
+			for (AuditEventVo fin : finals) {
+				String objectId = fin.getObjectId();
+				if (objectId == null || !accepted.contains(objectId)) {
+					continue;
+				}
+				perObject.put(objectId, fin.getOutcome());
+			}
+			return combine(perObject.values());
+		}
+
+		// 非批量或请求阶段未带逐项结果：沿用请求结果，最终结果仅在请求未给出失败时覆盖
+		String finalOutcome = finals.isEmpty() ? null : finals.get(finals.size() - 1).getOutcome();
+		if (AuditOutcome.PARTIAL.name().equals(requested)) {
 			return AuditOutcome.PARTIAL.name();
 		}
-		if (finalOutcome != null) {
-			return finalOutcome;
+		if (AuditOutcome.FAILED.name().equals(requested)) {
+			return requested;
 		}
-		return requested;
+		return finalOutcome != null ? finalOutcome : requested;
+	}
+
+	/** 由各对象结果合并出整体结果；同一对象多次上报时取最后一次。 */
+	private static String combine(Collection<String> outcomes) {
+		int success = 0;
+		int failed = 0;
+		int accepted = 0;
+		for (String outcome : outcomes) {
+			if (outcome == null) {
+				continue;
+			}
+			switch (outcome) {
+				case "FAILED" -> failed++;
+				case "ACCEPTED", "PARTIAL" -> accepted++;
+				default -> success++;
+			}
+		}
+		if (failed == 0 && accepted == 0) {
+			return success == 0 ? null : AuditOutcome.SUCCESS.name();
+		}
+		if (success == 0 && accepted == 0) {
+			return AuditOutcome.FAILED.name();
+		}
+		// 还有对象未出最终结果：先按受理展示，等待最终结果
+		if (accepted > 0 && failed == 0) {
+			return AuditOutcome.ACCEPTED.name();
+		}
+		return AuditOutcome.PARTIAL.name();
+	}
+
+	/**
+	 * 异步操作只有在所有已受理对象都拿到最终结果后才结束 pending
+	 * （TAP-13018 review P1：部分对象完成就提前结束会让操作看起来已完成）。
+	 */
+	static boolean resolvePending(AuditEventVo initiator, List<AuditEventVo> finals) {
+		if (initiator == null || !"REQUEST".equals(initiator.getPhase())
+				|| !AuditOutcome.ACCEPTED.name().equals(initiator.getOutcome())
+				&& !AuditOutcome.PARTIAL.name().equals(initiator.getOutcome())) {
+			return false;
+		}
+		Set<String> accepted = acceptedObjects(initiator);
+		if (accepted.isEmpty()) {
+			return finals.isEmpty();
+		}
+		Set<String> finished = new HashSet<>();
+		for (AuditEventVo fin : finals) {
+			if (fin.getObjectId() != null) {
+				finished.add(fin.getObjectId());
+			}
+		}
+		return !finished.containsAll(accepted);
+	}
+
+	/** 请求阶段仍可能产生最终结果的对象：批量取未失败项，单对象取请求对象本身。 */
+	private static Set<String> acceptedObjects(AuditEventVo initiator) {
+		Set<String> accepted = new LinkedHashSet<>();
+		AuditBatch batch = initiator.getBatch();
+		if (batch != null) {
+			for (AuditBatchItem item : batch.getItems()) {
+				if (item != null && item.getObjectId() != null && item.getOutcome() != AuditOutcome.FAILED) {
+					accepted.add(item.getObjectId());
+				}
+			}
+			return accepted;
+		}
+		if (initiator.getObjectId() != null && !AuditOutcome.FAILED.name().equals(initiator.getOutcome())) {
+			for (String id : initiator.getObjectId().split(",")) {
+				if (StringUtils.isNotBlank(id)) {
+					accepted.add(id.trim());
+				}
+			}
+		}
+		return accepted;
 	}
 
 	AuditEventVo toVo(UserLogs e, Locale locale) {

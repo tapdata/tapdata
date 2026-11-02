@@ -54,6 +54,23 @@ class AuditObjectIdentityIT {
 	}
 
 	@Test
+	@DisplayName("批量明细中的对象名称与失败原因同样脱敏后再落库（TAP-13018 review P1）")
+	void should_redact_batch_item_text_before_storage() {
+		AuditBatch batch = new AuditBatch();
+		batch.add(new AuditBatchItem("t1", "password=ReviewSecret", AuditOutcome.FAILED, "connect password=ReviewSecret failed"));
+		batch.add(new AuditBatchItem("t2", "orders", AuditOutcome.SUCCESS, null));
+		AuditEvent event = AuditEvent.of(AuditAction.TASK_START, AuditOutcome.PARTIAL);
+		event.setBatch(batch);
+		fixture.auditEventService.record(event, null);
+
+		UserLogs saved = fixture.only(AuditAction.TASK_START);
+		assertThat(saved.getBatch()).isNotNull();
+		String stored = saved.getBatch().toString();
+		assertThat(stored).doesNotContain("ReviewSecret");
+		assertThat(saved.getBatch().getItems()).extracting(AuditBatchItem::getObjectId).containsExactly("t1", "t2");
+	}
+
+	@Test
 	@DisplayName("服务操作对象统一为「服务 @ 主机」，与 SYSTEM 最终事件口径一致")
 	void should_display_service_object_with_host() {
 		AuditNode node = new AuditNode("engine", "instance-1", "node-1", "10.0.0.9");

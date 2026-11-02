@@ -57,9 +57,24 @@ public class AuditOperationRegistry {
 		}
 	}
 
-	/** 只读查看登记，不移除。 */
-	public Pending peek(String objectType, String objectId) {
+	/**
+	 * 撤销仍属于该 Operation 的登记（预登记后业务失败、或同步完成已自行写最终事件时使用）。
+	 * 登记已被完成路径取走或已改属其它 Operation 时不做处理。
+	 */
+	public void release(String objectType, String objectId, String operationId) {
+		if (objectId == null || operationId == null) {
+			return;
+		}
 		try {
+			Query query = Query.query(Criteria.where("_id").is(key(objectType, objectId)).and("operationId").is(operationId));
+			mongoTemplate.findAndRemove(query, Pending.class, COLLECTION);
+		} catch (Exception e) {
+			log.warn("Release async audit operation failed, type={}, id={}", objectType, objectId, e);
+		}
+	}
+
+	/** 只读查看登记，不移除。 */
+	public Pending peek(String objectType, String objectId) {		try {
 			return mongoTemplate.findOne(Query.query(Criteria.where("_id").is(key(objectType, objectId))), Pending.class, COLLECTION);
 		} catch (Exception e) {
 			return null;

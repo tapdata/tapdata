@@ -1,5 +1,7 @@
 package com.tapdata.tm.audit.service;
 
+import com.tapdata.tm.audit.AuditBatch;
+import com.tapdata.tm.audit.AuditBatchItem;
 import com.tapdata.tm.audit.AuditChange;
 import com.tapdata.tm.audit.AuditEvent;
 import com.tapdata.tm.audit.AuditEventService;
@@ -110,7 +112,7 @@ public class AuditEventServiceImpl implements AuditEventService {
 			// 没有可靠取得字段差异时如实降级为基础审计，页面显示「该操作暂不提供字段级差异」
 			doc.setDetailLevel("BASIC");
 		}
-		doc.setBatch(event.getBatch());
+		doc.setBatch(sanitizeBatch(event.getBatch()));
 		doc.setNode(event.getNode());
 		Map<String, String> ctx = new LinkedHashMap<>();
 		if (event.getContext() != null) {
@@ -177,6 +179,32 @@ public class AuditEventServiceImpl implements AuditEventService {
 			doc.setSourceIp(AuditValues.UNAVAILABLE);
 			doc.setSourceIpNote("audit_ip_note_unavailable");
 		}
+	}
+
+	/**
+	 * 批量明细来自切面预取的对象名与逐项失败原因，同样是自由文本，
+	 * 必须与顶层 objectName/reason 走同一套脱敏，否则批量路径会绕过脱敏策略（TAP-13018 review P1）。
+	 */
+	private AuditBatch sanitizeBatch(AuditBatch batch) {
+		if (batch == null) {
+			return null;
+		}
+		AuditBatch cleaned = new AuditBatch();
+		cleaned.setTotal(batch.getTotal());
+		cleaned.setSuccess(batch.getSuccess());
+		cleaned.setFailed(batch.getFailed());
+		List<AuditBatchItem> items = new ArrayList<>();
+		if (batch.getItems() != null) {
+			for (AuditBatchItem item : batch.getItems()) {
+				if (item == null) {
+					continue;
+				}
+				items.add(new AuditBatchItem(item.getObjectId(), AuditRedactor.text(item.getObjectName()),
+						item.getOutcome(), AuditRedactor.text(item.getReason())));
+			}
+		}
+		cleaned.setItems(items);
+		return cleaned;
 	}
 
 	private List<AuditChange> sanitize(List<AuditChange> changes) {

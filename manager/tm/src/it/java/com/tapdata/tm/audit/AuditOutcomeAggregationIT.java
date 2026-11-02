@@ -21,13 +21,45 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuditOutcomeAggregationIT {
 
 	@Test
-	@DisplayName("REQUEST=PARTIAL 后跟 FINAL=SUCCESS，操作结果仍为 PARTIAL")
+	@DisplayName("REQUEST=PARTIAL 后跟全部对象的 FINAL，结果仍为 PARTIAL 且 pending 结束")
 	void should_keep_partial_when_final_event_succeeds() throws Exception {
-		AuditOperationVo op = aggregate(
-				event("e1", AuditPhase.REQUEST, AuditOutcome.PARTIAL, batch(2, 1, 1), 1000L),
-				event("e2", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 2000L));
+		// 批量下每个对象各自上报最终结果；只有 s0 已受理，给它一条 FINAL 才算完成
+		AuditEventVo request = event("e1", AuditPhase.REQUEST, AuditOutcome.PARTIAL, batch(2, 1, 1), 1000L);
+		assertThat(request.getObjectId()).isNull();
+		AuditEventVo fin = event("e2", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 2000L);
+		fin.setObjectId("s0");
+		AuditOperationVo op = aggregate(request, fin);
 		assertThat(op.getOutcome()).isEqualTo(AuditOutcome.PARTIAL.name());
 		assertThat(op.getFinalTimestamp()).isNotNull();
+		assertThat(op.isPending()).isFalse();
+	}
+
+	@Test
+	@DisplayName("批量只有部分对象给出最终结果时保持 pending，全部完成后结束")
+	void should_stay_pending_until_every_accepted_object_finishes() throws Exception {
+		AuditEventVo request = event("e1", AuditPhase.REQUEST, AuditOutcome.ACCEPTED, batch(2, 2, 0), 1000L);
+		AuditEventVo onlyA = event("e2", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 2000L);
+		onlyA.setObjectId("s0");
+		AuditOperationVo partialDone = aggregate(request, onlyA);
+		assertThat(partialDone.isPending()).isTrue();
+
+		AuditEventVo bothDone = event("e3", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 3000L);
+		bothDone.setObjectId("s1");
+		AuditOperationVo finished = aggregate(request, onlyA, bothDone);
+		assertThat(finished.isPending()).isFalse();
+		assertThat(finished.getOutcome()).isEqualTo(AuditOutcome.SUCCESS.name());
+	}
+
+	@Test
+	@DisplayName("混合最终结果：一个对象失败、一个成功，整体保持 PARTIAL")
+	void should_remain_partial_when_batch_finals_disagree() throws Exception {
+		AuditEventVo request = event("e1", AuditPhase.REQUEST, AuditOutcome.ACCEPTED, batch(2, 2, 0), 1000L);
+		AuditEventVo failedA = event("e2", AuditPhase.FINAL, AuditOutcome.FAILED, null, 2000L);
+		failedA.setObjectId("s0");
+		AuditEventVo okB = event("e3", AuditPhase.FINAL, AuditOutcome.SUCCESS, null, 3000L);
+		okB.setObjectId("s1");
+		AuditOperationVo op = aggregate(request, failedA, okB);
+		assertThat(op.getOutcome()).isEqualTo(AuditOutcome.PARTIAL.name());
 		assertThat(op.isPending()).isFalse();
 	}
 

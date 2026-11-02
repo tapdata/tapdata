@@ -15,6 +15,26 @@ class AuditServiceLifecycleIT {
 	private final ServiceLifecycleAudit lifecycle = new ServiceLifecycleAudit(fixture.auditEventService, fixture.mongoTemplate);
 
 	@Test
+	@DisplayName("另一 TM 判定失联后，本实例的恢复心跳仍要写恢复事件（TAP-13018 review P2）")
+	void should_emit_reconnect_when_another_instance_marked_lost() {
+		// 两个 TM 实例共享同一 Mongo 状态集合
+		ServiceLifecycleAudit tmB = new ServiceLifecycleAudit(fixture.auditEventService, fixture.mongoTemplate);
+		lifecycle.onHeartbeat("connector", "proc-9", "engine-host", "172.16.1.9");
+		tmB.onHeartbeat("connector", "proc-9", "engine-host", "172.16.1.9");
+		assertThat(fixture.events(AuditAction.SERVICE_START)).hasSize(1);
+
+		// B 判定该 worker 失联，共享状态改为 LOST，但 A 的本地 knownUp 仍为 UP
+		fixture.put("Workers", new Document("_id", "w9").append("process_id", "proc-9")
+				.append("worker_type", "connector").append("ping_time", 1L));
+		tmB.detectLost();
+		assertThat(fixture.events(AuditAction.SERVICE_DISCONNECT)).hasSize(1);
+
+		// 恢复心跳到达 A：不能被本地缓存吞掉
+		lifecycle.onHeartbeat("connector", "proc-9", "engine-host", "172.16.1.9");
+		assertThat(fixture.events(AuditAction.SERVICE_RECONNECT)).hasSize(1);
+	}
+
+	@Test
 	@DisplayName("Engine 首次心跳为启动、重复心跳不记录、正常停止为停止、心跳超时为失联、再次心跳为恢复连接；TM 自身启停为 SYSTEM 事件")
 	void should_record_system_start_stop_and_lost_events() {
 		lifecycle.onHeartbeat("connector", "proc-1", "engine-host", "172.16.1.5");
