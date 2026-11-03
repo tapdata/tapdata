@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -260,10 +262,10 @@ class ApiWorkerServerTest {
             status.getWorkers().put("oid", info1);
             ApiServerWorkerInfo info2 = new ApiServerWorkerInfo();
             status.getWorkers().put("oid1", info2);
-            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.updateMulti(any(Query.class), any(Update.class), anyString())).thenReturn(null);
             when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
             apiWorkerServer.delete("processId", "oid");
-            verify(mongoOperations, times(1)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(1)).updateMulti(any(Query.class), any(Update.class), anyString());
             verify(mongoOperations, times(1)).find(any(Query.class), any(Class.class));
         }
         @Test
@@ -286,10 +288,11 @@ class ApiWorkerServerTest {
             status.getWorkers().put("oid", info1);
             ApiServerWorkerInfo info2 = new ApiServerWorkerInfo();
             status.getWorkers().put("oid1", info2);
-            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.updateMulti(any(Query.class), any(Update.class), anyString())).thenReturn(null);
             when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
             apiWorkerServer.delete("processId", null);
-            verify(mongoOperations, times(1)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(1)).updateMulti(any(Query.class), argThat(update ->
+                    ((org.bson.Document) update.getUpdateObject().get("$set")).getBoolean("deleted")), eq("Workers"));
             verify(mongoOperations, times(0)).find(any(Query.class), any(Class.class));
         }
         @Test
@@ -312,18 +315,18 @@ class ApiWorkerServerTest {
             status.getWorkers().put("oid", info1);
             ApiServerWorkerInfo info2 = new ApiServerWorkerInfo();
             status.getWorkers().put("oid1", info2);
-            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.updateMulti(any(Query.class), any(Update.class), anyString())).thenReturn(null);
             when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
             apiWorkerServer.delete("", null);
-            verify(mongoOperations, times(0)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(0)).updateMulti(any(Query.class), any(Update.class), anyString());
             verify(mongoOperations, times(0)).find(any(Query.class), any(Class.class));
         }
         @Test
         void testNotDeleteWorkerAny() {
-            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.updateMulti(any(Query.class), any(Update.class), anyString())).thenReturn(null);
             when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(new ArrayList());
             apiWorkerServer.delete("pid", "oid");
-            verify(mongoOperations, times(0)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(0)).updateMulti(any(Query.class), any(Update.class), anyString());
             verify(mongoOperations, times(1)).find(any(Query.class), any(Class.class));
         }
     }
