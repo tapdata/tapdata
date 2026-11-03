@@ -88,6 +88,7 @@ class WorkerServiceImplTest {
             WorkerDto worker = new WorkerDto();
             worker.setProcessId("api-server-1");
             worker.setWorkerType(WorkerType.API_SERVER.getType());
+            worker.setVersion("test-version");
             UserDetail userDetail = mock(UserDetail.class);
 
             service.health(worker, userDetail);
