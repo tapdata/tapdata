@@ -55,7 +55,14 @@ public class AuditDemoController {
 
 	@Audited(value = AuditAction.TASK_STOP, objectId = "#id", alternateWhen = "#force", alternate = AuditAction.TASK_FORCE_STOP)
 	public ResponseMessage<Void> stop(String id, boolean force) {
+		stopHook.accept(id);
 		return new ResponseMessage<>();
+	}
+
+	private java.util.function.Consumer<String> stopHook = id -> {};
+
+	public void setStopHook(java.util.function.Consumer<String> hook) {
+		stopHook = hook;
 	}
 
 	@Audited(value = AuditAction.TASK_START, objectId = "#ids")

@@ -32,6 +32,45 @@ class AuditAsyncOperationIT {
 	}
 
 	@Test
+	@DisplayName("第二次受理在返回前完成，不能重新创建登记或影响第一次操作")
+	void secondOperationCompletedInlineMustNotBeRegisteredAgain() {
+		String id = AuditItFixture.oid();
+		AuditWebContext.begin("", "10.5.0.8", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+		controller.start(id);
+		String first = fixture.registry.peek("task", id).getOperationId();
+		AuditWebContext.end();
+		controller.setStopHook(taskId -> java.util.concurrent.CompletableFuture.runAsync(
+				() -> fixture.finalizer.onTaskStatus("task", taskId, "orders", "stop")).join());
+		AuditWebContext.begin("", "10.5.0.8", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+		controller.stop(id, false);
+		assertThat(fixture.registry.peek("task", id).getOperationId()).isEqualTo(first);
+		AuditWebContext.end();
+		fixture.finalizer.onTaskStatus("task", id, "orders", "running");
+		assertThat(fixture.collection(AuditOperationRegistry.COLLECTION)).isEmpty();
+		assertThat(fixture.events(AuditAction.TASK_STOP)).filteredOn(e -> "FINAL".equals(e.getPhase())).hasSize(1);
+	}
+
+	@Test
+	@DisplayName("第二个正常受理的请求不能覆盖第一个 owner，两个操作都能完成")
+	void secondAcceptedOperationMustNotOverwriteExistingOwner() {
+		String id = AuditItFixture.oid();
+		AuditWebContext.begin("", "10.5.0.7", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+		controller.start(id);
+		String first = fixture.registry.peek("task", id).getOperationId();
+		AuditWebContext.end();
+		AuditWebContext.begin("", "10.5.0.7", null, AuditItFixture.user("u1", "ops@corp.com", "username_login"));
+		String second = AuditRequestContext.current().getOperationId();
+		controller.stop(id, false);
+		assertThat(fixture.registry.peek("task", id).getOperationId()).isEqualTo(first);
+		AuditWebContext.end();
+		fixture.finalizer.onTaskStatus("task", id, "orders", "running");
+		fixture.finalizer.onTaskStatus("task", id, "orders", "stop");
+		assertThat(fixture.events).filteredOn(e -> "FINAL".equals(e.getPhase()))
+				.extracting(UserLogs::getOperationId).containsExactlyInAnyOrder(first, second);
+		assertThat(fixture.collection(AuditOperationRegistry.COLLECTION)).isEmpty();
+	}
+
+	@Test
 	@DisplayName("启动任务先记已受理，任务进入运行或启动失败后由 SYSTEM 记录最终结果，两条事件共用 Operation ID 且只写一次")
 	void should_link_request_and_final_result_by_operation_id() {
 		String ok = AuditItFixture.oid();
