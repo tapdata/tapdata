@@ -801,7 +801,9 @@ public class WorkerServiceImpl extends WorkerService{
 //        }
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-        Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
+        Criteria where = Criteria.where("process_id").is(worker.getProcessId())
+                .and("worker_type").is(worker.getWorkerType())
+                .and(WorkerField.DELETED.field()).is(false);
         if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
                 .of(Query.query(where))
                 .map(query -> {
