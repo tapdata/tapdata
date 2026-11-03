@@ -2,9 +2,12 @@ package com.tapdata.tm.user.service;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.dto.TestResponseDto;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
 import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
@@ -18,11 +21,15 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class UserService extends BaseService<UserDto, User, ObjectId, UserRepository> implements UserDetailsService {
     public UserService(@NonNull UserRepository repository) {
         super(repository, UserDto.class, User.class);
     }
+    public void fillTagGids(List<Tag> tags) {
+    }
+
     public abstract UserDetail loadUserByUsername(String username);
 
     public abstract List<UserDetail> loadAllUser();
@@ -34,6 +41,14 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract UserDetail loadUserById(ObjectId userId);
 
     public abstract UserDetail loadUserByExternalId(String userId);
+
+    public Supplier<UserDto> dataPermissionFindById(ObjectId userId, Field fields) {
+        return () -> {
+            fields.put(BaseDto.FIELD_USER_ID, true);
+            fields.put(DataPermissionHelper.FIELD_NAME, true);
+            return findById(userId, fields);
+        };
+    }
 
     public abstract User buildUserFromTcmUser(UserInfoDto userInfoDto, String externalUserId);
 

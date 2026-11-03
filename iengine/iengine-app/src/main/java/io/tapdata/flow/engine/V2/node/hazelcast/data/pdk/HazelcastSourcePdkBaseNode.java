@@ -75,8 +75,11 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.compat.LegacyTapTypeResolution;
+import io.tapdata.entity.schema.compat.LegacyTapTypeResolver;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -92,6 +95,7 @@ import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
@@ -109,6 +113,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.Dynamic
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
@@ -256,6 +261,27 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         this.taskInspect = TaskInspectHelper.get(taskId);
     }
 
+    @Override
+    protected boolean decodeConnectorOffsetInBatchOffset() {
+        // Source nodes pass the restored connector offset back to batchRead; target nodes only persist it.
+        return true;
+    }
+
+    @Override
+    protected void readBatchOffset(SyncProgress syncProgress) {
+        try {
+            super.readBatchOffset(syncProgress);
+        } catch (CoreException e) {
+            if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+                obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+                // The connector offset cannot be safely restored without its class; restart the full sync.
+                syncProgress.setBatchOffsetObj(new ConcurrentHashMap<>());
+            } else {
+                throw new TapCodeException(e.getMessage(), e);
+            }
+        }
+    }
+
     private boolean needCdcDelay() {
         if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
             return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {
@@ -310,6 +336,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
                                 .dataProcessorContext(dataProcessorContext));
                 connectorNodeInit(dataProcessorContext);
+                normalizeLegacyFloatingPointTypes();
                 obsLogger.info("Source connector({}) initialization completed", getNode().getName());
             } catch (Throwable e) {
                 obsLogger.error("Source connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
@@ -360,6 +387,39 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         );
         logger.info("DLQ recovery source boundary registered for task {} and source node {}",
                 taskDto.getId(), getNode().getId());
+    }
+
+    /**
+     * Upgrade fields persisted by pre-TAP-12568 models using the specification
+     * already loaded by this connector node. This is intentionally in-memory:
+     * it does not reload metadata and does not rewrite the persisted model.
+     */
+    private void normalizeLegacyFloatingPointTypes() {
+        if (dataProcessorContext == null || dataProcessorContext.getTapTableMap() == null || getConnectorNode() == null
+                || getConnectorNode().getConnectorContext() == null
+                || getConnectorNode().getConnectorContext().getSpecification() == null) {
+            return;
+        }
+        DefaultExpressionMatchingMap sourceSpec = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
+        if (sourceSpec == null || sourceSpec.isEmpty()) {
+            return;
+        }
+        String connectorId = dataProcessorContext.getSourceConn() == null
+                ? null : dataProcessorContext.getSourceConn().getPdkType();
+        dataProcessorContext.getTapTableMap().forEach((tableId, table) -> {
+            if (table == null || table.getNameFieldMap() == null) {
+                return;
+            }
+            for (TapField field : table.getNameFieldMap().values()) {
+                LegacyTapTypeResolution resolution = LegacyTapTypeResolver.resolve(connectorId, field, sourceSpec);
+                if (resolution.isResolved() && resolution.getTapType() != null
+                        && resolution.getTapType() != field.getTapType()) {
+                    field.setTapType(resolution.getTapType());
+                } else if (LegacyTapTypeResolver.LEGACY_FLOAT_TYPE_UNRESOLVED.equals(resolution.getCode())) {
+                    logger.warn("Keep legacy floating-point field {}.{} unresolved: {}", tableId, field.getName(), resolution.getMessage());
+                }
+            }
+        });
     }
 
     private void reportPrometheusTaskRunning() {
@@ -1048,6 +1108,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         List<String> addList = tableResult.getAddList();
                         List<String> removeList = tableResult.getRemoveList();
                         if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
+                            int newTableCountBefore = newTables == null ? 0 : newTables.size();
                             LockUtil.runWithLock(
                                     this.sourceRunnerLock,
                                     () -> !isRunning(),
@@ -1088,6 +1149,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                         }
                                     }
                             );
+                            ensureNewTablesAndRestartIfNeeded(newTableCountBefore);
                         }
                     } catch (Throwable throwable) {
                         String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
@@ -1230,7 +1292,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapCreateTableEvent.setPartitionMasterTableId(addTapTable.getPartitionMasterTableId());
                 TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
                 BatchOffsetUtil.updateBatchOffset(syncProgress, addTapTable.getId(), null, TableBatchReadStatus.RUNNING.name());
-                tapdataEvent.setBatchOffset(syncProgress.getBatchOffsetObj());
+                tapdataEvent.setBatchOffset(snapshotEntireBatchOffset());
                 tapdataEvent.setSourceTime(System.currentTimeMillis());
 
                 if (null == tapdataEvent) {
@@ -1265,22 +1327,40 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     .tables(loadedTableNames)
                     .tapdataEvents(normalDDLEvents));
             if (tapdataEvents.isEmpty()) return false;
-
-            if (this.endSnapshotLoop.get()) {
-                obsLogger.trace("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
-                // Restart source runner
-                if (null != sourceRunner) {
-                    this.sourceRunnerFirstTime.set(false);
-                    newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
-                    restartPdkConnector();
-                } else {
-                    String error = "Source runner is null";
-                    errorHandle(new RuntimeException(error), error);
-                    return true;
-                }
+            if (endSnapshotLoop.get() && !sourceRunnerLock.isHeldByCurrentThread()) {
+                ensureAccumulatedNewTablesAndRestartIfNeeded();
             }
         }
         return false;
+    }
+
+    private void ensureNewTablesAndRestartIfNeeded(int newTableCountBefore) {
+        if (newTables == null || newTables.size() <= newTableCountBefore) {
+            return;
+        }
+        ensureAccumulatedNewTablesAndRestartIfNeeded();
+    }
+
+    private void ensureAccumulatedNewTablesAndRestartIfNeeded() {
+        List<String> tablesToEnsure = new ArrayList<>(new LinkedHashSet<>(newTables));
+        ensureShareCdcForNewTables(tablesToEnsure);
+        if (!endSnapshotLoop.get()) {
+            return;
+        }
+        LockUtil.runWithLock(sourceRunnerLock, () -> !isRunning(), () -> {
+            obsLogger.trace("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+            if (sourceRunner == null) {
+                String error = "Source runner is null";
+                errorHandle(new RuntimeException(error), error);
+                return;
+            }
+            sourceRunnerFirstTime.set(false);
+            newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
+            restartPdkConnector();
+        });
+    }
+
+    protected void ensureShareCdcForNewTables(List<String> tables) {
     }
 
     protected void mergeSubInfoIntoMasterTableIfNeed(TapTable addTapTable) {
@@ -1506,7 +1586,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             if (SyncStage.INITIAL_SYNC == syncStage) {
                 if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
                         TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-                    tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, recordEvent.getTableId()));
+                    tapdataEvent.setBatchOffset(snapshotBatchOffset(recordEvent.getTableId()));
                     tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
                     tapdataEvent.setSourceTime(syncProgress.getSourceTime());
                 }
@@ -1522,6 +1602,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.GENERATE_HASH_KEY_FAILED, e).dynamicDescriptionParameters(recordEvent);
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
+            HeartbeatProgressRegistry.sourceHeartbeat(dataProcessorContext.getTaskDto(), getNode().getId());
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
         } else if (tapEvent instanceof TapDDLWarningEvent) {
             TapDDLWarningEvent warningEvent = (TapDDLWarningEvent) tapEvent;
@@ -1581,6 +1662,44 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
         CpuMemoryCollector.listening(getNode().getId(), tapdataEvent);
         return tapdataEvent;
+    }
+
+    protected Object snapshotBatchOffset(String tableId) {
+        Object batchOffset = BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId);
+        if (batchOffset instanceof PartitionTableOffset) {
+            return ((PartitionTableOffset) batchOffset).copy();
+        }
+        /**
+         * The connector may reuse and mutate the same offset instance across batches. Hand the target
+         * an immutable (already encoded) snapshot instead of the live reference, otherwise the target
+         * could persist a breakpoint ahead of the data it has actually written and the next crash
+         * resume would skip rows that were never persisted.
+         */
+        return BatchOffsetUtil.encodeConnectorOffset(batchOffset, PdkUtil::encodeOffset);
+    }
+
+    /**
+     * Snapshot the whole batch offset container ({@code tableId -&gt; table offset}) into an immutable,
+     * already-encoded copy.
+     *
+     * <p>The dynamic-new-table path hands this to the target vertex, which stores it as its own
+     * {@code batchOffsetObj} (see {@code HazelcastTargetPdkBaseNode#flushOffsetCallback}). Passing the
+     * source's live map would let the target alias - and concurrently mutate - the source container, so
+     * the 10s {@code saveToSnapshot} could persist a breakpoint ahead of the data actually written and a
+     * crash resume would skip rows. Same reasoning as {@link #snapshotBatchOffset(String)}, but for the
+     * whole container instead of a single table.
+     */
+    protected Object snapshotEntireBatchOffset() {
+        Object snapshot = BatchOffsetUtil.encodeConnectorOffset(syncProgress.getBatchOffsetObj(), PdkUtil::encodeOffset);
+        if (snapshot instanceof Map) {
+            Map<Object, Object> snapshotMap = (Map<Object, Object>) snapshot;
+            for (Map.Entry<Object, Object> entry : snapshotMap.entrySet()) {
+                if (entry.getValue() instanceof PartitionTableOffset) {
+                    entry.setValue(((PartitionTableOffset) entry.getValue()).copy());
+                }
+            }
+        }
+        return snapshot;
     }
 
     protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {

@@ -37,6 +37,7 @@ public enum DifferenceTypeEnum {
                 differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
+                differenceField.getTargetField().setPrimaryKey(field.getPrimaryKey());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
                 differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
@@ -58,6 +59,7 @@ public enum DifferenceTypeEnum {
                 differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
+                differenceField.getTargetField().setPrimaryKey(field.getPrimaryKey());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
                 differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);

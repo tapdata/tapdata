@@ -125,6 +125,7 @@ start_supervisord() {
 }
 
 get_env() {
+    local version_file="${TAPDATA_WORK_DIR:-$SCRIPT_BASE_DIR}/.version"
 
     # Set default env
     export MONGO_URI=${MONGO_URI:-"mongodb://127.0.0.1:27017/tapdata"}  # mongodb uri
@@ -133,12 +134,16 @@ get_env() {
     export managerMem=${managerMem:-"1G"} # manager memory
     export tm_port=${tm_port:-"3030"} # manager port
     export app_type="${app_type:-DAAS}" # application type
+    if [[ -z "${tapdataVersion:-}" && -f "$version_file" ]]; then
+        tapdataVersion=$(<"$version_file")
+    fi
+    export tapdataVersion
     export ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
     export LAUNCH_SUPERVISOR=${LAUNCH_SUPERVISOR:-"false"}  # launch supervisor
     export REPORT_DATA_OSS=true # report data oss
 
     # Export env
-    export MONGO_URI dbMem engineMem managerMem tm_port app_type ACCESS_CODE LAUNCH_SUPERVISOR REPORT_DATA_OSS
+    export MONGO_URI dbMem engineMem managerMem tm_port app_type tapdataVersion ACCESS_CODE LAUNCH_SUPERVISOR REPORT_DATA_OSS
 
 cat <<EOF
 MONGO_URI         : $MONGO_URI
@@ -147,6 +152,7 @@ engineMem         : $engineMem
 managerMem        : $managerMem
 tm_port           : $tm_port
 app_type          : $app_type
+tapdataVersion    : $tapdataVersion
 ACCESS_CODE       : $ACCESS_CODE
 LAUNCH_SUPERVISOR : $LAUNCH_SUPERVISOR
 REPORT_DATA_OSS   : $REPORT_DATA_OSS

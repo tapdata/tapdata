@@ -114,6 +114,8 @@ public class ConnectorConstant {
 
 	public static final String EXTERNAL_STORAGE_COLLECTION = "ExternalStorage";
 	public static final String SHARE_CDC_TABLE_MAPPING_COLLECTION = "ShareCdcTableMapping";
+	public static final String LOG_COLLECTOR_ENSURE_TABLES = "logcollector/ensureTables";
+	public static final String LOG_COLLECTOR_ENSURE_TABLES_WAIT_TIMEOUT = "LogCollector.EnsureTablesWaitTimeout";
 
 	public static final String JOB_STATUS_FIELD = "status";
 

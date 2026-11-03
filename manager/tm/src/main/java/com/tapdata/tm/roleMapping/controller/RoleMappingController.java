@@ -10,7 +10,6 @@ import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
-import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
@@ -28,6 +27,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.Collection;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -116,12 +116,13 @@ public class RoleMappingController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        Page<RoleMappingDto> roleMappingDtos = roleMappingService.find(filter);
-
         Where where = filter.getWhere();
         if (null != where.get("roleId")) {
             String roleId = where.remove("roleId").toString();
             where.put("roleId", roleId);
+        }
+        if (null != where.get("principalType") && where.get("principalType").equals("USER")) {
+            where.put("user_id", new Document("$exists", true).append("$nin", Arrays.asList(null, "")));
         }
         List<RoleMappingDto> roleMappingDtos1 = roleMappingService.findAll(where);
         return success(roleMappingDtos1);

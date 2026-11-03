@@ -22,7 +22,6 @@ import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.flow.engine.util.TestRunInputEventConvertUtil;
 import io.tapdata.observable.logging.ObsLogger;
@@ -100,7 +99,8 @@ class HazelcastSampleSourcePdkDataNodeTest {
 		assertInstanceOf(TapTimeValue.class, after.get("clockAt"));
 		assertInstanceOf(TapYearValue.class, after.get("yearValue"));
 		assertInstanceOf(TapArrayValue.class, after.get("tags"));
-		assertTapValue(TapMapValue.class, Map.of("a", 1), after.get("profile"));
+		TapMapValue profileValue = assertInstanceOf(TapMapValue.class, after.get("profile"));
+		assertEquals(Map.of("a", 1), profileValue.getValue());
 	}
 
 	@Test
@@ -189,11 +189,6 @@ class HazelcastSampleSourcePdkDataNodeTest {
 		TaskDto taskDto = new TaskDto();
 		taskDto.setTestRunInputEventJson(json);
 		return taskDto;
-	}
-
-	private void assertTapValue(Class<? extends TapValue> type, Object expectedValue, Object actual) {
-		assertInstanceOf(type, actual);
-		assertEquals(expectedValue, ((TapValue<?, ?>) actual).getValue());
 	}
 
 	@SuppressWarnings("unchecked")

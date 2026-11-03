@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.*;
 
 @Component("dataInspectStrategy")
@@ -59,7 +58,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
 //                    case migrate_field_rename_processor:
                         break;
                     default:
-                        filterNames.add(node.getName() + "(" + node.getType() + ")");
+                        filterNames.add(MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName()) + "(" + node.getType() + ")");
                         break;
                 }
             }
@@ -72,14 +71,16 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
             LinkedList<DatabaseNode> sourceNodes = dag.getSourceNode();
             for (DatabaseNode node : sourceNodes) {
                 if (null != node.getEnableDynamicTable() && node.getEnableDynamicTable()) {
-                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_SOURCE"), node.getName()), locale));
+                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_SOURCE"),
+                            MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName())), locale));
                 }
 
 //                results.add(createError(taskDto, userDetail, String.format("源 %s 不支持校验", node.getName())));
             }
             for (DatabaseNode node : dag.getTargetNode()) {
                 if (null != node.getEnableDynamicTable() && node.getEnableDynamicTable()) {
-                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_TARGET"), node.getName()), locale));
+                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_TARGET"),
+                            MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName())), locale));
                 }
 //                results.add(createError(taskDto, userDetail, String.format("目标 %s 不支持校验", node.getName())));
             }
@@ -124,36 +125,21 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
     }
 
     private static TaskDagCheckLog createInfo(TaskDto taskDto, UserDetail userDetail, int supportTables, int notSupportTables, Locale locale) {
-        TaskDagCheckLog checkLog = new TaskDagCheckLog();
-        checkLog.setTaskId(taskDto.getId().toHexString());
-        checkLog.setCheckType(templateEnum.name());
-        checkLog.setCreateAt(new Date());
-        checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.INFO);
-        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_INFO"), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
-        return checkLog;
+        Date now = new Date();
+        return DagCheckLogs.of(taskDto.getId().toHexString(), null, userDetail.getUserId(), now,
+                Level.INFO, templateEnum, locale, "DATA_INSPECT_INFO", now, taskDto.getName(), supportTables, notSupportTables);
     }
 
     private static TaskDagCheckLog createWarn(TaskDto taskDto, UserDetail userDetail, String msg, Locale locale) {
-        TaskDagCheckLog checkLog = new TaskDagCheckLog();
-        checkLog.setTaskId(taskDto.getId().toHexString());
-        checkLog.setCheckType(templateEnum.name());
-        checkLog.setCreateAt(new Date());
-        checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.WARN);
-        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR"), checkLog.getCreateAt(), taskDto.getName(), msg));
-        return checkLog;
+        Date now = new Date();
+        return DagCheckLogs.of(taskDto.getId().toHexString(), null, userDetail.getUserId(), now,
+                Level.WARN, templateEnum, locale, "DATA_INSPECT_ERROR", now, taskDto.getName(), msg);
     }
 
     private static TaskDagCheckLog createError(TaskDto taskDto, UserDetail userDetail, String msg, Locale locale) {
-        TaskDagCheckLog checkLog = new TaskDagCheckLog();
-        checkLog.setTaskId(taskDto.getId().toHexString());
-        checkLog.setCheckType(templateEnum.name());
-        checkLog.setCreateAt(new Date());
-        checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.ERROR);
-        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR"), checkLog.getCreateAt(), taskDto.getName(), msg));
-        return checkLog;
+        Date now = new Date();
+        return DagCheckLogs.of(taskDto.getId().toHexString(), null, userDetail.getUserId(), now,
+                Level.ERROR, templateEnum, locale, "DATA_INSPECT_ERROR", now, taskDto.getName(), msg);
     }
 
 }

@@ -52,7 +52,7 @@ public class InspectResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user) {
+    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets) {
         if (CollectionUtils.isEmpty(resources)) {
             return new ArrayList<>();
         }

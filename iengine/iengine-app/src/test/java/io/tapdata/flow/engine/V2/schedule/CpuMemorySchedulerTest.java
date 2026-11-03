@@ -8,6 +8,7 @@ import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,6 +21,8 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -31,6 +34,7 @@ class CpuMemorySchedulerTest {
     private CpuMemoryScheduler scheduler;
     ClientMongoOperator clientMongoOperator;
     SettingService settingService;
+    private Function<Void, Integer> previousCapacityFunction;
 
     @BeforeEach
     void setUp() {
@@ -39,6 +43,16 @@ class CpuMemorySchedulerTest {
         settingService = mock(SettingService.class);
         ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
         ReflectionTestUtils.setField(scheduler, "settingService", settingService);
+        AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+        previousCapacityFunction = capacityFunction.get();
+    }
+
+    @AfterEach
+    void tearDown() {
+        AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+        capacityFunction.set(previousCapacityFunction);
     }
 
     @Nested
@@ -184,6 +198,42 @@ class CpuMemorySchedulerTest {
                 
                 mockedCollector.verify(() -> CpuMemoryCollector.collectOnce(taskIds));
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Method afterPropertiesSet test")
+    class AfterPropertiesSetTest {
+        @Test
+        @DisplayName("test capacity setting uses initial fallback when value is empty")
+        @SuppressWarnings("unchecked")
+        void testCapacitySettingUsesDefaultValue() {
+            Setting setting = new Setting();
+            setting.setDefault_value("200");
+            when(settingService.getSetting("task.statistics.restriction")).thenReturn(setting);
+
+            scheduler.afterPropertiesSet();
+
+            AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+            assertNotNull(capacityFunction);
+            assertEquals(CpuMemoryCollector.getInitialTaskStatisticsRestriction(), capacityFunction.get().apply(null));
+        }
+
+        @Test
+        @DisplayName("test capacity setting uses explicitly configured value")
+        @SuppressWarnings("unchecked")
+        void testCapacitySettingUsesExplicitValue() {
+            Setting setting = new Setting();
+            setting.setDefault_value("200");
+            setting.setValue("17");
+            when(settingService.getSetting("task.statistics.restriction")).thenReturn(setting);
+
+            scheduler.afterPropertiesSet();
+
+            AtomicReference<Function<Void, Integer>> capacityFunction = (AtomicReference<Function<Void, Integer>>) ReflectionTestUtils
+                    .getField(CpuMemoryCollector.class, "MAX_CAPACITY_FUNCTION");
+            assertEquals(17, capacityFunction.get().apply(null));
         }
     }
 }

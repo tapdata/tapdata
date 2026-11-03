@@ -6,6 +6,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.ShareCdcEnsureTablesParam;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -124,6 +125,11 @@ public class LogCollectorServiceImpl implements LogCollectorService {
 
     @Override
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    @Override
+    public void ensureShareCdcTables(ShareCdcEnsureTablesParam param, UserDetail user) {
         throw new BizException("TapOssNonSupportFunctionException");
     }
 

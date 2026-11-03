@@ -128,6 +128,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (shouldInitializeTargetDatabase()) {
 				initTargetDB();
 			}
+			discoverTargetPhysicalFields(filterSubPartitionTableTableMap());
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 			this.writePolicyService.setStartTransactionMap(startTransactionMap);
 			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
@@ -819,6 +820,25 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 		for (TapDDLEvent tapDDLEvent : tapDDLEvents) {
 			Object result = ddlEventHandlers.handle(tapDDLEvent);
+			if (Boolean.TRUE.equals(result)) {
+				if (tapDDLEvent instanceof TapAlterFieldAttributesEvent) {
+					invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), ((TapAlterFieldAttributesEvent) tapDDLEvent).getFieldName());
+				} else if (tapDDLEvent instanceof TapAlterFieldNameEvent) {
+					ValueChange<String> change = ((TapAlterFieldNameEvent) tapDDLEvent).getNameChange();
+					if (change != null) {
+						invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), change.getBefore());
+						invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), change.getAfter());
+					}
+				} else if (tapDDLEvent instanceof TapDropFieldEvent) {
+					invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), ((TapDropFieldEvent) tapDDLEvent).getFieldName());
+				} else if (tapDDLEvent instanceof TapNewFieldEvent) {
+					List<TapField> newFields = ((TapNewFieldEvent) tapDDLEvent).getNewFields();
+					if (newFields != null) newFields.forEach(field -> invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), field.getName()));
+				} else if (tapDDLEvent instanceof TapCreateTableEvent
+						&& !Boolean.TRUE.equals(tapDDLEvent.getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY))) {
+					invalidateDiscoveredTargetFields(tapDDLEvent.getTableId());
+				}
+			}
 			if (null == result) {
 				obsLogger.warn("DDL event: " + tapDDLEvent.getClass().getSimpleName() + " does not supported");
 			}
@@ -1004,6 +1024,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
+		if (Boolean.TRUE.equals(tapCreateTableEvent.getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY))) {
+			obsLogger.info("Skip physical table creation while retaining model updates, tableName: {}", tapCreateTableEvent.getTableId());
+			return true;
+		}
 		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
 		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		return createTable(tgtTapTable, new AtomicBoolean(),false);
@@ -1393,7 +1417,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					pdkMethodInvoker.runnable(() -> {
 								try {
 									transactionBegin();
+									ensureExactlyOnceWriteRunning();
 									processEvents(tapEvents,false);
+									ensureExactlyOnceWriteRunning();
 									writeRecordFunction.writeRecord(
 											connectorNode.getConnectorContext(),
 											tapRecordEvents,
@@ -1406,15 +1432,31 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
 												}
 											});
+									ensureExactlyOnceWriteRunning();
 									transactionCommit();
 								} catch (Exception e) {
-									transactionRollback();
+									try {
+										transactionRollback();
+									} catch (Exception rollbackError) {
+										e.addSuppressed(rollbackError);
+									}
+									if (e instanceof ExactlyOnceWriteCancelledException && e.getSuppressed().length == 0) {
+										throw e;
+									}
 									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
 								}
 							}
 					));
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);
+		}
+	}
+
+	private void ensureExactlyOnceWriteRunning() {
+		// Connectors may return a partially written batch when their alive supplier turns false.
+		// Never commit that batch, or its cache, after a stop/cancel has been observed.
+		if (!isRunning() || Thread.currentThread().isInterrupted()) {
+			throw new ExactlyOnceWriteCancelledException();
 		}
 	}
 

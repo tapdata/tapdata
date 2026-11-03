@@ -17,6 +17,8 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.exception.DataFlowException;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -166,6 +168,7 @@ public class CacheUtil {
 	}
 
 	public static synchronized void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, ClientMongoOperator clientMongoOperator, ICacheConfigurator cacheService) {
+		List<String> primaryKeys = resolvePrimaryKeys(sourceNode);
 
 		DataFlowCacheConfig cacheConfig = new DataFlowCacheConfig(
 				cacheNode.getCacheKeys(),
@@ -179,10 +182,22 @@ public class CacheUtil {
 				sourceNode,
 				sourceNode.getTableName(),
 				HazelcastUtil.node2CommonStage(sourceNode),
-				Collections.emptyList()
+				primaryKeys
 		);
 		cacheConfig.setCacheNode(cacheNode);
 		cacheService.registerCache(cacheConfig);
+	}
+
+	private static List<String> resolvePrimaryKeys(TableNode sourceNode) {
+		try {
+			TapTable tapTable = TapTableUtil.getTapTableByConnectionId(sourceNode.getConnectionId(), sourceNode.getTableName());
+			if (tapTable != null && CollectionUtils.isNotEmpty(tapTable.primaryKeys())) {
+				return new ArrayList<>(tapTable.primaryKeys());
+			}
+		} catch (Exception e) {
+			logger.warn("Resolve share cache primary keys failed, table: {}", sourceNode.getTableName(), e);
+		}
+		return Collections.singletonList("_id");
 	}
 
 	public static void destroyCache(Job job, ICacheConfigurator cacheService) {
@@ -279,7 +294,7 @@ public class CacheUtil {
 					tableNode,
 					tableNode.getTableName(),
 					HazelcastUtil.node2CommonStage(tableNode),
-					Collections.emptyList()
+				resolvePrimaryKeys(tableNode)
 			);
 			dataFlowCacheConfig.setExternalStorageId(cacheNode.getExternalStorageId());
 			dataFlowCacheConfig.setCacheNode(cacheNode);
@@ -299,7 +314,7 @@ public class CacheUtil {
 			if (org.apache.commons.collections4.MapUtils.isEmpty(oldRecordMap)) {
 				dataMap.delete(beforeCacheKey);
 			} else {
-				dataMap.insert(beforePk, oldRecordMap);
+				dataMap.insert(beforeCacheKey, oldRecordMap);
 			}
 		}
 	}

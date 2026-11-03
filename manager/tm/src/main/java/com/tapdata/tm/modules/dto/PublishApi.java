@@ -147,6 +147,13 @@ public class PublishApi {
         private List<Where> where;
         private List<Sort> sort;
 
+        /**
+         * Whether this customer query uses the full custom JSON query template.
+         * Keep this flag in the API definition consumed by API Server so the
+         * generated controller selects the customWhere branch.
+         */
+        private Boolean fullCustomQuery;
+
         @JsonProperty("customWhere")
         private String customWhere;
 
@@ -179,6 +186,7 @@ public class PublishApi {
             simplifyPath.setDescription(path.getDescription());
             simplifyPath.setWhere(path.getWhere());
             simplifyPath.setSort(path.getSort());
+            simplifyPath.setFullCustomQuery(path.getFullCustomQuery());
             simplifyPath.setCustomWhere(path.getCustomWhere());
             return simplifyPath;
         }

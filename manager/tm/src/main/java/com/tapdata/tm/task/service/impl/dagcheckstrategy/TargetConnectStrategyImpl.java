@@ -54,12 +54,12 @@ public class TargetConnectStrategyImpl implements DagLogStrategy {
             if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
                 grade = Level.INFO;
                 template = MessageUtil.getDagCheckMsg(locale, "TARGET_CONNECT_INFO");
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, template, connectionDto.getName());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, locale, template, connectionDto.getName());
                 result.add(log);
             } else {
                 grade = Level.ERROR;
                 template = MessageUtil.getDagCheckMsg(locale, "TARGET_CONNECT_ERROR");
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, template, connectionDto.getName(), connectionDto.getAlarmInfo());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, locale, template, connectionDto.getName(), connectionDto.getAlarmInfo());
                 result.add(log);
             }
 

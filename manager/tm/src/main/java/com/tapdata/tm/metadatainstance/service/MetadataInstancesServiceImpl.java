@@ -840,6 +840,20 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    /** Lightweight source metadata for startup validation; retains all table-selection inputs. */
+    public List<MetadataInstancesDto> findSourceSchemasForStart(String sourceId, List<String> tableNames, UserDetail user) {
+        Criteria criteria = Criteria.where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
+                .and(IS_DELETED).ne(true).and(SOURCE_ID).is(sourceId)
+                .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name()).and(TASK_ID).exists(false);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and(ORIGINAL_NAME).in(tableNames);
+        }
+        Query query = Query.query(criteria);
+        query.fields().include("original_name", "meta_type", "name", "fields.primaryKey", "indices.unique",
+                "partitionInfo", "partitionMasterTableId");
+        return findAllDto(query, user);
+    }
+
     @Override
     public List<MetadataInstancesDto> findSourceSchemaBySourceIdIgnoreCase(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria
@@ -1594,7 +1608,16 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 }
             }
         } else if (node instanceof TableNode) {
-            kv.put(((TableNode) node).getTableName(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
+            // TAP-12745: align with migrate DatabaseNode -- inspect looks up originalName.
+            List<MetadataInstancesDto> tableMetadatas = findByNodeId(node.getId(), Lists.of(ORIGINAL_NAME, QUALIFIED_NAME), user, taskDto);
+            if (CollectionUtils.isNotEmpty(tableMetadatas)) {
+                for (MetadataInstancesDto metadata : tableMetadatas) {
+                    if (metadata != null && StringUtils.isNotBlank(metadata.getOriginalName())
+                            && StringUtils.isNotBlank(metadata.getQualifiedName())) {
+                        kv.put(metadata.getOriginalName(), metadata.getQualifiedName());
+                    }
+                }
+            }
         } else {
 			boolean need2Parse = true;
 			if (node instanceof LogCollectorNode) {

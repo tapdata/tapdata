@@ -19,6 +19,7 @@ import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -67,6 +68,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private ClientMongoOperator pingClientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
+	private final HeartbeatProgressRegistry.State heartbeatProgress;
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;
@@ -78,6 +80,14 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private final ISkipErrorTable skipErrorTable;
 	private final boolean recoveryClient;
     private final long createTime = System.currentTimeMillis();
+	// Jet suspend()/cancel() are async requests, not blocking calls: once accepted, the job will
+	// eventually transition on its own. Track whether we already asked so a stop() poll loop (e.g.
+	// stopHeartbeatTask()) never re-issues the same request every 250ms while waiting for the
+	// status to change, which would otherwise hammer the cluster with rejected repeat requests.
+	private volatile boolean suspendRequested;
+	private volatile boolean cancelRequested;
+	// This client owns exactly one Jet Job and is never resumed/reused for another execution.
+	// Every startTask creates a new client, which resets these one-shot termination flags.
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
 											 ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
@@ -115,6 +125,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 								   boolean recoveryClient) {
 		this.job = job;
 		this.taskDto = taskDto;
+		this.heartbeatProgress = HeartbeatProgressRegistry.open(taskDto);
 		this.clientMongoOperator = clientMongoOperator;
 		this.pingClientMongoOperator = pingClientMongoOperator;
 		this.configurationCenter = configurationCenter;
@@ -219,32 +230,51 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 					break;
 				}
 			}
-
-			// Jet suspend is asynchronous.  In particular, after suspend() returns
-			// the public status can remain RUNNING while Jet is internally in
-			// SUSPEND_FORCEFUL.  Issuing cancel() during that window fails with
-			// "Job is already terminating".  Only request cancellation once Jet has
-			// reached SUSPENDED (or when a STARTING job can be cancelled directly),
-			// then let waitForTerminalStatus observe the remaining transitions.
-			boolean cancelRequested = false;
-			if (status == JobStatus.RUNNING) {
-				try {
-					job.suspend();
-				} catch (IllegalStateException exception) {
-					if (!isJetTerminationInProgress(exception)) {
-						throw exception;
+            // Jet suspend is asynchronous.  In particular, after suspend() returns
+            // the public status can remain RUNNING while Jet is internally in
+            // SUSPEND_FORCEFUL.  Issuing cancel() during that window fails with
+            // "Job is already terminating".  Only request cancellation once Jet has
+            // reached SUSPENDED (or when a STARTING job can be cancelled directly),
+            // then let waitForTerminalStatus observe the remaining transitions.
+            boolean cancelRequestedStatus = false;
+			if (job.getStatus() == JobStatus.RUNNING) {
+				// suspend()/cancel() are one-shot async requests: Jet keeps the job status unchanged
+				// (RUNNING) while the request is in flight, so a poll loop like stopHeartbeatTask()
+				// that calls stop() repeatedly would otherwise re-issue the same request every time.
+				// Only ask once per status and just keep waiting afterwards.
+				if (!suspendRequested) {
+					try {
+						job.suspend();
+						suspendRequested = true;
+					} catch (IllegalStateException e) {
+                        if (isJetTerminationInProgress(exception)) {
+                            // A previous stop request may have already submitted suspend.  Keep
+                            // observing that request instead of treating it as a new failure.
+                            cancelRequestedStatus = isJetCancelInProgress(exception);
+                            logger.info("Jet job {} is already transitioning to stop; continue waiting. reason={}",
+                                    job.getId(), exception.getMessage());
+                        } else {
+                            suspendRequested = e.getMessage() != null && e.getMessage().contains("already terminating");
+                            logger.warn("Job with id {} rejected the suspend request, already terminating: {}",
+                                    job.getId(), e.getMessage());
+                        }
 					}
-					// A previous stop request may have already submitted suspend.  Keep
-					// observing that request instead of treating it as a new failure.
-					cancelRequested = isJetCancelInProgress(exception);
-					logger.info("Jet job {} is already transitioning to stop; continue waiting. reason={}",
-							job.getId(), exception.getMessage());
 				}
-			} else if (status == JobStatus.SUSPENDED || status == JobStatus.STARTING) {
-				job.cancel();
-				cancelRequested = true;
 			}
-			return waitForTerminalStatus(cancelRequested);
+			if (job.getStatus() == JobStatus.SUSPENDED || status == JobStatus.STARTING) {
+				if (!cancelRequested) {
+					try {
+						job.cancel();
+						cancelRequested = true;
+					} catch (IllegalStateException e) {
+						cancelRequested = e.getMessage() != null && e.getMessage().contains("already terminating");
+						logger.warn("Job with id {} rejected the cancel request, already terminating: {}",
+								job.getId(), e.getMessage());
+					}
+				}
+                cancelRequestedStatus = true;
+			}
+			return waitForTerminalStatus(cancelRequestedStatus);
 		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
 			logger.warn("Job with id {} not found in Hazelcast cluster when stopping. Task: {}[{}]. Considering task as stopped.",
 					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
@@ -303,6 +333,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			cleanupRecoveryTaskState();
 			return;
 		}
+		HeartbeatProgressRegistry.close(taskDto, heartbeatProgress);
 		CommonUtils.handleAnyError(
 				() -> AdjustBatchSizeFactory.unregister(taskDto.getId().toHexString()),
 				err -> logger.warn("Unregister 'Adjust batch size' task failed, error: {}", err.getMessage())

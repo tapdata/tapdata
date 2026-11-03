@@ -1,0 +1,74 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {
+          "key": "ENGINE_OFFLINE"
+        },
+        "u": {
+          "$set": {
+            "type": "SYSTEM",
+            "open": true,
+            "key": "ENGINE_OFFLINE",
+            "sort": 1,
+            "notify": ["SYSTEM"],
+            "interval": 300,
+            "unit": "SECOND",
+            "emailAlarmTitle": "【TapData Notification: Engine offline】{agentName}",
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠️</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Engine offline</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Engine</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"agentName\" variablename=\"agentName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{agentName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Running Tasks</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"taskCount\" variablename=\"taskCount\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{taskCount}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Detail</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">Engine <span data-variable=\"agentName\" variablename=\"agentName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{agentName}</span> has gone offline. Please handle this in time. The <span data-variable=\"taskCount\" variablename=\"taskCount\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{taskCount}</span> tasks running on this engine will be rescheduled to other available engines.</p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Alarm Time</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"alarmDate\" variablename=\"alarmDate\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{alarmDate}</span></p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "agentName",
+                "label": "public_agent_name",
+                "icon": "IconLucideServer"
+              },
+              {
+                "name": "taskCount",
+                "label": "public_task_count",
+                "icon": "IconLucideListTodo"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_alarm_date",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "ENGINE_ONLINE"
+        },
+        "u": {
+          "$set": {
+            "type": "SYSTEM",
+            "open": true,
+            "key": "ENGINE_ONLINE",
+            "sort": 1,
+            "notify": ["SYSTEM"],
+            "interval": 300,
+            "unit": "SECOND",
+            "emailAlarmTitle": "【TapData Notification: Engine online】{agentName}",
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #ecfdf5; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">✅</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Engine online</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Engine</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"agentName\" variablename=\"agentName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{agentName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Detail</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">Engine <span data-variable=\"agentName\" variablename=\"agentName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{agentName}</span> is back online.</p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Alarm Time</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"alarmDate\" variablename=\"alarmDate\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{alarmDate}</span></p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "agentName",
+                "label": "public_agent_name",
+                "icon": "IconLucideServer"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_alarm_date",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

@@ -160,7 +160,7 @@ public class CompareRecord {
                 return "";
             }
             return MD5.create().digestHex(tmp) + "(" + tmp.length + ")";
-        } else if (field.getTapType() instanceof TapNumber) {
+        } else if (field.getTapType() instanceof TapNumber || field.getTapType() instanceof TapFloat || field.getTapType() instanceof TapDouble) {
             String tmp = v.toString();
             if (tmp.endsWith(".0")) {
                 tmp = tmp.substring(0, tmp.length() - 2);

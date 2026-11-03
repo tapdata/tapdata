@@ -60,6 +60,11 @@ class TaskLoggerNodeProxy extends ObsLogger {
 	}
 
 	@Override
+	public void alert(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
+		taskLogger.alert(callable, throwable, message, params);
+	}
+
+	@Override
 	public boolean isEnabled(LogLevel logLevel) {
 		return taskLogger.isEnabled(logLevel);
 	}

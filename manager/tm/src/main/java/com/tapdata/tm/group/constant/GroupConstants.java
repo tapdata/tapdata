@@ -58,6 +58,22 @@ public final class GroupConstants {
      */
     public static final String VAULT_FILE = "vault.json";
 
+    /**
+     * 包清单文件名（根级 sidecar，[ADR-0034] D3）。
+     *
+     * 与 {@link #VAULT_FILE} 同一套机制：按文件名从 payload map 取用、不写进任何被导入的文档。
+     * ⚠ 这是**包格式的一部分**（对外兼容承诺）——改名等于让所有已导出的包变成「无标记的老包」。
+     */
+    public static final String PACKAGE_MANIFEST_FILE = "export-manifest.json";
+
+    /**
+     * 包清单里的「本包是否已脱敏」位（[ADR-0034] D3）。
+     *
+     * 导入侧唯一能区分「这个字段真的没配」和「这个字段被脱敏抹空了」的依据——
+     * 两者在包里长得一模一样，不可由内容推断。
+     */
+    public static final String MANIFEST_KEY_SECRETS_MASKED = "secretsMasked";
+
     // ==================== 敏感字段列表 ====================
 
     /**

@@ -83,6 +83,8 @@ import com.tapdata.tm.modules.vo.Source;
 import com.tapdata.tm.module.dto.TextEncryption;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
@@ -674,7 +676,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						DataSourceDefinitionDto::getType,
 						DataSourceDefinitionDto::getProperties, (e1, e2) -> e1
 				));
-		Map<String, String> fialedApi = new HashMap<>();
 		//set API server key in api
 		for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
 			String connectionId = dataSourceConnectionDto.getId().toHexString();
@@ -685,7 +686,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					connectionConfig.put(URI, parseUri(connectionConfig));
 				} catch (Exception e) {
 					fialedApi.put(connectionId, "api.publish.failed");
-					log.warn("Failed to parse mongo connection config: {}", e.getMessage());
+                    log.warn("Failed to parse mongo connection config: {}, connection id: {}", e.getMessage(), connectionId);
 					continue;
 				}
 			}
@@ -694,20 +695,24 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			if (properties != null) {
 				LinkedHashMap<String, Object> connection = (LinkedHashMap<String, Object>) properties.get("connection");
 				analyzeApiServerKey(dataSourceConnectionDto, connection, null);
-			}	ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
-				if (null != connectionVo) {
-					String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
-					connectionVo.setDatabase_password(plainPassword);
-					if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
-						Optional.ofNullable(connectionConfig.get("sid"))
-								.map(Object::toString)
-								.ifPresent(connectionVo::setDatabase_name);
-					}
+			}
+			ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
+			if (null != connectionVo) {
+				String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
+				connectionVo.setDatabase_password(plainPassword);
+				if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
+					Optional.ofNullable(connectionConfig.get("sid"))
+							.map(Object::toString)
+							.ifPresent(connectionVo::setDatabase_name);
 				}
-				connectionVos.add(connectionVo);
-
+				if (null == connectionVo.getDatabase_password()) {
+					Optional.ofNullable(connectionConfig)
+							.map(m -> m.get("password"))
+							.map(String::valueOf)
+							.ifPresent(connectionVo::setDatabase_password);
+				}
+			}	connectionVos.add(connectionVo);
 		}
-		apis = updatePublishMsg(apis, fialedApi);
 		apiDefinitionVo.setConnections(connectionVos);
 		apiDefinitionVo.setApis(apis);
 		withEncryptionRule(apis);
@@ -876,9 +881,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (null == workerCount || workerCount <= 0) {
 			return new ArrayList<>();
 		}
-		Criteria criteria = Criteria.where("deleted").ne(true);
-		criteria.and("worker_type").is("api-server");
-		criteria.and("process_id").is(processId);
+		Criteria criteria = Criteria.where(WorkerField.DELETED.field()).ne(true);
+		criteria.and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType());
+		criteria.and(WorkerField.PROCESS_ID.field()).is(processId);
 		Query query = Query.query(criteria);
 		query.limit(1);
 		WorkerDto one = workerService.findOne(query);

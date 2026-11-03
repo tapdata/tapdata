@@ -44,6 +44,10 @@ public class MessageEntity extends BaseEntity {
     private String groupId;
     private Boolean isDeleted;
     private Boolean isSend;
+    /** 告警通知关联的告警事件 */
+    private String alarmEventId;
+    /** 最近一次标为已读的时间 */
+    private Date readAt;
     /**
      * 兼容旧数据
      */

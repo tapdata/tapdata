@@ -115,7 +115,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode || n instanceof PyProcessNode || n instanceof MigratePyProcessNode) && !(n instanceof CustomProcessorNode))
                 .findFirst();
         if (jsNode.isPresent()) {
-            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(), NodeEnum.valueOf(jsNode.get().getType()).getNodeName());
+            Node node = jsNode.get();
+            String nodeType = node.getType();
+            String storedName = StringUtils.defaultIfBlank(node.getName(), NodeEnum.valueOf(nodeType).getNodeName());
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(
+                    taskDto.getTransformTaskId(),
+                    taskDto.getName(),
+                    MessageUtil.localizeDagNodeName(locale, nodeType, storedName),
+                    locale);
             Optional.ofNullable(jsNodeLog).ifPresent(checkLogs::addAll);
         }
 
@@ -147,7 +154,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 List<String> nodeList = nodeSchemaMap.get(node.getId());
                 if (CollectionUtils.isEmpty(nodeList)) {
                     String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
-                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(tableNames));
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, JSON.toJSONString(tableNames));
                     checkLogs.add(modelLog);
 
                     schemaPass = false;
@@ -157,7 +164,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     temp.removeAll(nodeList);
 
                     String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
-                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(temp));
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, JSON.toJSONString(temp));
                     checkLogs.add(modelLog);
 
                     schemaPass = false;
@@ -174,7 +181,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 } else {
                     number = dag.getSourceNode().getFirst().getTableNames().size();
                 }
-                TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, number, number);
+                TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, number, number);
                 assert checkLogs != null;
                 checkLogs.add(modelLog);
             }
@@ -183,7 +190,8 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         LinkedHashMap<String, String> nodeMap = dag.getNodes().stream()
-                .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
+                .collect(Collectors.toMap(Node::getId, node -> MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName()),
+                        (x, y) -> y, LinkedHashMap::new));
 
         List<TaskDagCheckLog> checkLogList;
         if (CollectionUtils.isEmpty(checkLogs)) {
@@ -264,9 +272,10 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param) {
+    public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade,
+                                     DagOutputTemplateEnum templateEnum, Locale locale, String template, Object ... param) {
         Date now = new Date();
-        String content = MessageFormat.format(template, param);
+        String content = MessageFormat.format(template, MessageUtil.localizeDagCheckParams(locale, param));
 
         TaskDagCheckLog log = TaskDagCheckLog.builder()
                 .taskId(taskId).nodeId(nodeId)

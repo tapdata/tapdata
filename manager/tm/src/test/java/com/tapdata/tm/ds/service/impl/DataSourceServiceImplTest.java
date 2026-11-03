@@ -12,12 +12,18 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.job.service.JobService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.ds.utils.DataSourceServiceUtil;
@@ -35,6 +41,7 @@ import io.tapdata.pdk.apis.entity.Capability;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -62,6 +69,268 @@ import static org.mockito.Mockito.*;
 
 class DataSourceServiceImplTest {
     DataSourceServiceImpl dataSourceService;
+
+    @Nested
+    class BatchUpdateAgentSettingsTest {
+        private DataSourceRepository dataSourceRepository;
+        private DataSourceServiceImpl dataSourceService;
+        private AgentGroupService agentGroupService;
+        private WorkerService workerService;
+        private UserDetail userDetail;
+
+        private org.mockito.MockedStatic<DataPermissionHelper> permissionScope;
+
+        @AfterEach
+        void closePermissionScope() { permissionScope.close(); }
+
+        @BeforeEach
+        void setUp() {
+            permissionScope = mockStatic(DataPermissionHelper.class);
+            permissionScope.when(() -> DataPermissionHelper.check(any(), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(call -> ((java.util.function.Supplier<?>) call.getArgument(5)).get());
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "connectionAgentConflictService", mock(ConnectionAgentConflictService.class));
+            doAnswer(call -> {
+                Query query = call.getArgument(0);
+                List<ObjectId> ids = ((Document) query.getQueryObject().get("_id")).getList("$in", ObjectId.class);
+                return ids.stream().map(id -> {
+                    DataSourceConnectionDto connection = new DataSourceConnectionDto();
+                    connection.setId(id);
+                    connection.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                    return connection;
+                }).collect(Collectors.toList());
+            }).when(dataSourceService).findAllDto(any(Query.class), any(UserDetail.class));
+            agentGroupService = mock(AgentGroupService.class);
+            workerService = mock(WorkerService.class);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("user-1");
+            ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
+            ReflectionTestUtils.setField(dataSourceService, "workerService", workerService);
+            when(workerService.findAvailableAgentByAccessNode(eq(userDetail), anyList()))
+                    .thenReturn(Collections.singletonList(new Worker()));
+        }
+
+        @Test
+        void shouldNormalizeAutomaticSettingsAndReturnCanonicalUpdatedIds() {
+            ObjectId connectionId = new ObjectId();
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(connectionId.toHexString().toUpperCase(Locale.ROOT)),
+                    " automatic_platform_allocation ", null, "priority-1");
+            mockUpdateResult(1, 1);
+
+            BatchUpdateAgentSettingsResponse response = dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document updateObject = updateCaptor.getValue().getUpdateObject();
+            Document set = (Document) updateObject.get("$set");
+            Document unset = (Document) updateObject.get("$unset");
+            assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), set.get("accessNodeType"));
+            assertTrue(set.containsKey("accessNodeProcessId"));
+            assertNull(set.get("accessNodeProcessId"));
+            assertEquals(Collections.emptyList(), set.get("accessNodeProcessIdList"));
+            assertEquals("priority-1", set.get("priorityProcessId"));
+            assertEquals(DataSourceEntity.STATUS_INVALID, set.get("status"));
+            assertInstanceOf(Date.class, set.get("lastUpdAt"));
+            assertEquals("user-1", set.get("lastUpdBy"));
+            assertTrue(unset.containsKey("testTime"));
+            assertTrue(unset.containsKey("errorMsg"));
+            assertEquals(request.getRequestId(), response.getRequestId());
+            assertEquals(1, response.getUpdatedCount());
+            assertEquals(Collections.singletonList(connectionId.toHexString()), response.getUpdatedConnectionIds());
+            verify(dataSourceRepository, never()).findAll(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldNormalizeUserManualSettingsAndRejectPriorityAgent() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), "agent-1", null);
+            mockUpdateResult(1, 1);
+
+            dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals("agent-1", set.get("accessNodeProcessId"));
+            assertEquals(Collections.singletonList("agent-1"), set.get("accessNodeProcessIdList"));
+            verify(workerService).findAvailableAgentByAccessNode(eq(userDetail), eq(Collections.singletonList("agent-1")));
+
+            request.getSettings().setPriorityProcessId("agent-1");
+            BizException exception = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            assertEquals("IllegalArgument", exception.getErrorCode());
+        }
+
+        @Test
+        void shouldValidateGroupPriorityAgainstSelectedGroup() {
+            String groupId = "group-1";
+            String type = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            when(agentGroupService.getProcessNodeListByGroupId(anyList(), eq(type), eq(userDetail)))
+                    .thenReturn(Collections.singletonList("agent-1"));
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(new ObjectId().toHexString()), type, groupId, "agent-1");
+            mockUpdateResult(1, 1);
+
+            dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(groupId, set.get("accessNodeProcessId"));
+            assertEquals("agent-1", set.get("priorityProcessId"));
+
+            request.getSettings().setPriorityProcessId("agent-2");
+            BizException exception = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            assertEquals("IllegalArgument", exception.getErrorCode());
+
+            ObjectId connectionId = new ObjectId();
+            DataSourceConnectionDto singleUpdate = new DataSourceConnectionDto();
+            singleUpdate.setId(connectionId);
+            singleUpdate.setName("connection");
+            singleUpdate.setAccessNodeType(type);
+            singleUpdate.setAccessNodeProcessId(groupId);
+            singleUpdate.setPriorityProcessId("agent-2");
+            DataSourceConnectionDto existingConnection = new DataSourceConnectionDto();
+            existingConnection.setId(connectionId);
+            existingConnection.setName("connection");
+            doReturn(existingConnection).when(dataSourceService).findById(eq(connectionId), eq(userDetail));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(userDetail), eq("connection"), eq(connectionId));
+            assertThrows(BizException.class, () -> dataSourceService.updateCheck(userDetail, singleUpdate));
+        }
+
+        @Test
+        void shouldRejectInvalidDuplicateAndOversizedConnectionIdLists() {
+            String connectionId = new ObjectId().toHexString();
+            BatchUpdateAgentSettingsRequest duplicateRequest = request(
+                    Arrays.asList(connectionId, connectionId.toUpperCase(Locale.ROOT)),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException duplicateException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(duplicateRequest, userDetail));
+            assertEquals("IllegalArgument", duplicateException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest invalidIdRequest = request(
+                    Collections.singletonList("not-an-object-id"),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException invalidIdException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(invalidIdRequest, userDetail));
+            assertEquals("IllegalArgument", invalidIdException.getErrorCode());
+
+            List<String> tooManyIds = new ArrayList<>();
+            for (int i = 0; i <= 100; i++) {
+                tooManyIds.add(new ObjectId().toHexString());
+            }
+            BatchUpdateAgentSettingsRequest oversizedRequest = request(
+                    tooManyIds, AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException oversizedException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(oversizedRequest, userDetail));
+            assertEquals("IllegalArgument", oversizedException.getErrorCode());
+            verify(dataSourceRepository, never()).count(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldRejectMissingSettingsAndRequiredAgentIds() {
+            BatchUpdateAgentSettingsRequest missingSettingsRequest = new BatchUpdateAgentSettingsRequest();
+            missingSettingsRequest.setConnectionIds(Collections.singletonList(new ObjectId().toHexString()));
+            BizException missingSettingsException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingSettingsRequest, userDetail));
+            assertEquals("IllegalArgument", missingSettingsException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingTypeRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()), null, null, null);
+            BizException missingTypeException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingTypeRequest, userDetail));
+            assertEquals("IllegalArgument", missingTypeException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingManualAgentRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), null, null);
+            BizException missingManualAgentException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingManualAgentRequest, userDetail));
+            assertEquals("IllegalArgument", missingManualAgentException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingGroupIdRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), null, null);
+            BizException missingGroupIdException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingGroupIdRequest, userDetail));
+            assertEquals("IllegalArgument", missingGroupIdException.getErrorCode());
+            verify(dataSourceRepository, never()).count(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldRejectEditableCountMismatchWithoutLoadingConnectionConfigs() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            when(dataSourceRepository.count(any(Query.class), eq(userDetail))).thenReturn(1L);
+
+            assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+            verify(dataSourceRepository, never()).findAll(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldFailWhenConcurrentChangesCausePartialUpdate() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            mockUpdateResult(2, 1);
+
+            assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+        }
+
+        @Test
+        void shouldBlockConflictingBatchBeforeAnyWriteAndUsePolicyProjection() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), "agent-b", null);
+            mockUpdateResult(2, 2);
+            ConnectionAgentConflictService checker = (ConnectionAgentConflictService) ReflectionTestUtils.getField(dataSourceService, "connectionAgentConflictService");
+            com.tapdata.tm.ds.dto.ConnectionAgentConflictReport report = new com.tapdata.tm.ds.dto.ConnectionAgentConflictReport();
+            report.setHasConflicts(true);
+            doThrow(new com.tapdata.tm.ds.exception.ConnectionAgentConflictException(report)).when(checker).assertNoConflicts(anyMap(), eq(userDetail));
+            assertThrows(com.tapdata.tm.ds.exception.ConnectionAgentConflictException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+            ArgumentCaptor<Map<String, DataSourceConnectionDto>> changes = ArgumentCaptor.forClass(Map.class);
+            verify(checker).assertNoConflicts(changes.capture(), eq(userDetail));
+            assertEquals(2, changes.getValue().size());
+            assertTrue(changes.getValue().values().stream().allMatch(connection -> "agent-b".equals(connection.getAccessNodeProcessId())));
+            ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+            verify(dataSourceService).findAllDto(query.capture(), eq(userDetail));
+            assertEquals(Set.of("_id", "name", "user_id", "accessNodeType", "accessNodeProcessId", "priorityProcessId"), query.getValue().getFieldsObject().keySet());
+        }
+
+        private BatchUpdateAgentSettingsRequest request(
+                List<String> connectionIds,
+                String accessNodeType,
+                String accessNodeProcessId,
+                String priorityProcessId
+        ) {
+            BatchUpdateAgentSettingsRequest request = new BatchUpdateAgentSettingsRequest();
+            request.setRequestId("request-1");
+            request.setConnectionIds(connectionIds);
+            BatchUpdateAgentSettingsRequest.AgentSettings settings = new BatchUpdateAgentSettingsRequest.AgentSettings();
+            settings.setAccessNodeType(accessNodeType);
+            settings.setAccessNodeProcessId(accessNodeProcessId);
+            settings.setPriorityProcessId(priorityProcessId);
+            request.setSettings(settings);
+            return request;
+        }
+
+        private void mockUpdateResult(long expectedCount, long matchedCount) {
+            when(dataSourceRepository.count(any(Query.class), eq(userDetail))).thenReturn(expectedCount);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getMatchedCount()).thenReturn(matchedCount);
+            when(dataSourceRepository.update(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(updateResult);
+        }
+    }
+
     @Nested
     class RestoreAccessNodeTypeTest{
         DataSourceConnectionDto updateDto;
@@ -967,6 +1236,8 @@ class DataSourceServiceImplTest {
 
             ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
             ReflectionTestUtils.setField(dataSourceService, "externalStorageService", externalStorageService);
+            // overwrite import may load the existing connection to restore masked secrets
+            doReturn(null).when(dataSourceService).findById(any(ObjectId.class), eq(user));
         }
 
         @Test
@@ -1103,6 +1374,131 @@ class DataSourceServiceImplTest {
             assertEquals(1, result.size());
             verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
         }
+
+        @Test
+        @DisplayName("REPLACE existing Mongo connection restores masked uri from target before importSave")
+        void replaceExistingMongo_restoresMaskedUriFromExisting() {
+            ObjectId existingId = existingConnection.getId();
+            connectionDto.setDatabase_type("mongodb");
+            connectionDto.setPdkHash("mongo-pdk-hash");
+            connectionDto.setDatabase_uri("");
+            connectionDto.setDatabase_host("");
+            connectionDto.setDatabase_username("");
+            connectionDto.setDatabase_password("");
+            Map<String, Object> incomingConfig = new LinkedHashMap<>();
+            incomingConfig.put("isUri", true);
+            incomingConfig.put("uri", "");
+            connectionDto.setConfig(incomingConfig);
+
+            DataSourceConnectionDto existingFull = new DataSourceConnectionDto();
+            existingFull.setId(existingId);
+            existingFull.setName("test_connection");
+            existingFull.setDatabase_uri("mongodb://real-host:27017/dmp");
+            existingFull.setDatabase_host("real-host:27017");
+            existingFull.setDatabase_password("s3cr3t");
+            Map<String, Object> existingConfig = new LinkedHashMap<>();
+            existingConfig.put("isUri", true);
+            existingConfig.put("uri", "mongodb://real-host:27017/dmp");
+            existingFull.setConfig(existingConfig);
+
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            DataSourceDefinitionService definitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitionService);
+            when(definitionService.findByPdkHash(eq("mongo-pdk-hash"), eq(Integer.MAX_VALUE), eq(user)))
+                    .thenReturn(definition);
+
+            doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(existingFull).when(dataSourceService).findById(eq(existingId), eq(user));
+            doReturn(connectionDto).when(dataSourceService).importSave(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            dataSourceService.batchImport(connectionDtos, user, ImportModeEnum.REPLACE);
+
+            assertEquals("mongodb://real-host:27017/dmp", connectionDto.getDatabase_uri());
+            assertEquals("real-host:27017", connectionDto.getDatabase_host());
+            assertEquals("s3cr3t", connectionDto.getDatabase_password());
+            assertEquals("mongodb://real-host:27017/dmp", connectionDto.getConfig().get("uri"));
+            verify(dataSourceService, times(1)).importSave(connectionDto, user);
+        }
+    }
+
+    @Nested
+    @DisplayName("beforeSave Mongo import (TAP-12823)")
+    class BeforeSaveMongoImportTest {
+        private DataSourceDefinitionService definitionService;
+        private UserDetail user;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceService = spy(new DataSourceServiceImpl(mock(DataSourceRepository.class)));
+            user = mock(UserDetail.class);
+            definitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitionService);
+            doNothing().when(dataSourceService).checkConn(any(), any());
+        }
+
+        @Test
+        @DisplayName("masked Mongo connection with blank host/uri does not throw IllegalArgument")
+        void maskedMongoBlankHost_doesNotThrowIllegalArgument() {
+            DataSourceConnectionDto connection = maskedMongoConnection();
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            when(definitionService.findByPdkHash(any(), anyInt(), eq(user))).thenReturn(definition);
+
+            assertDoesNotThrow(() -> dataSourceService.beforeSave(connection, user, true));
+        }
+
+        @Test
+        @DisplayName("Mongo with host still constructs uri and parses it")
+        void mongoWithHost_stillConstructsAndParsesUri() {
+            DataSourceConnectionDto connection = maskedMongoConnection();
+            connection.setDatabase_host("127.0.0.1:27017");
+            connection.setDatabase_username("tap");
+            connection.setPlain_password("tap");
+            connection.setDatabase_name("dmp");
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            when(definitionService.findByPdkHash(any(), anyInt(), eq(user))).thenReturn(definition);
+
+            assertDoesNotThrow(() -> dataSourceService.beforeSave(connection, user, true));
+            assertNotNull(connection.getDatabase_uri());
+            assertFalse(connection.getDatabase_uri().isBlank());
+            assertTrue(connection.getDatabase_uri().startsWith("mongodb://"));
+            assertTrue(connection.getDatabase_uri().contains("127.0.0.1:27017"));
+        }
+    }
+
+    private static DataSourceConnectionDto maskedMongoConnection() {
+        DataSourceConnectionDto connection = new DataSourceConnectionDto();
+        connection.setName("mongo_conn");
+        connection.setDatabase_type("mongodb");
+        connection.setPdkHash("mongo-pdk-hash");
+        connection.setDatabase_uri("");
+        connection.setDatabase_host("");
+        connection.setDatabase_username("");
+        connection.setDatabase_password("");
+        connection.setDatabase_name("dmp");
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("isUri", true);
+        config.put("uri", "");
+        connection.setConfig(config);
+        return connection;
+    }
+
+    private static DataSourceDefinitionDto mongoDefinitionWithUri() {
+        Map<String, Object> uriMeta = new LinkedHashMap<>();
+        uriMeta.put("apiServerKey", "database_uri");
+        Map<String, Object> connProps = new LinkedHashMap<>();
+        connProps.put("uri", uriMeta);
+        Map<String, Object> connection = new LinkedHashMap<>();
+        connection.put("properties", connProps);
+        LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+        properties.put("connection", connection);
+        DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+        definition.setBuildNumber(1);
+        definition.setVersion("1.0");
+        definition.setGroup("mongodb");
+        definition.setPdkId("mongodb");
+        definition.setProperties(properties);
+        return definition;
     }
 
     @Nested
@@ -2476,6 +2872,46 @@ class DataSourceServiceImplTest {
 
             // modulesService.analyzeApiServerKey should be called 3 times
             verify(modulesService, times(3)).analyzeApiServerKey(any(DataSourceConnectionDto.class), any(LinkedHashMap.class), isNull());
+        }
+    }
+
+    @Nested
+    class Delete {
+        DataSourceRepository dataSourceRepository = mock(DataSourceRepository.class);
+        DataSourceServiceImpl dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+        TaskService taskService;
+        JobService jobService;
+        DataFlowService dataFlowService;
+        ModulesService modulesService;
+
+        @BeforeEach
+        void before() {
+            taskService = mock(TaskService.class);
+            jobService = mock(JobService.class);
+            dataFlowService = mock(DataFlowService.class);
+            modulesService = mock(ModulesService.class);
+            ReflectionTestUtils.setField(dataSourceService, "taskService", taskService);
+            ReflectionTestUtils.setField(dataSourceService, "jobService", jobService);
+            ReflectionTestUtils.setField(dataSourceService, "dataFlowService", dataFlowService);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+            ReflectionTestUtils.setField(dataSourceService, "defaultDataDirectoryService", mock(DefaultDataDirectoryService.class));
+        }
+
+        @Test
+        void shouldBlockDeleteWhenOtherUserTaskReferencesConnection() {
+            String id = new ObjectId().toHexString();
+            UserDetail user = mock(UserDetail.class);
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            doReturn(connectionDto).when(dataSourceService).findById(any(ObjectId.class), eq(user));
+            when(jobService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+            when(dataFlowService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+            TaskDto relatedTask = new TaskDto();
+            relatedTask.setName("other-user-task");
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(relatedTask));
+
+            BizException exception = assertThrows(BizException.class, () -> dataSourceService.delete(user, id));
+            assertEquals("Datasource.LinkJobs", exception.getErrorCode());
+            verify(dataSourceService, never()).deleteById(any(), any());
         }
     }
 }

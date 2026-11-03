@@ -12,9 +12,16 @@ import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.security.AccessTokenResolution;
+import com.tapdata.tm.base.security.AccessTokenResolver;
+import com.tapdata.tm.base.security.UrlTokenMode;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
@@ -22,10 +29,13 @@ import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
+import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmImpactView;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.user.dto.TestLdapDto;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.RC4Util;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.WebUtils;
@@ -43,6 +53,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -58,6 +69,8 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -94,9 +107,14 @@ public class UserController extends BaseController {
     UserLogService userLogService;
 
     @Autowired
+    private AlarmService alarmService;
+
+    @Autowired
     @Qualifier("caffeineCache")
     private CaffeineCacheManager userCache;
 
+    @Value("${security.auth.url-token-mode:COMPAT}")
+    private String urlTokenModeValue = "COMPAT";
 
     private static final String RC4_KEY = "Gotapd8";
 
@@ -126,8 +144,8 @@ public class UserController extends BaseController {
         HttpServletRequest request = attributes.getRequest();
         Locale locale = WebUtils.getLocale(request);
         UserDetail userDetail = getLoginUser();
-        boolean hasPermission = checkUserPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, userDetail.getUserId());
-        return success(userService.updateUserSetting(id, settingJson, userDetail, locale, hasPermission));
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
+                () -> success(userService.updateUserSetting(id, settingJson, userDetail, locale, true)));
     }
 
     /**
@@ -240,7 +258,10 @@ public class UserController extends BaseController {
         Map notDeleteMap = new HashMap();
         notDeleteMap.put("$ne", true);
         where.put("isDeleted", notDeleteMap);
-        Page<UserDto> userDtoPage = userService.find(filter, getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        Filter userFilter = filter;
+        Page<UserDto> userDtoPage = DataPermissionMenuEnums.UserManagement.checkAndSetFilter(
+                userDetail, DataPermissionActionEnums.View, () -> userService.find(userFilter, userDetail));
         List<UserDto> items = userDtoPage.getItems();
         if (CollectionUtils.isNotEmpty(items)) {
             List<String> ids = items.stream().map(userDto -> userDto.getId().toHexString()).collect(Collectors.toList());
@@ -283,7 +304,10 @@ public class UserController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(userService.findOne(filter, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        Filter userFilter = filter;
+        return DataPermissionMenuEnums.UserManagement.checkAndSetFilter(
+                userDetail, DataPermissionActionEnums.View, () -> success(userService.findOne(userFilter, userDetail)));
     }
 
 
@@ -378,22 +402,9 @@ public class UserController extends BaseController {
     @Operation(summary = "User logout")
     @PostMapping("/logout")
     public ResponseMessage<Long> logout(HttpServletRequest request) {
-        if ((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
-
-            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
-                    .filter(s -> s.startsWith("access_token"))
-                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
-                        try {
-                            return URLDecoder.decode(a[1], "UTF-8");
-                        } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
-                            return a[1];
-                        }
-                    }, (a, b) -> a));
-            String accessToken = queryMap.get("access_token");
-            if (StringUtils.isNotBlank(accessToken)) {
-                return success(accessTokenService.removeAccessToken(accessToken, getLoginUser()));
-            }
+        AccessTokenResolution resolution = AccessTokenResolver.resolve(request, UrlTokenMode.from(urlTokenModeValue));
+        if (resolution.isFound() && StringUtils.isNotBlank(resolution.getToken())) {
+            return success(accessTokenService.removeAccessToken(resolution.getToken(), getLoginUser()));
         }
         return success();
     }
@@ -457,23 +468,27 @@ public class UserController extends BaseController {
             @Parameter(in = ParameterIn.QUERY, description = "Criteria to match model instances")
             @RequestParam(value = "where", required = false) String whereJson) {
         Filter filter = parseFilter(whereJson);
-        long count = userService.count(filter.getWhere(), getLoginUser());
-        return success(new HashMap<String, Long>() {{
-            put("count", count);
-        }});
+        UserDetail userDetail = getLoginUser();
+        return DataPermissionMenuEnums.UserManagement.checkAndSetFilter(
+                userDetail, DataPermissionActionEnums.View, () -> {
+                    long count = userService.count(filter.getWhere(), userDetail);
+                    return success(new HashMap<String, Long>() {{
+                        put("count", count);
+                    }});
+                });
     }
 
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody UserDto userDto) {
         UserDetail userDetail = getLoginUser();
-        checkUserManagementPermission(userDetail);
-
-        Where where = parseWhere(whereJson);
-        long count = userService.updateByWhere(where, userDto, userDetail);
-        HashMap<String, Long> countValue = new HashMap<>();
-        countValue.put("count", count);
-        return success(countValue);
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit, () -> {
+            Where where = parseWhere(whereJson);
+            long count = userService.updateByWhere(where, userDto, userDetail);
+            HashMap<String, Long> countValue = new HashMap<>();
+            countValue.put("count", count);
+            return success(countValue);
+        });
     }
 
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
@@ -534,10 +549,10 @@ public class UserController extends BaseController {
     @DeleteMapping("{id}")
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        checkUserManagementPermission(userDetail);
-
-        userService.delete(id, userDetail);
-        return success();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete, () -> {
+            userService.delete(id, userDetail);
+            return success();
+        });
     }
 
     @Operation(summary = "test ldap login")
@@ -562,17 +577,60 @@ public class UserController extends BaseController {
         return success(userService.refreshAccessCode(getLoginUser()));
     }
 
+    @GetMapping("{userId}/alarmImpact")
+    public ResponseMessage<AlarmImpactView> alarmImpact(@PathVariable("userId") String userId) {
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> success(alarmService.userAlarmImpact(userId)));
+    }
+
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
     public ResponseMessage<String> batchUpdateListTags( @RequestBody BatchUpdateParam batchUpdateParam) {
         UserDetail userDetail = getLoginUser();
-        checkUserManagementPermission(userDetail);
-
         List<String> idList = batchUpdateParam.getId();
         List<com.tapdata.tm.commons.schema.Tag> listTags = batchUpdateParam.getListtags();
+        userService.fillTagGids(listTags);
         Update update = new Update().set("listtags", listTags);
-        userService.update(new Query(Criteria.where("id").in(idList)), update, userDetail);
+        dataPermissionCheckOfIds(userDetail, idList, DataPermissionActionEnums.Edit,
+                id -> userService.update(Query.query(Criteria.where("id").is(toObjectId(id))), update, userDetail));
         return success();
+    }
+
+    private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionActionEnums action, Supplier<T> supplier) {
+        return DataPermissionHelper.check(userDetail, DataPermissionMenuEnums.UserManagement, action,
+                DataPermissionDataTypeEnums.User, null, supplier,
+                () -> dataPermissionUnAuth(action,Lists.newArrayList(action)));
+    }
+
+    private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action, Supplier<T> supplier) {
+        return DataPermissionHelper.checkOfQuery(userDetail, DataPermissionDataTypeEnums.User, action,
+                userService.dataPermissionFindById(toObjectId(id), new Field()),
+                dto -> DataPermissionMenuEnums.UserManagement, supplier,
+                () -> dataPermissionUnAuth(action,Lists.newArrayList(action)));
+    }
+
+    private <T> List<T> dataPermissionCheckOfIds(
+            UserDetail userDetail,
+            List<String> ids,
+            DataPermissionActionEnums action,
+            Function<String, T> supplier
+    ) {
+        for (String id : ids) {
+            dataPermissionCheckOfId(userDetail, id, action, () -> null);
+        }
+        List<T> results = new ArrayList<>();
+        for (String id : ids) {
+            results.add(dataPermissionCheckOfId(userDetail, id, action, () -> supplier.apply(id)));
+        }
+        return results;
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.User, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.User, need)
+        );
     }
 
     private void checkUserManagementPermission(UserDetail userDetail) {

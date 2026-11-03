@@ -77,12 +77,13 @@ class TaskRebalanceRuleServiceTest {
         }
 
         @Test
-        void manuallySpecifiedAgentGroupIsNotMovable() {
+        void manuallySpecifiedAgentGroupWithResolvedMembersIsMovable() {
             TaskDto task = newRunningCdcTask("a1");
             task.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+            task.setAccessNodeProcessIdList(java.util.List.of("a1", "a2"));
             TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, Set.of("a1"));
-            assertFalse(item.getMovable());
-            assertEquals("MANUAL_AGENT", item.getSchedulableStatus());
+            assertTrue(item.getMovable());
+            assertEquals("OK", item.getSchedulableStatus());
         }
 
         @Test

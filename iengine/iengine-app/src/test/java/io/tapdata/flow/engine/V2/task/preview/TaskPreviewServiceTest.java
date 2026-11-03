@@ -1,6 +1,12 @@
 package io.tapdata.flow.engine.V2.task.preview;
 
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.PreviewTargetNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -11,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -115,6 +123,31 @@ class TaskPreviewServiceTest {
 				assertNotNull(taskPreviewResultVO.getStats());
 				assertNull(taskPreviewResultVO.getErrorMsg());
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Method handlePreviewTargetNode test")
+	class handlePreviewTargetNodeTest {
+		@Test
+		@DisplayName("test single table node should be kept as source")
+		void test1() {
+			TableNode tableNode = new TableNode();
+			tableNode.setId("source-node");
+			tableNode.setName("source-node");
+			tableNode.setTableName("AAAAA");
+
+			Dag previewDag = taskPreviewService.handlePreviewTargetNode(DAG.build(new Dag(new LinkedList<>(), Collections.singletonList(tableNode))));
+
+			assertEquals(2, previewDag.getNodes().size());
+			Node sourceNode = previewDag.getNodes().stream().filter(node -> "source-node".equals(node.getId())).findFirst().orElse(null);
+			assertSame(tableNode, sourceNode);
+			Node previewTargetNode = previewDag.getNodes().stream().filter(PreviewTargetNode.class::isInstance).findFirst().orElse(null);
+			assertNotNull(previewTargetNode);
+			assertEquals(1, previewDag.getEdges().size());
+			Edge previewEdge = previewDag.getEdges().get(0);
+			assertEquals("source-node", previewEdge.getSource());
+			assertEquals(previewTargetNode.getId(), previewEdge.getTarget());
 		}
 	}
 }

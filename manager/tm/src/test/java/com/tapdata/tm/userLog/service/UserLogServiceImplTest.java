@@ -1,5 +1,8 @@
 package com.tapdata.tm.userLog.service;
 
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.constant.SyncType;
@@ -21,7 +24,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
+import com.tapdata.tm.userLog.entity.UserLogs;
+import org.bson.types.ObjectId;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -251,4 +260,113 @@ public class UserLogServiceImplTest {
         }
     }
 
+    @Nested
+    class TestAddUserLogWithSevenParameters {
+        private UserLogRepository userLogRepository;
+        private UserLogServiceImpl realUserLogService;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            userLogRepository = mock(UserLogRepository.class);
+            realUserLogService = new UserLogServiceImpl(userLogRepository);
+            ReflectionTestUtils.setField(realUserLogService, "userLogRepository", userLogRepository);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("user_123");
+            when(userDetail.getUsername()).thenReturn("test_user");
+        }
+
+        @Test
+        void testAddUserLogWithValidSourceId() {
+            String sourceId = "675fa0e310853b4b042db50c";
+            String p1 = "param1";
+            String p2 = "param2";
+            String p3 = "{\"directTaskCount\":0}";
+
+            realUserLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, sourceId, p1, p2, p3);
+
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(userLogRepository, times(1)).insert(captor.capture(), eq(userDetail));
+
+            UserLogs captured = captor.getValue();
+            assertEquals(Modular.USER_GROUP.getValue(), captured.getModular());
+            assertEquals(Operation.DELETE.getValue(), captured.getOperation());
+            assertEquals(new ObjectId(sourceId), captured.getSourceId());
+            assertEquals(UserLogType.USER_OPERATION.getValue(), captured.getType());
+            assertEquals(p1, captured.getParameter1());
+            assertEquals(p2, captured.getParameter2());
+            assertEquals(p3, captured.getParameter3());
+            assertEquals("user_123", captured.getUserId());
+            assertEquals("test_user", captured.getUsername());
+        }
+
+        @Test
+        void testAddUserLogWithNullSourceId() {
+            String p1 = "param1";
+            String p2 = null;
+            String p3 = "{\"directTaskCount\":2}";
+
+            realUserLogService.addUserLog(Modular.USER_GROUP, Operation.DELETE, userDetail, (String) null, p1, p2, p3);
+
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(userLogRepository, times(1)).insert(captor.capture(), eq(userDetail));
+
+            UserLogs captured = captor.getValue();
+            assertEquals(Modular.USER_GROUP.getValue(), captured.getModular());
+            assertEquals(Operation.DELETE.getValue(), captured.getOperation());
+            assertNull(captured.getSourceId());
+            assertEquals(UserLogType.USER_OPERATION.getValue(), captured.getType());
+            assertEquals(p1, captured.getParameter1());
+            assertNull(captured.getParameter2());
+            assertEquals(p3, captured.getParameter3());
+            assertEquals("user_123", captured.getUserId());
+            assertEquals("test_user", captured.getUsername());
+        }
+    }
+
+
+    @Nested
+    class FindScope {
+        private UserLogRepository repository;
+        private UserDetail userDetail;
+        private Filter filter;
+
+        @BeforeEach
+        void beforeEach() {
+            repository = mock(UserLogRepository.class);
+            userLogService = new UserLogServiceImpl(repository);
+            ReflectionTestUtils.setField(userLogService, "userLogRepository", repository);
+            userDetail = mock(UserDetail.class);
+            filter = new Filter(new Where());
+        }
+
+        @Test
+        void testAllDataQueriesAllUsers() {
+            UserLogs log = new UserLogs();
+            log.setId(new ObjectId());
+            log.setUsername("bob");
+            when(repository.findAll(filter)).thenReturn(List.of(log));
+            when(repository.count(filter.getWhere())).thenReturn(1L);
+
+            Page<UserLogDto> page = userLogService.find(filter, userDetail, true);
+
+            assertEquals(1L, page.getTotal());
+            assertEquals("bob", page.getItems().get(0).getUsername());
+            verify(repository, never()).findAll(any(Filter.class), any(UserDetail.class));
+            verify(repository, never()).count(any(Where.class), any(UserDetail.class));
+        }
+
+        @Test
+        void testOwnDataQueriesCurrentUserScope() {
+            when(repository.findAll(filter, userDetail)).thenReturn(new ArrayList<>());
+            when(repository.count(filter.getWhere(), userDetail)).thenReturn(0L);
+
+            Page<UserLogDto> page = userLogService.find(filter, userDetail);
+
+            assertEquals(0L, page.getTotal());
+            verify(repository).findAll(filter, userDetail);
+            verify(repository, never()).findAll(any(Filter.class));
+            verify(repository, never()).count(any(Where.class));
+        }
+    }
 }

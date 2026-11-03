@@ -116,7 +116,7 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
                 taskService.save(taskDto, userDetail);
 
                 TaskDagCheckLog planLog = taskDagCheckLogService.createLog(taskId.toHexString(), "",
-                        userDetail.getUserId(), Level.WARN, templateEnum,
+                        userDetail.getUserId(), Level.WARN, templateEnum, locale,
                         MessageUtil.getDagCheckMsg(locale, "TASK_SCHEDULE_LIMIT"), "");
                 result.add(planLog);
             }

@@ -2,6 +2,7 @@ package com.tapdata.mongo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableList;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
@@ -91,6 +92,8 @@ public class RestTemplateOperator {
 
 	private final AtomicLong logCount = new AtomicLong(0);
 
+	private static final ThreadLocal<String> ACCESS_TOKEN = new ThreadLocal<>();
+
 	/**
 	 * Held so {@link #retryWrap} can evict stale pooled sockets after I/O failure
 	 * (typical when nginx upstream dies and the keep-alive socket is poisoned).
@@ -119,6 +122,7 @@ public class RestTemplateOperator {
 		restTemplate.setMessageConverters(messageConverters);
 		restTemplate.getInterceptors().add(new LoggingInterceptor());
 		restTemplate.getInterceptors().add(new VersionHeaderInterceptor());
+		restTemplate.getInterceptors().add(0, bearerAuthInterceptor());
 
 		this.retryTime = retryTime;
 
@@ -152,6 +156,7 @@ public class RestTemplateOperator {
 		restTemplate.setMessageConverters(messageConverters);
 		restTemplate.getInterceptors().add(new LoggingInterceptor());
 		restTemplate.getInterceptors().add(new VersionHeaderInterceptor());
+		restTemplate.getInterceptors().add(0, bearerAuthInterceptor());
 
 		this.retryTime = retryTime;
 
@@ -159,6 +164,56 @@ public class RestTemplateOperator {
 		this.baseURL = baseURLs.get(0);
 		this.size = baseURLs.size();
 		this.getRetryTimeout = getRetryTimeout;
+	}
+
+	public static AutoCloseable bindAccessToken(String token) {
+		if (StringUtils.isNotBlank(token)) {
+			ACCESS_TOKEN.set(token);
+		}
+		return ACCESS_TOKEN::remove;
+	}
+
+	public static String currentAccessToken() {
+		return ACCESS_TOKEN.get();
+	}
+
+	public static void clearAccessToken() {
+		ACCESS_TOKEN.remove();
+	}
+
+	static String stripAccessTokenQuery(String url) {
+		if (url == null || url.indexOf('?') < 0) {
+			return url;
+		}
+		int q = url.indexOf('?');
+		String path = url.substring(0, q);
+		String query = url.substring(q + 1);
+		StringBuilder sb = new StringBuilder();
+		for (String pair : query.split("&")) {
+			int eq = pair.indexOf('=');
+			String key = eq >= 0 ? pair.substring(0, eq) : pair;
+			if ("access_token".equalsIgnoreCase(key)) {
+				if (eq >= 0 && eq + 1 < pair.length()) {
+					bindAccessToken(pair.substring(eq + 1));
+				}
+				continue;
+			}
+			if (sb.length() > 0) {
+				sb.append('&');
+			}
+			sb.append(pair);
+		}
+		return sb.length() == 0 ? path : path + "?" + sb;
+	}
+
+	private static org.springframework.http.client.ClientHttpRequestInterceptor bearerAuthInterceptor() {
+		return (request, body, execution) -> {
+			String token = ACCESS_TOKEN.get();
+			if (StringUtils.isNotBlank(token) && request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION) == null) {
+				request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+			}
+			return execution.execute(request, body);
+		};
 	}
 
 	private ClientHttpRequestFactory getRequestFactory(int connectTimeout, int readTimeout, int connectRequestTimeout) {
@@ -651,7 +706,8 @@ public class RestTemplateOperator {
 		logger.error("Request {} fail, error code {}, error message {}, request id {}",
 				uri, responseBody.getCode(), responseBody.getMessage(), responseBody.getReqId());
 
-		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported", "Task.NotFound")) {
+		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported", "Task.NotFound",
+				ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES_WAIT_TIMEOUT)) {
 			throw new RestDoNotRetryException(uri, method, param, responseBody);
 		} else if ("110403".equals(responseBody.getCode())) {
 			throw new RestAuthException(uri, method, param, responseBody);
@@ -722,15 +778,24 @@ public class RestTemplateOperator {
 		}
 
 		String getURL(String resource) {
-			this.reqURL = this.baseURL + resource;
+			this.reqURL = stripAccessTokenQuery(this.baseURL + resource);
 			return this.reqURL;
 		}
 
 		URI getURI(String resource, Map<String, ?> params) {
 			UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(getURL(resource));
 
-			for (Map.Entry<String, ?> entry : params.entrySet()) {
-				builder.queryParam(entry.getKey(), UriUtils.encode(entry.getValue().toString(), StandardCharsets.UTF_8));
+			if (params != null) {
+				for (Map.Entry<String, ?> entry : params.entrySet()) {
+					if (entry.getValue() == null) {
+						continue;
+					}
+					if ("access_token".equalsIgnoreCase(entry.getKey())) {
+						bindAccessToken(entry.getValue().toString());
+						continue;
+					}
+					builder.queryParam(entry.getKey(), UriUtils.encode(entry.getValue().toString(), StandardCharsets.UTF_8));
+				}
 			}
 
 			URI uri = builder.build(true).toUri();
@@ -741,6 +806,7 @@ public class RestTemplateOperator {
 
 	protected  <T> T retryWrap(TryFunc<T> func, Predicate<?> stop) {
 		RetryInfo retryInfo = new RetryInfo(baseURL, Optional.ofNullable(getRetryTimeout).map(Supplier::get).orElse(retryTime * retryInterval));
+		try {
 		do {
 			try {
 				T result = func.tryFunc(retryInfo);
@@ -822,6 +888,9 @@ public class RestTemplateOperator {
 							+ " " + retryInfo.lastError.getMessage()), retryInfo.lastError);
 		} else {
 			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), retryInfo.lastError.getMessage()), retryInfo.lastError);
+		}
+		} finally {
+			ACCESS_TOKEN.remove();
 		}
 	}
 

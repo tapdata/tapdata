@@ -164,7 +164,8 @@ public class MessageServiceImpl extends MessageService{
     }
 
     public Page<MessageListVo> list(Locale locale, MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
-        Criteria criteria = Criteria.where("msg").is(type.getValue());
+        // 停写的系统通知以隐藏载体保存，兼容接口不返回
+        Criteria criteria = Criteria.where("msg").is(type.getValue()).and("isDeleted").ne(true);
         if (!userDetail.isRoot()) {
             criteria.and("user_id").is(userDetail.getUserId());
         }
@@ -212,6 +213,11 @@ public class MessageServiceImpl extends MessageService{
 
             messageEntity.setUserId(userDetail.getUserId());
             messageEntity.setCustomId(userDetail.getCustomerId());
+            // 站内系统通知已下线：仅在需要邮件/短信时保存隐藏记录作为发送与重发载体
+            if (!hasOutbound(msgTypeEnum, systemEnum, userDetail)) {
+                return;
+            }
+            messageEntity.setIsDeleted(true);
             repository.save(messageEntity,userDetail);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {
@@ -237,9 +243,16 @@ public class MessageServiceImpl extends MessageService{
         }
         NotificationDto notificationDto = needInform(SystemEnum.MIGRATION, msgTypeEnum);
         Notification userNotification = userDetail.getNotification();
+        boolean userOutbound = null != userNotification && null != userNotification.getStoppedByError()
+                && (Boolean.TRUE.equals(userNotification.getStoppedByError().getEmail())
+                || Boolean.TRUE.equals(userNotification.getStoppedByError().getSms()));
+        boolean settingEmail = null != notificationDto && Boolean.TRUE.equals(notificationDto.getEmail());
+        if (!settingEmail && !userOutbound) {
+            // 站内系统通知已下线，未配置邮件/短信时不再写消息
+            return;
+        }
+        saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, level, userDetail);
         if (null != notificationDto) {
-            saveMessage = addMessage(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
-
             if (notificationDto.getEmail()) {
                 SendStatus sendStatus = new SendStatus("false", "");
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
@@ -300,7 +313,7 @@ public class MessageServiceImpl extends MessageService{
      */
     public MessageDto addTrustAgentMessage(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, String title, UserDetail userDetail) {
         MessageEntity saveMessage = null;
-        saveMessage = addMessage(serverName, sourceId, SystemEnum.AGENT, msgTypeEnum, title, Level.INFO, userDetail);
+        saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.AGENT, msgTypeEnum, title, Level.INFO, userDetail);
         asynInformUserEmail(msgTypeEnum, SystemEnum.AGENT, saveMessage.getId().toString(), userDetail);
         asynInformUserSms(saveMessage.getId().toString(), userDetail);
         MessageDto messageDto = new MessageDto();
@@ -334,10 +347,9 @@ public class MessageServiceImpl extends MessageService{
         //系统设置，企业版
         NotificationDto notificationDto = needInform(SystemEnum.INSPECT, msgTypeEnum);
         if (null != notificationDto) {
-            if (notificationDto.getNotice()) {
-                saveMessage = addMessage(serverName, sourceId, SystemEnum.INSPECT, msgTypeEnum, null, level, userDetail);
-            }
+            // 站内系统通知已下线，仅邮件需要时保存隐藏载体
             if (notificationDto.getEmail()) {
+                saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.INSPECT, msgTypeEnum, level, userDetail);
                 SendStatus sendStatus = new SendStatus("", "false");
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
             }
@@ -359,16 +371,22 @@ public class MessageServiceImpl extends MessageService{
         if (null == notificationDto) {
             return;
         }
-        MessageEntity saveMessage = addMessage(serverName, sourceId, SystemEnum.SYNC, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
+        if (!Boolean.TRUE.equals(notificationDto.getEmail())) {
+            // 站内系统通知已下线，未配置邮件时不再写消息
+            return;
+        }
+        MessageEntity saveMessage = addEmailCarrier(serverName, sourceId, SystemEnum.SYNC, msgTypeEnum, level, userDetail);
 
         if (notificationDto.getEmail()) {
             FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
                 if(checkSending(userDetail)){
                     SendStatus sendStatus = new SendStatus("", "false");
+                    List<String> mailReceivers = getMailAddressList(userDetail);
                     if (!MsgTypeEnum.DELETED.equals(msgTypeEnum)) {
-                        sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                        sendStatus = mailUtils.sendHtmlMail(mailReceivers, userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
                     }
-                    eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+                    // 事件需记录本次实际群发的完整收件人，重试才能只针对尚未送达的地址
+                    eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, joinReceivers(mailReceivers), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
             }, () -> {
@@ -481,6 +499,30 @@ public class MessageServiceImpl extends MessageService{
     }
 
     /**
+     * 站内系统通知下线后，邮件/短信发送及失败重发仍按消息 ID 回查内容，故保存为隐藏记录。
+     */
+    protected MessageEntity addEmailCarrier(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, Level level, UserDetail userDetail) {
+        return addEmailCarrier(serverName, sourceId, systemEnum, msgTypeEnum, "", level, userDetail);
+    }
+
+    /** 标题需在保存前设置，重发邮件时按消息 ID 回查 */
+    protected MessageEntity addEmailCarrier(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String title, Level level, UserDetail userDetail) {
+        return addMessage(serverName, sourceId, systemEnum, msgTypeEnum, title, level, userDetail, false);
+    }
+
+    /** 与 informUser 相同的邮件/短信判定 */
+    protected boolean hasOutbound(MsgTypeEnum msgType, SystemEnum systemEnum, UserDetail userDetail) {
+        Notification notification = userDetail.getNotification();
+        if (null != notification) {
+            Object eventType = BeanUtil.getProperty(notification, msgType.getValue());
+            return Boolean.TRUE.equals(BeanUtil.getProperty(eventType, "email"))
+                    || Boolean.TRUE.equals(BeanUtil.getProperty(eventType, "sms"));
+        }
+        return Boolean.TRUE.equals(getDefaultNotification(systemEnum.getValue(), msgType.getValue(), "email"))
+                || Boolean.TRUE.equals(getDefaultNotification(systemEnum.getValue(), msgType.getValue(), "notice"));
+    }
+
+    /**
      * 仅做记录记录只用，不会显示再界面上
      *
      * @param serverName
@@ -525,8 +567,9 @@ public class MessageServiceImpl extends MessageService{
 //        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF);
         String clickHref = mailUtils.getHrefClick(sourceId, systemEnum, msgType);
         if(checkSending(userDetail)){
-            SendStatus sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), username, serverName, clickHref, systemEnum, msgType);
-            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+            List<String> mailReceivers = getMailAddressList(userDetail);
+            SendStatus sendStatus = mailUtils.sendHtmlMail(mailReceivers, username, serverName, clickHref, systemEnum, msgType);
+            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, joinReceivers(mailReceivers), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
             update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
         }
     }
@@ -633,8 +676,9 @@ public class MessageServiceImpl extends MessageService{
             Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
             String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), username, metadataName, clickHref, systemEnum, msgType);
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+                List<String> mailReceivers = getMailAddressList(userDetail);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(mailReceivers, username, metadataName, clickHref, systemEnum, msgType);
+                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, joinReceivers(mailReceivers), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
                 update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
             }
 
@@ -672,6 +716,10 @@ public class MessageServiceImpl extends MessageService{
             messageEntity.setServerName(messageDto.getAgentName());
             messageEntity.setLastUpdAt(now);
             messageEntity.setLastUpdBy(userDetail.getUsername());
+            if (SystemNotificationMapping.isRetiredSystemNotification(MsgTypeEnum.getEnumByValue(messageEntity.getMsg()))) {
+                // 站内系统通知已下线：Agent 状态消息仍作为邮件/熔断判断的隐藏载体保存
+                messageEntity.setIsDeleted(true);
+            }
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
             WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
@@ -882,8 +930,9 @@ public class MessageServiceImpl extends MessageService{
             MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(msgType);
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT + subject, getMailAddressList(userDetail), username, metadataName, clickHref, emailTip);
-                eventsService.recordEvents(MAIL_SUBJECT + subject, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
+                List<String> mailReceivers = getMailAddressList(userDetail);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT + subject, mailReceivers, username, metadataName, clickHref, emailTip);
+                eventsService.recordEvents(MAIL_SUBJECT + subject, MAIL_CONTENT, joinReceivers(mailReceivers), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
         }
 
@@ -1050,6 +1099,18 @@ public class MessageServiceImpl extends MessageService{
 
     public boolean checkSending(UserDetail userDetail){
         return !settingsService.isCloud() || checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT);
+    }
+
+    /** 事件 receivers 使用逗号分隔的收件人串，与重试解析保持一致 */
+    static String joinReceivers(List<String> receivers) {
+        if (CollectionUtils.isEmpty(receivers)) {
+            return null;
+        }
+        return receivers.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.joining(","));
     }
 
     protected List<String> getMailAddressList(UserDetail userDetail){

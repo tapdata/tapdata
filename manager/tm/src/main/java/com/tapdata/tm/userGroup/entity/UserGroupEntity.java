@@ -3,6 +3,7 @@ package com.tapdata.tm.userGroup.entity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -13,7 +14,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("UserGroup")
-public class UserGroupEntity extends BaseEntity {
+public class UserGroupEntity extends BaseEntity implements IDataPermissionEntity {
 
     private String name;
 

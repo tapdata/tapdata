@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
@@ -49,10 +50,21 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
     public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
+    /** Legacy metadata used by enterprise clients; ignored when resolving Agent policy. */
+    @Deprecated
+    public static final String ATTRS_SOURCE_AGENT_POLICY_INHERITED = "sourceAgentPolicyInherited";
 
     public static final String RETRY_STATUS_RUNNING = "Retrying";
     public static final String RETRY_STATUS_NONE = "";
     public static final String SYNC_TYPE_PREVIEW = "preview";
+
+    /** Whether connection Agent restrictions apply to this task type. */
+    public boolean usesConnectionAgentPolicy() {
+        return SYNC_TYPE_SYNC.equals(getSyncType())
+                || SYNC_TYPE_MIGRATE.equals(getSyncType())
+                || SYNC_TYPE_LOG_COLLECTOR.equals(getSyncType())
+                || SYNC_TYPE_CONN_HEARTBEAT.equals(getSyncType());
+    }
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
@@ -137,6 +149,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
     private List<String> emailReceivers;
+    /** null 表示系统默认或存量邮箱；空列表表示自定义但当前没有接收对象 */
+    private List<AlarmReceiver> alarmReceivers;
+    /** 列表展示用，不落库 */
+    private String alarmReceiverStatus;
+    private Integer effectiveEmailCount;
 
     private Integer resetTimes;
 

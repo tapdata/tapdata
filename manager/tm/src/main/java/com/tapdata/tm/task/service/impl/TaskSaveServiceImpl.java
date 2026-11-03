@@ -37,7 +37,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -65,11 +67,11 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         }
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             dag.getSourceNode().forEach(sourceNode -> {
-                if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+                if (MetadataInstancesFilterUtil.isExpressionSelection(sourceNode)) {
                     String connectionId = sourceNode.getConnectionId();
                     List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                     if (CollectionUtils.isNotEmpty(metaList)) {
-                        List<String> collect = MetadataInstancesFilterUtil.getFilteredOriginalNames(metaList,sourceNode);
+                        List<String> collect = MetadataInstancesFilterUtil.getSelectedOriginalNames(metaList,sourceNode);
                         sourceNode.setTableNames(collect);
                     }
                 }
@@ -205,6 +207,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_SAVE_FAILED));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_RECOVERY_FAILED));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_STORM_GUARD));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
         // 补充历史任务缺失的任务告警 key 时也请追加到末尾，避免破坏前端依赖的原有顺序。
@@ -214,6 +217,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_SAVE_FAILED));
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_RECOVERY_FAILED));
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_STORM_GUARD));
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DATA_INTEGRITY_RISK));
+        taskDto.setAlarmSettings(uniqueAlarmSettingsByKey(taskDto.getAlarmSettings()));
 
         if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
@@ -262,6 +267,20 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             alarmSettings.add(CglibUtil.copy(defaultSetting, AlarmSettingVO.class));
             taskDto.setAlarmSettings(alarmSettings);
         }
+    }
+
+    static List<AlarmSettingVO> uniqueAlarmSettingsByKey(List<AlarmSettingVO> alarmSettings) {
+        if (CollectionUtils.isEmpty(alarmSettings)) {
+            return alarmSettings;
+        }
+        Map<AlarmKeyEnum, AlarmSettingVO> unique = new LinkedHashMap<>();
+        for (AlarmSettingVO setting : alarmSettings) {
+            if (setting == null || setting.getKey() == null) {
+                continue;
+            }
+            unique.put(setting.getKey(), setting);
+        }
+        return new ArrayList<>(unique.values());
     }
 
     private void addIfNotNull(List list, Object element){

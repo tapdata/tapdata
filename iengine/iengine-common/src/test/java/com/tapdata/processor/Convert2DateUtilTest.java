@@ -3,6 +3,8 @@ package com.tapdata.processor;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+
 import java.time.LocalDate;
 import java.time.ZoneId;
 
@@ -24,7 +26,7 @@ public class Convert2DateUtilTest {
         LocalDate localDate = LocalDate.of(year, month, day);
         Date expectedDate = Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
         String inputValue = "2023-11-07";
-        Date outputDate = FieldProcessUtil.convert2Date(inputValue);
+        Object outputDate = FieldProcessUtil.convert2Date(inputValue);
         Assert.assertNotNull(outputDate);
         Assert.assertEquals(expectedDate, outputDate);
     }
@@ -34,10 +36,10 @@ public class Convert2DateUtilTest {
      * Example input: {@param inputValue: "DateTime nano 0 seconds 1327149189 timeZone null"}
      * Expected output: RuntimeException(Convert value inputValue to Date failed , error message: DateTime constructor illegal dateStr: inputValue)
      */
-    @Test(expected = RuntimeException.class)
+    @Test
     public void illegalDateFormatConvertTest() {
         String inputValue = "DateTime nano 0 seconds 1327149189 timeZone null";
-        FieldProcessUtil.convert2Date(inputValue);
+        Assertions.assertDoesNotThrow(() -> FieldProcessUtil.convert2Date(inputValue));
     }
 
 
@@ -49,9 +51,10 @@ public class Convert2DateUtilTest {
     @Test
     public void longTypeConvertTest() {
         Long expectedDate = 1699286400000L;
-        Date outputDate = FieldProcessUtil.convert2Date(expectedDate);
+        Object outputDate = FieldProcessUtil.convert2Date(expectedDate);
         Assert.assertNotNull(outputDate);
-        Assert.assertTrue(expectedDate == outputDate.getTime());
+        Assert.assertTrue(outputDate instanceof Date);
+        Assert.assertTrue(expectedDate == ((Date) outputDate).getTime());
     }
 
     /**
@@ -62,7 +65,7 @@ public class Convert2DateUtilTest {
     @Test
     public void nullValueConvertTest() {
         String inputValue = null;
-        Date outputDate = FieldProcessUtil.convert2Date(inputValue);
+        Object outputDate = FieldProcessUtil.convert2Date(inputValue);
         Assert.assertNull(outputDate);
     }
 
@@ -71,10 +74,10 @@ public class Convert2DateUtilTest {
      * Example input : {@param inputValue:""}
      * Expected output: RuntimeException(Convert value inputValue to Date failed , error message: DateTime constructor illegal dateStr: inputValue)
      */
-    @Test(expected = RuntimeException.class)
+    @Test
     public void emptyValueConvertTest() {
         String inputValue = "";
-        FieldProcessUtil.convert2Date(inputValue);
+        Assertions.assertDoesNotThrow(() -> FieldProcessUtil.convert2Date(inputValue));
     }
 
     /**
@@ -90,7 +93,7 @@ public class Convert2DateUtilTest {
         LocalDate localDate = LocalDate.of(year, month, day);
         Date expectedDate = Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
         String inputValue = " 2023-11-06 ";
-        Date outputDate = FieldProcessUtil.convert2Date(inputValue);
+        Object outputDate = FieldProcessUtil.convert2Date(inputValue);
         Assert.assertNotNull(outputDate);
         Assert.assertEquals(expectedDate, outputDate);
     }
@@ -100,10 +103,10 @@ public class Convert2DateUtilTest {
      * Example input : {@param inputValue:"  illegal  "}
      * Example output: RuntimeException(Convert value inputValue to Date failed , error message: DateTime constructor illegal dateStr: inputValue)
      */
-    @Test(expected = RuntimeException.class)
+    @Test
     public void emptyOnBothSidesIllegalOnMilddleStringConvertTest() {
         String inputValue = " illegal ";
-        FieldProcessUtil.convert2Date(inputValue);
+        Assertions.assertDoesNotThrow(() -> FieldProcessUtil.convert2Date(inputValue));
     }
 
 

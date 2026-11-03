@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.ExactlyOnceWriteCancelledException;
+
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.entity.TapdataEvent;
@@ -69,10 +71,17 @@ public class PartitionConcurrentProcessor {
 	private AtomicLong eventSeq = new AtomicLong(0L);
 
 	private LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
+	private final java.util.concurrent.locks.ReentrantLock watermarkFlushLock = new java.util.concurrent.locks.ReentrantLock(true);
 
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
 	private Supplier<Boolean> nodeRunning;
+	private Runnable workerCleanup;
+
+	public PartitionConcurrentProcessor setWorkerCleanup(Runnable workerCleanup) {
+		this.workerCleanup = workerCleanup;
+		return this;
+	}
 	private TaskDto taskDto;
 	private DataProcessorContext dataProcessorContext;
 
@@ -184,15 +193,13 @@ public class PartitionConcurrentProcessor {
 		while (isRunning()) {
 			Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 			try {
-				final WatermarkEvent watermarkEvent = pollWatermarkEvent();
-				if (watermarkEvent != null) {
-					final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
-					final TapdataEvent event = watermarkEvent.getEvent();
-					if (!waitCountDownLath(countDownLatch, () -> {
-						final Date sourceTime = Optional.ofNullable(event.getSourceTime()).map(Date::new).orElse(null);
-						logger.info("waiting watermark event for all thread process, ts {}", sourceTime);
-					})) return; // when task stop, do not need flush offset
-					this.flushOffset.accept(event);
+				watermarkFlushLock.lockInterruptibly();
+				try {
+					if (!isRunning()) return;
+					final WatermarkEvent watermarkEvent = pollWatermarkEvent();
+					if (watermarkEvent != null && !flushWatermarkEvent(watermarkEvent)) return;
+				} finally {
+					watermarkFlushLock.unlock();
 				}
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
@@ -204,6 +211,17 @@ public class PartitionConcurrentProcessor {
 				ThreadContext.clearAll();
 			}
 		}
+	}
+
+	private boolean flushWatermarkEvent(WatermarkEvent watermarkEvent) throws InterruptedException {
+		final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
+		final TapdataEvent event = watermarkEvent.getEvent();
+		if (!waitCountDownLath(countDownLatch, () -> {
+			final Date sourceTime = Optional.ofNullable(event.getSourceTime()).map(Date::new).orElse(null);
+			logger.info("waiting watermark event for all thread process, ts {}", sourceTime);
+		})) return false;
+		this.flushOffset.accept(event);
+		return true;
 	}
 
 	protected void partitionConsumer(int finalPartition, LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue) {
@@ -223,6 +241,9 @@ public class PartitionConcurrentProcessor {
 					Thread.currentThread().interrupt();
 					break;
 				} catch (Throwable throwable) {
+					if (!nodeRunning.get() && ExactlyOnceWriteCancelledException.isCleanCancellation(throwable)) {
+						break;
+					}
 					currentRunning.compareAndSet(true, false);
 					Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 					if (null == matched) {
@@ -233,7 +254,11 @@ public class PartitionConcurrentProcessor {
 				}
 			}
 		} finally {
-			ThreadContext.clearAll();
+			try {
+				if (workerCleanup != null) workerCleanup.run();
+			} finally {
+				ThreadContext.clearAll();
+			}
 		}
 	}
 
@@ -496,6 +521,16 @@ public class PartitionConcurrentProcessor {
 	public void stop() {
 		try {
 			waitingForProcessToCurrent();
+			watermarkFlushLock.lockInterruptibly();
+			try {
+				WatermarkEvent watermarkEvent;
+				while ((watermarkEvent = watermarkQueue.poll()) != null) {
+					if (!flushWatermarkEvent(watermarkEvent)) break;
+				}
+				currentRunning.compareAndSet(true, false);
+			} finally {
+				watermarkFlushLock.unlock();
+			}
 		} catch (InterruptedException ignored) {
 			Thread.currentThread().interrupt();
 		} finally {

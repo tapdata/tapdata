@@ -32,6 +32,7 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerField;
 import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -424,11 +425,16 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                 status = "stopped";
             }
 
+            ClusterStateDto clusterStateDto = processIdClusterStateMap.get(worker.getProcessId());
+            // Cluster management delete only removes ClusterState; leftover Workers
+            // would otherwise still appear as unavailable preferred nodes.
+            if (clusterStateDto == null) {
+                return;
+            }
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
             accessNodeInfo.setAccessNodeName(worker.getProcessId());
             accessNodeInfo.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
-            ClusterStateDto clusterStateDto = processIdClusterStateMap.get(worker.getProcessId());
-            if (null != clusterStateDto && null != clusterStateDto.getAgentName()) {
+            if (null != clusterStateDto.getAgentName()) {
                 accessNodeInfo.setAgentName(clusterStateDto.getAgentName());
             }
             result.add(accessNodeInfo);
@@ -482,7 +488,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
             Map<String, Worker> apiMap;
             if (!apiServerId.isEmpty()) {
-                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId).and("worker_type").is(WorkerType.API_SERVER.getType())));
+                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where(WorkerField.PROCESS_ID.field()).in(apiServerId)
+                        .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                        .and(WorkerField.DELETED.field()).ne(true)));
                 apiMap = allApiServerInfo.stream()
                         .filter(Objects::nonNull)
                         .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))
@@ -528,6 +536,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             }
         }
         if (unBind) {
+            if (null != clusterStateDto && null != clusterStateDto.getSystemInfo()
+                    && StringUtils.isNotBlank(clusterStateDto.getSystemInfo().getProcess_id())) {
+                String pid = clusterStateDto.getSystemInfo().getProcess_id();
+                workerService.updateAll(
+                        Query.query(Criteria.where("process_id").is(pid)),
+                        Update.update("isDeleted", true).set("ping_time", 0L));
+            }
             return deleteById(id);
         }
         return false;

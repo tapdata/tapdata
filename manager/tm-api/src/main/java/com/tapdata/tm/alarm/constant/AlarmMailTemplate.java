@@ -84,4 +84,20 @@ public class AlarmMailTemplate {
             "    No incremental event captured for {2}\n" +
             "    Last observed time: {3}\n" +
             "    Alarm time: {4}";
+    public static final String ENGINE_OFFLINE_TITLE = "【Tapdata Notification: Engine offline】{0}";
+    public static final String ENGINE_OFFLINE_CONTENT = "Engine {0} has gone offline. Please handle this in time. The {1} tasks running on this engine will be rescheduled to other available engines.\n" +
+            "    Engine hostname: {0}\n" +
+            "    Alarm time: {2}";
+    public static final String ENGINE_ONLINE_TITLE = "【Tapdata Notification: Engine online】{0}";
+    public static final String ENGINE_ONLINE_CONTENT = "Engine {0} is back online.\n" +
+            "    Engine hostname: {0}\n" +
+            "    Alarm time: {1}";
+
+    public static final String TASK_DATA_INTEGRITY_RISK_TITLE = "【TapData Notification: Data integrity risk】{0}";
+    public static final String TASK_DATA_INTEGRITY_RISK_CONTENT = "A data integrity risk was detected while the task was still running.\n" +
+            "    Task name: 【{0}】\n" +
+            "    Node: {1}\n" +
+            "    Occurrence count: {2}\n" +
+            "    Occurred time: {3}\n" +
+            "    Details: {4}";
 }

@@ -13,9 +13,18 @@ on:
         required: true
         type: string
         default: 'main'
+      image_registry:
+        description: 'Target image registry:'
+        required: true
+        type: choice
+        options:
+          - harbor
+          - ghcr
+        default: harbor
 
-env:
-  REGISTRY: ghcr.io
+permissions:
+  contents: read
+  packages: write
 
 jobs:
 
@@ -72,27 +81,63 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Patch Maven Dependens
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/ /root/.m2/
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
+          # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
+          # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
+          mkdir -p /root/.m2/repository
+          # The engine requires FloatingPointTransformMode from the current API snapshot.
+          rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.11-SNAPSHOT
+          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
+            --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
+            rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Get Tapdata Version
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && tapdata_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} $tapdata_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata.version
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
       - name: compile opensource tapdata
         run: |
@@ -103,13 +148,26 @@ jobs:
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
           export JAVA_HOME=/usr/java/jdk1.8.0_361
       - name: Upload Outputs
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && bash build/build.sh -p tapdata
           temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
           mkdir -p $temp_dir
           cp -r output/* $temp_dir/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Connectors:
     runs-on: office-scan
@@ -118,32 +176,68 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/ /root/.m2/
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
+          # Seed missing third-party dependencies only; preserve private artifacts and settings.xml.
+          # Not a refresh: stale/corrupt existing files require Maven updates or targeted repair.
+          mkdir -p /root/.m2/repository
+          # The engine requires FloatingPointTransformMode from the current API snapshot.
+          rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.11-SNAPSHOT
+          rsync --password-file=/tmp/rsync.passwd -avz --ignore-existing --partial-dir=.rsync-partial \
+            --exclude='/com/tapdata/***' --exclude='/io/tapdata/***' \
+            rsync://root@fileserver.tapdata.net:873/data/enterprise-temp/tapdata/repository/ /root/.m2/repository/
       - name: Checkout Connectors Code
         run: |
           rm -rf tapdata-connectors
           git clone -b ${{ inputs.connectors_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-connectors.git
           cd tapdata-connectors && git fetch --tags
       - name: Get Connectors Version
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata-connectors && tapdata_connectors_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata-connectors: ${{ inputs.connectors_branch }} $tapdata_connectors_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-connectors.version
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
       - name: compile tapdata connectors
         run: |
@@ -154,13 +248,26 @@ jobs:
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
           export JAVA_HOME=/usr/java/jdk1.8.0_361
       - name: Upload Outputs
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && bash build/build.sh -p connectors
           temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
           mkdir -p $temp_dir
           cp -r output/* $temp_dir/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Frontend:
     runs-on: office-scan
@@ -169,12 +276,31 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
@@ -193,11 +319,16 @@ jobs:
           mkdir -p tapdata-enterprise-web
           rsync -av tapdata-web/ tapdata-enterprise-web/
       - name: Get Frontend Version
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
-          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
       - name: Build Frontend
         run: |
@@ -208,17 +339,38 @@ jobs:
           mkdir -p tapdata-enterprise-web/dist/docs/
           rsync -av docs/build/ tapdata-enterprise-web/dist/docs/
       - name: Upload Outputs
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata && bash build/build.sh -p frontend
           temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
           mkdir -p $temp_dir
           cp -r output/* $temp_dir/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@fileserver.tapdata.net:873/data/temp/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Build-Image:
     runs-on: office-scan
     timeout-minutes: 120
+    concurrency:
+      group: tapdata-multiarch-image-publish
+      cancel-in-progress: false
+    env:
+      TAPDATA_BASE_IMAGE: harbor.internal.tapdata.io/tapdata/base:0.2
+      TAPDATA_CACHE_REPOSITORY: harbor.internal.tapdata.io/tapdata/tapdata-build-cache
+      TAPDATA_CACHE_SCOPE: ${{ github.ref_name }}
+      TAPDATA_IMAGE_REPOSITORY: ${{ inputs.image_registry == 'ghcr' && 'ghcr.io/tapdata/tapdata' || 'harbor.internal.tapdata.io/tapdata/tapdata' }}
     needs:
       - Build-Tapdata
       - Build-Connectors
@@ -228,38 +380,70 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Image
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@fileserver.tapdata.net:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           echo '${{ secrets.HARBOR_PASS }}' | docker login harbor.internal.tapdata.io --username=${{ secrets.HARBOR_USER }} --password-stdin
+          if [[ "${{ inputs.image_registry }}" == "ghcr" ]]; then
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username=${{ github.actor }} --password-stdin
+          fi
           bash build/build.sh -o docker -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Print Image Info
         run: |
-          echo '**Google Docker Image:**' >> $GITHUB_STEP_SUMMARY
+          echo '**Docker Image:**' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "harbor.internal.tapdata.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "${TAPDATA_IMAGE_REPOSITORY}:${{ needs.Set-Branch.outputs.TAG_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Checkout Tapdata Application
         run: |
           rm -rf tapdata-application
           git clone -b version --single-branch git@gitee.com:tapdata_1/tapdata-application.git
       - name: Add Commit ID and Version Map
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --progress --password-file=/tmp/rsync.passwd rsync://root@fileserver.tapdata.net:873/data/version/${{ needs.Set-Branch.outputs.TAG_NAME }}/ ./
           echo "## ${{ needs.Set-Branch.outputs.TAG_NAME }}" >> tapdata-application/README.md
           cat tapdata.version >> tapdata-application/README.md
@@ -272,6 +456,14 @@ jobs:
           repository: 'tapdata-application'
           commit_user_name: 'cicd'
           commit_user_email: 'cicd@tapdata.io'
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Make-Tar-File:
     runs-on: office-scan
@@ -285,21 +477,45 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
-      - name: Configure SSH
+      - name: Configure Gitee SSH
+        env:
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host gitee.com" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          : "${GITEE_SSH_KEY:?GITEE_SSH_KEY repository secret is required}"
+          : "${GITEE_KNOWN_HOSTS:?GITEE_KNOWN_HOSTS repository secret is required}"
+          gitee_ssh_dir=$(mktemp -d "$RUNNER_TEMP/gitee-ssh.XXXXXX")
+          trap 'rm -rf -- "$gitee_ssh_dir"' ERR
+          chmod 700 "$gitee_ssh_dir"
+          printf '%s\n' "$GITEE_SSH_KEY" > "$gitee_ssh_dir/id_key"
+          printf '%s\n' "$GITEE_KNOWN_HOSTS" > "$gitee_ssh_dir/known_hosts"
+          chmod 600 "$gitee_ssh_dir/id_key" "$gitee_ssh_dir/known_hosts"
+          cat > "$gitee_ssh_dir/config" <<EOF
+          Host gitee.com
+            IdentityFile $gitee_ssh_dir/id_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $gitee_ssh_dir/known_hosts
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 "$gitee_ssh_dir/config"
+          printf 'GITEE_SSH_DIR=%s\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          printf 'GIT_SSH_COMMAND=ssh -F %s/config\n' "$gitee_ssh_dir" >> "$GITHUB_ENV"
+          trap - ERR
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Tar File
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           cd tapdata
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@fileserver.tapdata.net:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m x86_64
@@ -307,6 +523,14 @@ jobs:
           rm -rf output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m arm64
           rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-arm64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@fileserver.tapdata.net:873/data/enterprise-artifact/gz/
+      - name: Cleanup Gitee SSH
+        if: ${{ always() }}
+        run: |
+          case "${GITEE_SSH_DIR:-}" in
+            "$RUNNER_TEMP"/gitee-ssh.*) rm -rf -- "$GITEE_SSH_DIR" ;;
+            "") ;;
+            *) echo "Refusing to remove unexpected Gitee SSH path" >&2; exit 1 ;;
+          esac
 
   Clean-Build-Temp:
     runs-on: office-scan
@@ -318,7 +542,12 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Clean Build Temp
+        env:
+          RSYNC_PASSWORD: ${{ secrets.RSYNC_PASSWORD }}
         run: |
+          : "${RSYNC_PASSWORD:?RSYNC_PASSWORD secret is required}"
+          umask 077
+          trap 'rm -f /tmp/rsync.passwd' EXIT
           mkdir -p temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/
-          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --delete --password-file=/tmp/rsync.passwd temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ rsync://root@fileserver.tapdata.net:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/

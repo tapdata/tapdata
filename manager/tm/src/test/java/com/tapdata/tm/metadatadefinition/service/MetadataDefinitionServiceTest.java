@@ -3,18 +3,25 @@ package com.tapdata.tm.metadatadefinition.service;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.GroupDto;
+import com.tapdata.tm.batchtags.service.BatchListTagService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.utils.Lists;
+import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -83,6 +90,133 @@ class MetadataDefinitionServiceTest {
             doVerify("", 0);
         }
     }
+
+    @Nested
+    class BatchApplyListTagsTest {
+        BatchListTagService batchListTagService;
+        UserDetail userDetail;
+
+        @BeforeEach
+        void init() {
+            batchListTagService = new BatchListTagService();
+            userDetail = mock(UserDetail.class);
+            ReflectionTestUtils.setField(metadataDefinitionService, "batchListTagService", batchListTagService);
+            doCallRealMethod().when(metadataDefinitionService).batchApplyListTags(anyString(), any(BatchApplyListTagsParam.class), any(UserDetail.class));
+        }
+
+        @Test
+        void shouldReturnEmptyWhenParamInvalid() {
+            assertTrue(metadataDefinitionService.batchApplyListTags("Task", null, userDetail).isEmpty());
+            assertTrue(metadataDefinitionService.batchApplyListTags("Task", batchApplyParam(Collections.emptyList(), tagState("tag-a", "TagA", "all")), userDetail).isEmpty());
+            assertTrue(metadataDefinitionService.batchApplyListTags("Task", batchApplyParam(Collections.singletonList("id-1")), userDetail).isEmpty());
+
+            verify(mongoTemplate, never()).find(any(Query.class), any(Class.class));
+        }
+
+        @Test
+        void shouldReturnEmptyWhenDesiredTagsOnlyContainSomeState() {
+            BatchApplyListTagsParam param = batchApplyParam(Collections.singletonList(new ObjectId().toHexString()),
+                    tagState("tag-a", "TagA", "some"));
+
+            assertTrue(metadataDefinitionService.batchApplyListTags("Task", param, userDetail).isEmpty());
+
+            verify(mongoTemplate, never()).find(any(Query.class), any(Class.class));
+        }
+
+        @Test
+        void shouldApplyTagsForConnectionsUsingMapListTags() {
+            ObjectId id = new ObjectId();
+            DataSourceEntity entity = new DataSourceEntity();
+            entity.setId(id);
+            entity.setListtags(Arrays.asList(mapTag("tag-a", "TagA"), mapTag("tag-b", "TagB")));
+            BatchApplyListTagsParam param = batchApplyParam(Collections.singletonList(id.toHexString()),
+                    tagState("tag-b", "TagB", "none"),
+                    tagState("tag-c", "TagC", "all"));
+            when(mongoTemplate.find(any(Query.class), eq(DataSourceEntity.class))).thenReturn(Collections.singletonList(entity));
+
+            List<String> result = metadataDefinitionService.batchApplyListTags("Connections", param, userDetail);
+
+            assertEquals(Collections.singletonList(id.toHexString()), result);
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DataSourceEntity.class));
+            List<Map<String, String>> updatedTags = getSetListTags(updateCaptor.getValue());
+            assertEquals(Arrays.asList(mapTag("tag-a", "TagA"), mapTag("tag-c", "TagC")), updatedTags);
+        }
+
+        @Test
+        void shouldApplyTagsForInspectUsingTagList() {
+            ObjectId id = new ObjectId();
+            InspectEntity entity = new InspectEntity();
+            entity.setId(id);
+            entity.setListtags(Arrays.asList(new Tag("tag-a", "TagA"), new Tag("tag-b", "TagB")));
+            BatchApplyListTagsParam param = batchApplyParam(Collections.singletonList(id.toHexString()),
+                    tagState("tag-a", "TagA", "none"),
+                    tagState("tag-c", "TagC", "all"));
+            when(mongoTemplate.find(any(Query.class), eq(InspectEntity.class))).thenReturn(Collections.singletonList(entity));
+
+            List<String> result = metadataDefinitionService.batchApplyListTags("Inspect", param, userDetail);
+
+            assertEquals(Collections.singletonList(id.toHexString()), result);
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(InspectEntity.class));
+            assertEquals(Arrays.asList(new Tag("tag-b", "TagB"), new Tag("tag-c", "TagC")), getSetListTags(updateCaptor.getValue()));
+        }
+
+        @Test
+        void shouldSkipTaskUpdateWhenTagsAreNotChanged() {
+            ObjectId id = new ObjectId();
+            TaskEntity entity = new TaskEntity();
+            entity.setId(id);
+            entity.setListtags(Collections.singletonList(new Tag("tag-a", "TagA")));
+            BatchApplyListTagsParam param = batchApplyParam(Collections.singletonList(id.toHexString()),
+                    tagState("tag-a", "TagA", "all"));
+            when(mongoTemplate.find(any(Query.class), eq(TaskEntity.class))).thenReturn(Collections.singletonList(entity));
+
+            List<String> result = metadataDefinitionService.batchApplyListTags("Task", param, userDetail);
+
+            assertTrue(result.isEmpty());
+            verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), any(Class.class));
+        }
+
+        @Test
+        void shouldReturnEmptyForUnsupportedTableName() {
+            BatchApplyListTagsParam param = batchApplyParam(Collections.singletonList(new ObjectId().toHexString()),
+                    tagState("tag-a", "TagA", "all"));
+
+            assertTrue(metadataDefinitionService.batchApplyListTags("Unknown", param, userDetail).isEmpty());
+
+            verify(mongoTemplate, never()).find(any(Query.class), any(Class.class));
+        }
+
+        private BatchApplyListTagsParam batchApplyParam(List<String> ids, BatchApplyListTagsParam.TagState... tags) {
+            BatchApplyListTagsParam param = new BatchApplyListTagsParam();
+            param.setIds(ids);
+            param.setTags(Arrays.asList(tags));
+            return param;
+        }
+
+        private BatchApplyListTagsParam.TagState tagState(String id, String value, String desired) {
+            BatchApplyListTagsParam.TagState tagState = new BatchApplyListTagsParam.TagState();
+            tagState.setId(id);
+            tagState.setValue(value);
+            tagState.setDesired(desired);
+            return tagState;
+        }
+
+        private Map<String, String> mapTag(String id, String value) {
+            Map<String, String> tag = new LinkedHashMap<>();
+            tag.put("id", id);
+            tag.put("value", value);
+            return tag;
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> List<T> getSetListTags(Update update) {
+            Document updateObject = update.getUpdateObject();
+            return (List<T>) ((Document) updateObject.get("$set")).get("listtags");
+        }
+    }
+
     @Nested
     class FindTest{
         SettingsService settingsService;

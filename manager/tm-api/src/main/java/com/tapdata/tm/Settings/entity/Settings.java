@@ -23,6 +23,9 @@ public class Settings {
 
     private String key;
 
+    private String parent_key;
+    private String parent_value;
+
     private String key_label;
     private Integer last_update;
     private String last_update_by;

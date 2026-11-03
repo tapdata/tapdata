@@ -60,7 +60,7 @@ class SampleDataTest {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.parseJson(any(), any(TypeReference.class))).thenCallRealMethod();
             ms.when(() -> Utils.parseJson(any(), any(Class.class))).thenCallRealMethod();
-            ms.when(() -> Utils.sendPostRequest(any(String.class), any(Map.class)))
+            ms.when(() -> Utils.sendPostRequest(any(String.class), any(Map.class), any()))
                     .thenReturn("""
                             {"code": "ok", "data": [{"test": "test"}]}""");
             // 执行测试
@@ -74,7 +74,7 @@ class SampleDataTest {
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.sendPostRequest(any(String.class), any(Map.class)))
+            ms.when(() -> Utils.sendPostRequest(any(String.class), any(Map.class), any()))
                     .thenReturn("""
                             {"code": "ok", "data": [{"test": "test"}]}""");
             // 执行测试
@@ -88,7 +88,7 @@ class SampleDataTest {
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.sendPostRequest(any(String.class), any(Map.class))).thenThrow(new IOException("connect server timeout"));
+            ms.when(() -> Utils.sendPostRequest(any(String.class), any(Map.class), any())).thenThrow(new IOException("connect server timeout"));
             // 执行测试
             assertThrows(RuntimeException.class,
                     () -> sampleData.sampleData(context, "507f1f77bcf86cd799439011", "test_schema"));

@@ -1,0 +1,255 @@
+package com.tapdata.tm.base.security;
+
+import com.tapdata.tm.base.filter.HttpServletRequestWrapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
+
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class AccessTokenResolverTest {
+
+	@BeforeEach
+	void resetMetrics() {
+		AuthTokenMetrics.reset();
+	}
+
+	@Test
+	void bearerHasHighestPriorityWhenTokensMatch() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer same");
+		req.addHeader("access_token", "same");
+		req.setQueryString("access_token=same");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.FOUND, r.getStatus());
+		assertEquals("same", r.getToken());
+		assertEquals(AccessTokenSource.BEARER, r.getSource());
+	}
+
+	@Test
+	void bearerIsCaseInsensitiveAndTrimsWhitespace() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "  bearer   tok-1  ");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals("tok-1", r.getToken());
+		assertEquals(AccessTokenSource.BEARER, r.getSource());
+	}
+
+	@Test
+	void multipleBearerValuesAreInvalid() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer a b");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.INVALID_BEARER, r.getStatus());
+	}
+
+	@Test
+	void basicAuthorizationIsIgnoredByBearerParser() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Basic dXNlcjpwYXNz");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+	}
+
+	@Test
+	void headerBeatsBodyAndQueryWhenTokensMatch() throws Exception {
+		MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/x");
+		req.addHeader("access_token", "same");
+		req.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		req.setContent("{\"access_token\":\"same\"}".getBytes());
+		req.setQueryString("access_token=same");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals("same", r.getToken());
+		assertEquals(AccessTokenSource.HEADER, r.getSource());
+	}
+
+	@Test
+	void skipsJsonBodyTokenWhenPayloadExceedsScanLimit() throws Exception {
+		String huge = "{\"access_token\":\"from-body\",\"pad\":\"" + "x".repeat(70_000) + "\"}";
+		MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/Task");
+		req.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		req.setContent(huge.getBytes(StandardCharsets.UTF_8));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(new HttpServletRequestWrapper(req), UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+	}
+
+	@Test
+	void jsonBodyBeatsQueryWhenTokensMatch() throws Exception {
+		MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/x");
+		req.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		req.setContent("{\"access_token\":\"from-body\"}".getBytes());
+		req.setQueryString("access_token=from-body");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(new HttpServletRequestWrapper(req), UrlTokenMode.COMPAT);
+		assertEquals("from-body", r.getToken());
+		assertEquals(AccessTokenSource.BODY, r.getSource());
+	}
+
+	@Test
+	void loginInterceptorMustNotConsumeJsonBodyWithoutAccessToken() throws Exception {
+		byte[] json = "{\"singletonLock\":\"abc\"}".getBytes(StandardCharsets.UTF_8);
+		MockHttpServletRequest inner = new MockHttpServletRequest("POST", "/api/Workers/singleton-lock/upsertWithWhere");
+		inner.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		inner.setContent(json);
+		HttpServletRequestWrapper cached = new HttpServletRequestWrapper(inner);
+		jakarta.servlet.http.HttpServletRequestWrapper outer =
+				new jakarta.servlet.http.HttpServletRequestWrapper(cached);
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(outer, UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+
+		String remaining = new String(outer.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+		assertEquals("{\"singletonLock\":\"abc\"}", remaining);
+	}
+
+	@Test
+	void headerOnly() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("access_token", "from-header");
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals("from-header", r.getToken());
+		assertEquals(AccessTokenSource.HEADER, r.getSource());
+	}
+
+	@Test
+	void queryAcceptedInCompatAndCounted() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.setQueryString("name=test&access_token=token%2Bvalue");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals("token+value", r.getToken());
+		assertEquals(AccessTokenSource.QUERY, r.getSource());
+		assertEquals(1, AuthTokenMetrics.accepted());
+	}
+
+	@Test
+	void queryRejectedInRejectModeWhenItIsTheOnlySource() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.setQueryString("access_token=valid");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT);
+		assertEquals(AccessTokenResolution.Status.URL_TOKEN_REJECTED, r.getStatus());
+		assertEquals(1, AuthTokenMetrics.rejected());
+		assertNull(r.getToken());
+	}
+
+	@Test
+	void bearerWinsOverDifferentQueryToken() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer A");
+		req.setQueryString("access_token=B");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.WARN);
+		assertEquals(AccessTokenResolution.Status.FOUND, r.getStatus());
+		assertEquals("A", r.getToken());
+		assertEquals(AccessTokenSource.BEARER, r.getSource());
+		assertEquals(0, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void bearerWinsOverDifferentQueryTokenInRejectMode() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer A");
+		req.setQueryString("access_token=B");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT);
+		assertEquals(AccessTokenResolution.Status.FOUND, r.getStatus());
+		assertEquals("A", r.getToken());
+		assertEquals(AccessTokenSource.BEARER, r.getSource());
+	}
+
+	@Test
+	void headerWinsOverDifferentQueryToken() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("access_token", "from-header");
+		req.setQueryString("access_token=from-query");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals("from-header", r.getToken());
+		assertEquals(AccessTokenSource.HEADER, r.getSource());
+		assertEquals(0, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void bearerAndAccessTokenHeaderStillConflictWhenDifferent() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.addHeader("Authorization", "Bearer A");
+		req.addHeader("access_token", "B");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT);
+		assertEquals(AccessTokenResolution.Status.CONFLICT, r.getStatus());
+		assertEquals(1, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void warnModeStillAcceptsQuery() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.setQueryString("access_token=q");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.WARN);
+		assertTrue(r.isFound());
+		assertEquals(AccessTokenSource.QUERY, r.getSource());
+	}
+
+	@Test
+	void restDoesNotReadCookieByDefault() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/x");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "from-cookie"));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT);
+		assertEquals(AccessTokenResolution.Status.MISSING, r.getStatus());
+	}
+
+	@Test
+	void cookieIsAcceptedForWebsocketEvenInRejectMode() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "from-cookie"));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT, false, true);
+		assertEquals("from-cookie", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+	}
+
+	@Test
+	void samlAccessCookieIsAcceptedWhenAllowCookie() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("TAPDATA_ACCESS_TOKEN", "saml-tok"));
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT, false, true);
+		assertEquals("saml-tok", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+	}
+
+	@Test
+	void cookieWinsOverDifferentQueryToken() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.setCookies(new jakarta.servlet.http.Cookie("access_token", "cookie-tok"));
+		req.setQueryString("access_token=query-tok");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.COMPAT, false, true);
+		assertEquals("cookie-tok", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+		assertEquals(0, AuthTokenMetrics.conflicts());
+	}
+
+	@Test
+	void cookieHeaderFallbackWhenServletCookiesEmpty() {
+		MockHttpServletRequest req = new MockHttpServletRequest("GET", "/ws/agent");
+		req.addHeader("Cookie", "other=1; access_token=hdr-tok; theme=dark");
+
+		AccessTokenResolution r = AccessTokenResolver.resolve(req, UrlTokenMode.REJECT, false, true);
+		assertEquals("hdr-tok", r.getToken());
+		assertEquals(AccessTokenSource.COOKIE, r.getSource());
+	}
+}

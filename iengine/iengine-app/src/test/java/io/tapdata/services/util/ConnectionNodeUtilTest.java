@@ -102,6 +102,7 @@ class ConnectionNodeUtilTest {
             verify(builder, times(1)).withGroup("group");
             verify(builder, times(1)).withVersion("version");
             verify(builder, times(1)).withPdkId("pdkId");
+            verify(builder, times(1)).withJarFile("jarFile", "jarRid");
             verify(builder, times(1)).withConnectionConfig(any());
             verify(builder, times(1)).build();
         }

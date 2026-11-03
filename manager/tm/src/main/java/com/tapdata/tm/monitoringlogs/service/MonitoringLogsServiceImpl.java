@@ -412,7 +412,7 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
     }
 
-    public List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName, String nodeName) {
+    public List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName, String nodeName, Locale locale) {
         Query query = Query.query(Criteria.where("taskId").is(testRunTaskId).and("timestamp").gt(DateUtil.current() - 10000));
         List<MonitoringLogsEntity> list = mongoOperations.find(query, MonitoringLogsEntity.class);
         if (CollectionUtils.isNotEmpty(list)) {
@@ -420,15 +420,12 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
                 TaskDagCheckLog info = new TaskDagCheckLog();
                 info.setTaskId(log.getTaskId());
                 info.setCheckType(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
-                // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
                 String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
-                String message = "{0}【{1}】【{2}节点】{3}";
-                info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "")));
+                String message = log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "");
+                info.setLog(MessageUtil.getDagCheckMsg(locale, "JS_NODE_MONITOR_LOG", date, taskName, nodeName, message));
                 info.setGrade(Level.valueOf(log.getLevel()));
                 info.setCreateAt(log.getDate());
                 info.setId(log.getId());
-
-                info.setCreateAt(log.getDate());
                 return info;
             }).collect(Collectors.toList());
         }

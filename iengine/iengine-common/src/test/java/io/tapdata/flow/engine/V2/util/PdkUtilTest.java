@@ -56,17 +56,19 @@ public class PdkUtilTest {
         @SneakyThrows
         @DisplayName("downloadPdkFileIfNeed method test when not exists file")
         void testDownloadPdkFileIfNeedWithNoFile(){
+            String missingFileResourceId = resourceId + "-missing";
             try (MockedStatic<CommonUtils> commonUtilsMockedStatic = Mockito
                     .mockStatic(CommonUtils.class)) {
                 commonUtilsMockedStatic.when(CommonUtils::getPdkBuildNumer).thenReturn(1);
                 try (MockedStatic<PDKIntegration> mb = Mockito
                         .mockStatic(PDKIntegration.class)) {
+                    mb.when(() -> PDKIntegration.downloadedJarName(fileName, missingFileResourceId)).thenReturn("mysql__67890__missing__.jar");
                     mb.when(() -> PDKIntegration.refreshJars(anyString())).thenAnswer(invocationOnMock -> null);
                     try (MockedStatic<PdkSourceUtils> pdkSourceUtilsMockedStatic = Mockito
                             .mockStatic(PdkSourceUtils.class)) {
                         pdkSourceUtilsMockedStatic.when(() -> PdkSourceUtils.getFileMD5(any(File.class))).thenReturn("1234567890123456").thenReturn("123456");
                         when(httpClientMongoOperator.findOne(anyMap(), anyString(), any())).thenReturn("1234567890123456");
-                        PdkUtil.downloadPdkFileIfNeed(httpClientMongoOperator, pdkHash, fileName, resourceId, callback);
+                        PdkUtil.downloadPdkFileIfNeed(httpClientMongoOperator, pdkHash, fileName, missingFileResourceId, callback);
                         verify(httpClientMongoOperator, new Times(1)).downloadFile(anyMap(), anyString(), anyString(), anyBoolean(), any());
                     }
                 }
@@ -81,6 +83,7 @@ public class PdkUtilTest {
                 commonUtilsMockedStatic.when(CommonUtils::getPdkBuildNumer).thenReturn(1);
                 try (MockedStatic<PDKIntegration> mb = Mockito
                         .mockStatic(PDKIntegration.class)) {
+                    mb.when(() -> PDKIntegration.downloadedJarName(fileName, resourceId)).thenReturn("mysql__67890__.jar");
                     mb.when(() -> PDKIntegration.refreshJars(anyString())).thenAnswer(invocationOnMock -> null);
                     try (MockedStatic<PdkSourceUtils> pdkSourceUtilsMockedStatic = Mockito
                             .mockStatic(PdkSourceUtils.class)) {
@@ -254,6 +257,7 @@ public class PdkUtilTest {
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
                 // Mock builder chain
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -305,6 +309,7 @@ public class PdkUtilTest {
                 ), times(1));
 
                 // Verify builder methods were called
+                verify(mockBuilder).withJarFile(databaseType.getJarFile(), databaseType.getJarRid());
                 verify(mockBuilder).withLog(log);
                 verify(mockBuilder).withDagId(dagId);
                 verify(mockBuilder).withAssociateId(associateId);
@@ -343,6 +348,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -400,6 +406,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -458,6 +465,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);
@@ -524,6 +532,7 @@ public class PdkUtilTest {
 
                 pdkIntegrationMock.when(PDKIntegration::createConnectorBuilder).thenReturn(mockBuilder);
 
+                when(mockBuilder.withJarFile(any(), any())).thenReturn(mockBuilder);
                 when(mockBuilder.withLog(any())).thenReturn(mockBuilder);
                 when(mockBuilder.withDagId(anyString())).thenReturn(mockBuilder);
                 when(mockBuilder.withAssociateId(anyString())).thenReturn(mockBuilder);

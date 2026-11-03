@@ -52,6 +52,7 @@ public class HazelcastMigrateUnionProcessorNodeTest extends BaseHazelcastNodeTes
         tapdataEvent.setTapEvent(createTableEvent);
         BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = mock(BiConsumer.class);
         hazelcastMigrateUnionProcessorNode.tryProcess(tapdataEvent,consumer);
-        verify(consumer,times(0)).accept(any(),any());
+        Assertions.assertEquals(Boolean.TRUE, createTableEvent.getInfo("SKIP_TARGET_CREATE_TABLE"));
+        verify(consumer,times(1)).accept(eq(tapdataEvent),any());
     }
 }

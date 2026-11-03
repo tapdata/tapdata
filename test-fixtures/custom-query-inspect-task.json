@@ -1,0 +1,21 @@
+{
+  "taskId": "shared-contract-task",
+  "batchSize": 1000,
+  "source": {
+    "connectionId": "source-connection",
+    "connectionName": "source",
+    "customQuery": "SELECT category, SUM(amount) AS total FROM source_orders GROUP BY category",
+    "sortColumn": "legacy_table_sort"
+  },
+  "target": {
+    "connectionId": "target-connection",
+    "connectionName": "target",
+    "customQuery": "SELECT category AS target_category, SUM(amount) AS target_total FROM target_orders GROUP BY category",
+    "sortColumn": "legacy_table_sort"
+  },
+  "fieldMapping": {
+    "category": "target_category",
+    "total": "target_total"
+  },
+  "sortFields": ["category", "total"]
+}

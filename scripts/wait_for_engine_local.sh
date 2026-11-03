@@ -34,18 +34,18 @@ if [ -f "/app/pdk/pdk.jar" ] && [ -d "/app/pdk/dist" ]; then
     echo "TM_URL=$TM_URL"
     echo "ENGINE_AGENT_ID=$AGENT_ID"
     echo "TAP_CONNECTORS=$CONNECTOR_IDS"
-    echo "Use command to register connector: java -jar /app/pdk/pdk.jar register -a <agent_id> -t <tm_url> /app/pdk/dist/<connector-id>-connector.jar"
+    echo "Use command to register connector: java -jar /app/pdk/pdk.jar register -a <agent_id> -t <tm_url> /app/pdk/dist/<connector-id>-connector-*.jar"
 
     if [ -n "$CONNECTOR_IDS" ]; then
       echo "$CONNECTOR_IDS" | tr ',' '\n' | while read -r raw; do
         id=$(printf '%s' "$raw" | tr -d '[:space:]')
         [ -z "$id" ] && continue
-        jar="/app/pdk/dist/${id}-connector.jar"
-        if [ -f "$jar" ]; then
+        jar=$(find /app/pdk/dist -maxdepth 1 -type f -name "${id}-connector*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "*-original.jar" | sort | tail -n 1)
+        if [ -n "$jar" ] && [ -f "$jar" ]; then
           echo "Registering ${id}-connector..."
           java -jar /app/pdk/pdk.jar register -a "$AGENT_ID" -t "$TM_URL" "$jar"
         else
-          echo "Skip ${id}-connector: JAR not found at ${jar}"
+          echo "Skip ${id}-connector: JAR not found under /app/pdk/dist"
         fi
       done
     else

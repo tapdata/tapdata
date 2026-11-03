@@ -37,6 +37,10 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentCheckRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentConflictReport;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -48,6 +52,7 @@ import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.group.handler.ResourceHandler;
 import com.tapdata.tm.job.dto.JobDto;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.libSupported.entity.LibSupportedsEntity;
@@ -61,6 +66,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.report.dto.ConfigureSourceBatch;
@@ -117,6 +123,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -132,6 +139,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 //@Setter(onMethod_ = {@Autowired})
 public class DataSourceServiceImpl extends DataSourceService{
+    private static final int MAX_BATCH_AGENT_SETTINGS_SIZE = 100;
     public static final String DATABASE_TYPE_HUMP = "databaseType";
     public static final String PDK_HASH = "pdkHash";
     public static final String DATABASE_TYPE = "database_type";
@@ -160,6 +168,8 @@ public class DataSourceServiceImpl extends DataSourceService{
     private DataFlowService dataFlowService;
     @Autowired
     private TaskService taskService;
+    @Autowired @Lazy
+    private ConnectionAgentConflictService connectionAgentConflictService;
     @Autowired
     private MessageQueueService messageQueueService;
     @Autowired
@@ -262,10 +272,11 @@ public class DataSourceServiceImpl extends DataSourceService{
      * @return
      */
     public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast) {
+        boolean agentSettingsSubmitted = StringUtils.isNotBlank(updateDto.getAccessNodeType())
+                || updateDto.getAccessNodeProcessId() != null || updateDto.getPriorityProcessId() != null;
         Boolean submit = updateDto.getSubmit();
         String oldName = updateCheck(user, updateDto);
         checkMongoUri(updateDto);
-        assertProcessNode(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), updateDto.getAccessNodeProcessIdList());
 
         ObjectId id = updateDto.getId();
         DataSourceConnectionDto oldConnection = null;
@@ -277,6 +288,31 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
         //Fix: TAP-2686, After manually specifying the agent and saving it, the specified agent information should not be automatically cleared
         DataSourceServiceUtil.setAccessNodeInfoFromOldConnectionDto(oldConnection, updateDto);
+        if (agentSettingsSubmitted && oldConnection != null && !sameAgentSettings(oldConnection, updateDto)) {
+            DataSourceConnectionDto normalized = agentSettings(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), updateDto.getPriorityProcessId());
+            normalizeAgentSettings(normalized, user);
+            copyAgentSettings(normalized, updateDto);
+            DataSourceConnectionDto proposed = new DataSourceConnectionDto();
+            org.springframework.beans.BeanUtils.copyProperties(oldConnection, proposed);
+            copyAgentSettings(normalized, proposed);
+            DataSourceConnectionDto existing = oldConnection;
+            DataSourceConnectionDto candidate = updateDto;
+            return DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.Edit, () -> {
+                if (repository.count(Query.query(Criteria.where("_id").is(existing.getId())), user) != 1) {
+                    throw new BizException("Datasource.NotFound", "Connection not found or not editable");
+                }
+                connectionAgentConflictService.assertNoConflicts(Collections.singletonMap(existing.getId().toHexString(), proposed), user);
+                // Task ACL checks use their own permission scope. Restore the connection Edit scope for persistence.
+                return DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.Edit,
+                        () -> applyConnectionUpdate(user, candidate, existing, changeLast, oldName, submit, true));
+            });
+        }
+        return applyConnectionUpdate(user, updateDto, oldConnection, changeLast, oldName, submit, false);
+    }
+
+    private DataSourceConnectionDto applyConnectionUpdate(UserDetail user, DataSourceConnectionDto updateDto,
+                                                          DataSourceConnectionDto oldConnection, boolean changeLast,
+                                                          String oldName, Boolean submit, boolean agentSettingsChanged) {
         Map<String, Object> config = updateDto.getConfig();
         if (oldConnection != null) {
 
@@ -304,6 +340,12 @@ public class DataSourceServiceImpl extends DataSourceService{
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
 
         Update update = repository.buildUpdateSet(entity, user);
+        if (agentSettingsChanged) {
+            update.set("accessNodeType", updateDto.getAccessNodeType())
+                    .set("accessNodeProcessId", updateDto.getAccessNodeProcessId())
+                    .set("accessNodeProcessIdList", updateDto.getAccessNodeProcessIdList())
+                    .set("priorityProcessId", updateDto.getPriorityProcessId());
+        }
 
         if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), updateDto.getAccessNodeType())) {
             update.set("accessNodeProcessId", null);
@@ -329,6 +371,147 @@ public class DataSourceServiceImpl extends DataSourceService{
         return updateDto;
     }
 
+    @Override
+    public BatchUpdateAgentSettingsResponse batchUpdateAgentSettings(
+            BatchUpdateAgentSettingsRequest request,
+            UserDetail userDetail
+    ) {
+        PreparedAgentChange change = prepareAgentChange(request, userDetail);
+        List<ObjectId> objectIds = change.ids;
+        DataSourceConnectionDto normalizedSettings = change.settings;
+        connectionAgentConflictService.assertNoConflicts(change.overrides, userDetail);
+
+        Query updateQuery = new Query(Criteria.where("_id").in(objectIds));
+        Update update = new Update()
+                .set("accessNodeType", normalizedSettings.getAccessNodeType())
+                .set("accessNodeProcessId", normalizedSettings.getAccessNodeProcessId())
+                .set("accessNodeProcessIdList", normalizedSettings.getAccessNodeProcessIdList())
+                .set("priorityProcessId", normalizedSettings.getPriorityProcessId())
+                .set("status", DataSourceEntity.STATUS_INVALID)
+                .set("lastUpdAt", new Date())
+                .set("lastUpdBy", userDetail.getUserId())
+                .unset("testTime")
+                .unset("errorMsg");
+        UpdateResult updateResult = DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.Edit,
+                () -> repository.update(updateQuery, update, userDetail));
+        if (updateResult.getMatchedCount() != objectIds.size()) {
+            log.warn("Batch agent settings update matched an unexpected number of connections. requestId={}, expected={}, matched={}",
+                    request.getRequestId(), objectIds.size(), updateResult.getMatchedCount());
+            throw new BizException("Datasource.NotFound", "Connections changed or are no longer editable");
+        }
+
+        List<String> updatedConnectionIds = objectIds.stream().map(ObjectId::toHexString).collect(Collectors.toList());
+        log.info("Batch agent settings update completed. requestId={}, updatedCount={}, connectionIds={}",
+                request.getRequestId(), updateResult.getMatchedCount(), updatedConnectionIds);
+
+        BatchUpdateAgentSettingsResponse response = new BatchUpdateAgentSettingsResponse();
+        response.setRequestId(request.getRequestId());
+        response.setUpdatedCount(updateResult.getMatchedCount());
+        response.setUpdatedConnectionIds(updatedConnectionIds);
+        return response;
+    }
+
+    @Override
+    public ConnectionAgentConflictReport checkConnectionAgentSettings(ConnectionAgentCheckRequest request, UserDetail user) {
+        PreparedAgentChange change = prepareAgentChange(request, user);
+        return connectionAgentConflictService.findConflicts(change.overrides, user, request.getSkip(), request.getLimit());
+    }
+
+    @Override
+    public com.tapdata.tm.ds.dto.ConnectionTaskAgentResult updateConflictTaskAgents(
+            com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request, UserDetail user) {
+        PreparedAgentChange change = prepareAgentChange(request, user);
+        return connectionAgentConflictService.updateTaskAgents(change.overrides, request, user);
+    }
+
+    private PreparedAgentChange prepareAgentChange(BatchUpdateAgentSettingsRequest request, UserDetail userDetail) {
+        if (request == null || request.getSettings() == null || CollectionUtils.isEmpty(request.getConnectionIds())) {
+            throw new BizException("IllegalArgument", "connectionIds and settings are required");
+        }
+
+        List<String> connectionIds = request.getConnectionIds();
+        if (connectionIds.size() > MAX_BATCH_AGENT_SETTINGS_SIZE) {
+            throw new BizException("IllegalArgument", "connectionIds cannot contain more than " + MAX_BATCH_AGENT_SETTINGS_SIZE + " items");
+        }
+        if (connectionIds.stream().anyMatch(StringUtils::isBlank)) {
+            throw new BizException("IllegalArgument", "connectionIds must be non-empty and unique");
+        }
+        Set<ObjectId> distinctObjectIds = new LinkedHashSet<>();
+        try {
+            for (String connectionId : connectionIds) {
+                if (!distinctObjectIds.add(new ObjectId(connectionId))) {
+                    throw new BizException("IllegalArgument", "connectionIds must be non-empty and unique");
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            throw new BizException("IllegalArgument", e, "connectionIds must contain valid object ids");
+        }
+        List<ObjectId> objectIds = new ArrayList<>(distinctObjectIds);
+
+        BatchUpdateAgentSettingsRequest.AgentSettings settings = request.getSettings();
+        DataSourceConnectionDto normalizedSettings = new DataSourceConnectionDto();
+        String requestedAccessNodeType = StringUtils.trimToNull(settings.getAccessNodeType());
+        normalizedSettings.setAccessNodeType(requestedAccessNodeType);
+        normalizedSettings.setAccessNodeProcessId(settings.getAccessNodeProcessId());
+        normalizedSettings.setPriorityProcessId(settings.getPriorityProcessId());
+        if (AccessNodeTypeEnum.isUserManually(requestedAccessNodeType)) {
+            String processId = StringUtils.trimToNull(settings.getAccessNodeProcessId());
+            normalizedSettings.setAccessNodeProcessIdList(
+                    processId == null ? Collections.emptyList() : Collections.singletonList(processId));
+        }
+
+        if (!(request instanceof ConnectionAgentCheckRequest)) normalizeAgentSettings(normalizedSettings, userDetail);
+
+        long editableCount = repository.count(new Query(Criteria.where("_id").in(objectIds)), userDetail);
+        if (editableCount != objectIds.size()) {
+            throw new BizException("Datasource.NotFound", "Connections not found or not editable by the current user");
+        }
+
+        Query query = Query.query(Criteria.where("_id").in(objectIds));
+        query.fields().include("_id", "name", "user_id", "accessNodeType", "accessNodeProcessId", "priorityProcessId");
+        List<DataSourceConnectionDto> existing = findAllDto(query, userDetail);
+        if (existing.size() != objectIds.size()) throw new BizException("Datasource.NotFound", "Connections changed or are no longer editable");
+        if (request instanceof ConnectionAgentCheckRequest && existing.stream().allMatch(connection -> sameAgentSettings(connection, normalizedSettings))) {
+            return new PreparedAgentChange(objectIds, normalizedSettings, Collections.emptyMap());
+        }
+        if (request instanceof ConnectionAgentCheckRequest) normalizeAgentSettings(normalizedSettings, userDetail);
+        Map<String, DataSourceConnectionDto> overrides = new LinkedHashMap<>();
+        for (DataSourceConnectionDto connection : existing) {
+            if (sameAgentSettings(connection, normalizedSettings)) continue;
+            DataSourceConnectionDto proposed = new DataSourceConnectionDto();
+            org.springframework.beans.BeanUtils.copyProperties(connection, proposed);
+            copyAgentSettings(normalizedSettings, proposed);
+            overrides.put(connection.getId().toHexString(), proposed);
+        }
+        return new PreparedAgentChange(objectIds, normalizedSettings, overrides);
+    }
+
+    private record PreparedAgentChange(List<ObjectId> ids, DataSourceConnectionDto settings,
+                                       Map<String, DataSourceConnectionDto> overrides) {}
+
+    private DataSourceConnectionDto agentSettings(String type, String processId, String priority) {
+        DataSourceConnectionDto settings = new DataSourceConnectionDto();
+        settings.setAccessNodeType(type);
+        settings.setAccessNodeProcessId(processId);
+        settings.setPriorityProcessId(priority);
+        if (AccessNodeTypeEnum.isUserManually(type)) settings.setAccessNodeProcessIdList(
+                StringUtils.isBlank(processId) ? Collections.emptyList() : Collections.singletonList(processId.trim()));
+        return settings;
+    }
+
+    private boolean sameAgentSettings(DataSourceConnectionDto first, DataSourceConnectionDto second) {
+        return StringUtils.equalsIgnoreCase(first.getAccessNodeType(), second.getAccessNodeType())
+                && StringUtils.equals(StringUtils.trimToNull(first.getAccessNodeProcessId()), StringUtils.trimToNull(second.getAccessNodeProcessId()))
+                && StringUtils.equals(StringUtils.trimToNull(first.getPriorityProcessId()), StringUtils.trimToNull(second.getPriorityProcessId()));
+    }
+
+    private void copyAgentSettings(DataSourceConnectionDto source, DataSourceConnectionDto target) {
+        target.setAccessNodeType(source.getAccessNodeType());
+        target.setAccessNodeProcessId(source.getAccessNodeProcessId());
+        target.setAccessNodeProcessIdList(source.getAccessNodeProcessIdList());
+        target.setPriorityProcessId(source.getPriorityProcessId());
+    }
+
     public void generatePasswordTag(DataSourceConnectionDto dto, UserDetail user) {
         DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(), user);
         Object connection = definitionDto.getProperties().get("connection");
@@ -349,18 +532,56 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
         if (AccessNodeTypeEnum.isGroupManually(nodeType)) {
             if(StringUtils.isBlank(accessProcessId)) {
-                throw new BizException("lack.group.agent");
+                throw new BizException("IllegalArgument", "accessNodeProcessId is required for agent group allocation");
             }
             return;
         }
         if (CollectionUtils.isEmpty(processNodeListWithGroup)) {
-            throw new BizException("Datasource.AgentNotFound", "manually_specified_by_the_user processId is null");
+            throw new BizException("IllegalArgument", "accessNodeProcessId is required for manual agent allocation");
         }
+    }
+
+    private DataSourceConnectionDto normalizeAgentSettings(DataSourceConnectionDto settings, UserDetail userDetail) {
+        String requestedType = StringUtils.trimToNull(settings.getAccessNodeType());
+        if (requestedType == null) {
+            throw new BizException("IllegalArgument", "accessNodeType is required");
+        }
+        AccessNodeTypeEnum accessNodeType = Arrays.stream(AccessNodeTypeEnum.values())
+                .filter(type -> type.name().equalsIgnoreCase(requestedType))
+                .findFirst()
+                .orElseThrow(() -> new BizException("IllegalArgument", "Unsupported accessNodeType: " + requestedType));
+
+        settings.setAccessNodeType(accessNodeType.name());
+        settings.setAccessNodeProcessId(StringUtils.trimToNull(settings.getAccessNodeProcessId()));
+        settings.setPriorityProcessId(StringUtils.trimToNull(settings.getPriorityProcessId()));
+
+        if (accessNodeType == AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION) {
+            settings.setAccessNodeProcessId(null);
+            settings.setAccessNodeProcessIdList(Collections.emptyList());
+            return settings;
+        }
+
+        assertProcessNode(accessNodeType.name(), settings.getAccessNodeProcessId(), settings.getAccessNodeProcessIdList());
+        if (accessNodeType == AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER) {
+            if (settings.getPriorityProcessId() != null) {
+                throw new BizException("IllegalArgument", "priorityProcessId is only supported for agent group allocation");
+            }
+            settings.setAccessNodeProcessId(settings.getAccessNodeProcessIdList().iterator().next());
+            checkAccessNodeAvailable(accessNodeType.name(), settings.getAccessNodeProcessIdList(), userDetail);
+            return settings;
+        }
+
+        List<String> groupAgentIds = agentGroupService.getProcessNodeListByGroupId(
+                Collections.singletonList(settings.getAccessNodeProcessId()), accessNodeType.name(), userDetail);
+        if (settings.getPriorityProcessId() != null
+                && (CollectionUtils.isEmpty(groupAgentIds) || !groupAgentIds.contains(settings.getPriorityProcessId()))) {
+            throw new BizException("IllegalArgument", "priorityProcessId must belong to the selected agent group");
+        }
+        return settings;
     }
     //返回oldName, 表示更换名称
     public String updateCheck(UserDetail user, DataSourceConnectionDto updateDto) {
         List<String> processNodeListWithGroup = updateDto.getAccessNodeProcessIdList();
-        assertProcessNode(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), processNodeListWithGroup);
 
         //校验数据源的名称是否合法
         checkName(updateDto.getName());
@@ -374,7 +595,9 @@ public class DataSourceServiceImpl extends DataSourceService{
             restoreAccessNodeType(updateDto, connectionDto, processNodeListWithGroup);
         }
 
-        checkAccessNodeAvailable(updateDto.getAccessNodeType(), processNodeListWithGroup, user);
+        if (StringUtils.isNotBlank(updateDto.getAccessNodeType())) {
+            normalizeAgentSettings(updateDto, user);
+        }
 
         if ((StringUtils.isNotBlank(connectionDto.getDatabase_username()) || StringUtils.isNotBlank(updateDto.getDatabase_username()))
                 && StringUtils.isNotBlank(updateDto.getPlain_password())) {
@@ -855,7 +1078,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Criteria taskCriteria = Criteria.where("is_deleted").is(false).and("status").ne("delete_failed").orOperator(Criteria.where("dag.nodes.connectionId").is(id), Criteria.where("dag.nodes.connectionIds").in(id));
         Query taskQuery = new Query(taskCriteria);
         taskQuery.fields().include("_id", "name");
-        List<TaskDto> allDto = taskService.findAllDto(taskQuery, user);
+        List<TaskDto> allDto = taskService.findAll(taskQuery);
 
         if (CollectionUtils.isNotEmpty(allDto)) {
             log.info("the connection referenced by other jobs, tasks = {}", allDto.size());
@@ -1208,14 +1431,15 @@ public class DataSourceServiceImpl extends DataSourceService{
         //schema 不能入库，应该是通过update接口存在metadataInstance里面
         connection.setSchema(null);
 
-        //mongo的特殊处理
+        //mongo的特殊处理。导出脱敏会把 host/uri 抹成空串，此时拼出来是 mongodb:///db，
+        //ConnectionString 解析失败会变成「无效参数: {0}」。host 为空说明 URI 在 config 里，不要发明非法串。
         if ((DataSourceEnum.isMongoDB(connection.getDatabase_type()) || DataSourceEnum.isGridFs(connection.getDatabase_type()))
                 && StringUtils.isBlank(connection.getDatabase_uri())) {
-            log.debug("set the uri of the mongo type data source");
-
-            connection.setDatabase_uri(UriRootConvertUtils.constructUri(connection));
-            parserMongo(connection);
-
+            if (StringUtils.isNotBlank(connection.getDatabase_host())) {
+                log.debug("set the uri of the mongo type data source");
+                connection.setDatabase_uri(UriRootConvertUtils.constructUri(connection));
+                parserMongo(connection);
+            }
         } else if (StringUtils.isNotBlank(connection.getDatabase_uri())) {
             parserMongo(connection);
         }
@@ -2046,6 +2270,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         // 替换模式：保留现有ID，使用导入数据覆盖
                         ObjectId existingId = existingConnectionByName.getId();
                         connectionDto.setId(existingId);
+                        restoreMaskedSecretsForOverwrite(connectionDto, user);
 
                         if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
                             ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
@@ -2158,6 +2383,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         if (existingById != null) {
             // 已存在相同 _id，覆盖更新（保留原始 userId）
+            restoreMaskedSecretsForOverwrite(connectionDto, user);
             log.info("[handleGroupImportConnection] existing found for id={}, calling importSave, connectionDto.userId={}", connectionDto.getId(), connectionDto.getUserId());
             DataSourceConnectionDto result = importSave(connectionDto, user);
             log.info("[handleGroupImportConnection] importSave returned, result.userId={}", result.getUserId());
@@ -2495,6 +2721,29 @@ public class DataSourceServiceImpl extends DataSourceService{
         return convertToDto(entity, DataSourceConnectionDto.class);
     }
 
+    /**
+     * 覆盖导入时包内敏感字段已被导出脱敏抹空，不能整文档覆盖成空。
+     * 缺值则沿用目标环境已有连接的凭据（与分组导入 {@link ResourceHandler#restoreMissingSecretsFromExisting} 同一套规则）。
+     */
+    protected void restoreMaskedSecretsForOverwrite(DataSourceConnectionDto incoming, UserDetail user) {
+        if (incoming == null || incoming.getId() == null) {
+            return;
+        }
+        DataSourceConnectionDto existing = findById(incoming.getId(), user);
+        if (existing == null) {
+            return;
+        }
+        DataSourceDefinitionDto definition = null;
+        if (StringUtils.isNotBlank(incoming.getPdkHash()) && dataSourceDefinitionService != null) {
+            definition = dataSourceDefinitionService.findByPdkHash(incoming.getPdkHash(), Integer.MAX_VALUE, user);
+        }
+        List<String> preserved = ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, definition);
+        if (CollectionUtils.isNotEmpty(preserved)) {
+            log.warn("Import overwrite: package omits secret field(s) for connection '{}', kept existing value(s): {}",
+                    incoming.getName(), preserved);
+        }
+    }
+
     public List<TaskDto> findUsingDigginTaskByConnectionId(String connectionId, UserDetail user) {
         if (StringUtils.isBlank(connectionId)) {
             return null;
@@ -2551,6 +2800,16 @@ public class DataSourceServiceImpl extends DataSourceService{
 		}
 		return repository.findById(id, field).map(v ->
 				BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
+	}
+
+	public Supplier<DataSourceConnectionDto> dataPermissionFindById(ObjectId id, com.tapdata.tm.base.dto.Field fields) {
+		return () -> {
+			if (null != fields) {
+				fields.put("user_id", true);
+				fields.put(DataPermissionHelper.FIELD_NAME, true);
+			}
+			return findById(id, fields);
+		};
 	}
 
     @Override

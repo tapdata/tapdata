@@ -26,7 +26,8 @@ public class InspectEntity extends SchedulableEntity implements IDataPermissionE
 	private String name;        // 校验任务名称
 	private String flowId;      // 任务ID
 	private String mode;        // 运行方式: 手工执行, 定时调度执行, manual/cron
-	private String inspectMethod;       // 校验方法，row_count: 行数校验；field：字段校验
+	/** 校验方法：row_count、field、jointField、cdcCount、junitTest、hash 或 custom_query。 */
+	private String inspectMethod;
 	private String inspectDifferenceMode;// 差异结果模式：All(输出所有差异),OnSourceExists(只输出源存在的异常数据)
 	private Timing timing;   // 定时调度表达式，mode = cron 时，需要配置
 	private Limit limit;             //

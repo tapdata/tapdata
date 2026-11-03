@@ -10,6 +10,7 @@ import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -17,6 +18,10 @@ import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentCheckRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentConflictReport;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -25,9 +30,11 @@ import com.tapdata.tm.ds.param.ValidateTableParam;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
-import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
@@ -56,6 +63,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -128,20 +136,45 @@ public class DataSourceController extends BaseController {
 				return DataSourceConnectionDto.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus());
 			}).orElse(false) ? DataPermissionActionEnums.View : DataPermissionActionEnums.Edit;
 			DataSourceConnectionDto resultDto = DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, actionEnums, () -> {
-				DataSourceConnectionDto finaDataSource = Optional.ofNullable(dataSource).map(ds -> {
-					if (Boolean.FALSE.equals(ds.getHeartbeatEnable())) {
-						taskService.deleteHeartbeatByConnId(userDetail, id);
-					}
-					return ds;
-				}).orElseGet(DataSourceConnectionDto::new);
-				finaDataSource.setId(MongoUtils.toObjectId(id));
-
-				return dataSourceService.update(userDetail, finaDataSource, !(
-					DataSourceEntity.STATUS_TESTING.equals(finaDataSource.getStatus()) || "loading".equals(finaDataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
-				));
+                DataSourceConnectionDto candidate = Optional.ofNullable(dataSource).orElseGet(DataSourceConnectionDto::new);
+                candidate.setId(MongoUtils.toObjectId(id));
+                DataSourceConnectionDto updated = dataSourceService.update(userDetail, candidate, !(
+                        DataSourceEntity.STATUS_TESTING.equals(candidate.getStatus()) || "loading".equals(candidate.getLoadFieldsStatus())));
+                if (Boolean.FALSE.equals(candidate.getHeartbeatEnable())) {
+                    taskService.deleteHeartbeatByConnId(userDetail, id);
+                }
+                return updated;
 			});
 			return success(resultDto);
 		}
+
+    @PostMapping("agent-settings-conflicts")
+    public ResponseMessage<ConnectionAgentConflictReport> checkAgentSettings(@RequestBody ConnectionAgentCheckRequest request) {
+        UserDetail user = getLoginUser();
+        return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.Edit,
+                () -> dataSourceService.checkConnectionAgentSettings(request, user)));
+    }
+
+    @PostMapping("agent-settings-conflicts/tasks")
+    public ResponseMessage<com.tapdata.tm.ds.dto.ConnectionTaskAgentResult> updateConflictTaskAgents(
+            @RequestBody com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request) {
+        UserDetail user = getLoginUser();
+        return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.Edit,
+                () -> dataSourceService.updateConflictTaskAgents(request, user)));
+    }
+
+    @Operation(summary = "Batch update connection agent settings")
+    @PatchMapping("batch-agent-settings")
+    public ResponseMessage<BatchUpdateAgentSettingsResponse> batchUpdateAgentSettings(
+            @RequestBody BatchUpdateAgentSettingsRequest request) {
+        UserDetail userDetail = getLoginUser();
+        BatchUpdateAgentSettingsResponse result = DataPermissionMenuEnums.Connections.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.Edit,
+                () -> dataSourceService.batchUpdateAgentSettings(request, userDetail)
+        );
+        return success(result);
+    }
 
     /**
      * 根据条件查询数据源连接列表
@@ -350,8 +383,13 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "删除数据源连接")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        dataSourceService.delete(getLoginUser(), id);
+    public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Delete, () -> {
+            dataSourceService.delete(userDetail, id);
+            return null;
+        });
         return success();
     }
 
@@ -455,7 +493,33 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "复制数据源")
     @PostMapping("{id}/copy")
     public ResponseMessage<DataSourceConnectionDto> copy(@PathVariable("id") String id, HttpServletRequest request) {
-        return success(dataSourceService.copy(getLoginUser(), id, request.getRequestURI()));
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        DataSourceConnectionDto connectionDto = dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.View, () -> {
+            return dataSourceService.copy(userDetail, id, request.getRequestURI());
+        });
+        return success(connectionDto);
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action) {
+        throw new BizException(
+                "insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Connections, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Connections, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+        id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.Connections,
+                actionEnums,
+                dataSourceService.dataPermissionFindById(id, new Field()),
+                (dto) -> DataPermissionMenuEnums.Connections,
+                supplier,
+                () -> dataPermissionUnAuth(actionEnums)
+        );
     }
 
     /**
@@ -565,8 +629,8 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
-    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
-        return success(metadataDefinitionService.batchUpdateListTags("Connections", batchUpdateParam, getLoginUser()));
+    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
+        return success(metadataDefinitionService.batchApplyListTags("Connections", batchApplyListTagsParam, getLoginUser()));
     }
 
     /**

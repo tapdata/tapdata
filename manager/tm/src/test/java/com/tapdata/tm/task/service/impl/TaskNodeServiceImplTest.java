@@ -472,7 +472,7 @@ class TaskNodeServiceImplTest {
 
         @Test
         void testGetNodeInfoByMigrate_WithSearchTableName() {
-            List<String> tableNames = Arrays.asList("user_table", "order_table", "product_table");
+            List<String> tableNames = new ArrayList<>(Arrays.asList("user_table", "order_table", "product_table"));
             when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
             when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
 
@@ -486,6 +486,56 @@ class TaskNodeServiceImplTest {
                 new PageParameter(1, 10), userDetail, result, dag);
 
             Assertions.assertNotNull(actualResult);
+            org.mockito.ArgumentCaptor<List> currentTableCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+            verify(taskNodeService).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), currentTableCaptor.capture(), any(), any(), any(), any(), any(), any());
+            List<?> currentTables = currentTableCaptor.getValue();
+            Assertions.assertEquals(1, currentTables.size());
+            Assertions.assertEquals("user_table", currentTables.get(0));
+            Assertions.assertEquals(1, currentTables.stream().distinct().count());
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_SearchExactTableNameNoDuplicate() {
+            // TAP-12572: searching an existing table name must not return the same table twice
+            List<String> tableNames = new ArrayList<>(Arrays.asList("orders", "users", "products"));
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+            when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            when(taskNodeService.getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(result);
+
+            taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", "users",
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            org.mockito.ArgumentCaptor<List> currentTableCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+            verify(taskNodeService).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), currentTableCaptor.capture(), any(), any(), any(), any(), any(), any());
+            List<?> currentTables = currentTableCaptor.getValue();
+            Assertions.assertEquals(List.of("users"), currentTables);
+            Assertions.assertEquals(1, currentTables.size());
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_SearchNoMatchReturnsEmptyPage() {
+            // TAP-12572 R1 Important: empty search must not hit ListUtils.partition IOOBE
+            List<String> tableNames = new ArrayList<>(Arrays.asList("orders", "users", "products"));
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+            when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            Page<MetadataTransformerItemDto> actualResult = Assertions.assertDoesNotThrow(() ->
+                taskNodeService.getNodeInfoByMigrate(
+                    "taskId", "nodeId", "zzz_not_exist",
+                    new PageParameter(1, 10), userDetail, result, dag));
+
+            Assertions.assertSame(result, actualResult);
+            Assertions.assertTrue(actualResult.getItems() == null || actualResult.getItems().isEmpty());
+            verify(taskNodeService, never()).getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -805,6 +855,73 @@ class TaskNodeServiceImplTest {
             Assertions.assertTrue(result.containsKey("sampleData"));
             List<?> resultData = (List<?>) result.get("sampleData");
             Assertions.assertEquals(2, resultData.size());
+        }
+
+        @Test
+        void testWithSql_connectionCapabilityEnrichedByBuildDefinitionParam() throws Throwable {
+            dto.setSql("{\"maximum\":{\"$exists\":1}}");
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = new DataSourceConnectionDto();
+            connDto.setId(new ObjectId("69d71c986cb7bdcfc448f62b"));
+            connDto.setDatabase_type("MongoDB");
+            connDto.setPdkHash("4335aaa005ec1a74a4e2166bded2962e939ad50239f48b023b884f35b54129a5");
+            List<Capability> initialCaps = new ArrayList<>();
+            initialCaps.add(Capability.create("batch_read_function"));
+            connDto.setCapabilities(initialCaps);
+
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+            doAnswer(invocation -> {
+                List<DataSourceConnectionDto> items = invocation.getArgument(0);
+                for (DataSourceConnectionDto item : items) {
+                    item.getCapabilities().add(Capability.create("run_raw_command_function"));
+                }
+                return null;
+            }).when(dataSourceService).buildDefinitionParam(any(), eq(userDetail));
+
+            List<Map<String, Object>> sampleData = List.of(Map.of("id", "mongo1"));
+            when(taskService.callEngineRpc(eq("agent-123"), eq(List.class), eq("QueryDataBaseDataService"), eq("queryV2"),
+                    eq("connId"), eq("test_table"), eq("{\"maximum\":{\"$exists\":1}}"), eq(true), eq(100)))
+                    .thenReturn(sampleData);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            verify(dataSourceService, times(1)).buildDefinitionParam(any(), eq(userDetail));
+            Assertions.assertNotNull(result);
+            List<?> sampleDataResult = (List<?>) result.get("sampleData");
+            Assertions.assertEquals(1, sampleDataResult.size());
+            Assertions.assertEquals(Map.of("id", "mongo1"), ((Map<?, ?>) sampleDataResult.get(0)).get("after"));
+        }
+
+        @Test
+        void testWithSql_querySampleDataBySqlReturnsNull_handledGracefully() throws Throwable {
+            dto.setSql("SELECT * FROM empty_table");
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("run_raw_command_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            when(taskService.callEngineRpc(eq("agent-123"), eq(List.class), eq("QueryDataBaseDataService"), eq("queryV2"),
+                    eq("connId"), eq("test_table"), eq("SELECT * FROM empty_table"), eq(true), eq(100)))
+                    .thenReturn(null);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            List<?> sampleDataResult = (List<?>) result.get("sampleData");
+            Assertions.assertNotNull(sampleDataResult);
+            Assertions.assertTrue(sampleDataResult.isEmpty());
         }
 
         @Test

@@ -1,15 +1,22 @@
 package io.tapdata.flow.engine.V2.util;
 
 import com.tapdata.constant.DateUtil;
+import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.text.ParseException;
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 
 /**
@@ -29,6 +36,7 @@ public class TapCodecUtil {
 	public static final ObjectSerializable OBJECT_SERIALIZABLE = new ObjectSerializableImplV2();
 	public static final String TAG = TapCodecUtil.class.getSimpleName();
 	protected static final byte[] TAG_BYTES = TAG.getBytes(StandardCharsets.UTF_8);
+	private static final TapCodecsRegistry TARGET_VALUE_CODECS = registerTargetAwareDateTimeCodecs(TapCodecsRegistry.create());
 
 	public static TapCodecsFilterManager createEngineCodecsFilterManger() {
 		TapCodecsFilterManager tapCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
@@ -38,17 +46,130 @@ public class TapCodecUtil {
 	}
 
 	public static void registerFromTapValue(TapCodecsRegistry tapCodecsRegistry) {
-		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> {
-			if (tapValue.getValue().isContainsIllegal()) {
-				tapValue.getValue().setTimeZone(TimeZone.getDefault());
-				return addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATETIME_BYTE_TAG_V2);
-			} else {
-				return tapValue.getValue().toInstant();
+		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, TapCodecUtil::fromTapDateTimeValue);
+		tapCodecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_YEAR_BYTE_TAG_V2));
+		tapCodecsRegistry.registerFromTapValue(TapDateValue.class, TapCodecUtil::fromTapDateValue);
+		tapCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_TIME_BYTE_TAG_V2));
+		registerTargetAwareDateTimeCodecs(tapCodecsRegistry);
+	}
+
+	private static TapCodecsRegistry registerTargetAwareDateTimeCodecs(TapCodecsRegistry registry) {
+		return registry.registerFromTapValueV2(TapDateTimeValue.class, TapCodecUtil::fromTapDateTimeValue)
+				.registerFromTapValueV2(TapDateValue.class, TapCodecUtil::fromTapDateValue);
+	}
+
+	/** Convert fields only when the discovered target type differs from the logical model. */
+	public static void convertForPhysicalTarget(Map<String, Object> values, Map<String, TapField> logicalFields,
+			Map<String, TapField> physicalFields, TapCodecsRegistry connectorCodecs) {
+		if (values == null || values.isEmpty() || physicalFields == null || physicalFields.isEmpty()) return;
+		values.forEach((fieldName, value) -> {
+			// CDC fields may already be TapValue before this node; the set of fields
+			// converted during this pass cannot be used to filter them.
+			TapField targetField = physicalFields.get(fieldName);
+			if (targetField == null) return;
+			TapField logicalField = logicalFields == null ? null : logicalFields.get(fieldName);
+			if (logicalField != null && sameTargetType(logicalField, targetField)) return;
+			if (value instanceof TapDateValue) {
+				if (connectorCodecs != null && connectorCodecs.getCustomFromTapValueCodecV2(TapDateValue.class) != null) return;
+				TapDateValue dateValue = (TapDateValue) value;
+				if (dateValue.getValue() != null && !dateValue.getValue().isContainsIllegal()
+						&& isDateType(targetField.getDataType())) {
+					values.put(fieldName, TARGET_VALUE_CODECS.getCustomFromTapValueCodecV2(TapDateValue.class)
+							.fromTapValue(dateValue, targetField));
+				}
+			} else if (value instanceof TapDateTimeValue) {
+				if (connectorCodecs != null && connectorCodecs.getCustomFromTapValueCodecV2(TapDateTimeValue.class) != null) return;
+				TapDateTimeValue dateTimeValue = (TapDateTimeValue) value;
+				Integer scale = targetField.getScale();
+				if (dateTimeValue.getValue() != null && !dateTimeValue.getValue().isContainsIllegal()
+						&& isDateTimeType(targetField.getDataType()) && scale != null && scale >= 0 && scale <= 9) {
+					FromTapValueCodec<TapDateTimeValue> connectorCodec = connectorCodecs == null ? null
+							: connectorCodecs.getCustomFromTapValueCodec(TapDateTimeValue.class);
+					Object connectorValue = connectorCodec == null ? null : connectorCodec.fromTapValue(dateTimeValue);
+					if (connectorCodec != null && !(connectorValue instanceof LocalDateTime)
+							&& !(connectorValue instanceof Timestamp)) {
+						values.put(fieldName, connectorValue);
+						return;
+					}
+					values.put(fieldName, fromTapDateTimeValue(dateTimeValue, targetField, connectorValue));
+				}
 			}
 		});
-		tapCodecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_YEAR_BYTE_TAG_V2));
-		tapCodecsRegistry.registerFromTapValue(TapDateValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATE_BYTE_TAG_V2));
-		tapCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_TIME_BYTE_TAG_V2));
+	}
+
+	private static boolean sameTargetType(TapField logicalField, TapField physicalField) {
+		String logicalType = logicalField.getDataType() == null ? "" : logicalField.getDataType().trim().toLowerCase(Locale.ROOT);
+		String physicalType = physicalField.getDataType() == null ? "" : physicalField.getDataType().trim().toLowerCase(Locale.ROOT);
+		if (!logicalType.equals(physicalType)) return false;
+		return !isDateTimeType(physicalType) || Objects.equals(logicalField.getScale(), physicalField.getScale());
+	}
+
+	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		if (tapValue.getValue().isContainsIllegal()) {
+			tapValue.getValue().setTimeZone(TimeZone.getDefault());
+			return addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATETIME_BYTE_TAG_V2);
+		}
+		return tapValue.getValue().toInstant();
+	}
+
+	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue, TapField targetField) {
+		return fromTapDateTimeValue(tapValue, targetField, null);
+	}
+
+	private static Object fromTapDateTimeValue(TapDateTimeValue tapValue, TapField targetField, Object connectorValue) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		if (targetField == null || !isDateTimeType(targetField.getDataType())
+				|| tapValue.getValue().isContainsIllegal()) {
+			return fromTapDateTimeValue(tapValue);
+		}
+		Integer scale = targetField.getScale();
+		if (scale == null || scale < 0 || scale > 9) {
+			return fromTapDateTimeValue(tapValue);
+		}
+		// Keep the wall-clock value. SQL Server's CDC SQL formatter writes
+		// LocalDateTime with only the significant fractional digits; formatting
+		// a Timestamp there produces six digits even for millisecond values.
+		LocalDateTime dateTime;
+		if (connectorValue instanceof LocalDateTime) {
+			dateTime = (LocalDateTime) connectorValue;
+		} else if (connectorValue instanceof Timestamp) {
+			dateTime = ((Timestamp) connectorValue).toLocalDateTime();
+		} else {
+			dateTime = tapValue.getValue().toLocalDateTime();
+		}
+		int quantum = (int) Math.pow(10, 9 - scale);
+		return dateTime.withNano((dateTime.getNano() / quantum) * quantum);
+	}
+
+	private static Object fromTapDateValue(TapDateValue tapValue) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		return addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_DATE_BYTE_TAG_V2);
+	}
+
+	private static Object fromTapDateValue(TapDateValue tapValue, TapField targetField) {
+		if (tapValue == null || tapValue.getValue() == null) return null;
+		if (targetField != null && isDateType(targetField.getDataType())
+				&& !tapValue.getValue().isContainsIllegal()) {
+			return tapValue.getValue().toSqlDate();
+		}
+		return fromTapDateValue(tapValue);
+	}
+
+	private static boolean isDateType(String dataType) {
+		return baseType(dataType).equals("date");
+	}
+
+	private static boolean isDateTimeType(String dataType) {
+		String type = baseType(dataType);
+		return type.equals("datetime") || type.equals("datetime2");
+	}
+
+	private static String baseType(String dataType) {
+		if (dataType == null) return "";
+		String normalized = dataType.trim().toLowerCase(Locale.ROOT);
+		int parameterStart = normalized.indexOf('(');
+		return parameterStart < 0 ? normalized : normalized.substring(0, parameterStart).trim();
 	}
 
 	public static void registerToTapValue(TapCodecsRegistry tapCodecsRegistry) {

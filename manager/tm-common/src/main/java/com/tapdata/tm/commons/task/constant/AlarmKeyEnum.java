@@ -82,7 +82,13 @@ public enum AlarmKeyEnum {
     TASK_DQL_EVENT(Constant.TYPE_EVENT),
     TASK_DQL_SAVE_FAILED(Constant.TYPE_EVENT),
     TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT),
-    TASK_DQL_STORM_GUARD(Constant.TYPE_EVENT)
+    TASK_DQL_STORM_GUARD(Constant.TYPE_EVENT),
+    API_SERVER_CONNECTION_POOL_IDLE_WARN(Constant.TYPE_API_SERVER, "When the number of connections in the connection pool of any API Server falls below the alarm threshold", 230),
+
+    /**
+     * Structured data-integrity risk reported by the engine or a connector while the task may still be running.
+     */
+    TASK_DATA_INTEGRITY_RISK(Constant.TYPE_EVENT)
     ;
 
 

@@ -32,13 +32,51 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 public class ScriptUtilTest {
+
+	@Test
+	public void sharedEngineShouldBackConcurrentIndependentContexts() throws Exception {
+		int contextCount = 8;
+		ExecutorService executor = Executors.newFixedThreadPool(contextCount);
+		CountDownLatch start = new CountDownLatch(1);
+		List<Future<String>> results = new ArrayList<>();
+		try {
+			for (int index = 0; index < contextCount; index++) {
+				String expectedValue = "context-" + index;
+				results.add(executor.submit(() -> {
+					start.await();
+					ScriptEngine context = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+					try {
+						assertSame(ScriptUtil.getSharedEngine(), ((GraalJSScriptEngine) context).getPolyglotEngine());
+						context.eval("var contextValue = '" + expectedValue + "';");
+						return (String) context.eval("contextValue");
+					} finally {
+						((GraalJSScriptEngine) context).close();
+					}
+				}));
+			}
+
+			start.countDown();
+			for (int index = 0; index < contextCount; index++) {
+				assertEquals("context-" + index, results.get(index).get());
+			}
+		} finally {
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+		}
+	}
 
     @Test
     public void testGetScriptEngine3() throws Exception {

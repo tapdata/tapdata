@@ -23,6 +23,7 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.SyncStageEnum;
 import com.tapdata.entity.TapLog;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -41,6 +42,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.monitor.heartbeat.HeartbeatProgressRegistry;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.schema.SchemaList;
 import org.apache.commons.collections4.CollectionUtils;
@@ -187,17 +189,6 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 
 						MessageEntity messageEntity;
 						for (TapdataEvent tapdataEvent : tapdataEvents) {
-							if (tapdataEvent.getMessageEntity() != null) {
-								messageEntity = tapdataEvent.getMessageEntity();
-							} else {
-								messageEntity = tapEvent2Message((TapRecordEvent) tapdataEvent.getTapEvent());
-							}
-							final OperationType operationType = OperationType.fromOp(messageEntity.getOp());
-							if (operationType != null && (OperationType.isDdl(operationType) || OperationType.isDml(operationType))) {
-								messageEntity.setMapping(createMapping(messageEntity.getTableName()));
-							}
-							msgs.add(messageEntity);
-
 							syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 							syncProgress.setSourceTime(tapdataEvent.getSourceTime());
 							syncProgress.setEventSerialNo(tapdataEvent.getSourceSerialNo());
@@ -209,6 +200,29 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 							if (tapdataEvent.getSyncStage() == SyncStage.CDC) {
 								targetContext.setSyncStage(TapdataOffset.SYNC_STAGE_CDC);
 							}
+
+							if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+								// Heartbeat events carry no row data to write (getTapEvent() is null); only
+								// advance the persisted checkpoint so the watchdog observes forward progress
+								// even when CDC produces no DML for a while.
+								try {
+									syncHeartbeatProgressRecord(tapdataEvent, syncProgress, syncProgressKey);
+								} catch (JsonProcessingException e) {
+									throw new NodeException("Failed to record heartbeat sync progress: " + e.getMessage(), e);
+								}
+								continue;
+							}
+
+							if (tapdataEvent.getMessageEntity() != null) {
+								messageEntity = tapdataEvent.getMessageEntity();
+							} else {
+								messageEntity = tapEvent2Message((TapRecordEvent) tapdataEvent.getTapEvent());
+							}
+							final OperationType operationType = OperationType.fromOp(messageEntity.getOp());
+							if (operationType != null && (OperationType.isDdl(operationType) || OperationType.isDml(operationType))) {
+								messageEntity.setMapping(createMapping(messageEntity.getTableName()));
+							}
+							msgs.add(messageEntity);
 						}
 
 						MessageUtil.dispatcherMessage(
@@ -249,6 +263,20 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 			Object offset = lastMsg.getOffset();
 			syncProgress.setOffset(JSONUtil.obj2Json(new TapdataOffset(offset)));
 			syncProgress.setEventTime(lastMsg.getTimestamp());
+			this.syncProgressMap.put(JSONUtil.obj2Json(syncProgressKey), JSONUtil.obj2Json(syncProgress));
+		}
+	}
+
+	/**
+	 * Heartbeat events carry no {@link MessageEntity} to write, only a stream offset. Persist the
+	 * checkpoint directly from the event so the heartbeat watchdog sees forward progress on plain
+	 * (non-PDK) targets even while CDC produces no DML.
+	 */
+	private void syncHeartbeatProgressRecord(TapdataEvent tapdataEvent, SyncProgress syncProgress, Set<String> syncProgressKey) throws JsonProcessingException {
+		Object offset = tapdataEvent.getStreamOffset();
+		if (offset != null && CollectionUtils.isNotEmpty(syncProgressKey) && syncProgressKey.size() == 2) {
+			syncProgress.setOffset(JSONUtil.obj2Json(new TapdataOffset(offset)));
+			syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			this.syncProgressMap.put(JSONUtil.obj2Json(syncProgressKey), JSONUtil.obj2Json(syncProgress));
 		}
 	}
@@ -533,6 +561,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
 			clientMongoOperator.insertOne(this.syncProgressMap, collection);
+			HeartbeatProgressRegistry.persisted(taskDto, this.syncProgressMap);
 		} catch (Exception e) {
 			logger.error("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "Errors: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			return false;

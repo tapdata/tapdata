@@ -82,6 +82,7 @@ public class TestTaskSettingStrategyImpl {
             TaskDagCheckLogService taskDagCheckLogService = mock(TaskDagCheckLogService.class);
             when(taskDagCheckLogService.createLog(taskDto.getId().toHexString(), "",
                     user.getUserId(), Level.WARN, DagOutputTemplateEnum.TASK_SETTING_CHECK,
+                    locale,
                     MessageUtil.getDagCheckMsg(locale, "TASK_SCHEDULE_LIMIT"), "")).thenReturn(new TaskDagCheckLog());
 
             taskSettingStrategy.setTaskDagCheckLogService(taskDagCheckLogService);

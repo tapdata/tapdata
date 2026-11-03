@@ -1,5 +1,7 @@
 package com.tapdata.tm.taskrebalance.service;
 
+import com.tapdata.tm.agent.service.AgentGroupService;
+
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.Settings.constant.SettingUtil;
@@ -454,7 +456,8 @@ class TaskRebalanceServiceTest {
                 userService,
                 settingsService,
                 dbLockConfiguration,
-                ruleService
+                ruleService,
+                mock(AgentGroupService.class)
         );
 
         private TestContext() {
