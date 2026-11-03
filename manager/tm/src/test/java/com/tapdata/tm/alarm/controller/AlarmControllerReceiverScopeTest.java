@@ -1,15 +1,22 @@
 package com.tapdata.tm.alarm.controller;
 
+import com.tapdata.tm.alarm.dto.InspectReceiverPreviewRequest;
 import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.task.service.TaskService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.bson.types.ObjectId;
@@ -39,6 +46,7 @@ class AlarmControllerReceiverScopeTest {
     private AlarmController controller;
     private AlarmService alarmService;
     private TaskService taskService;
+    private InspectService inspectService;
     private AlarmReceiverAccess access;
     private UserDetail user;
     private HttpServletRequest request;
@@ -49,9 +57,11 @@ class AlarmControllerReceiverScopeTest {
         controller = spy(new AlarmController());
         alarmService = mock(AlarmService.class);
         taskService = mock(TaskService.class);
+        inspectService = mock(InspectService.class);
         access = mock(AlarmReceiverAccess.class);
         controller.setAlarmService(alarmService);
         controller.setTaskService(taskService);
+        controller.setInspectService(inspectService);
         controller.setAlarmReceiverAccess(access);
         user = mock(UserDetail.class);
         request = mock(HttpServletRequest.class);
@@ -116,6 +126,157 @@ class AlarmControllerReceiverScopeTest {
             assertThrows(BizException.class, () -> controller.receiverCandidates(request, null, null, true));
         }
         verify(alarmService, never()).receiverCandidates(any(), any());
+    }
+
+    @Test
+    void inspectDraftPreviewRequiresEditPermissionAndUsesCurrentDraft() {
+        when(user.getUserId()).thenReturn("current-user");
+        when(access.canViewUserDirectory(user)).thenReturn(true);
+        AlarmReceiver receiver = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "ops@example.com");
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        previewRequest.setAlarmReceivers(List.of(receiver));
+        AlarmReceiverPreview preview = new AlarmReceiverPreview();
+        when(alarmService.previewInspectReceivers(List.of(receiver), null, "current-user")).thenReturn(preview);
+
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
+            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
+        }
+
+        verify(access).checkNewReferences(user, List.of(receiver), (List<AlarmReceiver>) null);
+        verify(alarmService).previewInspectReceivers(List.of(receiver), null, "current-user");
+    }
+
+    @Test
+    void inspectDraftPreviewRejectsUserWithoutInspectEditPermission() {
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
+            assertThrows(BizException.class, () -> controller.inspectReceiverPreview(request, previewRequest));
+        }
+        verify(alarmService, never()).previewInspectReceivers(any(), any(), any());
+    }
+
+    @Test
+    void inspectViewerPreviewUsesSavedReceiverValues() {
+        ObjectId inspectId = new ObjectId();
+        AlarmReceiver saved = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "saved@example.com");
+        AlarmReceiver forged = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "forged@example.com");
+        InspectDto inspect = new InspectDto();
+        inspect.setId(inspectId);
+        inspect.setUserId("inspect-owner");
+        inspect.setAlarmReceivers(List.of(saved));
+        when(inspectService.findById(any(ObjectId.class), any(Field.class))).thenReturn(inspect);
+        when(inspectService.dataPermissionFindById(any(ObjectId.class), any(Field.class))).thenReturn(() -> inspect);
+        when(access.canViewUserDirectory(user)).thenReturn(false);
+        AlarmReceiverPreview preview = new AlarmReceiverPreview();
+        when(alarmService.previewInspectReceivers(List.of(saved), null, "inspect-owner")).thenReturn(preview);
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        previewRequest.setInspectId(inspectId.toHexString());
+        previewRequest.setAlarmReceivers(List.of(forged));
+
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.checkOfQuery(same(user), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(invocation -> {
+                        if (invocation.getArgument(2) == DataPermissionActionEnums.Edit) {
+                            return ((Supplier<?>) invocation.getArgument(6)).get();
+                        }
+                        return ((Supplier<?>) invocation.getArgument(5)).get();
+                    });
+            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
+        }
+
+        verify(alarmService).previewInspectReceivers(List.of(saved), null, "inspect-owner");
+        verify(access, never()).checkNewReferences(any(), any(), (List<AlarmReceiver>) any());
+    }
+
+    @Test
+    void inspectEditorPreviewChecksNewReferencesAgainstSavedReceiverList() {
+        ObjectId inspectId = new ObjectId();
+        AlarmReceiver saved = group("saved-group");
+        AlarmReceiver added = group("new-group");
+        InspectDto inspect = new InspectDto();
+        inspect.setId(inspectId);
+        inspect.setUserId("inspect-owner");
+        inspect.setAlarmReceivers(List.of(saved));
+        when(inspectService.findById(any(ObjectId.class), any(Field.class))).thenReturn(inspect);
+        when(inspectService.dataPermissionFindById(any(ObjectId.class), any(Field.class))).thenReturn(() -> inspect);
+        when(access.canViewUserDirectory(user)).thenReturn(true);
+        AlarmReceiverPreview preview = new AlarmReceiverPreview();
+        when(alarmService.previewInspectReceivers(List.of(saved, added), null, "inspect-owner")).thenReturn(preview);
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        previewRequest.setInspectId(inspectId.toHexString());
+        previewRequest.setAlarmReceivers(List.of(saved, added));
+
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.checkOfQuery(same(user), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
+            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
+        }
+
+        verify(access).checkNewReferences(user, List.of(saved, added), List.of(saved));
+        verify(alarmService).previewInspectReceivers(List.of(saved, added), null, "inspect-owner");
+    }
+
+    @Test
+    void inspectDraftPreviewRequiresEditPermissionAndUsesDraftReceivers() {
+        when(user.getUserId()).thenReturn("current-user");
+        when(access.canViewUserDirectory(user)).thenReturn(true);
+        AlarmReceiver receiver = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "ops@example.com");
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        previewRequest.setAlarmReceivers(List.of(receiver));
+        AlarmReceiverPreview preview = new AlarmReceiverPreview();
+        when(alarmService.previewInspectReceivers(List.of(receiver), null, "current-user"))
+                .thenReturn(preview);
+
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
+            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
+        }
+
+        verify(access).checkNewReferences(user, List.of(receiver), (List<AlarmReceiver>) null);
+        verify(alarmService).previewInspectReceivers(List.of(receiver), null, "current-user");
+    }
+
+    @Test
+    void inspectDraftPreviewRejectsUsersWithoutInspectEditPermission() {
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
+            assertThrows(BizException.class, () -> controller.inspectReceiverPreview(request, previewRequest));
+        }
+        verify(alarmService, never()).previewInspectReceivers(any(), any(), any());
+    }
+
+    @Test
+    void inspectPreviewChecksSavedInspectPermissionAndPreservesExistingReceivers() {
+        ObjectId inspectId = new ObjectId();
+        AlarmReceiver existing = group("existing-group");
+        AlarmReceiver added = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "ops@example.com");
+        InspectDto inspect = new InspectDto();
+        inspect.setUserId("inspect-owner");
+        inspect.setAlarmReceivers(List.of(existing));
+        when(inspectService.findById(eq(inspectId), any(Field.class))).thenReturn(inspect);
+        when(access.canViewUserDirectory(user)).thenReturn(true);
+        AlarmReceiverPreview preview = new AlarmReceiverPreview();
+        when(alarmService.previewInspectReceivers(List.of(existing, added), null, "inspect-owner"))
+                .thenReturn(preview);
+        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
+        previewRequest.setInspectId(inspectId.toHexString());
+        previewRequest.setAlarmReceivers(List.of(existing, added));
+
+        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
+            helper.when(() -> DataPermissionHelper.checkOfQuery(same(user), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
+            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
+        }
+
+        verify(access).checkNewReferences(user, List.of(existing, added), (List<AlarmReceiver>) List.of(existing));
+        verify(alarmService).previewInspectReceivers(List.of(existing, added), null, "inspect-owner");
     }
 
     private AlarmVO alarm(List<AlarmReceiver> receivers) {

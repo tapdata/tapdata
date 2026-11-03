@@ -2,6 +2,7 @@ package com.tapdata.tm.alarm.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.alarm.dto.AlarmChannelDto;
+import com.tapdata.tm.alarm.dto.InspectReceiverPreviewRequest;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.SystemNotificationStatusDto;
@@ -18,6 +19,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
@@ -244,20 +246,38 @@ public class AlarmController extends BaseController {
     }
 
     private <T> T checkInspect(HttpServletRequest request, UserDetail user, ObjectId id, Supplier<T> supplier) {
+        return checkInspect(request, user, id, DataPermissionActionEnums.View, supplier);
+    }
+
+    private <T> T checkInspect(HttpServletRequest request, UserDetail user, ObjectId id,
+                               DataPermissionActionEnums action, Supplier<T> supplier) {
         ObjectId decoded = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
                 .map(MongoUtils::toObjectId).orElse(id);
         return DataPermissionHelper.checkOfQuery(
                 user,
                 DataPermissionDataTypeEnums.INSPECT,
-                DataPermissionActionEnums.View,
+                action,
                 inspectService.dataPermissionFindById(decoded, new Field()),
                 dto -> DataPermissionMenuEnums.INSPECT_TACK,
                 supplier,
                 () -> {
                     throw new BizException("insufficient.permissions",
-                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(DataPermissionActionEnums.View)),
-                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(DataPermissionActionEnums.View)));
+                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(action)),
+                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(action)));
                 });
+    }
+
+    private boolean canEditInspect(HttpServletRequest request, UserDetail user, ObjectId id) {
+        ObjectId decoded = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
+                .map(MongoUtils::toObjectId).orElse(id);
+        return Boolean.TRUE.equals(DataPermissionHelper.checkOfQuery(
+                user,
+                DataPermissionDataTypeEnums.INSPECT,
+                DataPermissionActionEnums.Edit,
+                inspectService.dataPermissionFindById(decoded, new Field()),
+                dto -> DataPermissionMenuEnums.INSPECT_TACK,
+                () -> true,
+                () -> false));
     }
 
     @PostMapping("/updateTaskAlarm")
@@ -294,6 +314,67 @@ public class AlarmController extends BaseController {
             TaskDto task = taskService.findByTaskId(id, "alarmReceivers", "emailReceivers");
             PreviewEmailMask.mask(preview, task == null ? java.util.Set.of()
                     : PreviewEmailMask.explicitEmails(task.getAlarmReceivers(), task.getEmailReceivers()));
+        }
+        return success(preview);
+    }
+
+    /** Preview the receiver values currently shown in the Inspect editor, including an unsaved draft. */
+    @PostMapping("/receiverPreview/inspect")
+    public ResponseMessage<AlarmReceiverPreview> inspectReceiverPreview(
+            HttpServletRequest request, @RequestBody InspectReceiverPreviewRequest previewRequest) {
+        UserDetail user = getLoginUser();
+        if (user == null) {
+            throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
+        }
+
+        List<AlarmReceiver> currentReceivers = null;
+        List<AlarmReceiver> previewReceivers = previewRequest.getAlarmReceivers();
+        List<String> previewEmails = previewRequest.getEmailReceivers();
+        String ownerUserId = user.getUserId();
+        if (StringUtils.isNotBlank(previewRequest.getInspectId())) {
+            ObjectId inspectId = MongoUtils.toObjectId(previewRequest.getInspectId());
+            if (inspectId == null) {
+                throw new BizException("IllegalArgument", "inspectId");
+            }
+            InspectDto inspect = checkInspect(request, user, inspectId, DataPermissionActionEnums.View,
+                    () -> inspectService.findById(inspectId, Field.includes("userId", "alarmReceivers", "emailReceivers")));
+            if (inspect == null) {
+                throw new BizException("IllegalArgument", "inspectId");
+            }
+            currentReceivers = inspect.getAlarmReceivers();
+            if (!canEditInspect(request, user, inspectId)) {
+                previewReceivers = inspect.getAlarmReceivers();
+                previewEmails = inspect.getEmailReceivers();
+            } else {
+                alarmReceiverAccess.checkNewReferences(user, previewReceivers, currentReceivers);
+            }
+            if (StringUtils.isNotBlank(inspect.getUserId())) {
+                ownerUserId = inspect.getUserId();
+            }
+        } else {
+            boolean canCreate = Boolean.TRUE.equals(DataPermissionHelper.check(
+                    user, DataPermissionMenuEnums.INSPECT_TACK, DataPermissionActionEnums.Edit,
+                    DataPermissionDataTypeEnums.INSPECT, null, () -> true, () -> false));
+            if (!canCreate) {
+                throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
+            }
+            if (StringUtils.isNotBlank(previewRequest.getFlowId())) {
+                ObjectId flowId = MongoUtils.toObjectId(previewRequest.getFlowId());
+                if (flowId == null) {
+                    throw new BizException("IllegalArgument", "flowId");
+                }
+                TaskDto flow = checkTask(request, user, flowId, DataPermissionActionEnums.View,
+                        () -> taskService.findByTaskId(flowId, "alarmReceivers", "emailReceivers"));
+                currentReceivers = flow == null ? null : flow.getAlarmReceivers();
+            }
+            alarmReceiverAccess.checkNewReferences(user, previewReceivers, currentReceivers);
+        }
+
+        AlarmReceiverPreview preview = alarmService.previewInspectReceivers(
+                previewReceivers, previewEmails, ownerUserId);
+        if (preview != null && !alarmReceiverAccess.canViewUserDirectory(user)) {
+            PreviewEmailMask.mask(preview, PreviewEmailMask.explicitEmails(
+                    previewReceivers, previewEmails));
         }
         return success(preview);
     }
@@ -385,6 +466,12 @@ public class AlarmController extends BaseController {
         return new BizException("insufficient.permissions",
                 needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)),
                 needAction(DataPermissionDataTypeEnums.Task, java.util.List.of(action)));
+    }
+
+    private BizException insufficientInspectPermissions(DataPermissionActionEnums action) {
+        return new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.INSPECT, java.util.List.of(action)),
+                needAction(DataPermissionDataTypeEnums.INSPECT, java.util.List.of(action)));
     }
 
     @Operation(summary = "add Task Retry Message")

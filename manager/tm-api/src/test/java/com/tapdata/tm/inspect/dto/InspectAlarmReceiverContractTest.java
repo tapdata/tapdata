@@ -1,6 +1,7 @@
 package com.tapdata.tm.inspect.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tapdata.tm.alarm.dto.InspectReceiverPreviewRequest;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import org.junit.jupiter.api.Test;
@@ -25,5 +26,22 @@ class InspectAlarmReceiverContractTest {
 
         assertEquals(source.getAlarmReceivers(), roundTrip.getAlarmReceivers());
         assertEquals(source.getEmailReceivers(), roundTrip.getEmailReceivers());
+    }
+
+    @Test
+    void receiverPreviewRequestPreservesDraftAndCustomEmptyModes() throws Exception {
+        InspectReceiverPreviewRequest customEmpty = new InspectReceiverPreviewRequest();
+        customEmpty.setInspectId("inspect-id");
+        customEmpty.setFlowId("flow-id");
+        customEmpty.setAlarmReceivers(List.of());
+        customEmpty.setEmailReceivers(List.of());
+
+        InspectReceiverPreviewRequest roundTrip = objectMapper.readValue(
+                objectMapper.writeValueAsBytes(customEmpty), InspectReceiverPreviewRequest.class);
+
+        assertEquals("inspect-id", roundTrip.getInspectId());
+        assertEquals("flow-id", roundTrip.getFlowId());
+        assertEquals(List.of(), roundTrip.getAlarmReceivers());
+        assertEquals(List.of(), roundTrip.getEmailReceivers());
     }
 }
