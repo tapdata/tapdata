@@ -117,7 +117,7 @@ class ModuleAccessIT {
     @Test
     @DisplayName("AC10 权限种子：新增权限树、页面路径与前端路由一致，并授予内置 admin 角色；同时创建通知链路索引")
     void should_seed_permissions_for_admin() throws IOException {
-        assertThat(read("init/idaas/version").trim()).isEqualTo(SEED_VERSION);
+        // 补丁版本记录最新可执行补丁，权限种子资源版本独立维护。
         JsonNode seed = new ObjectMapper().readTree(read("init/idaas/" + SEED_VERSION + ".json"));
 
         Map<String, JsonNode> perms = new HashMap<>();

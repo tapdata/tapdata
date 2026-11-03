@@ -425,7 +425,8 @@ public class ApiMetricsChartQuery {
 
     protected Worker findServerById(String serverId) {
         Criteria criteriaOfServer = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
-                .and(WorkerField.PROCESS_ID.field()).is(serverId);
+                .and(WorkerField.PROCESS_ID.field()).is(serverId)
+                .and(WorkerField.DELETED.field()).ne(true);
         Query queryServer = Query.query(criteriaOfServer);
         queryServer.limit(1);
         Worker worker = workerRepository.findOne(queryServer).orElse(null);
@@ -903,7 +904,8 @@ public class ApiMetricsChartQuery {
             return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
         }
         Criteria criteriaOfServer = Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
-                .and(WorkerField.PROCESS_ID.field()).in(serverIds);
+                .and(WorkerField.PROCESS_ID.field()).in(serverIds)
+                .and(WorkerField.DELETED.field()).ne(true);
         Query queryOfServer = Query.query(criteriaOfServer);
         List<Worker> serverList = workerRepository.findAll(queryOfServer);
         Map<String, ApiOfEachServer> serverMap = serverList.stream().collect(Collectors.toMap(Worker::getProcessId, e -> {
