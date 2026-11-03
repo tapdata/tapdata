@@ -26,11 +26,11 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class V4_25_2_WorkerApiServerUniqueTest {
+class V4_249_WorkerApiServerUniqueTest {
 
     @Test
     void activeWorkerQueryUsesWorkerDeletedField() {
-        Document query = V4_25_2_WorkerApiServerUnique.activeWorkersQuery().getQueryObject();
+        Document query = V4_24_9_WorkerApiServerUnique.activeWorkersQuery().getQueryObject();
 
         assertTrue(query.containsKey("deleted"));
         assertFalse(query.containsKey("delete"));
@@ -55,7 +55,7 @@ class V4_25_2_WorkerApiServerUniqueTest {
         doThrow(new RuntimeException("index was already dropped"))
                 .when(mongoCollection).dropIndex("update_worker_status_index");
 
-        V4_25_2_WorkerApiServerUnique patch = new V4_25_2_WorkerApiServerUnique(null, null);
+        V4_24_9_WorkerApiServerUnique patch = new V4_24_9_WorkerApiServerUnique(null, null);
         try (MockedStatic<SpringContextHelper> mockedHelper = mockStatic(SpringContextHelper.class)) {
             mockedHelper.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(mongoTemplate);
 
@@ -80,6 +80,6 @@ class V4_25_2_WorkerApiServerUniqueTest {
                 .append("ping_time", 100L)
                 .append("worker_status", new Document("status", "UP"));
 
-        assertEquals(staleId, V4_25_2_WorkerApiServerUnique.selectCanonical(List.of(stale, current)).getObjectId("_id"));
+        assertEquals(staleId, V4_24_9_WorkerApiServerUnique.selectCanonical(List.of(stale, current)).getObjectId("_id"));
     }
 }
