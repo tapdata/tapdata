@@ -11,7 +11,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;
-import org.voovan.tools.collection.CacheMap;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -24,14 +25,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import java.util.function.Function;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 
 public abstract class AbstractCacheService implements ICacheService {
 	protected final Logger logger = LogManager.getLogger(AbstractCacheService.class);
 
-	protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
-	// Voovan 在首次缺失时持有整个 CacheMap 的 monitor；TM 查询必须在该锁外执行。
-	private final Map<String, Object> cacheConfigLoadLockMap = new ConcurrentHashMap<>();
+	// No timer or supplier runs on Guava's cache: refresh is driven only by an expired read.
+	private final Cache<String, CacheConfigEntry> cacheConfigMap = CacheBuilder.newBuilder().maximumSize(100).build();
+	private final Map<String, ConfigLoad> cacheConfigLoads = new ConcurrentHashMap<>();
+	static final long CACHE_CONFIG_EXPIRE_MS = TimeUnit.SECONDS.toMillis(600);
 
 	/**
 	 * getter 满 {@link #CACHE_GETTER_EXPIRE_MS} 后在下一次访问时重建以加载最新配置，替换下来的旧 getter 释放回源连接器。
@@ -81,29 +84,19 @@ public abstract class AbstractCacheService implements ICacheService {
 		this.cacheStoreMap = new ConcurrentHashMap<>();
 		this.lastLogTSMap = new ConcurrentHashMap<>();
 		this.cacheStatusLockMap = new ConcurrentHashMap<>();
-		this.cacheConfigMap = new CacheMap<>();
-		// 配置过期后用 supplier 向 TM 重新查询并原地刷新，不移除（autoRemove=false），getConfig 不会返回 null
-		this.cacheConfigMap.maxSize(100).interval(60).expire(600).supplier(cacheName -> {
-			String encodeCacheName;
-			try {
-				encodeCacheName = URLEncoder.encode(cacheName, "UTF-8");
-			} catch (UnsupportedEncodingException e) {
-				throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName).dynamicDescriptionParameters(cacheName);
-			}
-			// 如果不存在，则向tm查询
-			TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + encodeCacheName, TaskDto.class);
-			DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
-			logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
-			if (logger.isDebugEnabled()) {
-				logger.debug("query cache config is [{}]", cacheConfig);
-			}
-			if (cacheConfig != null) {
-				this.cacheStatusMap.remove(cacheName);
-				registerCache(cacheConfig);
-			}
-			return cacheConfig;
-		}, false).create();
+	}
 
+	private TaskDto loadCacheTaskFromTm(String cacheName) {
+		try {
+			String encodedName = URLEncoder.encode(cacheName, "UTF-8");
+			return clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + encodedName, TaskDto.class);
+		} catch (UnsupportedEncodingException e) {
+			throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName).dynamicDescriptionParameters(cacheName);
+		}
+	}
+
+	protected DataFlowCacheConfig loadConfigFromTm(String cacheName) {
+		return CacheUtil.getCacheConfig(loadCacheTaskFromTm(cacheName), clientMongoOperator);
 	}
 
 	private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
@@ -172,9 +165,16 @@ public abstract class AbstractCacheService implements ICacheService {
 	@Override
 	public void registerCache(DataFlowCacheConfig cacheConfig) {
 		String cacheName = cacheConfig.getCacheName();
-		this.cacheConfigMap.put(cacheName, cacheConfig);
+		this.cacheConfigMap.asMap().compute(cacheName, (key, previous) -> {
+			onCacheRegistered(cacheConfig);
+			return new CacheConfigEntry(cacheConfig, currentTimeMillis());
+		});
+	}
+
+	/** Called only when a registration wins, before its config becomes visible to readers. */
+	protected void onCacheRegistered(DataFlowCacheConfig cacheConfig) {
 		this.lastLogTSMap.put(cacheConfig.getCacheName(), 0L);
-		this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
+		this.cacheStatusMap.put(cacheConfig.getCacheName(), DataFlow.STATUS_RUNNING);
 	}
 
 	/**
@@ -195,7 +195,8 @@ public abstract class AbstractCacheService implements ICacheService {
 					cacheStore.destroy();
 				}
 				this.cacheStatusMap.remove(cacheName);
-				this.cacheConfigMap.remove(cacheName);
+				this.cacheConfigLoads.remove(cacheName);
+				this.cacheConfigMap.invalidate(cacheName);
 				CacheGetterEntry entry;
 				synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
 					entry = this.cacheGetterMap.remove(cacheName);
@@ -231,26 +232,71 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	@Override
 	public DataFlowCacheConfig getConfig(String cacheName) {
-		synchronized (cacheConfigLoadLockMap.computeIfAbsent(cacheName, key -> new Object())) {
-			// 首次缺失时传入无 I/O 的 supplier；即使 TimeMark 同时被清理，也不会在全局锁内访问 TM。
-			DataFlowCacheConfig cached = cacheConfigMap.get(cacheName, key -> null, null, false);
-			if (cached != null) {
-				return cached;
+		CacheConfigEntry cached = cacheConfigMap.getIfPresent(cacheName);
+		if (cached != null && currentTimeMillis() - cached.loadedAt < CACHE_CONFIG_EXPIRE_MS) {
+			return cached.config;
+		}
+		ConfigLoad candidate = new ConfigLoad(cacheName);
+		ConfigLoad existing = cacheConfigLoads.putIfAbsent(cacheName, candidate);
+		if (existing != null && cached != null) {
+			// A refresh is already in flight; an available config must remain usable.
+			return cached.config;
+		}
+		ConfigLoad load = existing == null ? candidate : existing;
+		try {
+			if (existing == null) {
+				load.result.run();
 			}
-			Function<String, DataFlowCacheConfig> supplier = cacheConfigMap.getSupplier();
-			if (supplier == null) {
+			return load.result.get();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException e) {
+			logger.warn("Load cache config [{}] failed; retaining the current config", cacheName, e.getCause());
+		} finally {
+			if (existing == null) {
+				cacheConfigLoads.remove(cacheName, load);
+			}
+		}
+		CacheConfigEntry current = cacheConfigMap.getIfPresent(cacheName);
+		return current == null ? null : current.config;
+	}
+
+	private DataFlowCacheConfig refreshConfig(String cacheName, ConfigLoad load) {
+		CacheConfigEntry before = cacheConfigMap.getIfPresent(cacheName);
+		if (before != null && currentTimeMillis() - before.loadedAt < CACHE_CONFIG_EXPIRE_MS) {
+			return before.config;
+		}
+		// No map lock is held across this synchronous TM request.
+		DataFlowCacheConfig loaded = loadConfigFromTm(cacheName);
+		CacheConfigEntry result = cacheConfigMap.asMap().compute(cacheName, (key, current) -> {
+			// An explicit registration or destroy that happened during the query wins.
+			if (current != before || cacheConfigLoads.get(cacheName) != load) {
+				return current;
+			}
+			if (loaded == null) {
 				return null;
 			}
-			try {
-				DataFlowCacheConfig config = supplier.apply(cacheName);
-				if (config != null && !cacheConfigMap.getCacheMark().containsKey(cacheName)) {
-					cacheConfigMap.put(cacheName, config);
-				}
-				return config;
-			} catch (Exception e) {
-				logger.error("Create cache config with supplier failed: " + cacheName, e);
-				return null;
-			}
+			onCacheRegistered(loaded);
+			return new CacheConfigEntry(loaded, currentTimeMillis());
+		});
+		return result == null ? null : result.config;
+	}
+
+	private final class ConfigLoad {
+		private final FutureTask<DataFlowCacheConfig> result;
+
+		private ConfigLoad(String cacheName) {
+			result = new FutureTask<>(() -> refreshConfig(cacheName, this));
+		}
+	}
+
+	private static final class CacheConfigEntry {
+		private final DataFlowCacheConfig config;
+		private final long loadedAt;
+
+		private CacheConfigEntry(DataFlowCacheConfig config, long loadedAt) {
+			this.config = config;
+			this.loadedAt = loadedAt;
 		}
 	}
 
@@ -284,7 +330,7 @@ public abstract class AbstractCacheService implements ICacheService {
 
 		if (getConfig(cacheName) == null) {
 			// 如果不存在，则向tm查询
-			TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
+			TaskDto taskDto = loadCacheTaskFromTm(cacheName);
 			DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
 			if (cacheConfig == null) {
 				throw new RuntimeException("cache not exist: " + cacheName);

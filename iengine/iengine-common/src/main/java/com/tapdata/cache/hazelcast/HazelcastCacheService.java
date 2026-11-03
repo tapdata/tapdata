@@ -33,8 +33,8 @@ public class HazelcastCacheService extends AbstractCacheService {
 	}
 
 	@Override
-	public synchronized void registerCache(DataFlowCacheConfig config) {
-		super.registerCache(config);
+	protected void onCacheRegistered(DataFlowCacheConfig config) {
+		super.onCacheRegistered(config);
 		String cacheName = config.getCacheName();
 		// 配置
 		setCacheConfig(config, CacheUtil.cacheDataKey(cacheName));
