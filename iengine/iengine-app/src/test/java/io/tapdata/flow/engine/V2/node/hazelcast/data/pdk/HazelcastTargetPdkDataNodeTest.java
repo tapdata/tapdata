@@ -15,6 +15,8 @@ import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.aspect.TruncateTableFuncAspect;
 import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
@@ -26,6 +28,8 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.error.TapEventException;
@@ -70,6 +74,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.ReflectionUtils;
 
 import java.sql.Ref;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,6 +104,29 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
         skipErrorTable = mock(ISkipErrorTable.class);
         ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "skipErrorTable", skipErrorTable);
     }
+
+	@Test
+	void fromTapValueUsesDiscoveredPhysicalFieldsWithoutChangingLogicalModel() {
+		Map<String, Map<String, TapField>> discoveredFields = new ConcurrentHashMap<>();
+		ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "discoveredTargetFieldMaps", discoveredFields);
+		doCallRealMethod().when(hazelcastTargetPdkDataNode).cacheDiscoveredTargetFields(any(TapTable.class));
+		doCallRealMethod().when(hazelcastTargetPdkDataNode).targetFieldMapForFromTapValue(anyString(), anyMap());
+
+		LinkedHashMap<String, TapField> physicalFields = new LinkedHashMap<>();
+		physicalFields.put("birth_date", new TapField("birth_date", "DATE"));
+		TapTable physicalTable = new TapTable();
+		physicalTable.setId("target_table");
+		physicalTable.setNameFieldMap(physicalFields);
+		Map<String, TapField> logicalFields = Collections.singletonMap(
+				"birth_date", new TapField("birth_date", "CHAR(10)"));
+
+		hazelcastTargetPdkDataNode.cacheDiscoveredTargetFields(physicalTable);
+		Map<String, TapField> resolvedFields = hazelcastTargetPdkDataNode.targetFieldMapForFromTapValue(
+				"target_table", logicalFields);
+
+		assertSame(physicalFields.get("birth_date"), resolvedFields.get("birth_date"));
+		assertEquals("CHAR(10)", logicalFields.get("birth_date").getDataType());
+	}
 
 	@Nested
 	class ExactlyOnceTransactionStopTest {
@@ -1829,6 +1857,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		ObsLogger obsLogger = mock(ObsLogger.class);
 		ReflectionTestUtils.setField(targetPdkDataNode, "ddlEventHandlers", ddlEventHandlers);
 		ReflectionTestUtils.setField(targetPdkDataNode, "obsLogger", obsLogger);
+		Map<String, Map<String, TapField>> physicalFields = new ConcurrentHashMap<>();
+		physicalFields.put("test", Collections.singletonMap("event_time", new TapField("event_time", "datetime").scale(3)));
+		ReflectionTestUtils.setField(targetPdkDataNode, "discoveredTargetFieldMaps", physicalFields);
+		when(ddlEventHandlers.handle(any())).thenReturn(true);
 
 
 		List<TapEvent> events = new ArrayList<>();
@@ -1845,16 +1877,91 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		partitionTable.setPartitionInfo(new TapPartition());
 		createEvent.setTable(partitionTable);
 		events.add(createEvent);
+		TapAlterFieldAttributesEvent alterEvent = new TapAlterFieldAttributesEvent();
+		alterEvent.setTableId("test");
+		events.add(alterEvent);
 		TapDropTableEvent dropEvent = new TapDropTableEvent();
 		dropEvent.setTableId("test_1");
 		events.add(dropEvent);
 
 		targetPdkDataNode.writeDDL(events);
+		assertFalse(physicalFields.containsKey("test"));
+		Map<String, TapField> updatedLogicalFields = Collections.singletonMap(
+				"event_time", new TapField("event_time", "datetime2").scale(7));
+		assertSame(updatedLogicalFields, targetPdkDataNode.targetFieldMapForFromTapValue("test", updatedLogicalFields));
 
 		targetPdkDataNode.syncTargetPartitionTableEnable = false;
 		targetPdkDataNode.writeDDL(events);
 
-		verify(ddlEventHandlers,times(5)).handle(any());
+		verify(ddlEventHandlers,times(7)).handle(any());
+	}
+
+	@Test
+	void unrelatedNewFieldKeepsPhysicalDateTimeWhileAlterInvalidatesOnlyChangedField() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+		Node<?> node = new DatabaseNode();
+		node.setId("test");
+		node.setName("test");
+		doReturn(node).when(context).getNode();
+
+		HazelcastTargetPdkDataNode target = new HazelcastTargetPdkDataNode(context);
+		target.uploadDagService = new AtomicBoolean();
+		ClassHandlers handlers = mock(ClassHandlers.class);
+		when(handlers.handle(any())).thenReturn(true);
+		ReflectionTestUtils.setField(target, "ddlEventHandlers", handlers);
+		ReflectionTestUtils.setField(target, "obsLogger", mock(ObsLogger.class));
+		Map<String, Map<String, TapField>> discovered = new ConcurrentHashMap<>();
+		Map<String, TapField> physical = new LinkedHashMap<>();
+		physical.put("event_time", new TapField("event_time", "datetime").scale(3));
+		physical.put("other", new TapField("other", "datetime").scale(3));
+		discovered.put("test", physical);
+		ReflectionTestUtils.setField(target, "discoveredTargetFieldMaps", discovered);
+		LinkedHashMap<String, TapField> logical = new LinkedHashMap<>();
+		logical.put("event_time", new TapField("event_time", "datetime2").scale(7));
+		logical.put("other", new TapField("other", "datetime2").scale(7));
+		logical.put("note", new TapField("note", "varchar(64)"));
+		TapTable table = new TapTable();
+		table.setId("test");
+		table.setNameFieldMap(logical);
+		TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+		when(tableMap.get("test")).thenReturn(table);
+		when(context.getTapTableMap()).thenReturn(tableMap);
+		TapCodecsRegistry registry = TapCodecsRegistry.create();
+		registry.registerFromTapValueV2(TapDateTimeValue.class, (value, field) ->
+				field == null ? "NO_TARGET_METADATA" : field.getDataType() + ":" + field.getScale());
+		TapCodecsFilterManager manager = TapCodecsFilterManager.create(registry);
+		Map<String, Object> beforeDdl = new LinkedHashMap<>();
+		beforeDdl.put("event_time", new TapDateTimeValue(new DateTime(LocalDateTime.of(2026, 10, 28, 12, 0))));
+		target.fromTapValue(beforeDdl, manager, "test");
+		assertEquals("datetime:3", beforeDdl.get("event_time"));
+
+		TapNewFieldEvent addNote = new TapNewFieldEvent().field(new TapField("note", "varchar(64)"));
+		addNote.setTableId("test");
+		target.writeDDL(Collections.singletonList(addNote));
+		assertSame(physical.get("event_time"),
+				target.targetFieldMapForFromTapValue("test", logical).get("event_time"));
+		Map<String, Object> afterUnrelatedDdl = new LinkedHashMap<>();
+		afterUnrelatedDdl.put("event_time", new TapDateTimeValue(new DateTime(LocalDateTime.of(2026, 10, 28, 12, 0))));
+		target.fromTapValue(afterUnrelatedDdl, manager, "test");
+		assertEquals("datetime:3", afterUnrelatedDdl.get("event_time"));
+
+		TapAlterFieldAttributesEvent alterTime = new TapAlterFieldAttributesEvent();
+		alterTime.setTableId("test");
+		alterTime.setFieldName("event_time");
+		target.writeDDL(Collections.singletonList(alterTime));
+		Map<String, TapField> resolved = target.targetFieldMapForFromTapValue("test", logical);
+		assertSame(logical.get("event_time"), resolved.get("event_time"));
+		assertSame(physical.get("other"), resolved.get("other"));
+		Map<String, Object> afterAlter = new LinkedHashMap<>();
+		afterAlter.put("event_time", new TapDateTimeValue(new DateTime(LocalDateTime.of(2026, 10, 28, 12, 0))));
+		afterAlter.put("other", new TapDateTimeValue(new DateTime(LocalDateTime.of(2026, 10, 28, 12, 0))));
+		target.fromTapValue(afterAlter, manager, "test");
+		assertEquals("datetime2:7", afterAlter.get("event_time"));
+		assertEquals("datetime:3", afterAlter.get("other"));
 	}
 
 	@Test

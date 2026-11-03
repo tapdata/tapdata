@@ -18,9 +18,13 @@ import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.FloatingPointTransformMode;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
@@ -44,6 +48,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.time.LocalDateTime;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,6 +71,51 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		super.allSetup();
 		hazelcastPdkBaseNode = new HazelcastPdkBaseNode(dataProcessorContext) {
 		};
+	}
+
+	@Test
+	void fromTapValueConvertsDiscoveredPhysicalDateBeforeConnectorCodec() {
+		HazelcastPdkBaseNode node = mock(HazelcastPdkBaseNode.class);
+		LinkedHashMap<String, TapField> logicalFields = new LinkedHashMap<>();
+		logicalFields.put("BIRTH_DATE", new TapField("BIRTH_DATE", "CHAR(10)"));
+		Map<String, TapField> physicalFields = Collections.singletonMap(
+				"BIRTH_DATE", new TapField("BIRTH_DATE", "DATE"));
+		when(node.getTableFiledMap("target_table")).thenReturn(logicalFields);
+		when(node.targetFieldMapForFromTapValue("target_table", logicalFields)).thenReturn(physicalFields);
+		doCallRealMethod().when(node).fromTapValue(anyMap(), any(TapCodecsFilterManager.class), eq("target_table"));
+		TapCodecsRegistry registry = TapCodecsRegistry.create();
+		registry.registerFromTapValue(TapDateValue.class, "CHAR(10)", value -> "legacy-date");
+		TapCodecsFilterManager manager = TapCodecsFilterManager.create(registry);
+		Map<String, Object> data = new HashMap<>();
+		data.put("BIRTH_DATE", new TapDateValue(new DateTime(LocalDateTime.of(2026, 10, 21, 0, 0))));
+
+		node.fromTapValue(data, manager, "target_table");
+
+		assertEquals(java.sql.Date.valueOf("2026-10-21"), data.get("BIRTH_DATE"));
+		assertEquals("CHAR(10)", logicalFields.get("BIRTH_DATE").getDataType());
+	}
+
+	@Test
+	void schemaEnforcedFromTapValueConvertsPhysicalDateBeforeConnectorCodec() {
+		HazelcastPdkBaseNode node = mock(HazelcastPdkBaseNode.class);
+		LinkedHashMap<String, TapField> logicalFields = new LinkedHashMap<>();
+		logicalFields.put("BIRTH_DATE", new TapField("BIRTH_DATE", "CHAR(10)"));
+		Map<String, TapField> physicalFields = Collections.singletonMap(
+				"BIRTH_DATE", new TapField("BIRTH_DATE", "DATE"));
+		when(node.getTableFiledMap("target_table")).thenReturn(logicalFields);
+		when(node.targetFieldMapForFromTapValue("target_table", logicalFields)).thenReturn(physicalFields);
+		doCallRealMethod().when(node).fromTapValue(anyMap(), any(TapCodecsFilterManager.class),
+				eq("target_table"), anySet());
+		TapCodecsRegistry registry = TapCodecsRegistry.create();
+		registry.registerFromTapValue(TapDateValue.class, "CHAR(10)", value -> "legacy-date");
+		TapCodecsFilterManagerSchemaEnforced manager = new TapCodecsFilterManagerSchemaEnforced(registry);
+		Map<String, Object> data = new HashMap<>();
+		data.put("BIRTH_DATE", new TapDateValue(new DateTime(LocalDateTime.of(2026, 10, 21, 0, 0))));
+
+		node.fromTapValue(data, manager, "target_table", Collections.singleton("BIRTH_DATE"));
+
+		assertEquals(java.sql.Date.valueOf("2026-10-21"), data.get("BIRTH_DATE"));
+		assertEquals("CHAR(10)", logicalFields.get("BIRTH_DATE").getDataType());
 	}
 
 
@@ -191,8 +241,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			@BeforeEach
 			void init() {
 				targetTableName = "targetTableName";
-				when(tapCodecsFilterManager.transformFromTapValueMap(data, fields, skipDetector)).thenReturn(null);
-				when(tapCodecsFilterManager.transformFromTapValueMap(null, fields, skipDetector)).thenReturn(null);
+				when(hazelcastPdkBaseNode.targetFieldMapForFromTapValue(targetTableName, fields)).thenReturn(fields);
+				when(tapCodecsFilterManager.transformFromTapValueMap(data, fields, fields, skipDetector)).thenReturn(null);
+				when(tapCodecsFilterManager.transformFromTapValueMap(null, fields, fields, skipDetector)).thenReturn(null);
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager, targetTableName);
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager, "");
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, null, targetTableName);
@@ -232,7 +283,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				hazelcastPdkBaseNode.fromTapValue(dataTemp, manager, targetTableName);
 				verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
 				verify(hazelcastPdkBaseNode, times(execTimes)).getTableFiledMap(anyString());
-				verify(tapCodecsFilterManager, times(execTimes)).transformFromTapValueMap(data, fields, skipDetector);
+				verify(tapCodecsFilterManager, times(execTimes)).transformFromTapValueMap(data, fields, fields, skipDetector);
 			}
 		}
 	}

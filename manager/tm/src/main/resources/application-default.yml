@@ -203,6 +203,10 @@ openapi:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
 
 management:
+  health:
+    elasticsearch:
+      # Elasticsearch is optional; deployments using it can explicitly enable this check.
+      enabled: false
   prometheus:
     metrics:
       export:
