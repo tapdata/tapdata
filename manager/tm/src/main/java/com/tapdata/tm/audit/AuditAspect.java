@@ -72,14 +72,7 @@ public class AuditAspect {
 			context.setAuditedDepth(context.getAuditedDepth() + 1);
 		}
 		Object result;
-		// 单对象异步操作在业务执行前登记受理对象：业务方法内部可能同步触发完成回调
-		// 异步操作在业务执行前登记受理对象：业务方法内部会同步触发完成回调
-		// （TaskServiceImpl.afterRemove → AuditFinalizer；单对象与批量删除逐项都走这条链），
-		// 若等到方法返回后才登记，完成路径查不到登记只能写无法关联的兜底事件，
-		// 随后切面再登记就留下一条永远等不到 FINAL 的 pending（TAP-13018 review）。
-		// 所有异步操作都在业务执行前登记：批量启动/停止/重置同样可能在接口返回前就产生完成回调，
-		// 返回后才登记的路径会让这些回调查不到登记，操作永久 pending（TAP-13018 review）。
-		// 业务返回后由 registerPending 按真实受理结果对齐：未受理项撤销、已受理项保留、已完成项不补回。
+		// 回调可能早于接口返回。先按 Operation 建立独立关联，返回后仅清理未受理项。
 		String operationId = action.isAsync() ? auditEventService.currentOperationId() : null;
 		List<String> claimed = action.isAsync() ? preRegister(action, operationId, ids, names) : List.of();
 		try {
@@ -114,21 +107,15 @@ public class AuditAspect {
 		}
 	}
 
-	/** 删除类动作在业务方法内部逐对象完成，批量也需要执行前登记。 */
-	private static boolean isDeleteAction(AuditAction action) {
-		return action == AuditAction.TASK_DELETE || action == AuditAction.LIVE_CACHE_DELETE;
-	}
-
 	/**
-	 * 业务执行前登记已受理对象，返回本次真正占有的对象 ID 列表。
-	 * 只登记尚无 owner 的对象：若同一对象已有更早的、仍待完成的操作，
-	 * 覆盖会让前一次操作失去 FINAL 归属（TAP-13018 review）。
+	 * 执行前为每个对象建立本次 Operation 的独立关联，返回本次新建的对象 ID。
+	 * 同对象上既有操作的登记保持不变，重试未新建的关联不能由本次失败清理删除。
 	 */
 	private List<String> preRegister(AuditAction action, String operationId, List<String> ids, Map<String, String> names) {
 		List<String> claimed = new ArrayList<>();
 		try {
-			for (String id : ids) {
-				if (operationRegistry.registerIfAbsent(action.getObjectType(), id, operationId, action, names.get(id))) {
+			for (String id : new LinkedHashSet<>(ids)) {
+				if (operationRegistry.registerOperation(action.getObjectType(), id, operationId, action, names.get(id))) {
 					claimed.add(id);
 				}
 			}
@@ -212,22 +199,17 @@ public class AuditAspect {
 		auditEventService.record(event, loginUser());
 		// 不论事件 phase 都要对齐：批量全部失败时事件是 FAILED/SINGLE，
 		// 若只在 REQUEST 阶段清理，失败对象会残留执行前的登记（TAP-13018 review）
-		registerPending(action, event, operationId, claimed);
+		registerPending(action, event, operationId, ids, claimed);
 	}
 
-	/**
-	 * 补登记本次受理、但业务内未自行完成的对象。
-	 * claimed 为执行前已占有的对象：这些对象若仍挂在本 Operation 下说明还没完成，保留登记；
-	 * 业务内已完成的对象（登记已被完成路径取走）不再补回。
-	 */
 	/**
 	 * 对齐执行前占有的登记与本次真实受理结果。
 	 *
 	 * <p>业务内已完成的对象：登记已被完成路径取走，不能再补回。
 	 * 业务内未完成但本次未受理（批量中逐项失败）：撤销执行前的占有，避免留下永远等不到 FINAL 的登记。
-	 * 业务内未完成且本次已受理：补登记，等待异步最终结果。</p>
+	 * 已受理对象保留原关联；仅返回值中新产生的 ID 需要在此登记。</p>
 	 */
-	private void registerPending(AuditAction action, AuditEvent event, String operationId, List<String> claimed) {
+	private void registerPending(AuditAction action, AuditEvent event, String operationId, List<String> attempted, List<String> claimed) {
 		if (claimed.isEmpty() && !action.isAsync()) {
 			// 同步操作不涉及异步最终结果
 			return;
@@ -254,11 +236,12 @@ public class AuditAspect {
 			}
 		}
 		for (String id : accepted) {
-			if (leftovers.remove(id)) {
-				// 执行前已占有且未被完成路径取走，保持原登记即可
+			if (attempted.contains(id)) {
+				// 已在执行前建立关联。回调可能已消费登记，返回后不能重新创建。
 				continue;
 			}
-			operationRegistry.register(action.getObjectType(), id, operationId, action, nameOf(event, id));
+			// 只有返回值新产生的 ID 才在此建立关联，也必须保留已有 owner。
+			operationRegistry.registerOperation(action.getObjectType(), id, operationId, action, nameOf(event, id));
 		}
 	}
 

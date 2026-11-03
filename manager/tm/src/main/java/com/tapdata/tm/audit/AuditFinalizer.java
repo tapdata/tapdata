@@ -28,20 +28,18 @@ public class AuditFinalizer implements AuditOperationFinisher {
 	/** 任务状态机迁移后的回调；after 为新状态。 */
 	public void onTaskStatus(String objectType, String taskId, String taskName, String after) {
 		try {
-			AuditOperationRegistry.Pending pending = registry.peek(objectType, taskId);
-			if (pending == null || after == null) {
+			if (after == null) {
 				return;
 			}
-			AuditAction action = AuditAction.ofKey(pending.getAction());
-			AuditOutcome outcome = taskOutcome(action, after);
-			if (outcome != null) {
-				// 按读取到的 owner 消费：peek 与 take 之间登记可能已换成新的操作，
-				// 用旧 action 的结果写进新登记会误报成功（TAP-13018 review）
-				AuditOperationRegistry.Pending consumed =
-						registry.takeOwned(objectType, taskId, pending.getOperationId());
-				if (consumed != null) {
-					writeFinal(consumed, taskId, taskName, outcome,
-							outcome == AuditOutcome.FAILED ? "audit_reason_status_" + after : null);
+			for (AuditOperationRegistry.Pending pending : registry.pendingOperations(objectType, taskId)) {
+				AuditAction action = AuditAction.ofKey(pending.getAction());
+				AuditOutcome outcome = taskOutcome(action, after);
+				if (outcome != null) {
+					AuditOperationRegistry.Pending consumed = registry.takeOwned(objectType, taskId, pending.getOperationId());
+					if (consumed != null) {
+						writeFinal(consumed, taskId, taskName, outcome,
+								outcome == AuditOutcome.FAILED ? "audit_reason_status_" + after : null);
+					}
 				}
 			}
 		} catch (Exception e) {
@@ -91,11 +89,12 @@ public class AuditFinalizer implements AuditOperationFinisher {
 	/** 写最终事件并移除登记；登记已被其它实例取走时不重复写。 */
 	@Override
 	public void finish(String objectType, String objectId, String objectName, AuditOutcome outcome, String reason) {
-		AuditOperationRegistry.Pending pending = registry.take(objectType, objectId);
-		if (pending == null) {
-			return;
+		for (AuditOperationRegistry.Pending pending : registry.pendingOperations(objectType, objectId)) {
+			AuditOperationRegistry.Pending consumed = registry.takeOwned(objectType, objectId, pending.getOperationId());
+			if (consumed != null) {
+				writeFinal(consumed, objectId, objectName, outcome, reason);
+			}
 		}
-		writeFinal(pending, objectId, objectName, outcome, reason);
 	}
 
 	private void writeFinal(AuditOperationRegistry.Pending pending, String objectId, String objectName,

@@ -132,64 +132,71 @@ public class AuditQueryService {
 	}
 
 	/**
-	 * 受限用户的可见事件：本人发起的事件，以及与本人 REQUEST 同 Operation
-	 * <strong>且同对象</strong> 的 SYSTEM 最终事件。
-	 *
-	 * <p>只按 Operation ID 放行会把旧冲突记录里他人对象的 FINAL 一并带出，
-	 * 因此 SYSTEM 事件必须能关联到本人该 Operation 下的某个对象；归属无法唯一确定的不扩大可见范围
-	 * （TAP-13018 review）。</p>
+	 * 本人事件始终保留；SYSTEM FINAL 只能关联到真实受理的 REQUEST 对象。
+	 * 旧 Operation ID 可能跨用户冲突，必须同时匹配 action、对象类型和对象 ID，
+	 * 且该对象的受理用户唯一；失败尝试、批量失败项与无对象事件均不能扩大可见范围。
 	 */
 	List<AuditEventVo> visibleEvents(List<AuditEventVo> events, String scopeUserId) {
-		// 本人在每个 Operation 下发起过的对象集合
-		Map<String, Set<String>> ownObjects = new java.util.HashMap<>();
+		Map<VisibilityObject, Set<String>> acceptedOwners = new LinkedHashMap<>();
 		for (AuditEventVo e : events) {
-			if (scopeUserId.equals(e.getUserId()) && StringUtils.isNotBlank(e.getOperationId())) {
-				Set<String> objects = ownObjects.computeIfAbsent(e.getOperationId(), k -> new LinkedHashSet<>());
-				objects.addAll(eventObjects(e));
+			if (StringUtils.isBlank(e.getUserId()) || AuditValues.SYSTEM.equals(e.getUserId())
+					|| !"REQUEST".equals(e.getPhase())
+					|| (!AuditOutcome.ACCEPTED.name().equals(e.getOutcome())
+						&& !AuditOutcome.PARTIAL.name().equals(e.getOutcome()))) {
+				continue;
+			}
+			for (VisibilityObject object : eventObjects(e, true)) {
+				acceptedOwners.computeIfAbsent(object, k -> new LinkedHashSet<>()).add(e.getUserId());
 			}
 		}
+		Set<String> ownUser = Set.of(scopeUserId);
 		List<AuditEventVo> visible = new ArrayList<>();
 		for (AuditEventVo e : events) {
 			if (scopeUserId.equals(e.getUserId())) {
 				visible.add(e);
 				continue;
 			}
-			if (!AuditValues.SYSTEM.equals(e.getUserId()) || StringUtils.isBlank(e.getOperationId())) {
+			if (!AuditValues.SYSTEM.equals(e.getUserId()) || !"FINAL".equals(e.getPhase())) {
 				continue;
 			}
-			Set<String> own = ownObjects.get(e.getOperationId());
-			if (own == null || own.isEmpty()) {
-				continue;
-			}
-			List<String> objects = eventObjects(e);
-			if (objects.isEmpty()) {
-				// 未携带对象的 SYSTEM 事件只能关联到「本人该 Operation 只有一个对象」的确定场景
-				if (own.size() == 1) {
-					visible.add(e);
-				}
-				continue;
-			}
-			if (own.containsAll(objects)) {
+			List<VisibilityObject> objects = eventObjects(e, false);
+			if (!objects.isEmpty() && objects.stream().allMatch(object -> ownUser.equals(acceptedOwners.get(object)))) {
 				visible.add(e);
 			}
 		}
 		return visible;
 	}
 
-	/** 事件涉及的对象标识：批量取逐项明细，单对象取 objectId。 */
-	private static List<String> eventObjects(AuditEventVo event) {
-		List<String> objects = new ArrayList<>();
+	/** 可见性关联键必须完整；批量受理只取明确成功或受理的逐项结果，不回退顶层对象。 */
+	private static List<VisibilityObject> eventObjects(AuditEventVo event, boolean acceptedOnly) {
+		if (StringUtils.isBlank(event.getOperationId()) || StringUtils.isBlank(event.getAction())
+				|| StringUtils.isBlank(event.getObjectType())) {
+			return List.of();
+		}
+		List<String> ids = new ArrayList<>();
 		AuditBatch batch = event.getBatch();
-		if (batch != null && batch.getItems() != null) {
+		if (batch != null) {
+			if (batch.getItems() == null) {
+				return List.of();
+			}
 			for (AuditBatchItem item : batch.getItems()) {
-				if (item != null && item.getObjectId() != null) {
-					objects.add(item.getObjectId());
+				if (item == null || StringUtils.isBlank(item.getObjectId())) {
+					if (!acceptedOnly) {
+						return List.of();
+					}
+					continue;
+				}
+				if (!acceptedOnly || item.getOutcome() == AuditOutcome.ACCEPTED || item.getOutcome() == AuditOutcome.SUCCESS) {
+					ids.add(item.getObjectId());
 				}
 			}
-			return objects;
+		} else if (!acceptedOnly || AuditOutcome.ACCEPTED.name().equals(event.getOutcome())) {
+			ids.addAll(splitIds(event.getObjectId()));
 		}
-		objects.addAll(splitIds(event.getObjectId()));
-		return objects;
+		return ids.stream().map(id -> new VisibilityObject(event.getOperationId(), event.getAction(), event.getObjectType(), id)).toList();
+	}
+
+	private record VisibilityObject(String operationId, String action, String objectType, String objectId) {
 	}
 
 	private static String keyAction(List<AuditEventVo> events) {
