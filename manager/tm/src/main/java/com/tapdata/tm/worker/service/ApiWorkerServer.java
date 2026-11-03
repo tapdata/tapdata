@@ -47,7 +47,7 @@ public class ApiWorkerServer {
         Criteria apiServerCriteria = Criteria.where(PROCESS_ID).is(processId)
                 .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType());
         if (StringUtils.isBlank(workerOid)) {
-            mongoOperations.updateFirst(Query.query(apiServerCriteria),
+            mongoOperations.updateMulti(Query.query(apiServerCriteria),
                     new org.springframework.data.mongodb.core.query.Update().set(WorkerField.DELETED.field(), true),
                     WORKERS);
             return;
@@ -72,7 +72,7 @@ public class ApiWorkerServer {
                 );
         deleteItem.forEach(item -> {
             try {
-                mongoOperations.updateFirst(Query.query(apiServerCriteria),
+                mongoOperations.updateMulti(Query.query(apiServerCriteria),
                         new org.springframework.data.mongodb.core.query.Update().unset(WorkerField.ApiServerStatus.WORKERS.field() + "." + item),
                         WORKERS);
             } catch (Exception e) {

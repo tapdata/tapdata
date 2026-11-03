@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
 class WorkerRepositoryTest {
 
     @Test
-    void retriesUserDetailUpsertAfterDuplicateKey() {
+    void updatesExistingWorkerAfterDuplicateKey() {
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         UserDetail userDetail = mock(UserDetail.class);
         when(userDetail.getUserId()).thenReturn("user");
@@ -39,8 +39,46 @@ class WorkerRepositoryTest {
 
         UpdateResult success = UpdateResult.acknowledged(1, 1L, null);
         when(mongoTemplate.upsert(any(Query.class), any(Update.class), eq(Worker.class)))
-                .thenThrow(new DuplicateKeyException("worker key raced"))
+                .thenThrow(new DuplicateKeyException("worker key raced"));
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(Worker.class)))
                 .thenReturn(success);
+
+        ReflectionTestUtils.setField(BaseRepository.class, "repositoryFactory", null);
+        try (MockedConstruction<MongoRepositoryFactory> ignored = mockConstruction(
+                MongoRepositoryFactory.class,
+                (factory, context) -> {
+                    MongoEntityInformation<Worker, Object> information = mock(MappingMongoEntityInformation.class);
+                    when(factory.getEntityInformation(Worker.class)).thenReturn(information);
+                })) {
+            WorkerRepository repository = new WorkerRepository(mongoTemplate);
+            Worker worker = new Worker();
+            worker.setWorkerType("api-server");
+            worker.setProcessId("api-server-1");
+            Query query = new Query();
+
+            assertDoesNotThrow(() -> repository.upsert(query, worker, userDetail));
+
+            verify(mongoTemplate, times(1)).upsert(any(Query.class), any(Update.class), eq(Worker.class));
+            verify(mongoTemplate, times(1)).updateMulti(same(query), any(Update.class), eq(Worker.class));
+            verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(Worker.class));
+        }
+    }
+
+    @Test
+    void ignoresFallbackUpdateFailureAfterDuplicateKey() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        UserDetail userDetail = mock(UserDetail.class);
+        when(userDetail.getUserId()).thenReturn("user");
+        when(userDetail.getCustomerId()).thenReturn("customer");
+        when(userDetail.getUsername()).thenReturn("tester");
+        when(userDetail.getAuthorities()).thenReturn(Collections.emptyList());
+        when(userDetail.isRoot()).thenReturn(true);
+        new DataPermissionHelper(mock(IDataPermissionHelper.class));
+
+        when(mongoTemplate.upsert(any(Query.class), any(Update.class), eq(Worker.class)))
+                .thenThrow(new DuplicateKeyException("worker key raced"));
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(Worker.class)))
+                .thenThrow(new RuntimeException("update failed"));
 
         ReflectionTestUtils.setField(BaseRepository.class, "repositoryFactory", null);
         try (MockedConstruction<MongoRepositoryFactory> ignored = mockConstruction(
@@ -55,8 +93,6 @@ class WorkerRepositoryTest {
             worker.setProcessId("api-server-1");
 
             assertDoesNotThrow(() -> repository.upsert(new Query(), worker, userDetail));
-
-            verify(mongoTemplate, times(2)).upsert(any(Query.class), any(Update.class), eq(Worker.class));
         }
     }
 }

@@ -115,16 +115,21 @@ public class V4_25_2_WorkerApiServerUnique extends AbsPatch {
             return;
         }
         if (existing != null) {
-            collection.dropIndex(options.getName());
+            try {
+                collection.dropIndex(options.getName());
+            } catch (Exception e) {
+                logger.warn("Failed to drop index {}, it may have been removed concurrently",
+                        options.getName(), e);
+            }
         }
         collection.createIndex(expectedKey, options);
     }
 
     static Document selectCanonical(List<Document> workers) {
         return workers.stream()
-                .max(Comparator.comparing(V4_25_2_WorkerApiServerUnique::hasWorkerStatus)
-                        .thenComparingLong(V4_25_2_WorkerApiServerUnique::pingTime)
+                .max(Comparator.comparingLong(V4_25_2_WorkerApiServerUnique::pingTime)
                         .thenComparingLong(V4_25_2_WorkerApiServerUnique::lastUpdated)
+                        .thenComparing(V4_25_2_WorkerApiServerUnique::hasWorkerStatus)
                         .thenComparing(V4_25_2_WorkerApiServerUnique::objectId,
                                 Comparator.nullsFirst(Comparator.naturalOrder())))
                 .orElse(null);
