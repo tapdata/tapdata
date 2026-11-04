@@ -73,9 +73,12 @@ public class AuditFinalizer implements AuditOperationFinisher {
 	public void finishOrRecord(String objectType, String objectId, String objectName, AuditAction fallback,
 							   com.tapdata.tm.config.security.UserDetail user) {
 		try {
-			AuditOperationRegistry.Pending pending = registry.peek(objectType, objectId);
-			if (pending != null) {
-				finish(objectType, objectId, objectName, AuditOutcome.SUCCESS, null);
+			var pending = registry.pendingOperations(objectType, objectId);
+			if (!pending.isEmpty()) {
+				AuditRequestContext context = AuditRequestContext.current();
+				finishOperation(objectType, objectId, objectName, fallback,
+						context != null && context.inAuditedScope() ? context.getOperationId() : null,
+						AuditOutcome.SUCCESS, null);
 				return;
 			}
 			AuditEvent event = AuditEvent.of(fallback, AuditOutcome.SUCCESS);
@@ -86,14 +89,35 @@ public class AuditFinalizer implements AuditOperationFinisher {
 		}
 	}
 
-	/** 写最终事件并移除登记；登记已被其它实例取走时不重复写。 */
+	/** 对象级旧回报仅允许无歧义的完成；API 配置回报必须提供原始 Operation。 */
 	@Override
 	public void finish(String objectType, String objectId, String objectName, AuditOutcome outcome, String reason) {
-		for (AuditOperationRegistry.Pending pending : registry.pendingOperations(objectType, objectId)) {
-			AuditOperationRegistry.Pending consumed = registry.takeOwned(objectType, objectId, pending.getOperationId());
-			if (consumed != null) {
-				writeFinal(consumed, objectId, objectName, outcome, reason);
+		finishOperation(objectType, objectId, objectName, null, null, outcome, reason);
+	}
+
+	@Override
+	public void finishOperation(String objectType, String objectId, String objectName, AuditAction action,
+			String operationId, AuditOutcome outcome, String reason) {
+		if ("api".equals(objectType) && (action == null || operationId == null || operationId.isBlank())) {
+			// 唯一 pending 也不能证明旧配置的迟到回报属于当前版本。
+			log.warn("API audit completion requires action and operationId, id={}", objectId);
+			return;
+		}
+		var candidates = registry.pendingOperations(objectType, objectId).stream()
+				.filter(p -> action == null || action.getKey().equals(p.getAction()))
+				.filter(p -> operationId == null || operationId.equals(p.getOperationId()))
+				.toList();
+		if (candidates.size() != 1) {
+			if (candidates.size() > 1) {
+				log.warn("Ambiguous audit completion, type={}, id={}, action={}; operationId is required",
+						objectType, objectId, action);
 			}
+			return;
+		}
+		AuditOperationRegistry.Pending pending = candidates.get(0);
+		AuditOperationRegistry.Pending consumed = registry.takeOwned(objectType, objectId, pending.getOperationId());
+		if (consumed != null) {
+			writeFinal(consumed, objectId, objectName, outcome, reason);
 		}
 	}
 

@@ -345,8 +345,9 @@ public class ModulesController extends BaseController {
    * @return
    */
   @PostMapping("update-publish-status")
-  public ResponseMessage<Void> updatePublishStatus(@RequestBody Map<String, String> publishStatus) {
-    modulesService.updatePublishMsg(publishStatus);
+  public ResponseMessage<Void> updatePublishStatus(@RequestBody Map<String, String> publishStatus,
+      @RequestParam(value = "operationId", required = false) String operationId) {
+    modulesService.updatePublishMsg(publishStatus, operationId);
     return success();
   }
 

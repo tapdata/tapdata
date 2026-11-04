@@ -767,13 +767,18 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public void updatePublishMsg(Map<String, String> apiStatus) {
+		updatePublishMsg(apiStatus, null);
+	}
+
+	public void updatePublishMsg(Map<String, String> apiStatus, String operationId) {
 		if (org.springframework.util.CollectionUtils.isEmpty(apiStatus)) {
 			return;
 		}
 		bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
 		if (auditOperationFinisher != null) {
 			// API Server 回报发布结果：空消息为发布成功，否则为失败原因
-			apiStatus.forEach((id, msg) -> auditOperationFinisher.finish("api", id, null,
+			apiStatus.forEach((id, msg) -> auditOperationFinisher.finishOperation("api", id, null,
+					com.tapdata.tm.audit.AuditAction.API_PUBLISH, operationId,
 					org.apache.commons.lang3.StringUtils.isBlank(msg) ? AuditOutcome.SUCCESS : AuditOutcome.FAILED, msg));
 		}
 	}
