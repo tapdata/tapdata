@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.sharecdc;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -15,12 +16,12 @@ public class ShareCDCOffset implements Serializable {
 	private Object streamOffset;
 
 	public ShareCDCOffset(Map<String, Long> sequenceMap, Object streamOffset) {
-		this.sequenceMap = sequenceMap;
+		this.sequenceMap = null == sequenceMap ? null : new HashMap<>(sequenceMap);
 		this.streamOffset = streamOffset;
 	}
 
 	public Map<String, Long> getSequenceMap() {
-		return sequenceMap;
+		return null == sequenceMap ? null : new HashMap<>(sequenceMap);
 	}
 
 	public Object getStreamOffset() {
