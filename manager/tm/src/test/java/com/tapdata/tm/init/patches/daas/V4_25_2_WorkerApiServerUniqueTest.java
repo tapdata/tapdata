@@ -3,6 +3,7 @@ package com.tapdata.tm.init.patches.daas;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.IndexOptions;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -65,6 +66,46 @@ class V4_25_2_WorkerApiServerUniqueTest {
         verify(mongoCollection).createIndex(
                 any(Document.class),
                 argThat(options -> "update_worker_status_index".equals(options.getName()))
+        );
+    }
+
+    @Test
+    void apiServerIndexUsesDifferentKeyPatternWhenLegacyManagerIndexExists() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        MongoCollection<Document> mongoCollection = mock(MongoCollection.class);
+        ListIndexesIterable<Document> indexes = mock(ListIndexesIterable.class);
+        FindIterable<Document> workers = mock(FindIterable.class);
+        when(mongoTemplate.getCollection("Workers")).thenReturn(mongoCollection);
+        when(mongoCollection.listIndexes()).thenReturn(indexes);
+        when(indexes.into(anyList())).thenAnswer(invocation -> {
+            List<Document> result = invocation.getArgument(0);
+            result.add(new Document("name", "worker_type_1_process_id_1")
+                    .append("key", new Document("process_id", 1).append("worker_type", 1))
+                    .append("partialFilterExpression", new Document("worker_type", "tapdata-manager"))
+                    .append("unique", true));
+            return result;
+        });
+        when(mongoCollection.find(any(Bson.class))).thenReturn(workers);
+        when(workers.into(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        V4_25_2_WorkerApiServerUnique patch = new V4_25_2_WorkerApiServerUnique(null, null);
+        try (MockedStatic<SpringContextHelper> mockedHelper = mockStatic(SpringContextHelper.class)) {
+            mockedHelper.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(mongoTemplate);
+
+            patch.run();
+        }
+
+        verify(mongoCollection).createIndex(
+                argThat((Document key) -> List.copyOf(key.keySet())
+                        .equals(List.of("worker_type", "process_id"))
+                        && Integer.valueOf(1).equals(key.get("worker_type"))
+                        && Integer.valueOf(1).equals(key.get("process_id"))),
+                argThat((IndexOptions options) -> V4_25_2_WorkerApiServerUnique.INDEX_NAME.equals(options.getName())
+                        && options.isUnique()
+                        && new Document("worker_type", "api-server")
+                        .append("deleted", false)
+                        .append("process_id", new Document("$gt", ""))
+                        .equals(options.getPartialFilterExpression()))
         );
     }
 
