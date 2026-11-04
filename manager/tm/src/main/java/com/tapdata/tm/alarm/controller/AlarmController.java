@@ -12,6 +12,7 @@ import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
@@ -35,6 +36,7 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -85,6 +87,13 @@ public class AlarmController extends BaseController {
     private InspectService inspectService;
     private UserService userService;
     private UserLogService userLogService;
+    private PermissionService permissionService;
+
+    private boolean canConfigureInspect(UserDetail user) {
+        return user != null && permissionService != null && (
+                permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_DATA_CHECK_CREATE, user.getUserId())
+                        || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_DATA_CHECK_EDIT, user.getUserId()));
+    }
 
     @Operation(summary = "find all alarm")
     @GetMapping("list")
@@ -267,14 +276,12 @@ public class AlarmController extends BaseController {
                 });
     }
 
-    private boolean canEditInspect(HttpServletRequest request, UserDetail user, ObjectId id) {
-        ObjectId decoded = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
-                .map(MongoUtils::toObjectId).orElse(id);
+    private boolean canAccessInspect(UserDetail user, InspectDto inspect, DataPermissionActionEnums action) {
         return Boolean.TRUE.equals(DataPermissionHelper.checkOfQuery(
                 user,
                 DataPermissionDataTypeEnums.INSPECT,
-                DataPermissionActionEnums.Edit,
-                inspectService.dataPermissionFindById(decoded, new Field()),
+                action,
+                () -> inspect,
                 dto -> DataPermissionMenuEnums.INSPECT_TACK,
                 () -> true,
                 () -> false));
@@ -336,13 +343,18 @@ public class AlarmController extends BaseController {
             if (inspectId == null) {
                 throw new BizException("IllegalArgument", "inspectId");
             }
-            InspectDto inspect = checkInspect(request, user, inspectId, DataPermissionActionEnums.View,
-                    () -> inspectService.findById(inspectId, Field.includes("userId", "alarmReceivers", "emailReceivers")));
+            ObjectId decoded = Optional.ofNullable(DataPermissionHelper.signDecode(request, inspectId.toHexString()))
+                    .map(MongoUtils::toObjectId).orElse(inspectId);
+            InspectDto inspect = inspectService.findById(decoded,
+                    Field.includes("userId", "alarmReceivers", "emailReceivers", DataPermissionHelper.FIELD_NAME));
             if (inspect == null) {
                 throw new BizException("IllegalArgument", "inspectId");
             }
+            if (!canAccessInspect(user, inspect, DataPermissionActionEnums.View)) {
+                throw insufficientInspectPermissions(DataPermissionActionEnums.View);
+            }
             currentReceivers = inspect.getAlarmReceivers();
-            if (!canEditInspect(request, user, inspectId)) {
+            if (!canAccessInspect(user, inspect, DataPermissionActionEnums.Edit)) {
                 previewReceivers = inspect.getAlarmReceivers();
                 previewEmails = inspect.getEmailReceivers();
             } else {
@@ -352,9 +364,7 @@ public class AlarmController extends BaseController {
                 ownerUserId = inspect.getUserId();
             }
         } else {
-            boolean canCreate = Boolean.TRUE.equals(DataPermissionHelper.check(
-                    user, DataPermissionMenuEnums.INSPECT_TACK, DataPermissionActionEnums.Edit,
-                    DataPermissionDataTypeEnums.INSPECT, null, () -> true, () -> false));
+            boolean canCreate = canConfigureInspect(user);
             if (!canCreate) {
                 throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
             }
@@ -385,12 +395,11 @@ public class AlarmController extends BaseController {
                                                                         @RequestParam(required = false) List<String> taskIds,
                                                                         @RequestParam(required = false) Boolean inspectScope) {
         UserDetail user = getLoginUser();
-        if (Boolean.TRUE.equals(inspectScope) && !Boolean.TRUE.equals(DataPermissionHelper.check(
-                user, DataPermissionMenuEnums.INSPECT_TACK, DataPermissionActionEnums.Edit,
-                DataPermissionDataTypeEnums.INSPECT, null, () -> true, () -> false))) {
-            throw new BizException("insufficient.permissions",
-                    needAction(DataPermissionDataTypeEnums.INSPECT, List.of(DataPermissionActionEnums.Edit)),
-                    needAction(DataPermissionDataTypeEnums.INSPECT, List.of(DataPermissionActionEnums.Edit)));
+        if (Boolean.TRUE.equals(inspectScope) && user == null) {
+            throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
+        }
+        if (Boolean.TRUE.equals(inspectScope) && !canConfigureInspect(user)) {
+            throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
         }
         java.util.Set<String> ids = new java.util.LinkedHashSet<>();
         if (taskId != null && !taskId.isBlank()) {
@@ -411,9 +420,6 @@ public class AlarmController extends BaseController {
         }
         boolean fullDirectory = alarmReceiverAccess.canViewUserDirectory(user);
         if (editableTaskIds.isEmpty() && (ids.isEmpty() && Boolean.TRUE.equals(inspectScope))) {
-            if (user == null) {
-                throw insufficientPermissions(DataPermissionActionEnums.Edit);
-            }
             // A new arbitrary-table inspect has no task ID yet. Limit its picker to the
             // caller's own directory scope; privileged directory viewers keep full access.
             AlarmReceiverCandidates candidates = alarmService.receiverCandidates(
@@ -426,7 +432,8 @@ public class AlarmController extends BaseController {
             return success(candidates);
         }
         if (editableTaskIds.isEmpty()) {
-            throw insufficientPermissions(DataPermissionActionEnums.Edit);
+            throw Boolean.TRUE.equals(inspectScope) ? insufficientInspectPermissions(DataPermissionActionEnums.Edit)
+                    : insufficientPermissions(DataPermissionActionEnums.Edit);
         }
         // 没有用户管理权限时只给本人所在组（含子组）的成员和组，外加这些任务已引用的接收人；邮箱一律不返回
         AlarmReceiverCandidates candidates = alarmService.receiverCandidates(

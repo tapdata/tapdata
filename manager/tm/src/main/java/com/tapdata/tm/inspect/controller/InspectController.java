@@ -56,6 +56,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.function.Supplier;
 
@@ -166,7 +167,9 @@ public class InspectController extends BaseController {
                         dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
                         () -> taskService.findByTaskId(linkedId, "alarmReceivers", "emailReceivers"),
                         () -> null);
-                if (linkedTask != null) {
+                // Only an unchanged selection from a task the caller may view can be inherited.
+                // A subset or modified selection is a new Inspect reference and needs its own scope check.
+                if (linkedTask != null && Objects.equals(inspect.getAlarmReceivers(), linkedTask.getAlarmReceivers())) {
                     existingReceivers = linkedTask.getAlarmReceivers();
                 }
             }

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class InspectAlarmReceiverContractTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -22,10 +23,13 @@ class InspectAlarmReceiverContractTest {
                 new AlarmReceiver(AlarmReceiverType.EMAIL, null, "ops@example.com")));
         source.setEmailReceivers(List.of("ops@example.com"));
 
-        InspectDto roundTrip = objectMapper.readValue(objectMapper.writeValueAsBytes(source), InspectDto.class);
+        byte[] response = objectMapper.writeValueAsBytes(source);
+        InspectDto roundTrip = objectMapper.readValue(response, InspectDto.class);
 
         assertEquals(source.getAlarmReceivers(), roundTrip.getAlarmReceivers());
-        assertEquals(source.getEmailReceivers(), roundTrip.getEmailReceivers());
+        assertFalse(objectMapper.readTree(response).has("emailReceivers"));
+        InspectDto input = objectMapper.readValue("{\"emailReceivers\":[\"ops@example.com\"]}", InspectDto.class);
+        assertEquals(List.of("ops@example.com"), input.getEmailReceivers());
     }
 
     @Test

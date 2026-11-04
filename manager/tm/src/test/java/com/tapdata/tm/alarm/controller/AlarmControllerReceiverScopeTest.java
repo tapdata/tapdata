@@ -3,12 +3,12 @@ package com.tapdata.tm.alarm.controller;
 import com.tapdata.tm.alarm.dto.InspectReceiverPreviewRequest;
 import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
@@ -48,6 +48,7 @@ class AlarmControllerReceiverScopeTest {
     private TaskService taskService;
     private InspectService inspectService;
     private AlarmReceiverAccess access;
+    private PermissionService permissionService;
     private UserDetail user;
     private HttpServletRequest request;
     private final ObjectId taskId = new ObjectId();
@@ -59,11 +60,15 @@ class AlarmControllerReceiverScopeTest {
         taskService = mock(TaskService.class);
         inspectService = mock(InspectService.class);
         access = mock(AlarmReceiverAccess.class);
+        permissionService = mock(PermissionService.class);
         controller.setAlarmService(alarmService);
         controller.setTaskService(taskService);
         controller.setInspectService(inspectService);
         controller.setAlarmReceiverAccess(access);
+        controller.setPermissionService(permissionService);
         user = mock(UserDetail.class);
+        when(user.getUserId()).thenReturn("current-user");
+        when(permissionService.checkCurrentUserHasPermission(any(), any())).thenReturn(true);
         request = mock(HttpServletRequest.class);
         doReturn(user).when(controller).getLoginUser();
     }
@@ -111,20 +116,13 @@ class AlarmControllerReceiverScopeTest {
         AlarmReceiverCandidates candidates = new AlarmReceiverCandidates();
         when(alarmService.receiverCandidates("current-user", Collections.emptyList())).thenReturn(candidates);
 
-        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
-                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
-            assertSame(candidates, controller.receiverCandidates(request, null, null, true).getData());
-        }
+        assertSame(candidates, controller.receiverCandidates(request, null, null, true).getData());
     }
 
     @Test
     void arbitraryTableInspectCandidateListRequiresInspectPermission() {
-        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
-                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
-            assertThrows(BizException.class, () -> controller.receiverCandidates(request, null, null, true));
-        }
+        when(permissionService.checkCurrentUserHasPermission(any(), any())).thenReturn(false);
+        assertThrows(BizException.class, () -> controller.receiverCandidates(request, null, null, true));
         verify(alarmService, never()).receiverCandidates(any(), any());
     }
 
@@ -138,11 +136,7 @@ class AlarmControllerReceiverScopeTest {
         AlarmReceiverPreview preview = new AlarmReceiverPreview();
         when(alarmService.previewInspectReceivers(List.of(receiver), null, "current-user")).thenReturn(preview);
 
-        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
-                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
-            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
-        }
+        assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
 
         verify(access).checkNewReferences(user, List.of(receiver), (List<AlarmReceiver>) null);
         verify(alarmService).previewInspectReceivers(List.of(receiver), null, "current-user");
@@ -151,11 +145,8 @@ class AlarmControllerReceiverScopeTest {
     @Test
     void inspectDraftPreviewRejectsUserWithoutInspectEditPermission() {
         InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
-        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
-                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
-            assertThrows(BizException.class, () -> controller.inspectReceiverPreview(request, previewRequest));
-        }
+        when(permissionService.checkCurrentUserHasPermission(any(), any())).thenReturn(false);
+        assertThrows(BizException.class, () -> controller.inspectReceiverPreview(request, previewRequest));
         verify(alarmService, never()).previewInspectReceivers(any(), any(), any());
     }
 
@@ -218,38 +209,6 @@ class AlarmControllerReceiverScopeTest {
 
         verify(access).checkNewReferences(user, List.of(saved, added), List.of(saved));
         verify(alarmService).previewInspectReceivers(List.of(saved, added), null, "inspect-owner");
-    }
-
-    @Test
-    void inspectDraftPreviewRequiresEditPermissionAndUsesDraftReceivers() {
-        when(user.getUserId()).thenReturn("current-user");
-        when(access.canViewUserDirectory(user)).thenReturn(true);
-        AlarmReceiver receiver = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "ops@example.com");
-        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
-        previewRequest.setAlarmReceivers(List.of(receiver));
-        AlarmReceiverPreview preview = new AlarmReceiverPreview();
-        when(alarmService.previewInspectReceivers(List.of(receiver), null, "current-user"))
-                .thenReturn(preview);
-
-        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
-                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
-            assertSame(preview, controller.inspectReceiverPreview(request, previewRequest).getData());
-        }
-
-        verify(access).checkNewReferences(user, List.of(receiver), (List<AlarmReceiver>) null);
-        verify(alarmService).previewInspectReceivers(List.of(receiver), null, "current-user");
-    }
-
-    @Test
-    void inspectDraftPreviewRejectsUsersWithoutInspectEditPermission() {
-        InspectReceiverPreviewRequest previewRequest = new InspectReceiverPreviewRequest();
-        try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(same(user), any(), any(), any(), eq(null), any(), any()))
-                    .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
-            assertThrows(BizException.class, () -> controller.inspectReceiverPreview(request, previewRequest));
-        }
-        verify(alarmService, never()).previewInspectReceivers(any(), any(), any());
     }
 
     @Test
