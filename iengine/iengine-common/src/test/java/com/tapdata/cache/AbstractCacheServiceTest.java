@@ -403,9 +403,18 @@ public class AbstractCacheServiceTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void followerStartsAnAbandonedNewLoad() throws Exception {
+        assertFollowerStartsAbandonedLoad(false);
+        assertFollowerStartsAbandonedLoad(true);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertFollowerStartsAbandonedLoad(boolean hasStaleConfig) throws Exception {
         TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        if (hasStaleConfig) {
+            registerConfig(service, "abandoned");
+            service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        }
         DataFlowCacheConfig config = new DataFlowCacheConfig();
         service.configLoader = name -> config;
         Class<?> type = Class.forName(AbstractCacheService.class.getName() + "$ConfigLoad");

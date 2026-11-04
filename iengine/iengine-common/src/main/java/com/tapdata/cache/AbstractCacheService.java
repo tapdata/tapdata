@@ -247,7 +247,8 @@ public abstract class AbstractCacheService implements ICacheService {
 		}
 		ConfigLoad candidate = new ConfigLoad(cacheName);
 		ConfigLoad existing = cacheConfigLoads.putIfAbsent(cacheName, candidate);
-		if (existing != null && (cached != null || existing.owner == Thread.currentThread())) {
+		if (existing != null && (existing.owner == Thread.currentThread()
+				|| (cached != null && existing.owner != null))) {
 			// A refresh is already in flight; an available config must remain usable.
 			return cached == null ? null : cached.config;
 		}
