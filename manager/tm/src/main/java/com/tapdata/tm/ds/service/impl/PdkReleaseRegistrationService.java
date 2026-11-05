@@ -10,7 +10,6 @@ import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.core.constants.DataSourceQCType;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
-import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -30,6 +30,10 @@ import java.util.zip.ZipInputStream;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class PdkReleaseRegistrationService {
+    static final int MAX_ENTRIES = 10_000;
+    static final long MAX_ENTRY_BYTES = 64L * 1024 * 1024;
+    static final long MAX_TOTAL_BYTES = 512L * 1024 * 1024;
+
     private PdkReleaseCatalogService releaseCatalogService;
     private PkdSourceService pkdSourceService;
 
@@ -82,11 +86,20 @@ public class PdkReleaseRegistrationService {
         List<PdkSourceDto> sources = new ArrayList<>();
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(jarBytes))) {
             ZipEntry entry;
+            int entryCount = 0;
+            long totalBytes = 0;
             while ((entry = zip.getNextEntry()) != null) {
+                if (++entryCount > MAX_ENTRIES) {
+                    throw new BizException("Released connector artifact has too many entries");
+                }
                 if (entry.isDirectory()) {
                     continue;
                 }
-                byte[] content = readEntry(zip);
+                byte[] content = readEntry(zip, MAX_ENTRY_BYTES);
+                totalBytes += content.length;
+                if (totalBytes > MAX_TOTAL_BYTES) {
+                    throw new BizException("Released connector artifact is too large");
+                }
                 String entryName = entry.getName();
 
                 if (entryName.endsWith(".md")) {
@@ -102,6 +115,8 @@ public class PdkReleaseRegistrationService {
                     }
                 }
             }
+        } catch (BizException e) {
+            throw e;
         } catch (Exception e) {
             throw new BizException("Unable to read PDK specification from released connector", e);
         }
@@ -157,9 +172,18 @@ public class PdkReleaseRegistrationService {
         return source;
     }
 
-    private byte[] readEntry(InputStream inputStream) throws Exception {
+    private byte[] readEntry(InputStream inputStream, long maxBytes) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        IOUtils.copy(inputStream, output);
+        byte[] buffer = new byte[8192];
+        long total = 0;
+        int read;
+        while ((read = inputStream.read(buffer)) != -1) {
+            total += read;
+            if (total > maxBytes) {
+                throw new BizException("Released connector artifact entry is too large");
+            }
+            output.write(buffer, 0, read);
+        }
         return output.toByteArray();
     }
 

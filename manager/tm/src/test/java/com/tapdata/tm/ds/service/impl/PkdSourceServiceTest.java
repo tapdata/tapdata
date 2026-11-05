@@ -1170,4 +1170,49 @@ public class PkdSourceServiceTest {
 
 
     }
+
+    @Nested
+    class RegistrationImpactTest {
+        @Test
+        void reportsRunningTasksAndInspects() {
+            UserDetail user = mock(UserDetail.class);
+            DataSourceConnectionDto connection = new DataSourceConnectionDto();
+            connection.setId(new ObjectId());
+            TaskDto task = new TaskDto();
+            task.setId(new ObjectId());
+            task.setName("sync-task");
+            task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            InspectDto inspect = new InspectDto();
+            inspect.setId(new ObjectId());
+            inspect.setName("inspect-task");
+            when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>(List.of(connection)));
+            when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>(List.of(task)));
+            when(inspectService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>(List.of(inspect)));
+
+            Map<String, Object> impact = pkdSourceService.registrationImpact("mysql", "io.tapdata", user);
+
+            assertEquals(Boolean.TRUE, impact.get("hasInFlightResources"));
+            List<?> tasks = (List<?>) impact.get("tasks");
+            Map<?, ?> taskMap = (Map<?, ?>) tasks.get(0);
+            assertEquals(task.getId().toHexString(), taskMap.get("id"));
+            assertEquals("sync-task", taskMap.get("name"));
+            assertEquals(TaskDto.SYNC_TYPE_SYNC, taskMap.get("syncType"));
+            Map<?, ?> inspectMap = (Map<?, ?>) ((List<?>) impact.get("inspects")).get(0);
+            assertEquals(inspect.getId().toHexString(), inspectMap.get("id"));
+            assertEquals("inspect-task", inspectMap.get("name"));
+        }
+
+        @Test
+        void reportsNoResourcesWhenConnectorIsUnused() {
+            UserDetail user = mock(UserDetail.class);
+            when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.emptyList());
+
+            Map<String, Object> impact = pkdSourceService.registrationImpact("mysql", "io.tapdata", user);
+
+            assertEquals(Boolean.FALSE, impact.get("hasInFlightResources"));
+            assertTrue(((List<?>) impact.get("tasks")).isEmpty());
+            assertTrue(((List<?>) impact.get("inspects")).isEmpty());
+            verify(taskService, never()).findAllDto(any(Query.class), eq(user));
+        }
+    }
 }
