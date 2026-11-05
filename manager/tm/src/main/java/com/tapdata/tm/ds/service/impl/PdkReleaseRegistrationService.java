@@ -18,8 +18,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.InputStream;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,7 +78,7 @@ public class PdkReleaseRegistrationService {
     private List<PdkSourceDto> readSources(byte[] jarBytes, String fileName, String expectedPdkId, List<MultipartFile> files) {
         Path localJar = null;
         try (RegistrationArchive archive = new RegistrationArchive()) {
-            localJar = Files.createTempFile("pdk-registration-", ".jar");
+            localJar = createPrivateTempJar();
             Files.write(localJar, jarBytes);
             List<PdkSourceDto> sources = new ArrayList<>();
             Map<String, MultipartFile> resources = new LinkedHashMap<>();
@@ -106,6 +108,20 @@ public class PdkReleaseRegistrationService {
                 }
             }
         }
+    }
+
+    private static Path createPrivateTempJar() throws IOException {
+        if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            return Files.createTempFile("pdk-registration-", ".jar",
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        }
+        File file = Files.createTempFile("pdk-registration-", ".jar").toFile();
+        boolean restricted = file.setReadable(true, true) && file.setWritable(true, true);
+        if (!restricted) {
+            Files.deleteIfExists(file.toPath());
+            throw new IOException("Unable to restrict permissions of temporary connector file");
+        }
+        return file.toPath();
     }
 
     private void addResource(TapNodeInfo nodeInfo, String path, String contentType,
