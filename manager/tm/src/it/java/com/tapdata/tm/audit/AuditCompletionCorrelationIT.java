@@ -40,6 +40,26 @@ class AuditCompletionCorrelationIT {
 	}
 
 	@Test
+	void superseded_publish_stays_failed_when_its_success_report_arrives_late() {
+		begin("publish-v1");
+		controller.publish("api-1");
+		begin("publish-v2");
+		controller.publish("api-1");
+		AuditWebContext.end();
+		fixture.finalizer.finishOperation("api", "api-1", null, AuditAction.API_PUBLISH,
+				"publish-v1", AuditOutcome.FAILED, "Superseded; final state was not confirmed");
+		fixture.finalizer.finishOperation("api", "api-1", null, AuditAction.API_PUBLISH,
+				"publish-v1", AuditOutcome.SUCCESS, "");
+		assertThat(fixture.events).filteredOn(e -> "FINAL".equals(e.getPhase()))
+				.singleElement().satisfies(event -> {
+					assertThat(event.getOperationId()).isEqualTo("publish-v1");
+					assertThat(event.getOutcome()).isEqualTo("FAILED");
+				});
+		assertThat(fixture.registry.pendingOperations("api", "api-1"))
+				.extracting(AuditOperationRegistry.Pending::getOperationId).containsExactly("publish-v2");
+	}
+
+	@Test
 	void old_report_must_not_finish_a_later_publish_even_if_it_is_the_only_pending_operation() {
 		begin("publish-v1");
 		controller.publish("api-1");

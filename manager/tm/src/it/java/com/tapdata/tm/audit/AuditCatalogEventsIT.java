@@ -119,7 +119,7 @@ class AuditCatalogEventsIT {
 		assertAudited("com.tapdata.tm.user.controller.UserController", "revealAccessCode", AuditAction.USER_VIEW_ACCESS_CODE);
 		assertAudited("com.tapdata.tm.application.controller.ApplicationController", "revealSecret", AuditAction.API_CLIENT_VIEW_SECRET);
 		assertAudited("com.tapdata.tm.role.controller.RoleController", "delete", AuditAction.ROLE_DELETE);
-		assertAudited("com.tapdata.tm.modules.controller.ModulesController", "generate", AuditAction.API_PUBLISH);
+		assertAudited("com.tapdata.tm.modules.controller.ModulesController", "generate", AuditAction.API_UPDATE);
 		assertAudited("com.tapdata.tm.webhook.controller.WebHookController", "create", AuditAction.WEBHOOK_CREATE);
 	}
 
