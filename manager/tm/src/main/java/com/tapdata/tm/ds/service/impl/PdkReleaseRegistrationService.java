@@ -3,6 +3,7 @@ package com.tapdata.tm.ds.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import io.tapdata.encryptor.JarEncryptor;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,19 +36,19 @@ public class PdkReleaseRegistrationService {
 
     private PdkReleaseCatalogService releaseCatalogService;
     private PkdSourceService pkdSourceService;
+    private SettingsService settingsService;
 
     public Map<String, Object> registrationImpact(String pdkId, UserDetail user) {
+        requireEnterprise(user);
         return pkdSourceService.registrationImpact(pdkId, "io.tapdata", user);
     }
 
     public void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
                                     boolean ignoreInFlightResources, UserDetail user) {
+        requireEnterprise(user);
         Map<String, Object> release = releaseCatalogService.findRelease(artifactId);
         if (!expectedPdkId.equals(release.get("pdkId"))) {
             throw new BizException("Connector release does not match the requested PDK id");
-        }
-        if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
-            throw new BizException("Connector resources changed. Review affected tasks before registering.");
         }
         byte[] encryptedJar = releaseCatalogService.downloadJar(release);
         byte[] jarBytes;
@@ -69,11 +69,18 @@ public class PdkReleaseRegistrationService {
             throw new BizException("Released connector artifact does not contain its PDK specification");
         }
 
+        // Inspect current resources after download/decryption, immediately before registration.
         if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
             throw new BizException("Connector resources changed. Review affected tasks before registering.");
         }
 
         pkdSourceService.uploadPdk(files.toArray(new MultipartFile[0]), sources, true, user, !stopTasks);
+    }
+
+    private void requireEnterprise(UserDetail user) {
+        if (settingsService.isCloud() || user == null || user.isFreeAuth()) {
+            throw new BizException("Connector download and registration is available only in the enterprise edition");
+        }
     }
 
     private boolean hasInFlightResources(String pdkId, UserDetail user) {
@@ -95,11 +102,8 @@ public class PdkReleaseRegistrationService {
                 if (entry.isDirectory()) {
                     continue;
                 }
-                byte[] content = readEntry(zip, MAX_ENTRY_BYTES);
+                byte[] content = readEntry(zip, MAX_TOTAL_BYTES - totalBytes);
                 totalBytes += content.length;
-                if (totalBytes > MAX_TOTAL_BYTES) {
-                    throw new BizException("Released connector artifact is too large");
-                }
                 String entryName = entry.getName();
 
                 if (entryName.endsWith(".md")) {
@@ -153,8 +157,8 @@ public class PdkReleaseRegistrationService {
         source.setQcType(qcType == null ? DataSourceQCType.Alpha : qcType);
         source.setAuthentication(authentication);
         source.setTags(JSON.parseArray(JSON.toJSONString(properties.get("tags")), String.class));
-        source.setConfigOptions(asLinkedMap(specification.get("configOptions")));
-        source.setMessages(asLinkedMap(specification.get("messages")));
+        source.setConfigOptions(asLinkedMap(specification.getJSONObject("configOptions")));
+        source.setMessages(asLinkedMap(specification.getJSONObject("messages")));
         source.setExpression(JSON.toJSONString(specification.get("dataTypes")));
 
         List<Capability> capabilities = new ArrayList<>();
@@ -172,26 +176,20 @@ public class PdkReleaseRegistrationService {
         return source;
     }
 
-    private byte[] readEntry(InputStream inputStream, long maxBytes) throws IOException {
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        long total = 0;
-        int read;
-        while ((read = inputStream.read(buffer)) != -1) {
-            total += read;
-            if (total > maxBytes) {
-                throw new BizException("Released connector artifact entry is too large");
-            }
-            output.write(buffer, 0, read);
+    private byte[] readEntry(InputStream inputStream, long remainingBytes) throws IOException {
+        // Read one extra byte to detect overflow without draining an unbounded ZIP entry.
+        long limit = Math.min(MAX_ENTRY_BYTES, remainingBytes);
+        byte[] content = inputStream.readNBytes(Math.toIntExact(limit + 1));
+        if (content.length > limit) {
+            throw new BizException(remainingBytes < MAX_ENTRY_BYTES
+                    ? "Released connector artifact is too large"
+                    : "Released connector artifact entry is too large");
         }
-        return output.toByteArray();
+        return content;
     }
 
-    private LinkedHashMap<String, Object> asLinkedMap(Object value) {
-        if (value == null) {
-            return new LinkedHashMap<>();
-        }
-        return JSON.parseObject(JSON.toJSONString(value), LinkedHashMap.class);
+    private LinkedHashMap<String, Object> asLinkedMap(Map<String, Object> value) {
+        return value == null ? new LinkedHashMap<>() : new LinkedHashMap<>(value);
     }
 
     private static final class ByteArrayMultipartFile implements MultipartFile {

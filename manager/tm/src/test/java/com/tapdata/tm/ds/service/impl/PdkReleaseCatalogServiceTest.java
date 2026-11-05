@@ -14,12 +14,16 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PdkReleaseCatalogServiceTest {
     private static final String METADATA = "/io/tapdata/connectors-bom/maven-metadata.xml";
@@ -94,6 +98,73 @@ class PdkReleaseCatalogServiceTest {
         assertEquals("2.0.0", mysql.get("pdkAPIVersion"));
         assertEquals("1.2.0", mysql.get("bomVersion"));
         assertNull(releases.get(0).get("pdkAPIVersion"));
+    }
+
+    @Test
+    void findLatestReleasesSkipsMissingAndBlankDependencyVersions() {
+        publishBom("<release>1.2.0</release>");
+        String bom = new String(responses.get(BOM), StandardCharsets.UTF_8);
+        respond(BOM, bom.replace("</dependencies>",
+                "<dependency><groupId>io.tapdata</groupId><artifactId>missing-connector</artifactId></dependency>"
+                        + dependency("io.tapdata", "blank-connector", " ") + "</dependencies>"));
+
+        assertEquals(3, service.findLatestReleases().size());
+    }
+
+    @Test
+    void concurrentColdLoadFailsFastInsteadOfQueuingNexusRequests() throws Exception {
+        verifyConcurrentRefresh(false);
+    }
+
+    @Test
+    void concurrentRefreshReturnsStaleCatalogWithoutWaiting() throws Exception {
+        verifyConcurrentRefresh(true);
+    }
+
+    private void verifyConcurrentRefresh(boolean withCache) throws Exception {
+        publishBom("<release>1.2.0</release>");
+        List<Map<String, Object>> first = withCache ? service.findLatestReleases() : null;
+        if (withCache) {
+            Object entry = ReflectionTestUtils.getField(service, "cacheEntry");
+            Object cached = ((java.util.concurrent.atomic.AtomicReference<?>) entry).get();
+            ReflectionTestUtils.setField(cached, "timestamp", 0L);
+        }
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        server.createContext(METADATA, exchange -> {
+            entered.countDown();
+            try {
+                if (!release.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Timed out waiting for concurrent caller");
+                }
+                byte[] body = responses.get(METADATA);
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream output = exchange.getResponseBody()) {
+                    output.write(body);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            var refreshing = executor.submit(service::findLatestReleases);
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            if (withCache) {
+                assertSame(first, service.findLatestReleases());
+            } else {
+                IllegalStateException error = assertThrows(IllegalStateException.class, service::findLatestReleases);
+                assertEquals("Connector release catalog is loading. Please retry shortly.", error.getMessage());
+            }
+            release.countDown();
+            assertEquals(3, refreshing.get(5, TimeUnit.SECONDS).size());
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+        assertEquals(3, service.findLatestReleases().size());
     }
 
     @Test

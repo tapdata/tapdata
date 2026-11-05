@@ -1,6 +1,7 @@
 package com.tapdata.tm.ds.service.impl;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import io.tapdata.encryptor.JarEncryptor;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.io.ByteArrayInputStream;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -38,6 +41,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class PdkReleaseRegistrationServiceTest {
     private static final byte[] ENCRYPTED = {1, 2, 3};
@@ -46,6 +50,7 @@ class PdkReleaseRegistrationServiceTest {
     private PkdSourceService pkdSourceService;
     private PdkReleaseRegistrationService service;
     private UserDetail user;
+    private SettingsService settingsService;
     private MockedStatic<JarEncryptor> jarEncryptor;
     private Map<String, Object> release;
 
@@ -54,9 +59,11 @@ class PdkReleaseRegistrationServiceTest {
         catalogService = mock(PdkReleaseCatalogService.class);
         pkdSourceService = mock(PkdSourceService.class);
         user = mock(UserDetail.class);
+        settingsService = mock(SettingsService.class);
         service = new PdkReleaseRegistrationService();
         service.setReleaseCatalogService(catalogService);
         service.setPkdSourceService(pkdSourceService);
+        service.setSettingsService(settingsService);
         jarEncryptor = mockStatic(JarEncryptor.class);
         release = new HashMap<>();
         release.put("artifactId", "mysql-connector");
@@ -153,6 +160,8 @@ class PdkReleaseRegistrationServiceTest {
         assertEquals("2.0.0", source.getPdkAPIVersion());
         assertEquals(DataSourceQCType.GA, source.getQcType());
         assertEquals(List.of("Database"), source.getTags());
+        assertEquals("en_US", source.getMessages().get("default"));
+        assertTrue(source.getConfigOptions().containsKey("capabilities"));
         assertEquals(1, source.getCapabilities().size());
         assertEquals("dml_insert_policy", source.getCapabilities().get(0).getId());
     }
@@ -180,12 +189,14 @@ class PdkReleaseRegistrationServiceTest {
     }
 
     @Test
-    void downloadAndRegisterStopsWhenResourcesAreInFlight() {
+    void downloadAndRegisterStopsWhenResourcesAreInFlight() throws Exception {
         impact(true);
+        decryptsTo(connectorJar());
 
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
-        verify(catalogService, never()).downloadJar(any());
+        verify(pkdSourceService).registrationImpact("mysql", "io.tapdata", user);
+        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
     }
 
     @Test
@@ -196,6 +207,54 @@ class PdkReleaseRegistrationServiceTest {
         service.downloadAndRegister("mysql-connector", "mysql", false, true, user);
 
         verify(pkdSourceService).uploadPdk(any(), anyList(), eq(true), eq(user), eq(true));
+    }
+
+    @Test
+    void checksResourcesOnceAfterDownload() throws Exception {
+        decryptsTo(connectorJar());
+        when(catalogService.downloadJar(release)).thenAnswer(invocation -> {
+            impact(true);
+            return ENCRYPTED;
+        });
+
+        assertThrows(BizException.class,
+                () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
+
+        verify(pkdSourceService).registrationImpact("mysql", "io.tapdata", user);
+        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
+    }
+
+    private void assertRegistrationDenied(UserDetail login) {
+        assertThrows(BizException.class, () -> service.registrationImpact("mysql", login));
+        assertThrows(BizException.class,
+                () -> service.downloadAndRegister("mysql-connector", "mysql", true, true, login));
+        verifyNoInteractions(catalogService, pkdSourceService);
+    }
+
+    @Test
+    void serviceRejectsCloudBeforeAnyIo() {
+        when(settingsService.isCloud()).thenReturn(true);
+        assertRegistrationDenied(user);
+    }
+
+    @Test
+    void serviceRejectsFreeAuthBeforeAnyIo() {
+        when(user.isFreeAuth()).thenReturn(true);
+        assertRegistrationDenied(user);
+    }
+
+    @Test
+    void serviceRejectsMissingUserBeforeAnyIo() {
+        assertRegistrationDenied(null);
+    }
+
+    @Test
+    void readEntryEnforcesRemainingTotalBudget() {
+        assertArrayEquals(new byte[3], ReflectionTestUtils.invokeMethod(service, "readEntry",
+                new ByteArrayInputStream(new byte[3]), 3L));
+        BizException error = assertThrows(BizException.class, () -> ReflectionTestUtils.invokeMethod(service,
+                "readEntry", new ByteArrayInputStream(new byte[4]), 3L));
+        assertEquals("Released connector artifact is too large", error.getMessage());
     }
 
     @Test

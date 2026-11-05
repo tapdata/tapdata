@@ -141,10 +141,20 @@ public class PdkControllerTest {
         @Test
         void registrationImpactValidatesReleaseFirst() {
             Map<String, Object> impact = Map.of("hasInFlightResources", false);
+            when(catalogService.findRelease("mysql-connector")).thenReturn(Map.of("pdkId", "mysql"));
             when(registrationService.registrationImpact("mysql", user)).thenReturn(impact);
 
             assertEquals(impact, pdkController.registrationImpact("mysql", "mysql-connector").getData());
             verify(catalogService).findRelease("mysql-connector");
+        }
+
+        @Test
+        void registrationImpactRejectsMismatchedPdkId() {
+            when(catalogService.findRelease("mysql-connector")).thenReturn(Map.of("pdkId", "mysql"));
+
+            assertThrows(BizException.class, () -> pdkController.registrationImpact("postgres", "mysql-connector"));
+
+            verify(registrationService, never()).registrationImpact(anyString(), any());
         }
 
         @Test

@@ -57,7 +57,10 @@ public class PdkController extends BaseController {
             @RequestParam("pdkId") String pdkId,
             @RequestParam("artifactId") String artifactId) {
         requireEnterprise(getLoginUser());
-        pdkReleaseCatalogService.findRelease(artifactId);
+        java.util.Map<String, Object> release = pdkReleaseCatalogService.findRelease(artifactId);
+        if (!Objects.equals(pdkId, release.get("pdkId"))) {
+            throw new BizException("Connector release does not match the requested PDK id");
+        }
         return success(pdkReleaseRegistrationService.registrationImpact(pdkId, getLoginUser()));
     }
 

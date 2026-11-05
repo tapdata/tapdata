@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
 /** Reads the immutable connector release set published by connector-distribution. */
@@ -40,6 +41,7 @@ public class PdkReleaseCatalogService {
     private String repositoryUrl;
 
     private final AtomicReference<CacheEntry> cacheEntry = new AtomicReference<>();
+    private final ReentrantLock refreshLock = new ReentrantLock();
 
     private static final long CACHE_TTL_MILLIS = Duration.ofMinutes(5).toMillis();
 
@@ -58,12 +60,29 @@ public class PdkReleaseCatalogService {
         }
     }
 
+    /**
+     * Refreshes synchronously using two HTTP requests, each with a ten-second timeout.
+     * Only one caller performs Nexus I/O. Concurrent callers get the cached catalog,
+     * or fail fast during the first load, so they never queue behind a slow refresh.
+     */
     public List<Map<String, Object>> findLatestReleases() {
         CacheEntry cached = cacheEntry.get();
         if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MILLIS) {
             return cached.releases;
         }
+        if (!refreshLock.tryLock()) {
+            cached = cacheEntry.get();
+            if (cached != null) {
+                return cached.releases;
+            }
+            throw new IllegalStateException("Connector release catalog is loading. Please retry shortly.");
+        }
         try {
+            // Another caller may have refreshed between our first cache read and acquiring the lock.
+            cached = cacheEntry.get();
+            if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MILLIS) {
+                return cached.releases;
+            }
             String repository = repositoryUrl.endsWith("/") ? repositoryUrl : repositoryUrl + "/";
             Document metadata = parse(fetch(repository + BOM_METADATA_PATH));
             String bomVersion = text(metadata.getDocumentElement(), "release");
@@ -121,6 +140,8 @@ public class PdkReleaseCatalogService {
                 return cached.releases;
             }
             throw new IllegalStateException("Failed to read connector release catalog from Nexus", e);
+        } finally {
+            refreshLock.unlock();
         }
     }
 
