@@ -1,0 +1,184 @@
+package com.tapdata.tm.ds.service.impl;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.dto.PdkSourceDto;
+import io.tapdata.encryptor.JarEncryptor;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import lombok.Setter;
+import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+@Service
+@Setter(onMethod_ = {@Autowired})
+public class PdkReleaseRegistrationService {
+    private PdkReleaseCatalogService releaseCatalogService;
+    private PkdSourceService pkdSourceService;
+
+    public Map<String, Object> registrationImpact(String pdkId, UserDetail user) {
+        return pkdSourceService.registrationImpact(pdkId, "io.tapdata", user);
+    }
+
+    public void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
+                                    boolean ignoreInFlightResources, UserDetail user) {
+        Map<String, Object> release = releaseCatalogService.findRelease(artifactId);
+        if (!expectedPdkId.equals(release.get("pdkId"))) {
+            throw new BizException("Connector release does not match the requested PDK id");
+        }
+        if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
+            throw new BizException("Connector resources changed. Review affected tasks before registering.");
+        }
+        byte[] encryptedJar = releaseCatalogService.downloadJar(release);
+        byte[] jarBytes;
+        try {
+            jarBytes = JarEncryptor.decryptJarBytes(encryptedJar);
+        } catch (Exception e) {
+            throw new BizException("Unable to decrypt the released connector artifact", e);
+        }
+
+        String version = String.valueOf(release.get("version"));
+        String pdkApiVersion = String.valueOf(release.get("pdkAPIVersion"));
+        String fileName = artifactId + "-" + version + ".jar";
+        List<MultipartFile> files = new ArrayList<>();
+        MultipartFile jar = new ByteArrayMultipartFile("file", fileName, "application/java-archive", jarBytes);
+        files.add(jar);
+        List<PdkSourceDto> sources = readSources(jarBytes, expectedPdkId, artifactId, version, pdkApiVersion, files);
+        if (sources.isEmpty()) {
+            throw new BizException("Released connector artifact does not contain its PDK specification");
+        }
+
+        if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
+            throw new BizException("Connector resources changed. Review affected tasks before registering.");
+        }
+
+        pkdSourceService.uploadPdk(files.toArray(new MultipartFile[0]), sources, true, user, !stopTasks);
+    }
+
+    private boolean hasInFlightResources(String pdkId, UserDetail user) {
+        Map<String, Object> impact = registrationImpact(pdkId, user);
+        return Boolean.TRUE.equals(impact.get("hasInFlightResources"));
+    }
+
+    private List<PdkSourceDto> readSources(byte[] jarBytes, String expectedPdkId, String artifactId,
+                                           String version, String pdkApiVersion, List<MultipartFile> files) {
+        List<PdkSourceDto> sources = new ArrayList<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(jarBytes))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.isDirectory()) continue;
+                byte[] content = readEntry(zip);
+                if (entry.getName().endsWith(".md")) {
+                    files.add(new ByteArrayMultipartFile("file", entry.getName(), "text/markdown", content));
+                    continue;
+                }
+                if (entry.getName().startsWith("icons/")) {
+                    files.add(new ByteArrayMultipartFile("file", entry.getName(), "image/*", content));
+                }
+                if (!entry.getName().endsWith(".json")) continue;
+                JSONObject specification;
+                try {
+                    specification = JSON.parseObject(new String(content, StandardCharsets.UTF_8));
+                } catch (Exception ignored) {
+                    continue;
+                }
+                JSONObject properties = specification == null ? null : specification.getJSONObject("properties");
+                if (properties == null || !expectedPdkId.equals(properties.getString("id"))) continue;
+
+                PdkSourceDto source = new PdkSourceDto();
+                source.setId(expectedPdkId);
+                source.setName(properties.getString("name"));
+                source.setRealName(properties.getString("realName"));
+                source.setIcon(properties.getString("icon"));
+                source.setGroup("io.tapdata");
+                source.setVersion(version);
+                source.setPdkAPIVersion(pdkApiVersion);
+                source.setPdkAPIBuildNumber(CommonUtils.getPdkBuildNumer(pdkApiVersion));
+                source.setType("source_and_target");
+                JSONObject manifest = specification.getJSONObject("manifest");
+                String authentication = manifest == null ? null : manifest.getString("Authentication");
+                DataSourceQCType qcType = DataSourceQCType.parse(authentication);
+                source.setQcType(qcType == null ? DataSourceQCType.Alpha : qcType);
+                source.setAuthentication(authentication);
+                source.setTags(JSON.parseArray(JSON.toJSONString(properties.get("tags")), String.class));
+                source.setConfigOptions(asLinkedMap(specification.get("configOptions")));
+                source.setMessages(asLinkedMap(specification.get("messages")));
+                source.setExpression(JSON.toJSONString(specification.get("dataTypes")));
+
+                List<Capability> capabilities = new ArrayList<>();
+                JSONObject configOptions = specification.getJSONObject("configOptions");
+                if (configOptions != null && configOptions.getJSONArray("capabilities") != null) {
+                    for (Object capability : configOptions.getJSONArray("capabilities")) {
+                        JSONObject capabilityObject = (JSONObject) capability;
+                        String id = capabilityObject.getString("id");
+                        if (id != null) {
+                            capabilities.add(Capability.create(id).type(Capability.TYPE_OTHER));
+                        }
+                    }
+                }
+                source.setCapabilities(capabilities);
+                sources.add(source);
+            }
+        } catch (Exception e) {
+            throw new BizException("Unable to read PDK specification from released connector", e);
+        }
+        return sources;
+    }
+
+    private byte[] readEntry(InputStream inputStream) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        IOUtils.copy(inputStream, output);
+        return output.toByteArray();
+    }
+
+    private LinkedHashMap<String, Object> asLinkedMap(Object value) {
+        if (value == null) return null;
+        return JSON.parseObject(JSON.toJSONString(value), LinkedHashMap.class);
+    }
+
+    private static final class ByteArrayMultipartFile implements MultipartFile {
+        private final String name;
+        private final String filename;
+        private final String contentType;
+        private final byte[] bytes;
+
+        private ByteArrayMultipartFile(String name, String filename, String contentType, byte[] bytes) {
+            this.name = name;
+            this.filename = filename;
+            this.contentType = contentType;
+            this.bytes = bytes;
+        }
+
+        @Override public String getName() { return name; }
+        @Override public String getOriginalFilename() { return filename; }
+        @Override public String getContentType() { return contentType; }
+        @Override public boolean isEmpty() { return bytes.length == 0; }
+        @Override public long getSize() { return bytes.length; }
+        @Override public byte[] getBytes() { return bytes; }
+        @Override public InputStream getInputStream() { return new ByteArrayInputStream(bytes); }
+        @Override public void transferTo(File dest) throws IllegalStateException {
+            try {
+                java.nio.file.Files.write(dest.toPath(), bytes);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+}

@@ -199,6 +199,29 @@ public class PkdSourceService {
 		log.debug("Upload pdk done.");
 	}
 
+	public Map<String, Object> registrationImpact(String pdkId, String group, UserDetail user) {
+		PdkSourceDto connector = new PdkSourceDto();
+		connector.setId(pdkId);
+		connector.setGroup(group);
+		Set<String> connectionIds = findAffectedConnectionIds(Collections.singletonList(connector), user);
+		List<TaskDto> taskCandidates = findAffectedTasks(connectionIds, user);
+		List<TaskDto> tasks = findCurrentAffectedTasks(taskCandidates, user);
+		List<InspectDto> inspectCandidates = findAffectedInspects(connectionIds, user);
+		List<InspectDto> inspects = findCurrentAffectedInspects(inspectCandidates, user);
+		Map<String, Object> result = new HashMap<>();
+		result.put("tasks", tasks.stream().map(task -> new HashMap<String, Object>() {{
+			put("id", task.getId() == null ? null : task.getId().toHexString());
+			put("name", task.getName());
+			put("syncType", task.getSyncType());
+		}}).collect(Collectors.toList()));
+		result.put("inspects", inspects.stream().map(inspect -> new HashMap<String, Object>() {{
+			put("id", inspect.getId() == null ? null : inspect.getId().toHexString());
+			put("name", inspect.getName());
+		}}).collect(Collectors.toList()));
+		result.put("hasInFlightResources", !tasks.isEmpty() || !inspects.isEmpty());
+		return result;
+	}
+
 	private List<ILock> acquireRegistrationLocks(List<PdkSourceDto> pdkSourceDtos, String lockOwner) {
 		List<String> lockKeys = pdkSourceDtos.stream()
 				.filter(Objects::nonNull)
