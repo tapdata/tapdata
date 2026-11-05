@@ -151,6 +151,17 @@ class AlarmControllerReceiverScopeTest {
     }
 
     @Test
+    void inspectDraftPreviewRejectsMixedGroupAndGuessedEmailWithoutDirectoryAccess() {
+        InspectReceiverPreviewRequest draft = new InspectReceiverPreviewRequest();
+        draft.setAlarmReceivers(List.of(group("finance"),
+                new AlarmReceiver(AlarmReceiverType.EMAIL, null, "guess@example.com")));
+        when(access.canViewUserDirectory(user)).thenReturn(false);
+
+        assertThrows(BizException.class, () -> controller.inspectReceiverPreview(request, draft));
+        verify(alarmService, never()).previewInspectReceivers(any(), any(), any());
+    }
+
+    @Test
     void inspectViewerPreviewUsesSavedReceiverValues() {
         ObjectId inspectId = new ObjectId();
         AlarmReceiver saved = new AlarmReceiver(AlarmReceiverType.EMAIL, null, "saved@example.com");
