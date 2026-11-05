@@ -3974,7 +3974,8 @@ public class TaskServiceImpl extends TaskService{
                boolean restoreDeleted = RESTORE_DELETED_IMPORT_MODES.contains(importMode)
                        && isDeletedTask(taskDto.getId(), user);
 
-               if(checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
+               if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
+                       && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
                    patchImportedAlarm(taskDto, user);
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
