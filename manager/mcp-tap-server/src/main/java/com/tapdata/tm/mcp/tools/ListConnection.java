@@ -3,12 +3,11 @@ package com.tapdata.tm.mcp.tools;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
@@ -18,28 +17,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.mcp.Utils.*;
-
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2025/3/26 09:49
  */
 @Slf4j
 @Component
-public class ListConnection extends Tool{
+public class ListConnection {
 
+    private final McpToolSupport toolSupport;
     private final DataSourceService dataSourceService;
 
-    public ListConnection(SessionAttribute sessionAttribute, DataSourceService dataSourceService, UserService userService) {
-        super("listConnection", "List all available database connections in TapData",
-                readJsonSchema("ListConnection.json"), sessionAttribute, userService);
+    public ListConnection(McpToolSupport toolSupport, DataSourceService dataSourceService) {
+        this.toolSupport = toolSupport;
         this.dataSourceService = dataSourceService;
     }
 
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-
-        UserDetail userDetail = getUserDetail(exchange);
-        String name = getStringValue(params, "name");
+    @McpTool(name = "listConnection", description = "List all available database connections in TapData")
+    public List<Map<String, Object>> listConnection(
+            McpSyncRequestContext context,
+            @McpToolParam(required = false, description = "Optional case-insensitive connection name keyword.") String name) {
+        UserDetail userDetail = toolSupport.getUserDetail(context);
 
         Criteria criteria = Criteria.where("status").is(DataSourceEntity.STATUS_READY)
                 .and("database_type").nin(Collections.singletonList("Dummy"));
@@ -50,6 +48,6 @@ public class ListConnection extends Tool{
         List<Map<String, Object>> result = dataSourceService.findAll(Query.query(criteria), userDetail)
                 .stream().map(Utils::readConnection).collect(Collectors.toList());
 
-        return makeCallToolResult(result);
+        return result;
     }
 }

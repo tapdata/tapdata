@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.lineage.analyzer.AnalyzeLayer;
 import com.tapdata.tm.lineage.analyzer.BaseAnalyzer;
@@ -22,6 +23,8 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.TaskFilter;
 import io.github.openlg.graphlib.Graph;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -30,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -46,6 +50,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import static com.tapdata.tm.task.service.TaskServiceImpl.STATUS;
+import static com.tapdata.tm.task.service.TaskServiceImpl.SYNC_TYPE;
+
 /**
  * @author samuel
  * @Description
@@ -53,6 +60,7 @@ import java.util.stream.Collectors;
  **/
 @Service("tableAnalyzerV1")
 @Slf4j
+@Primary
 public class TableAnalyzerV1 extends BaseAnalyzer {
 
 	private static final String[] TASK_INCLUDE_FIELDS = new String[]{"_id", "name", "dag", "syncType", "status", "startTime"};
@@ -89,7 +97,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 					analyzeLayer.setPreNode(node);
 					analyzeLayer.setPreInvalidNode(node);
 					DataSourceEntity dataSource = findDataSource(connectionId);
-					lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
+					lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table, node.getId()))
 							.addTask(lineageTask);
 					setGraphNode(analyzeLayer, lineageTask, node);
 					analyzeLayer.setPreLineageTableNode(lineageTableNode);
@@ -126,7 +134,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		}
 		if (CollectionUtils.isEmpty(analyzeLayer.getGraph().getNodes()) && CollectionUtils.isEmpty(analyzeLayer.getGraph().getEdges())) {
 			DataSourceEntity dataSource = findDataSource(connectionId);
-			LineageMetadataInstance metadata = getMetadata(connectionId, table);
+			LineageMetadataInstance metadata = getMetadata(connectionId, table, null);
 			lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
 			setGraphNode(graph, lineageTableNode);
 		}
@@ -330,7 +338,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			Criteria taskCriteria = buildTaskCriteria(connectionId, table);
 			Query query;
 			query = Query.query(taskCriteria);
-			taskQueryFields(query);
+			query.fields().include(taskIncludeFields());
 			resultTasks = taskRepository.findAll(query);
 			addFoundedTask(connectionId, table, resultTasks);
 		}
@@ -338,21 +346,17 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	}
 
 	@NotNull
-	private static Criteria buildTaskCriteria(String connectionId, String table) {
+	protected static Criteria buildTaskCriteria(String connectionId, String table) {
 		Criteria syncTaskCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableName").is(table);
 		Criteria migrateSrcCriteria = new Criteria("dag.nodes.tableNames").is(table);
 		Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
 		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
 				.andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
-		Criteria notDeleteCriteria = new Criteria("is_deleted").is(false);
+		Criteria notDeleteCriteria = TaskFilter.filter(new Criteria("is_deleted").is(false));
 		return new Criteria().andOperator(
 				notDeleteCriteria,
 				new Criteria().orOperator(syncTaskCriteria, migrateCriteria)
 		);
-	}
-
-	private static void taskQueryFields(Query query) {
-		query.fields().include(TASK_INCLUDE_FIELDS);
 	}
 
 	private Node findNodeInTask(TaskEntity task, String connectionId, String table) {
@@ -388,7 +392,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	}
 
 	@NotNull
-	private DataSourceEntity findDataSource(String id) {
+	protected DataSourceEntity findDataSource(String id) {
 		DataSourceEntity dataSource;
 		if (StringUtils.isBlank(id)) {
 			dataSource = new DataSourceEntity();
@@ -397,7 +401,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		}
 		dataSource = dataSourceEntityMap.computeIfAbsent(id, k -> {
 			Query query = Query.query(Criteria.where("_id").is(new ObjectId(k)));
-			query.fields().include(DATASOURCE_INCLUDE_FIELDS);
+			query.fields().include(datasourceIncludeFields());
 			return dataSourceRepository.findOne(query).orElse(null);
 		});
 		if (null == dataSource) {
@@ -421,30 +425,35 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageTableNode.addTask(lineageTask);
 		} else {
 			DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
+			String nodeId = getNodeIdIfNeedPreNodeId(analyzeLayer, node, graphNode);
+			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), nodeId));
 			lineageTableNode.addTask(lineageTask);
 			setGraphNode(graph, lineageTableNode);
 		}
 		return lineageTableNode;
 	}
 
-	private LineageMetadataInstance getMetadata(String connectionId, String tableName) {
+	protected String getNodeIdIfNeedPreNodeId(AnalyzeLayer analyzeLayer, Node node, Node graphNode) {
+		return null == graphNode ? null : graphNode.getId();
+	}
+
+	protected LineageMetadataInstance getMetadata(String connectionId, String tableName, String nodeId) {
 		Criteria baseCriteria = new Criteria("source._id").is(connectionId)
 				.and("original_name").is(tableName);
 		Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());
 		Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
 		Query query = Query.query(new Criteria().andOperator(baseCriteria, sourceCriteria));
-		query.fields().include(METADATA_INCLUDE_FIELDS);
+		query.fields().include(metadataIncludeFields());
 		LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
 		if (null == lineageMetadataInstance) {
 			query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
-			query.fields().include(METADATA_INCLUDE_FIELDS);
+			query.fields().include(metadataIncludeFields());
 			lineageMetadataInstance = getMetadata(query);
 		}
 		return lineageMetadataInstance;
 	}
 
-	private LineageMetadataInstance getMetadata(Query query) {
+	protected LineageMetadataInstance getMetadata(Query query) {
 		MetadataInstancesEntity metadataInstancesEntity = metadataInstancesRepository.findOne(query).orElse(null);
 		if (null == metadataInstancesEntity || null == metadataInstancesEntity.getId()) return null;
 		LineageMetadataInstance lineageMetadataInstance = new LineageMetadataInstance();
@@ -496,13 +505,13 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		}
 	}
 
-	private void setGraphNode(Graph<Node, Edge> graph, LineageNode lineageNode) {
+	protected void setGraphNode(Graph<Node, Edge> graph, LineageNode lineageNode) {
 		if (null == graph || null == lineageNode) return;
 		graph.setNode(lineageNode.getId(), lineageNode);
 	}
 
 	@NotNull
-	private static LineageTask wrapLineageTask(LineageTask task, Node node) {
+	protected static LineageTask wrapLineageTask(LineageTask task, Node node) {
 		return new LineageTask(
 				task.getId(),
 				task.getName(),
@@ -529,7 +538,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		Criteria criteria = new Criteria("datasource").is(connectionId)
 				.and("tableName").is(table).and("is_deleted").ne(true);
 		Query query = Query.query(criteria);
-		query.fields().include(MODULES_INCLUDE_FIELDS);
+		query.fields().include(moduleIncludeFields());
 		return modulesRepository.findAll(query);
 	}
 
@@ -574,5 +583,25 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			return null;
 		}
 		return map.get(key);
+	}
+
+	@Override
+	protected String[] taskIncludeFields() {
+		return TASK_INCLUDE_FIELDS;
+	}
+
+	@Override
+	protected String[] datasourceIncludeFields() {
+		return DATASOURCE_INCLUDE_FIELDS;
+	}
+
+	@Override
+	protected String[] moduleIncludeFields() {
+		return MODULES_INCLUDE_FIELDS;
+	}
+
+	@Override
+	protected String[] metadataIncludeFields() {
+		return METADATA_INCLUDE_FIELDS;
 	}
 }

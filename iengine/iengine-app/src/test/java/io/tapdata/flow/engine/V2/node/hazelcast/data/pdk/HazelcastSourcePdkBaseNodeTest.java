@@ -14,6 +14,7 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -32,12 +33,14 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.aspect.BatchSizeAspect;
+import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -45,6 +48,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -71,6 +75,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -89,11 +94,13 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -123,6 +130,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import io.tapdata.entity.CountResult;
 
@@ -827,6 +835,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			instance = spy(instance);
 			syncProgress = new SyncProgress();
 			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
+			ReflectionTestUtils.setField(instance, "obsLogger", log);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			doReturn(connectorNode).when(instance).getConnectorNode();
 			TapTableMap tapTableMap = mock(TapTableMap.class);
@@ -844,8 +853,22 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
 			instance.readBatchOffset(syncProgress);
 			assertNotNull(syncProgress.getBatchOffsetObj());
-			assertInstanceOf(Map.class, syncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
+		}
+
+		@Test
+		@DisplayName("test missing connector offset class falls back to a full sync")
+		void testMissingConnectorOffsetClassFallsBackToFullSync() {
+			syncProgress.setBatchOffset("encoded-batch-offset");
+			try (MockedStatic<PdkUtil> pdkUtil = mockStatic(PdkUtil.class)) {
+				pdkUtil.when(() -> PdkUtil.decodeOffset(anyString(), any(ConnectorNode.class)))
+						.thenThrow(new CoreException("ClassNotFoundException: missing connector offset class"));
+
+				assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
+				assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
+				assertTrue(((Map<?, ?>) syncProgress.getBatchOffsetObj()).isEmpty());
+			}
 		}
 
 		@Test
@@ -1526,9 +1549,13 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	@DisplayName("Method wrapSingleTapdataEvent test")
 	class wrapSingleTapdataEventTest {
+
+		protected ClientMongoOperator clientMongoOperator;
+
 		@BeforeEach
 		void setUp() {
 			instance = spy(instance);
+			clientMongoOperator = mock(ClientMongoOperator.class);
 			ReflectionTestUtils.setField(instance, "obsLogger", mockObsLogger);
 		}
 
@@ -1544,6 +1571,23 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapdataEvent tapdataEvent = instance.wrapSingleTapdataEvent(tapDDLUnknownEvent, SyncStage.CDC, null, true);
 			assertNull(tapdataEvent);
 			verify(mockObsLogger, atLeastOnce()).warn(any());
+		}
+
+		@Test
+		@DisplayName("test source mode=NORMAL, TapEvent is a TapDDLWarningEvent, expect send msg")
+		void test2() {
+			HazelcastSourcePdkBaseNode.SourceMode sourceMode = HazelcastSourcePdkBaseNode.SourceMode.NORMAL;
+			ReflectionTestUtils.setField(instance, "sourceMode", sourceMode);
+			Connections connections = mock(Connections.class);
+			when(dataProcessorContext.getConnections()).thenReturn(connections);
+			ReflectionTestUtils.setField(instance, "clientMongoOperator", clientMongoOperator);
+			TapDDLWarningEvent tapDDLWarningEvent = new TapDDLWarningEvent();
+			tapDDLWarningEvent.setReferenceTime(System.currentTimeMillis());
+			tapDDLWarningEvent.setTime(System.currentTimeMillis());
+			tapDDLWarningEvent.setOriginDDL("alter table AA_0518 add supplemental log DATA (PRIMARY KEY) COLUMNS");
+			instance.wrapSingleTapdataEvent(tapDDLWarningEvent, SyncStage.CDC, null, true);
+			verify(mockObsLogger, atLeastOnce()).warn(anyString(), any(), any());
+			verify(clientMongoOperator, atLeastOnce()).insertOne(any(), any());
 		}
 	}
 
@@ -1578,6 +1622,124 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapUpdateRecordEvent.setTableId("testTableId");
 			tapEvents.add(tapUpdateRecordEvent);
 			assertThrows(NodeException.class, () -> hazelcastSourcePdkDataNode.wrapTapdataEvent(tapEvents, null, null));
+		}
+
+		@DisplayName("test partition batch offset is an immutable event snapshot")
+		@Test
+		void testPartitionBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			PartitionTableOffset currentOffset = new PartitionTableOffset();
+			currentOffset.setTableCompleted(false);
+			currentOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			currentOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
+
+			SyncProgress progress = new SyncProgress();
+			Map<String, Object> offsets = new ConcurrentHashMap<>();
+			offsets.put(tableId, currentOffset);
+			progress.setBatchOffsetObj(offsets);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			PartitionTableOffset snapshot = (PartitionTableOffset) hazelcastSourcePdkDataNode.snapshotBatchOffset(tableId);
+			currentOffset.setTableCompleted(true);
+			currentOffset.getCompletedPartitions().put("partition-1", 100L);
+
+			assertNotSame(currentOffset, snapshot);
+			assertSame(currentOffset.getPartitions(), snapshot.getPartitions());
+			assertFalse(snapshot.getTableCompleted());
+			assertTrue(snapshot.getCompletedPartitions().isEmpty());
+		}
+
+		@DisplayName("test connector batch offset is handed off as an immutable encoded snapshot")
+		@Test
+		void testConnectorBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(hazelcastSourcePdkDataNode).getConnectorNode();
+
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("position", 100);
+
+			SyncProgress progress = new SyncProgress();
+			progress.setBatchOffsetObj(new ConcurrentHashMap<>());
+			BatchOffsetUtil.updateBatchOffset(progress, tableId, connectorOffset, TableBatchReadStatus.RUNNING.name());
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotBatchOffset(tableId);
+			// the snapshot is a table offset marker map; wrap it in a tableId keyed container just like it is stored
+			Map<String, Object> snapshotContainer = new HashMap<>();
+			snapshotContainer.put(tableId, snapshot);
+			SyncProgress snapshotProgress = new SyncProgress();
+			snapshotProgress.setBatchOffsetObj(snapshotContainer);
+			Object snapshotOffset = BatchOffsetUtil.getBatchOffsetOfTable(snapshotProgress, tableId);
+
+			// the live connector offset is serialized into an immutable string, not shared by reference
+			assertNotSame(connectorOffset, snapshotOffset);
+			assertInstanceOf(String.class, snapshotOffset);
+			assertTrue(((String) snapshotOffset).startsWith(PdkUtil.ENCODE_PREFIX));
+
+			// mutating the connector's live offset after the snapshot must not change the captured breakpoint
+			connectorOffset.put("position", 999);
+			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
+			assertEquals(100, decoded.get("position"));
+		}
+
+		@DisplayName("test whole batch offset is handed off as an immutable encoded snapshot")
+		@Test
+		void testEntireBatchOffsetSnapshot() {
+			String tableId = "testTableId";
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(hazelcastSourcePdkDataNode).getConnectorNode();
+
+			Map<String, Object> connectorOffset = new HashMap<>();
+			connectorOffset.put("position", 100);
+
+			SyncProgress progress = new SyncProgress();
+			progress.setBatchOffsetObj(new ConcurrentHashMap<>());
+			BatchOffsetUtil.updateBatchOffset(progress, tableId, connectorOffset, TableBatchReadStatus.RUNNING.name());
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotEntireBatchOffset();
+
+			// the snapshot is a fresh container, not the source's live map, and does not alias its table markers
+			assertNotSame(progress.getBatchOffsetObj(), snapshot);
+			assertNotSame(((Map<String, Object>) progress.getBatchOffsetObj()).get(tableId), ((Map<String, Object>) snapshot).get(tableId));
+
+			SyncProgress snapshotProgress = new SyncProgress();
+			snapshotProgress.setBatchOffsetObj(snapshot);
+			Object snapshotOffset = BatchOffsetUtil.getBatchOffsetOfTable(snapshotProgress, tableId);
+			assertNotSame(connectorOffset, snapshotOffset);
+			assertInstanceOf(String.class, snapshotOffset);
+			assertTrue(((String) snapshotOffset).startsWith(PdkUtil.ENCODE_PREFIX));
+
+			// mutating the connector's live offset after the snapshot must not change the captured breakpoint
+			connectorOffset.put("position", 999);
+			Map<String, Object> decoded = (Map<String, Object>) PdkUtil.decodeOffset((String) snapshotOffset, connectorNode);
+			assertEquals(100, decoded.get("position"));
+		}
+
+		@DisplayName("test whole batch offset snapshot copies a PartitionTableOffset instead of aliasing it")
+		@Test
+		void testEntireBatchOffsetSnapshotCopiesPartitionTableOffset() {
+			String tableId = "testTableId";
+			PartitionTableOffset liveOffset = new PartitionTableOffset();
+			liveOffset.setTableCompleted(false);
+			liveOffset.setCompletedPartitions(new ConcurrentHashMap<>());
+			liveOffset.setPartitions(Collections.singletonList(mock(ReadPartition.class)));
+
+			SyncProgress progress = new SyncProgress();
+			Map<String, Object> offsets = new ConcurrentHashMap<>();
+			offsets.put(tableId, liveOffset);
+			progress.setBatchOffsetObj(offsets);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", progress);
+
+			Object snapshot = hazelcastSourcePdkDataNode.snapshotEntireBatchOffset();
+			PartitionTableOffset snapshotOffset = (PartitionTableOffset) ((Map<?, ?>) snapshot).get(tableId);
+
+			assertNotSame(liveOffset, snapshotOffset);
+			assertNotSame(progress.getBatchOffsetObj(), snapshot);
+
+			liveOffset.partitionCompleted("partition-1", 100L);
+			assertTrue(snapshotOffset.getCompletedPartitions().isEmpty());
 		}
 	}
 
@@ -2536,6 +2698,48 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			node.setTableExpression("*");
 			result = sourcePdkBaseNode.checkDDLFilterPredicate(event);
 			Assertions.assertTrue(result);
+		}
+	}
+
+	@Nested
+	class HandleTableMonitorResultTest {
+		@Test
+		void ensuresNewTablesOutsideSourceRunnerLockDuringSnapshot() {
+			HazelcastSourcePdkBaseNodeImp sourceNode = spy(new HazelcastSourcePdkBaseNodeImp(dataProcessorContext));
+			TableMonitor tableMonitor = mock(TableMonitor.class);
+			MonitorManager monitorManager = mock(MonitorManager.class);
+			TableMonitor.TableResult tableResult = TableMonitor.TableResult.create().add("new_table");
+			CopyOnWriteArrayList<String> newTables = new CopyOnWriteArrayList<>();
+
+			ReflectionTestUtils.setField(sourceNode, "monitorManager", monitorManager);
+			ReflectionTestUtils.setField(sourceNode, "newTables", newTables);
+			ReflectionTestUtils.setField(sourceNode, "removeTables", new CopyOnWriteArrayList<>());
+			ReflectionTestUtils.setField(sourceNode, "endSnapshotLoop", new AtomicBoolean(false));
+			doReturn(tableMonitor).when(monitorManager).getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			when(sourceNode.isRunning()).thenReturn(true);
+			doAnswer(invocation -> {
+				Consumer<TableMonitor.TableResult> consumer = invocation.getArgument(0);
+				consumer.accept(tableResult);
+				return null;
+			}).when(tableMonitor).consume(any());
+			doAnswer(invocation -> {
+				newTables.addAll(invocation.getArgument(0));
+				return false;
+			}).when(sourceNode).handleNewTables(anyList());
+
+			AtomicBoolean ensureCalled = new AtomicBoolean(false);
+			AtomicBoolean lockHeldDuringEnsure = new AtomicBoolean(true);
+			doAnswer(invocation -> {
+				ensureCalled.set(true);
+				lockHeldDuringEnsure.set(sourceNode.sourceRunnerLock.isHeldByCurrentThread());
+				return null;
+			}).when(sourceNode).ensureShareCdcForNewTables(anyList());
+
+			sourceNode.handleTableMonitorResult();
+
+			assertTrue(ensureCalled.get());
+			assertFalse(lockHeldDuringEnsure.get());
+			verify(sourceNode).ensureShareCdcForNewTables(Collections.singletonList("new_table"));
 		}
 	}
 
@@ -3914,6 +4118,108 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			// Should not throw exception even without progress manager
 			assertDoesNotThrow(spyInstance::startSourceConsumer);
 			verify(spyInstance, times(1)).offer(event);
+		}
+	}
+
+	@Nested
+	class doCountSynchronouslyInitTableTese {
+		private TestHazelcastSourcePdkDataNode node;
+		private ConnectorNode connectorNode;
+		private BatchCountFunction batchCountFunction;
+
+		@BeforeEach
+		void setUp() {
+			node = new TestHazelcastSourcePdkDataNode(dataProcessorContext);
+			setBaseProperty(node);
+
+			connectorNode = mock(ConnectorNode.class);
+			batchCountFunction = mock(BatchCountFunction.class);
+			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
+
+			TapTable tapTable = new TapTable(tableNode.getTableName());
+			tapTable.setId(tableNode.getTableName());
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(tapTableMap.get(tableNode.getTableName())).thenReturn(tapTable);
+
+			node.connectorNode = connectorNode;
+			node.pdkMethodInvoker = pdkMethodInvoker;
+		}
+
+		@Test
+		@DisplayName("doCountSynchronously should use zero count when displayTableListFirst is true")
+		void testDoCountSynchronouslyWhenDisplayTableListFirst() throws Throwable {
+			AtomicBoolean invocationExecuted = new AtomicBoolean(false);
+			try (MockedStatic<PDKInvocationMonitor> monitor = org.mockito.Mockito.mockStatic(PDKInvocationMonitor.class)) {
+				monitor.when(() -> PDKInvocationMonitor.invoke(
+								any(ConnectorNode.class),
+								eq(PDKMethod.SOURCE_BATCH_COUNT),
+								any(PDKMethodInvoker.class)))
+						.thenAnswer(invocation -> {
+							invocationExecuted.set(true);
+							PDKMethodInvoker pdkMethodInvoker = invocation.getArgument(2, PDKMethodInvoker.class);
+							try {
+								pdkMethodInvoker.getRunnable().run();
+							} catch (Throwable throwable) {
+								throw new RuntimeException(throwable);
+							}
+							return null;
+						});
+
+				node.doCountSynchronously(batchCountFunction, Collections.singletonList(tableNode.getTableName()), true);
+			}
+
+			assertTrue(invocationExecuted.get());
+			assertEquals(tableNode.getTableName(), node.countedTableName.get());
+			assertNotNull(node.countResult.get());
+			assertEquals(0L, node.countResult.get().getCount());
+			assertNull(node.snapshotRowSizeMap);
+			verify(batchCountFunction, never()).count(any(), any());
+		}
+
+		private static class TestHazelcastSourcePdkDataNode extends HazelcastSourcePdkDataNode {
+			private ConnectorNode connectorNode;
+			private PDKMethodInvoker pdkMethodInvoker;
+			private final AtomicReference<String> countedTableName = new AtomicReference<>();
+			private final AtomicReference<CountResult> countResult = new AtomicReference<>();
+
+			TestHazelcastSourcePdkDataNode(com.tapdata.entity.task.context.DataProcessorContext dataProcessorContext) {
+				super(dataProcessorContext);
+			}
+
+			@Override
+			public ConnectorNode getConnectorNode() {
+				return connectorNode;
+			}
+
+			@Override
+			protected boolean isRunning() {
+				return true;
+			}
+
+			@Override
+			public PDKMethodInvoker createPdkMethodInvoker() {
+				return pdkMethodInvoker;
+			}
+
+			@Override
+			public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+			}
+
+			@Override
+			public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, java.util.concurrent.Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
+				try {
+					TableCountFuncAspect tableCountFuncAspect = new TableCountFuncAspect()
+							.tableCountConsumer((tableName, result) -> {
+								countedTableName.set(tableName);
+								countResult.set(result);
+							});
+					anyErrorConsumer.accept((T) tableCountFuncAspect);
+					return null;
+				} catch (Throwable throwable) {
+					throw new RuntimeException(throwable);
+				}
+			}
 		}
 	}
 }

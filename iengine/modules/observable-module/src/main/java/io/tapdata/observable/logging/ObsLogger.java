@@ -36,6 +36,8 @@ public abstract class ObsLogger implements Serializable, TapLogger {
 
 	public abstract void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
 
+	public abstract void alert(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
+
 	public abstract boolean isEnabled(LogLevel logLevel);
 	public abstract boolean isInfoEnabled();
 
@@ -160,6 +162,18 @@ public abstract class ObsLogger implements Serializable, TapLogger {
 		fatal(() -> logBaseBuilderWithLogTag(logTag1, logTag2), throwable, throwable.getMessage(), params);
 	}
 
+	public void alert(String message, Object... params) {
+		alert(this::logBaseBuilder, null, message, params);
+	}
+
+	public void alert(String message, Throwable throwable) {
+		alert(this::logBaseBuilder, throwable, message);
+	}
+
+	public void alert(Throwable throwable, Object... params) {
+		alert(this::logBaseBuilder, throwable, throwable == null ? null : throwable.getMessage(), params);
+	}
+
 	MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilderWithLogTag(LogTag... logTags) {
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = logBaseBuilder();
 		for (LogTag logTag : logTags) {
@@ -180,7 +194,10 @@ public abstract class ObsLogger implements Serializable, TapLogger {
 		if (StringUtils.isBlank(formattedMessage)) {
 			formattedMessage = "<Empty error message>";
 		}
-		builder.message(parameterizedMessage.getFormattedMessage());
+		builder.message(formattedMessage);
+		if (throwable == null) {
+			return;
+		}
 		String stackString = "<-- Full Stack Trace -->\n" + TapSimplify.getStackString(throwable);
 		if (throwable instanceof TapCodeException) {
 			String errorCode = ((TapCodeException) throwable).getCode();

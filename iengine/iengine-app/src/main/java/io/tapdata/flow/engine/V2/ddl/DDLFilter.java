@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.ddl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
@@ -69,6 +70,9 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 
 	@Override
 	public boolean test(TapDDLEvent tapDDLEvent) {
+		if (tapDDLEvent instanceof TapDDLWarningEvent) {
+			return true;
+		}
 		if (null != dynamicTableTest && dynamicTableTest.test(tapDDLEvent)) {
 			if (tapDDLEvent instanceof TapCreateTableEvent || tapDDLEvent instanceof TapDropTableEvent) {
 				return true;

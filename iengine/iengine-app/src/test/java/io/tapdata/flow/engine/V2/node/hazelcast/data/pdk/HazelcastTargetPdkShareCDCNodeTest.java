@@ -4,8 +4,11 @@ import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.entity.TapProcessorNodeContext;
@@ -25,7 +28,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -73,7 +78,17 @@ class HazelcastTargetPdkShareCDCNodeTest {
 			node.setId("1");
 			node.setName("test");
 			when(hazelcastTargetPdkShareCDCNode.getNode()).thenReturn(node);
-			dataProcessorContext = new DataProcessorContext.DataProcessorContextBuilder().build();
+			TaskDto taskDto = new TaskDto();
+			DAG dag = mock(DAG.class);
+			List<Node> nodes = new ArrayList<>();
+			nodes.add(new DatabaseNode());
+			nodes.add(new TableNode());
+			nodes.add(new DatabaseNode());
+			when(dag.getNodes()).thenReturn(nodes);
+			taskDto.setDag(dag);
+			dataProcessorContext = new DataProcessorContext.DataProcessorContextBuilder()
+					.withTaskDto(taskDto)
+					.build();
 			ReflectionTestUtils.setField(hazelcastTargetPdkShareCDCNode, "dataProcessorContext", dataProcessorContext);
 		}
 

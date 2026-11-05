@@ -20,6 +20,7 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	private Long eventSerialNo;
 
 	private Long sourceTime;
+	private Long offsetStartTime;
 
 	private String syncStage;
 	@JsonIgnore
@@ -144,6 +145,14 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 
 	public void setType(Type type) {
 		this.type = type;
+	}
+
+	public Long getOffsetStartTime() {
+		return offsetStartTime;
+	}
+
+	public void setOffsetStartTime(Long offsetStartTime) {
+		this.offsetStartTime = offsetStartTime;
 	}
 
 	public enum Type {

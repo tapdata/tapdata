@@ -1,0 +1,14 @@
+[
+  {
+    "createIndexes": "ServerUsage",
+    "indexes": [
+      {
+        "name": "ServerUsage_lastUpdateTime_1",
+        "key": {
+          "lastUpdateTime": 1
+        },
+        "background": true
+      }
+    ]
+  }
+]

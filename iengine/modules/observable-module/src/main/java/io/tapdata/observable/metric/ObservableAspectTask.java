@@ -289,8 +289,11 @@ public class ObservableAspectTask extends AspectTask {
 				aspect.streamingReadCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadComplete(streamReadFuture, e, syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(e), nodeId, dataNodeSampleHandlers, taskSampleHandler, System.currentTimeMillis()));
 				aspect.streamingProcessCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadProcessComplete(streamProcessFuture, e, syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(e), nodeId, dataNodeSampleHandlers, System.currentTimeMillis()));
 				aspect.streamingEnqueuedConsumers(events -> {
+					HandlerUtil.EventTypeRecorder recorder = (null == events || events.isEmpty())
+							? null
+							: HandlerUtil.countTapdataEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> handler.handleStreamReadEnqueued(System.currentTimeMillis())
+							handler -> handler.handleStreamReadEnqueued(System.currentTimeMillis(), recorder)
 					);
 				});
 				break;

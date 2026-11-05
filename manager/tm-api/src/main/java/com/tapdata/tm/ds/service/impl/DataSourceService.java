@@ -9,6 +9,10 @@ import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentCheckRequest;
+import com.tapdata.tm.ds.dto.ConnectionAgentConflictReport;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -33,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public abstract class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
     public DataSourceService(@NonNull DataSourceRepository repository) {
@@ -45,8 +50,20 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast);
 
+    public abstract com.tapdata.tm.ds.dto.ConnectionTaskAgentResult updateConflictTaskAgents(
+            com.tapdata.tm.ds.dto.ConnectionTaskAgentRequest request, UserDetail user);
+
+    public abstract ConnectionAgentConflictReport checkConnectionAgentSettings(ConnectionAgentCheckRequest request, UserDetail user);
+
+    public abstract BatchUpdateAgentSettingsResponse batchUpdateAgentSettings(
+            BatchUpdateAgentSettingsRequest request,
+            UserDetail userDetail
+    );
+
     //返回oldName, 表示更换名称
     public abstract String updateCheck(UserDetail user, DataSourceConnectionDto updateDto);
+
+    public abstract void generatePasswordTag(DataSourceConnectionDto updateDto, UserDetail user);
 
     public abstract void checkAccessNodeAvailable(String accessNodeType, List<String> accessNodeProcessIdList, UserDetail userDetail);
 
@@ -75,6 +92,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
     public abstract void checkConn(DataSourceConnectionDto connectionDto, UserDetail user);
 
     public abstract long upsertByWhere(Where where, Document update, DataSourceConnectionDto connectionDto, UserDetail user);
+
+    public abstract long refreshModel(Where where, Document update, DataSourceConnectionDto connectionDto, UserDetail user);
 
     public abstract long updatePartialSchema(String id, String loadFieldsStatus, Long lastUpdate, String fromSchemaVersion, String toSchemaVersion, String filters, UserDetail user);
 
@@ -137,6 +156,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
     public abstract DataSourceConnectionDto findByIdByCheck(ObjectId id);
 
     public abstract DataSourceConnectionDto findById(ObjectId id, String... fields);
+
+    public abstract Supplier<DataSourceConnectionDto> dataPermissionFindById(ObjectId id, com.tapdata.tm.base.dto.Field fields);
 
     public abstract void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus,String connectionId,Long lastUpdate,UserDetail user);
 

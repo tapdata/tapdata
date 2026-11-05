@@ -70,6 +70,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 							.and("status").nin(TaskDto.STATUS_ERROR, TaskDto.STATUS_SCHEDULE_FAILED)
 							.and("agentId").is(taskDto.getAgentId())
 					);
+					if (Objects.nonNull(taskDto.getTaskRecordId())) {
+						query.addCriteria(where("taskRecordId").is(taskDto.getTaskRecordId()));
+					}
 					Update update = new Update().set("pingTime", now);
 					try {
 						taskPingTimeUseHttp(query, update);

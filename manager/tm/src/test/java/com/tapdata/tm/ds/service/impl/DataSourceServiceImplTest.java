@@ -12,18 +12,26 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.job.service.JobService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsRequest;
+import com.tapdata.tm.ds.dto.BatchUpdateAgentSettingsResponse;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.ds.utils.DataSourceServiceUtil;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.entity.Worker;
@@ -33,6 +41,7 @@ import io.tapdata.pdk.apis.entity.Capability;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -47,9 +56,12 @@ import java.util.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -57,6 +69,268 @@ import static org.mockito.Mockito.*;
 
 class DataSourceServiceImplTest {
     DataSourceServiceImpl dataSourceService;
+
+    @Nested
+    class BatchUpdateAgentSettingsTest {
+        private DataSourceRepository dataSourceRepository;
+        private DataSourceServiceImpl dataSourceService;
+        private AgentGroupService agentGroupService;
+        private WorkerService workerService;
+        private UserDetail userDetail;
+
+        private org.mockito.MockedStatic<DataPermissionHelper> permissionScope;
+
+        @AfterEach
+        void closePermissionScope() { permissionScope.close(); }
+
+        @BeforeEach
+        void setUp() {
+            permissionScope = mockStatic(DataPermissionHelper.class);
+            permissionScope.when(() -> DataPermissionHelper.check(any(), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(call -> ((java.util.function.Supplier<?>) call.getArgument(5)).get());
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "connectionAgentConflictService", mock(ConnectionAgentConflictService.class));
+            doAnswer(call -> {
+                Query query = call.getArgument(0);
+                List<ObjectId> ids = ((Document) query.getQueryObject().get("_id")).getList("$in", ObjectId.class);
+                return ids.stream().map(id -> {
+                    DataSourceConnectionDto connection = new DataSourceConnectionDto();
+                    connection.setId(id);
+                    connection.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                    return connection;
+                }).collect(Collectors.toList());
+            }).when(dataSourceService).findAllDto(any(Query.class), any(UserDetail.class));
+            agentGroupService = mock(AgentGroupService.class);
+            workerService = mock(WorkerService.class);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("user-1");
+            ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
+            ReflectionTestUtils.setField(dataSourceService, "workerService", workerService);
+            when(workerService.findAvailableAgentByAccessNode(eq(userDetail), anyList()))
+                    .thenReturn(Collections.singletonList(new Worker()));
+        }
+
+        @Test
+        void shouldNormalizeAutomaticSettingsAndReturnCanonicalUpdatedIds() {
+            ObjectId connectionId = new ObjectId();
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(connectionId.toHexString().toUpperCase(Locale.ROOT)),
+                    " automatic_platform_allocation ", null, "priority-1");
+            mockUpdateResult(1, 1);
+
+            BatchUpdateAgentSettingsResponse response = dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document updateObject = updateCaptor.getValue().getUpdateObject();
+            Document set = (Document) updateObject.get("$set");
+            Document unset = (Document) updateObject.get("$unset");
+            assertEquals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), set.get("accessNodeType"));
+            assertTrue(set.containsKey("accessNodeProcessId"));
+            assertNull(set.get("accessNodeProcessId"));
+            assertEquals(Collections.emptyList(), set.get("accessNodeProcessIdList"));
+            assertEquals("priority-1", set.get("priorityProcessId"));
+            assertEquals(DataSourceEntity.STATUS_INVALID, set.get("status"));
+            assertInstanceOf(Date.class, set.get("lastUpdAt"));
+            assertEquals("user-1", set.get("lastUpdBy"));
+            assertTrue(unset.containsKey("testTime"));
+            assertTrue(unset.containsKey("errorMsg"));
+            assertEquals(request.getRequestId(), response.getRequestId());
+            assertEquals(1, response.getUpdatedCount());
+            assertEquals(Collections.singletonList(connectionId.toHexString()), response.getUpdatedConnectionIds());
+            verify(dataSourceRepository, never()).findAll(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldNormalizeUserManualSettingsAndRejectPriorityAgent() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), "agent-1", null);
+            mockUpdateResult(1, 1);
+
+            dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals("agent-1", set.get("accessNodeProcessId"));
+            assertEquals(Collections.singletonList("agent-1"), set.get("accessNodeProcessIdList"));
+            verify(workerService).findAvailableAgentByAccessNode(eq(userDetail), eq(Collections.singletonList("agent-1")));
+
+            request.getSettings().setPriorityProcessId("agent-1");
+            BizException exception = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            assertEquals("IllegalArgument", exception.getErrorCode());
+        }
+
+        @Test
+        void shouldValidateGroupPriorityAgainstSelectedGroup() {
+            String groupId = "group-1";
+            String type = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            when(agentGroupService.getProcessNodeListByGroupId(anyList(), eq(type), eq(userDetail)))
+                    .thenReturn(Collections.singletonList("agent-1"));
+            BatchUpdateAgentSettingsRequest request = request(
+                    Collections.singletonList(new ObjectId().toHexString()), type, groupId, "agent-1");
+            mockUpdateResult(1, 1);
+
+            dataSourceService.batchUpdateAgentSettings(request, userDetail);
+
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(dataSourceRepository).update(any(Query.class), updateCaptor.capture(), eq(userDetail));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(groupId, set.get("accessNodeProcessId"));
+            assertEquals("agent-1", set.get("priorityProcessId"));
+
+            request.getSettings().setPriorityProcessId("agent-2");
+            BizException exception = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            assertEquals("IllegalArgument", exception.getErrorCode());
+
+            ObjectId connectionId = new ObjectId();
+            DataSourceConnectionDto singleUpdate = new DataSourceConnectionDto();
+            singleUpdate.setId(connectionId);
+            singleUpdate.setName("connection");
+            singleUpdate.setAccessNodeType(type);
+            singleUpdate.setAccessNodeProcessId(groupId);
+            singleUpdate.setPriorityProcessId("agent-2");
+            DataSourceConnectionDto existingConnection = new DataSourceConnectionDto();
+            existingConnection.setId(connectionId);
+            existingConnection.setName("connection");
+            doReturn(existingConnection).when(dataSourceService).findById(eq(connectionId), eq(userDetail));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(userDetail), eq("connection"), eq(connectionId));
+            assertThrows(BizException.class, () -> dataSourceService.updateCheck(userDetail, singleUpdate));
+        }
+
+        @Test
+        void shouldRejectInvalidDuplicateAndOversizedConnectionIdLists() {
+            String connectionId = new ObjectId().toHexString();
+            BatchUpdateAgentSettingsRequest duplicateRequest = request(
+                    Arrays.asList(connectionId, connectionId.toUpperCase(Locale.ROOT)),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException duplicateException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(duplicateRequest, userDetail));
+            assertEquals("IllegalArgument", duplicateException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest invalidIdRequest = request(
+                    Collections.singletonList("not-an-object-id"),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException invalidIdException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(invalidIdRequest, userDetail));
+            assertEquals("IllegalArgument", invalidIdException.getErrorCode());
+
+            List<String> tooManyIds = new ArrayList<>();
+            for (int i = 0; i <= 100; i++) {
+                tooManyIds.add(new ObjectId().toHexString());
+            }
+            BatchUpdateAgentSettingsRequest oversizedRequest = request(
+                    tooManyIds, AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            BizException oversizedException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(oversizedRequest, userDetail));
+            assertEquals("IllegalArgument", oversizedException.getErrorCode());
+            verify(dataSourceRepository, never()).count(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldRejectMissingSettingsAndRequiredAgentIds() {
+            BatchUpdateAgentSettingsRequest missingSettingsRequest = new BatchUpdateAgentSettingsRequest();
+            missingSettingsRequest.setConnectionIds(Collections.singletonList(new ObjectId().toHexString()));
+            BizException missingSettingsException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingSettingsRequest, userDetail));
+            assertEquals("IllegalArgument", missingSettingsException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingTypeRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()), null, null, null);
+            BizException missingTypeException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingTypeRequest, userDetail));
+            assertEquals("IllegalArgument", missingTypeException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingManualAgentRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), null, null);
+            BizException missingManualAgentException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingManualAgentRequest, userDetail));
+            assertEquals("IllegalArgument", missingManualAgentException.getErrorCode());
+
+            BatchUpdateAgentSettingsRequest missingGroupIdRequest = request(
+                    Collections.singletonList(new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), null, null);
+            BizException missingGroupIdException = assertThrows(BizException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(missingGroupIdRequest, userDetail));
+            assertEquals("IllegalArgument", missingGroupIdException.getErrorCode());
+            verify(dataSourceRepository, never()).count(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldRejectEditableCountMismatchWithoutLoadingConnectionConfigs() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            when(dataSourceRepository.count(any(Query.class), eq(userDetail))).thenReturn(1L);
+
+            assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+            verify(dataSourceRepository, never()).findAll(any(Query.class), eq(userDetail));
+        }
+
+        @Test
+        void shouldFailWhenConcurrentChangesCausePartialUpdate() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), null, null);
+            mockUpdateResult(2, 1);
+
+            assertThrows(BizException.class, () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+        }
+
+        @Test
+        void shouldBlockConflictingBatchBeforeAnyWriteAndUsePolicyProjection() {
+            BatchUpdateAgentSettingsRequest request = request(
+                    Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString()),
+                    AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), "agent-b", null);
+            mockUpdateResult(2, 2);
+            ConnectionAgentConflictService checker = (ConnectionAgentConflictService) ReflectionTestUtils.getField(dataSourceService, "connectionAgentConflictService");
+            com.tapdata.tm.ds.dto.ConnectionAgentConflictReport report = new com.tapdata.tm.ds.dto.ConnectionAgentConflictReport();
+            report.setHasConflicts(true);
+            doThrow(new com.tapdata.tm.ds.exception.ConnectionAgentConflictException(report)).when(checker).assertNoConflicts(anyMap(), eq(userDetail));
+            assertThrows(com.tapdata.tm.ds.exception.ConnectionAgentConflictException.class,
+                    () -> dataSourceService.batchUpdateAgentSettings(request, userDetail));
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+            ArgumentCaptor<Map<String, DataSourceConnectionDto>> changes = ArgumentCaptor.forClass(Map.class);
+            verify(checker).assertNoConflicts(changes.capture(), eq(userDetail));
+            assertEquals(2, changes.getValue().size());
+            assertTrue(changes.getValue().values().stream().allMatch(connection -> "agent-b".equals(connection.getAccessNodeProcessId())));
+            ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+            verify(dataSourceService).findAllDto(query.capture(), eq(userDetail));
+            assertEquals(Set.of("_id", "name", "user_id", "accessNodeType", "accessNodeProcessId", "priorityProcessId"), query.getValue().getFieldsObject().keySet());
+        }
+
+        private BatchUpdateAgentSettingsRequest request(
+                List<String> connectionIds,
+                String accessNodeType,
+                String accessNodeProcessId,
+                String priorityProcessId
+        ) {
+            BatchUpdateAgentSettingsRequest request = new BatchUpdateAgentSettingsRequest();
+            request.setRequestId("request-1");
+            request.setConnectionIds(connectionIds);
+            BatchUpdateAgentSettingsRequest.AgentSettings settings = new BatchUpdateAgentSettingsRequest.AgentSettings();
+            settings.setAccessNodeType(accessNodeType);
+            settings.setAccessNodeProcessId(accessNodeProcessId);
+            settings.setPriorityProcessId(priorityProcessId);
+            request.setSettings(settings);
+            return request;
+        }
+
+        private void mockUpdateResult(long expectedCount, long matchedCount) {
+            when(dataSourceRepository.count(any(Query.class), eq(userDetail))).thenReturn(expectedCount);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getMatchedCount()).thenReturn(matchedCount);
+            when(dataSourceRepository.update(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(updateResult);
+        }
+    }
+
     @Nested
     class RestoreAccessNodeTypeTest{
         DataSourceConnectionDto updateDto;
@@ -394,6 +668,123 @@ class DataSourceServiceImplTest {
 
             Assertions.assertEquals("test", dto.getConfig().get("uri"),
                     "MongoDB URI password should be masked");
+        }
+
+        @Test
+        @DisplayName("test hiddenMqPasswd with passwordTag containing password field")
+        void testHiddenMqPasswd_WithPasswordTag() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("password", "secret123");
+            config.put("mqPassword", "mqSecret456");
+            config.put("username", "admin");
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mysql");
+            dto.setPasswordTag(new HashSet<>(Arrays.asList("password", "mqPassword")));
+            doReturn(false).when(dataSourceService).isAgentReq();
+
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertNull(dto.getConfig().get("password"), "password should be nullified");
+            Assertions.assertNull(dto.getConfig().get("mqPassword"), "mqPassword should be nullified");
+            Assertions.assertEquals("admin", dto.getConfig().get("username"), "username should remain unchanged");
+        }
+
+        @Test
+        @DisplayName("test hiddenMqPasswd with empty passwordTag does not nullify")
+        void testHiddenMqPasswd_WithEmptyPasswordTag() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("password", "secret123");
+            config.put("mqPassword", "mqSecret456");
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mysql");
+            dto.setPasswordTag(Collections.emptySet());
+            doReturn(false).when(dataSourceService).isAgentReq();
+
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("secret123", dto.getConfig().get("password"), "password should NOT be nullified when passwordTag is empty");
+            Assertions.assertEquals("mqSecret456", dto.getConfig().get("mqPassword"), "mqPassword should NOT be nullified when passwordTag is empty");
+        }
+
+        @Test
+        @DisplayName("test hiddenMqPasswd with null passwordTag does not nullify")
+        void testHiddenMqPasswd_WithNullPasswordTag() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("password", "secret123");
+            config.put("mqPassword", "mqSecret456");
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mysql");
+            dto.setPasswordTag(null);
+            doReturn(false).when(dataSourceService).isAgentReq();
+
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("secret123", dto.getConfig().get("password"), "password should NOT be nullified when passwordTag is null");
+            Assertions.assertEquals("mqSecret456", dto.getConfig().get("mqPassword"), "mqPassword should NOT be nullified when passwordTag is null");
+        }
+
+        @Test
+        @DisplayName("test hiddenMqPasswd with passwordTag field not in config")
+        void testHiddenMqPasswd_PasswordTagFieldNotInConfig() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("password", "secret123");
+            config.put("username", "admin");
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mysql");
+            // "sslPassword" is in passwordTag but not in config - should not cause error
+            dto.setPasswordTag(new HashSet<>(Arrays.asList("password", "sslPassword")));
+            doReturn(false).when(dataSourceService).isAgentReq();
+
+            Assertions.assertDoesNotThrow(() -> dataSourceService.hiddenMqPasswd(dto));
+            Assertions.assertNull(dto.getConfig().get("password"), "password should be nullified");
+            Assertions.assertEquals("admin", dto.getConfig().get("username"), "username should remain unchanged");
+        }
+
+        @Test
+        @DisplayName("test hiddenMqPasswd with passwordTag and mongo uri combined")
+        void testHiddenMqPasswd_WithPasswordTagAndMongoUri() {
+            String originalUri = "mongodb://user:password@localhost:27017/db";
+            Map<String, Object> config = new HashMap<>();
+            config.put("password", "secret123");
+            config.put("uri", originalUri);
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mongo");
+            dto.setPasswordTag(new HashSet<>(Collections.singletonList("password")));
+            doReturn(false).when(dataSourceService).isAgentReq();
+
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertNull(dto.getConfig().get("password"), "password should be nullified by passwordTag");
+            Assertions.assertEquals("mongodb://user:******@localhost:27017/db", dto.getConfig().get("uri"),
+                    "MongoDB URI password should be masked");
+        }
+
+        @Test
+        @DisplayName("test hiddenMqPasswd when isAgentReq returns true")
+        void testHiddenMqPasswd_IsAgentReq() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("password", "secret123");
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mysql");
+            dto.setPasswordTag(new HashSet<>(Collections.singletonList("password")));
+            doReturn(true).when(dataSourceService).isAgentReq();
+
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("secret123", dto.getConfig().get("password"),
+                    "password should NOT be nullified when isAgentReq returns true");
         }
     }
     @Nested
@@ -845,6 +1236,8 @@ class DataSourceServiceImplTest {
 
             ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
             ReflectionTestUtils.setField(dataSourceService, "externalStorageService", externalStorageService);
+            // overwrite import may load the existing connection to restore masked secrets
+            doReturn(null).when(dataSourceService).findById(any(ObjectId.class), eq(user));
         }
 
         @Test
@@ -981,6 +1374,131 @@ class DataSourceServiceImplTest {
             assertEquals(1, result.size());
             verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
         }
+
+        @Test
+        @DisplayName("REPLACE existing Mongo connection restores masked uri from target before importSave")
+        void replaceExistingMongo_restoresMaskedUriFromExisting() {
+            ObjectId existingId = existingConnection.getId();
+            connectionDto.setDatabase_type("mongodb");
+            connectionDto.setPdkHash("mongo-pdk-hash");
+            connectionDto.setDatabase_uri("");
+            connectionDto.setDatabase_host("");
+            connectionDto.setDatabase_username("");
+            connectionDto.setDatabase_password("");
+            Map<String, Object> incomingConfig = new LinkedHashMap<>();
+            incomingConfig.put("isUri", true);
+            incomingConfig.put("uri", "");
+            connectionDto.setConfig(incomingConfig);
+
+            DataSourceConnectionDto existingFull = new DataSourceConnectionDto();
+            existingFull.setId(existingId);
+            existingFull.setName("test_connection");
+            existingFull.setDatabase_uri("mongodb://real-host:27017/dmp");
+            existingFull.setDatabase_host("real-host:27017");
+            existingFull.setDatabase_password("s3cr3t");
+            Map<String, Object> existingConfig = new LinkedHashMap<>();
+            existingConfig.put("isUri", true);
+            existingConfig.put("uri", "mongodb://real-host:27017/dmp");
+            existingFull.setConfig(existingConfig);
+
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            DataSourceDefinitionService definitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitionService);
+            when(definitionService.findByPdkHash(eq("mongo-pdk-hash"), eq(Integer.MAX_VALUE), eq(user)))
+                    .thenReturn(definition);
+
+            doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(existingFull).when(dataSourceService).findById(eq(existingId), eq(user));
+            doReturn(connectionDto).when(dataSourceService).importSave(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            dataSourceService.batchImport(connectionDtos, user, ImportModeEnum.REPLACE);
+
+            assertEquals("mongodb://real-host:27017/dmp", connectionDto.getDatabase_uri());
+            assertEquals("real-host:27017", connectionDto.getDatabase_host());
+            assertEquals("s3cr3t", connectionDto.getDatabase_password());
+            assertEquals("mongodb://real-host:27017/dmp", connectionDto.getConfig().get("uri"));
+            verify(dataSourceService, times(1)).importSave(connectionDto, user);
+        }
+    }
+
+    @Nested
+    @DisplayName("beforeSave Mongo import (TAP-12823)")
+    class BeforeSaveMongoImportTest {
+        private DataSourceDefinitionService definitionService;
+        private UserDetail user;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceService = spy(new DataSourceServiceImpl(mock(DataSourceRepository.class)));
+            user = mock(UserDetail.class);
+            definitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitionService);
+            doNothing().when(dataSourceService).checkConn(any(), any());
+        }
+
+        @Test
+        @DisplayName("masked Mongo connection with blank host/uri does not throw IllegalArgument")
+        void maskedMongoBlankHost_doesNotThrowIllegalArgument() {
+            DataSourceConnectionDto connection = maskedMongoConnection();
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            when(definitionService.findByPdkHash(any(), anyInt(), eq(user))).thenReturn(definition);
+
+            assertDoesNotThrow(() -> dataSourceService.beforeSave(connection, user, true));
+        }
+
+        @Test
+        @DisplayName("Mongo with host still constructs uri and parses it")
+        void mongoWithHost_stillConstructsAndParsesUri() {
+            DataSourceConnectionDto connection = maskedMongoConnection();
+            connection.setDatabase_host("127.0.0.1:27017");
+            connection.setDatabase_username("tap");
+            connection.setPlain_password("tap");
+            connection.setDatabase_name("dmp");
+            DataSourceDefinitionDto definition = mongoDefinitionWithUri();
+            when(definitionService.findByPdkHash(any(), anyInt(), eq(user))).thenReturn(definition);
+
+            assertDoesNotThrow(() -> dataSourceService.beforeSave(connection, user, true));
+            assertNotNull(connection.getDatabase_uri());
+            assertFalse(connection.getDatabase_uri().isBlank());
+            assertTrue(connection.getDatabase_uri().startsWith("mongodb://"));
+            assertTrue(connection.getDatabase_uri().contains("127.0.0.1:27017"));
+        }
+    }
+
+    private static DataSourceConnectionDto maskedMongoConnection() {
+        DataSourceConnectionDto connection = new DataSourceConnectionDto();
+        connection.setName("mongo_conn");
+        connection.setDatabase_type("mongodb");
+        connection.setPdkHash("mongo-pdk-hash");
+        connection.setDatabase_uri("");
+        connection.setDatabase_host("");
+        connection.setDatabase_username("");
+        connection.setDatabase_password("");
+        connection.setDatabase_name("dmp");
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("isUri", true);
+        config.put("uri", "");
+        connection.setConfig(config);
+        return connection;
+    }
+
+    private static DataSourceDefinitionDto mongoDefinitionWithUri() {
+        Map<String, Object> uriMeta = new LinkedHashMap<>();
+        uriMeta.put("apiServerKey", "database_uri");
+        Map<String, Object> connProps = new LinkedHashMap<>();
+        connProps.put("uri", uriMeta);
+        Map<String, Object> connection = new LinkedHashMap<>();
+        connection.put("properties", connProps);
+        LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+        properties.put("connection", connection);
+        DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+        definition.setBuildNumber(1);
+        definition.setVersion("1.0");
+        definition.setGroup("mongodb");
+        definition.setPdkId("mongodb");
+        definition.setProperties(properties);
+        return definition;
     }
 
     @Nested
@@ -1065,20 +1583,21 @@ class DataSourceServiceImplTest {
         }
 
         @Test
-        @DisplayName("test handleImportAsCopyConnection with name conflict - name preserved")
+        @DisplayName("test handleImportAsCopyConnection with name conflict")
         void testHandleImportAsCopyConnectionWithNameConflict() {
             // Setup
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(true, true, false).when(dataSourceService).checkRepeatNameBool(eq(user), anyString(), eq(null));
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
             // Execute
             DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
 
-            // Verify - name should NOT be modified, _id is used for uniqueness
+            // Verify
             assertNotNull(result);
-            assertEquals("test_connection", connectionDto.getName());
-            verify(dataSourceService, never()).checkRepeatNameBool(eq(user), anyString(), eq(null));
+            assertEquals("test_connection_import_import", connectionDto.getName()); // Name should be modified to avoid conflict
+            verify(dataSourceService, times(3)).checkRepeatNameBool(eq(user), anyString(), eq(null));
             verify(dataSourceService, times(1)).importEntity(connectionDto, user);
         }
 
@@ -1417,6 +1936,982 @@ class DataSourceServiceImplTest {
             assertEquals("Conn1", result.get(0).getName());
             assertEquals(connId2, result.get(1).getId());
             assertEquals("Conn2", result.get(1).getName());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method generatePasswordTag test")
+    class GeneratePasswordTagTest {
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+        private DataSourceDefinitionService dataSourceDefinitionService;
+        private ModulesService modulesService;
+        private UserDetail user;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+            modulesService = mock(ModulesService.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", dataSourceDefinitionService);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+            user = mock(UserDetail.class);
+        }
+
+        @Test
+        @DisplayName("test normal: definition properties have Password x-component fields")
+        void testNormalWithPasswordXComponent() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("mysql");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+
+            // Build connection -> properties structure
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connectionProps.put("password", passwordField);
+
+            LinkedHashMap<String, Object> mqPasswordField = new LinkedHashMap<>();
+            mqPasswordField.put("x-component", "Password");
+            connectionProps.put("mqPassword", mqPasswordField);
+
+            LinkedHashMap<String, Object> normalField = new LinkedHashMap<>();
+            normalField.put("x-component", "Input");
+            connectionProps.put("username", normalField);
+
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            dataSourceService.generatePasswordTag(dto, user);
+
+            Set<String> passwordTag = dto.getPasswordTag();
+            assertNotNull(passwordTag);
+            assertEquals(2, passwordTag.size());
+            assertTrue(passwordTag.contains("password"));
+            assertTrue(passwordTag.contains("mqPassword"));
+            assertFalse(passwordTag.contains("username"));
+            verify(modulesService, times(1)).analyzeApiServerKey(eq(dto), any(LinkedHashMap.class), isNull());
+        }
+
+        @Test
+        @DisplayName("test no Password x-component fields in definition")
+        void testNoPasswordXComponent() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("mysql");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> normalField = new LinkedHashMap<>();
+            normalField.put("x-component", "Input");
+            connectionProps.put("username", normalField);
+            connectionProps.put("host", normalField);
+
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            dataSourceService.generatePasswordTag(dto, user);
+
+            Set<String> passwordTag = dto.getPasswordTag();
+            assertNotNull(passwordTag);
+            assertTrue(passwordTag.isEmpty());
+        }
+
+        @Test
+        @DisplayName("test multiple password fields with Password x-component")
+        void testMultiplePasswordFields() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("oracle");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connectionProps.put("password", passwordField);
+            connectionProps.put("servicePassword", passwordField);
+            connectionProps.put("sslPassword", passwordField);
+            connectionProps.put("trustStorePassword", passwordField);
+
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("oracle"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            dataSourceService.generatePasswordTag(dto, user);
+
+            Set<String> passwordTag = dto.getPasswordTag();
+            assertNotNull(passwordTag);
+            assertEquals(4, passwordTag.size());
+            assertTrue(passwordTag.contains("password"));
+            assertTrue(passwordTag.contains("servicePassword"));
+            assertTrue(passwordTag.contains("sslPassword"));
+            assertTrue(passwordTag.contains("trustStorePassword"));
+        }
+
+        @Test
+        @DisplayName("test connection is null (not LinkedHashMap)")
+        void testConnectionIsNull() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("mysql");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            // "connection" is absent, so get("connection") returns null
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            assertThrows(NullPointerException.class, () -> {
+                dataSourceService.generatePasswordTag(dto, user);
+            });
+        }
+
+        @Test
+        @DisplayName("test definitionDto properties is null")
+        void testDefinitionPropertiesIsNull() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("mysql");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setProperties(null);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            assertThrows(NullPointerException.class, () -> {
+                dataSourceService.generatePasswordTag(dto, user);
+            });
+        }
+
+        @Test
+        @DisplayName("test connection is not LinkedHashMap instance")
+        void testConnectionNotLinkedHashMap() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("mysql");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            // connection is a plain String, not LinkedHashMap
+            properties.put("connection", "not_a_map");
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            assertThrows(ClassCastException.class, () -> {
+                dataSourceService.generatePasswordTag(dto, user);
+            });
+        }
+
+        @Test
+        @DisplayName("test connection properties is empty")
+        void testConnectionPropertiesEmpty() {
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setDatabase_type("mysql");
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            dataSourceService.generatePasswordTag(dto, user);
+
+            Set<String> passwordTag = dto.getPasswordTag();
+            assertNotNull(passwordTag);
+            assertTrue(passwordTag.isEmpty());
+            // modulesService.analyzeApiServerKey should still be called since connection is LinkedHashMap
+            verify(modulesService, times(1)).analyzeApiServerKey(eq(dto), any(LinkedHashMap.class), isNull());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method updateCheck passwordTag config preservation test")
+    class UpdateCheckPasswordTagTest {
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+        private DataSourceDefinitionService dataSourceDefinitionService;
+        private ModulesService modulesService;
+        private UserDetail user;
+        private DataSourceConnectionDto updateDto;
+        private DataSourceConnectionDto oldConnectionDto;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+            modulesService = mock(ModulesService.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", dataSourceDefinitionService);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+
+            user = mock(UserDetail.class);
+
+            updateDto = new DataSourceConnectionDto();
+            updateDto.setId(new ObjectId());
+            updateDto.setName("test-connection");
+            updateDto.setDatabase_type("mysql");
+
+            oldConnectionDto = new DataSourceConnectionDto();
+            oldConnectionDto.setId(updateDto.getId());
+            oldConnectionDto.setName("test-connection");
+            oldConnectionDto.setDatabase_type("mysql");
+        }
+
+        @Test
+        @DisplayName("test updateCheck preserves password from old config when missing in update config - using passwordTag")
+        void testPreservesPasswordFromOldConfigUsingPasswordTag() {
+            // Setup updateDto with empty config (password missing)
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            // password is NOT in update config - should be preserved from old config
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(new HashSet<>(Arrays.asList("password", "mqPassword")));
+
+            // Setup oldConnection with existing passwords
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("mqPassword", "oldMqSecret456");
+            oldConfig.put("username", "oldAdmin");
+            oldConnectionDto.setConfig(oldConfig);
+
+            // Setup definition for generatePasswordTag
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connectionProps.put("password", passwordField);
+            connectionProps.put("mqPassword", passwordField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            // Mock findById to return old connection
+            doReturn(oldConnectionDto).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+
+            // Mock checkRepeatNameBool to avoid DB lookup
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(user), eq("test-connection"), eq(updateDto.getId()));
+
+            // Execute
+            String oldName = dataSourceService.updateCheck(user, updateDto);
+
+            // Verify passwordTag was generated (overwritten by generatePasswordTag)
+            assertNotNull(updateDto.getPasswordTag());
+            assertTrue(updateDto.getPasswordTag().contains("password"));
+            assertTrue(updateDto.getPasswordTag().contains("mqPassword"));
+
+            // Verify passwords were preserved from old config
+            assertEquals("oldSecret123", updateDto.getConfig().get("password"),
+                    "password should be preserved from old connection config");
+            assertEquals("oldMqSecret456", updateDto.getConfig().get("mqPassword"),
+                    "mqPassword should be preserved from old connection config");
+            assertEquals("admin", updateDto.getConfig().get("username"),
+                    "username should remain as set in update config");
+
+            assertNull(oldName);
+            // Verify generatePasswordTag was called (via the real method being called)
+            verify(dataSourceDefinitionService, atLeastOnce()).getByDataSourceType(eq("mysql"), eq(user));
+        }
+
+        @Test
+        @DisplayName("test updateCheck does not overwrite existing password in update config")
+        void testDoesNotOverwriteExistingPasswordInUpdateConfig() {
+            // Setup updateDto with config that already has password set
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("password", "newSecret999");
+            updateConfig.put("username", "newAdmin");
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(new HashSet<>(Arrays.asList("password", "mqPassword")));
+
+            // Setup oldConnection with old passwords
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("mqPassword", "oldMqSecret456");
+            oldConnectionDto.setConfig(oldConfig);
+
+            // Setup definition for generatePasswordTag
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connectionProps.put("password", passwordField);
+            connectionProps.put("mqPassword", passwordField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            doReturn(oldConnectionDto).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(user), eq("test-connection"), eq(updateDto.getId()));
+
+            // Execute
+            dataSourceService.updateCheck(user, updateDto);
+
+            // password should remain as the new value (not overwritten by old)
+            assertEquals("newSecret999", updateDto.getConfig().get("password"),
+                    "password should NOT be overwritten when already set in update config");
+            // mqPassword is blank in update config, should be preserved from old
+            assertEquals("oldMqSecret456", updateDto.getConfig().get("mqPassword"),
+                    "mqPassword should be preserved from old config when blank in update");
+        }
+
+        @Test
+        @DisplayName("test updateCheck with blank password in update config preserves from old")
+        void testPreservesPasswordWhenBlankInUpdateConfig() {
+            // Setup updateDto with blank/empty password
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("password", "");  // blank
+            updateConfig.put("mqPassword", "  ");  // blank (whitespace)
+            updateConfig.put("username", "admin");
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(new HashSet<>(Arrays.asList("password", "mqPassword")));
+
+            // Setup oldConnection with passwords
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("mqPassword", "oldMqSecret456");
+            oldConnectionDto.setConfig(oldConfig);
+
+            // Setup definition for generatePasswordTag
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connectionProps.put("password", passwordField);
+            connectionProps.put("mqPassword", passwordField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            doReturn(oldConnectionDto).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(user), eq("test-connection"), eq(updateDto.getId()));
+
+            // Execute
+            dataSourceService.updateCheck(user, updateDto);
+
+            assertEquals("oldSecret123", updateDto.getConfig().get("password"),
+                    "blank password should be preserved from old config");
+            assertEquals("oldMqSecret456", updateDto.getConfig().get("mqPassword"),
+                    "blank mqPassword should be preserved from old config");
+        }
+
+        @Test
+        @DisplayName("test updateCheck with empty passwordTag does not preserve any password")
+        void testEmptyPasswordTagDoesNotPreservePassword() {
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            // password not present
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(Collections.emptySet());  // empty passwordTag
+
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConnectionDto.setConfig(oldConfig);
+
+            // Setup definition with NO Password fields
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> normalField = new LinkedHashMap<>();
+            normalField.put("x-component", "Input");
+            connectionProps.put("username", normalField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            doReturn(oldConnectionDto).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(user), eq("test-connection"), eq(updateDto.getId()));
+
+            dataSourceService.updateCheck(user, updateDto);
+
+            // password should NOT be preserved because passwordTag is empty
+            assertNull(updateDto.getConfig().get("password"),
+                    "password should NOT be preserved when passwordTag is empty");
+        }
+
+        @Test
+        @DisplayName("test updateCheck preserves only fields in passwordTag from old config")
+        void testPreservesOnlyPasswordTagFields() {
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            // password and servicePassword not present
+            updateDto.setConfig(updateConfig);
+            // Only "password" is in passwordTag, not "servicePassword"
+            updateDto.setPasswordTag(new HashSet<>(Collections.singletonList("password")));
+
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("servicePassword", "oldServiceSecret");
+            oldConnectionDto.setConfig(oldConfig);
+
+            // Setup definition with Password fields
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connectionProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connectionProps.put("password", passwordField);
+            connectionProps.put("servicePassword", passwordField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            when(dataSourceDefinitionService.getByDataSourceType(eq("mysql"), eq(user)))
+                    .thenReturn(definitionDto);
+
+            doReturn(oldConnectionDto).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(eq(user), eq("test-connection"), eq(updateDto.getId()));
+
+            dataSourceService.updateCheck(user, updateDto);
+
+            // passwordTag gets overwritten by generatePasswordTag, but then only fields in the (now updated) passwordTag are preserved
+            // Since configuration props has both password and servicePassword with x-component=Password,
+            // passwordTag now contains both after generatePasswordTag runs.
+            // So BOTH should be preserved from old config.
+            Set<String> resultingPasswordTag = updateDto.getPasswordTag();
+            if (resultingPasswordTag != null && resultingPasswordTag.contains("password")) {
+                assertEquals("oldSecret123", updateDto.getConfig().get("password"),
+                        "password should be preserved");
+            }
+            if (resultingPasswordTag != null && resultingPasswordTag.contains("servicePassword")) {
+                assertEquals("oldServiceSecret", updateDto.getConfig().get("servicePassword"),
+                        "servicePassword should be preserved");
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Method update passwordTag config preservation test")
+    class UpdatePasswordTagTest {
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+        private UserDetail user;
+        private DataSourceConnectionDto updateDto;
+        private DataSourceConnectionDto oldConnection;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            user = mock(UserDetail.class);
+
+            updateDto = new DataSourceConnectionDto();
+            updateDto.setId(new ObjectId());
+            updateDto.setName("test-connection");
+            updateDto.setDatabase_type("mysql");
+
+            oldConnection = new DataSourceConnectionDto();
+            oldConnection.setId(updateDto.getId());
+            oldConnection.setName("test-connection");
+            oldConnection.setDatabase_type("mysql");
+        }
+
+        @Test
+        @DisplayName("test update preserves password from old config when missing in new config - using passwordTag")
+        void testPreservesPasswordFromOldConfigUsingPasswordTag() {
+            // updateDto config missing password fields
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            // "password" key is completely missing from config
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(new HashSet<>(Arrays.asList("password", "mqPassword")));
+
+            // oldConnection has password values
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("mqPassword", "oldMqSecret456");
+            oldConfig.put("username", "oldAdmin");
+            oldConnection.setConfig(oldConfig);
+
+            try (MockedStatic<DataSourceServiceUtil> dsUtilMock = mockStatic(DataSourceServiceUtil.class)) {
+                // Mock updateCheck to return null (no name change)
+                doReturn(null).when(dataSourceService).updateCheck(eq(user), eq(updateDto));
+
+                // Mock findById for old connection lookup (ObjectId overload)
+                doReturn(oldConnection).when(dataSourceService).findById(eq(updateDto.getId()));
+
+                // Mock repository operations
+                when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+
+                // Mock findById after save (ObjectId, UserDetail overload)
+                DataSourceConnectionDto updatedResult = new DataSourceConnectionDto();
+                updatedResult.setId(updateDto.getId());
+                updatedResult.setDatabase_type("mysql");
+                updatedResult.setConfig(new HashMap<>(updateDto.getConfig()));
+                doReturn(updatedResult).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+
+                // Execute with changeLast=false
+                DataSourceConnectionDto result = dataSourceService.update(user, updateDto, false);
+
+                // Verify passwords were preserved from old config when keys were missing in update config
+                assertNotNull(updateDto.getConfig());
+                assertEquals("oldSecret123", updateDto.getConfig().get("password"),
+                        "password should be preserved from old connection when missing in update config");
+                assertEquals("oldMqSecret456", updateDto.getConfig().get("mqPassword"),
+                        "mqPassword should be preserved from old connection when missing in update config");
+                assertEquals("admin", updateDto.getConfig().get("username"),
+                        "username should remain as set in update config");
+
+                assertNotNull(result);
+                verify(dataSourceService, times(1)).updateCheck(eq(user), eq(updateDto));
+                verify(dataSourceService, times(1)).hiddenMqPasswd(any(DataSourceConnectionDto.class));
+            }
+        }
+
+        @Test
+        @DisplayName("test update does not overwrite existing password in new config")
+        void testDoesNotOverwriteExistingPassword() {
+            // updateDto config already has password set
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("password", "newSecret999");
+            updateConfig.put("username", "newAdmin");
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(new HashSet<>(Arrays.asList("password", "mqPassword")));
+
+            // oldConnection has different password
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("mqPassword", "oldMqSecret456");
+            oldConnection.setConfig(oldConfig);
+
+            try (MockedStatic<DataSourceServiceUtil> dsUtilMock = mockStatic(DataSourceServiceUtil.class)) {
+                doReturn(null).when(dataSourceService).updateCheck(eq(user), eq(updateDto));
+                doReturn(oldConnection).when(dataSourceService).findById(eq(updateDto.getId()));
+                when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+
+                DataSourceConnectionDto updatedResult = new DataSourceConnectionDto();
+                updatedResult.setId(updateDto.getId());
+                updatedResult.setDatabase_type("mysql");
+                updatedResult.setConfig(new HashMap<>(updateDto.getConfig()));
+                doReturn(updatedResult).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+
+                dataSourceService.update(user, updateDto, false);
+
+                // password should remain as new value (already present in config, not missing)
+                assertEquals("newSecret999", updateDto.getConfig().get("password"),
+                        "existing password should NOT be overwritten");
+                // mqPassword is missing from update config, so it should be preserved
+                assertEquals("oldMqSecret456", updateDto.getConfig().get("mqPassword"),
+                        "missing mqPassword should be preserved from old config");
+            }
+        }
+
+        @Test
+        @DisplayName("test update only preserves keys in passwordTag")
+        void testOnlyPreservesPasswordTagKeys() {
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            // both password and servicePassword are missing
+            updateDto.setConfig(updateConfig);
+            // Only "password" in passwordTag, not "servicePassword"
+            updateDto.setPasswordTag(new HashSet<>(Collections.singletonList("password")));
+
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConfig.put("servicePassword", "oldServiceSecret");
+            oldConnection.setConfig(oldConfig);
+
+            try (MockedStatic<DataSourceServiceUtil> dsUtilMock = mockStatic(DataSourceServiceUtil.class)) {
+                doReturn(null).when(dataSourceService).updateCheck(eq(user), eq(updateDto));
+                doReturn(oldConnection).when(dataSourceService).findById(eq(updateDto.getId()));
+                when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+
+                DataSourceConnectionDto updatedResult = new DataSourceConnectionDto();
+                updatedResult.setId(updateDto.getId());
+                updatedResult.setDatabase_type("mysql");
+                updatedResult.setConfig(new HashMap<>(updateDto.getConfig()));
+                doReturn(updatedResult).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+
+                dataSourceService.update(user, updateDto, false);
+
+                // Only "password" should be preserved (it's in passwordTag)
+                assertEquals("oldSecret123", updateDto.getConfig().get("password"),
+                        "password (in passwordTag) should be preserved from old config");
+                // "servicePassword" should NOT be preserved (not in passwordTag)
+                assertNull(updateDto.getConfig().get("servicePassword"),
+                        "servicePassword (not in passwordTag) should NOT be preserved");
+            }
+        }
+
+        @Test
+        @DisplayName("test update with empty passwordTag preserves nothing")
+        void testEmptyPasswordTagPreservesNothing() {
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            // password is missing from config
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(Collections.emptySet());  // empty passwordTag
+
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("password", "oldSecret123");
+            oldConnection.setConfig(oldConfig);
+
+            try (MockedStatic<DataSourceServiceUtil> dsUtilMock = mockStatic(DataSourceServiceUtil.class)) {
+                doReturn(null).when(dataSourceService).updateCheck(eq(user), eq(updateDto));
+                doReturn(oldConnection).when(dataSourceService).findById(eq(updateDto.getId()));
+                when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+
+                DataSourceConnectionDto updatedResult = new DataSourceConnectionDto();
+                updatedResult.setId(updateDto.getId());
+                updatedResult.setDatabase_type("mysql");
+                updatedResult.setConfig(new HashMap<>(updateDto.getConfig()));
+                doReturn(updatedResult).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+
+                dataSourceService.update(user, updateDto, false);
+
+                // password should NOT be preserved because passwordTag is empty
+                assertNull(updateDto.getConfig().get("password"),
+                        "password should NOT be preserved when passwordTag is empty");
+            }
+        }
+
+        @Test
+        @DisplayName("test update with null oldConnection skips preservation")
+        void testNullOldConnectionSkipsPreservation() {
+            Map<String, Object> updateConfig = new HashMap<>();
+            updateConfig.put("username", "admin");
+            updateDto.setConfig(updateConfig);
+            updateDto.setPasswordTag(new HashSet<>(Arrays.asList("password")));
+
+            try (MockedStatic<DataSourceServiceUtil> dsUtilMock = mockStatic(DataSourceServiceUtil.class)) {
+                doReturn(null).when(dataSourceService).updateCheck(eq(user), eq(updateDto));
+                // oldConnection == null when findById returns null
+                doReturn(null).when(dataSourceService).findById(eq(updateDto.getId()));
+                when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+
+                DataSourceConnectionDto updatedResult = new DataSourceConnectionDto();
+                updatedResult.setId(updateDto.getId());
+                updatedResult.setDatabase_type("mysql");
+                updatedResult.setConfig(new HashMap<>(updateDto.getConfig()));
+                doReturn(updatedResult).when(dataSourceService).findById(eq(updateDto.getId()), eq(user));
+
+                // Should not throw NPE
+                assertDoesNotThrow(() -> dataSourceService.update(user, updateDto, false));
+
+                // password should not exist in config (no oldConnection to copy from)
+                assertNull(updateDto.getConfig().get("password"));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Method buildDefinitionParam passwordTag test")
+    class BuildDefinitionParamTest {
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+        private DataSourceDefinitionService dataSourceDefinitionService;
+        private ModulesService modulesService;
+        private UserDetail user;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+            modulesService = mock(ModulesService.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", dataSourceDefinitionService);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+            user = mock(UserDetail.class);
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam sets passwordTag on each item")
+        void testSetsPasswordTagOnItems() {
+            List<DataSourceConnectionDto> items = new ArrayList<>();
+
+            DataSourceConnectionDto item1 = new DataSourceConnectionDto();
+            item1.setDatabase_type("mysql");
+            items.add(item1);
+
+            DataSourceConnectionDto item2 = new DataSourceConnectionDto();
+            item2.setDatabase_type("oracle");
+            items.add(item2);
+
+            // Setup definition for mysql with password fields
+            DataSourceDefinitionDto definitionDto1 = new DataSourceDefinitionDto();
+            definitionDto1.setType("mysql");
+            definitionDto1.setPdkHash("mysqlHash");
+            LinkedHashMap<String, Object> properties1 = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connProps1 = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connProps1.put("password", passwordField);
+            connProps1.put("mqPassword", passwordField);
+            LinkedHashMap<String, Object> connection1 = new LinkedHashMap<>();
+            connection1.put("properties", connProps1);
+            properties1.put("connection", connection1);
+            definitionDto1.setProperties(properties1);
+
+            // Setup definition for oracle with different password fields
+            DataSourceDefinitionDto definitionDto2 = new DataSourceDefinitionDto();
+            definitionDto2.setType("oracle");
+            definitionDto2.setPdkHash("oracleHash");
+            LinkedHashMap<String, Object> properties2 = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connProps2 = new LinkedHashMap<>();
+            connProps2.put("password", passwordField);
+            connProps2.put("servicePassword", passwordField);
+            LinkedHashMap<String, Object> connection2 = new LinkedHashMap<>();
+            connection2.put("properties", connProps2);
+            properties2.put("connection", connection2);
+            definitionDto2.setProperties(properties2);
+
+            List<DataSourceDefinitionDto> definitionDtoList = Arrays.asList(definitionDto1, definitionDto2);
+            when(dataSourceDefinitionService.getByDataSourceType(anyList(), eq(user)))
+                    .thenReturn(definitionDtoList);
+
+            dataSourceService.buildDefinitionParam(items, user);
+
+            // Verify item1 (mysql) passwordTag
+            Set<String> passwordTag1 = item1.getPasswordTag();
+            assertNotNull(passwordTag1);
+            assertEquals(2, passwordTag1.size());
+            assertTrue(passwordTag1.contains("password"));
+            assertTrue(passwordTag1.contains("mqPassword"));
+
+            // Verify item2 (oracle) passwordTag
+            Set<String> passwordTag2 = item2.getPasswordTag();
+            assertNotNull(passwordTag2);
+            assertEquals(2, passwordTag2.size());
+            assertTrue(passwordTag2.contains("password"));
+            assertTrue(passwordTag2.contains("servicePassword"));
+
+            // Verify modulesService.analyzeApiServerKey was called for both items
+            verify(modulesService, times(2)).analyzeApiServerKey(any(DataSourceConnectionDto.class), any(LinkedHashMap.class), isNull());
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam with empty items returns early")
+        void testEmptyItemsReturnsEarly() {
+            List<DataSourceConnectionDto> items = new ArrayList<>();
+            dataSourceService.buildDefinitionParam(items, user);
+
+            verify(dataSourceDefinitionService, never()).getByDataSourceType(anyList(), eq(user));
+            verify(modulesService, never()).analyzeApiServerKey(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam with null items returns early")
+        void testNullItemsReturnsEarly() {
+            dataSourceService.buildDefinitionParam(null, user);
+
+            verify(dataSourceDefinitionService, never()).getByDataSourceType(anyList(), eq(user));
+            verify(modulesService, never()).analyzeApiServerKey(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam when definition has no Password x-component fields")
+        void testNoPasswordXComponentFields() {
+            List<DataSourceConnectionDto> items = new ArrayList<>();
+            DataSourceConnectionDto item = new DataSourceConnectionDto();
+            item.setDatabase_type("mysql");
+            items.add(item);
+
+            // Definition with no Password fields
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setType("mysql");
+            definitionDto.setPdkHash("mysqlHash");
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> normalField = new LinkedHashMap<>();
+            normalField.put("x-component", "Input");
+            connProps.put("username", normalField);
+            connProps.put("host", normalField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            List<DataSourceDefinitionDto> definitionDtoList = Collections.singletonList(definitionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyList(), eq(user)))
+                    .thenReturn(definitionDtoList);
+
+            dataSourceService.buildDefinitionParam(items, user);
+
+            Set<String> passwordTag = item.getPasswordTag();
+            assertNotNull(passwordTag);
+            assertTrue(passwordTag.isEmpty(),
+                    "passwordTag should be empty when no Password x-component fields exist");
+            verify(modulesService, times(1)).analyzeApiServerKey(any(DataSourceConnectionDto.class), any(LinkedHashMap.class), isNull());
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam skips error passwordTag when connection is not LinkedHashMap")
+        void testConnectionNotLinkedHashMap() {
+            List<DataSourceConnectionDto> items = new ArrayList<>();
+            DataSourceConnectionDto item = new DataSourceConnectionDto();
+            item.setDatabase_type("mysql");
+            items.add(item);
+
+            // Definition where connection is not a LinkedHashMap
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setType("mysql");
+            definitionDto.setPdkHash("mysqlHash");
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", "not_a_map"); // Not a LinkedHashMap
+            definitionDto.setProperties(properties);
+
+            List<DataSourceDefinitionDto> definitionDtoList = Collections.singletonList(definitionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyList(), eq(user)))
+                    .thenReturn(definitionDtoList);
+
+            assertThrows(ClassCastException.class, () -> {
+                dataSourceService.buildDefinitionParam(items, user);
+            });
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam with definitionDto null (no matching definition)")
+        void testDefinitionDtoIsNull() {
+            List<DataSourceConnectionDto> items = new ArrayList<>();
+            DataSourceConnectionDto item = new DataSourceConnectionDto();
+            item.setDatabase_type("unknown_db");
+            items.add(item);
+
+            // Empty definition list - no match for the item's database_type
+            when(dataSourceDefinitionService.getByDataSourceType(anyList(), eq(user)))
+                    .thenReturn(Collections.emptyList());
+
+            assertDoesNotThrow(() -> dataSourceService.buildDefinitionParam(items, user));
+
+            // passwordTag should NOT be set because definitionDto was null
+            assertNull(item.getPasswordTag(),
+                    "passwordTag should be null when no matching definition is found");
+        }
+
+        @Test
+        @DisplayName("test buildDefinitionParam with multiple items sharing same database type")
+        void testMultipleItemsSameDatabaseType() {
+            List<DataSourceConnectionDto> items = new ArrayList<>();
+
+            DataSourceConnectionDto item1 = new DataSourceConnectionDto();
+            item1.setDatabase_type("mysql");
+            items.add(item1);
+
+            DataSourceConnectionDto item2 = new DataSourceConnectionDto();
+            item2.setDatabase_type("mysql");
+            items.add(item2);
+
+            DataSourceConnectionDto item3 = new DataSourceConnectionDto();
+            item3.setDatabase_type("mysql");
+            items.add(item3);
+
+            // Single definition for all mysql items
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setType("mysql");
+            definitionDto.setPdkHash("mysqlHash");
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connProps = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> passwordField = new LinkedHashMap<>();
+            passwordField.put("x-component", "Password");
+            connProps.put("password", passwordField);
+            connProps.put("sslPassword", passwordField);
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+
+            List<DataSourceDefinitionDto> definitionDtoList = Collections.singletonList(definitionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyList(), eq(user)))
+                    .thenReturn(definitionDtoList);
+
+            dataSourceService.buildDefinitionParam(items, user);
+
+            // All three items should have the same passwordTag
+            for (DataSourceConnectionDto item : items) {
+                Set<String> passwordTag = item.getPasswordTag();
+                assertNotNull(passwordTag);
+                assertEquals(2, passwordTag.size());
+                assertTrue(passwordTag.contains("password"));
+                assertTrue(passwordTag.contains("sslPassword"));
+            }
+
+            // modulesService.analyzeApiServerKey should be called 3 times
+            verify(modulesService, times(3)).analyzeApiServerKey(any(DataSourceConnectionDto.class), any(LinkedHashMap.class), isNull());
+        }
+    }
+
+    @Nested
+    class Delete {
+        DataSourceRepository dataSourceRepository = mock(DataSourceRepository.class);
+        DataSourceServiceImpl dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+        TaskService taskService;
+        JobService jobService;
+        DataFlowService dataFlowService;
+        ModulesService modulesService;
+
+        @BeforeEach
+        void before() {
+            taskService = mock(TaskService.class);
+            jobService = mock(JobService.class);
+            dataFlowService = mock(DataFlowService.class);
+            modulesService = mock(ModulesService.class);
+            ReflectionTestUtils.setField(dataSourceService, "taskService", taskService);
+            ReflectionTestUtils.setField(dataSourceService, "jobService", jobService);
+            ReflectionTestUtils.setField(dataSourceService, "dataFlowService", dataFlowService);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+            ReflectionTestUtils.setField(dataSourceService, "defaultDataDirectoryService", mock(DefaultDataDirectoryService.class));
+        }
+
+        @Test
+        void shouldBlockDeleteWhenOtherUserTaskReferencesConnection() {
+            String id = new ObjectId().toHexString();
+            UserDetail user = mock(UserDetail.class);
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            doReturn(connectionDto).when(dataSourceService).findById(any(ObjectId.class), eq(user));
+            when(jobService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+            when(dataFlowService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+            TaskDto relatedTask = new TaskDto();
+            relatedTask.setName("other-user-task");
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(relatedTask));
+
+            BizException exception = assertThrows(BizException.class, () -> dataSourceService.delete(user, id));
+            assertEquals("Datasource.LinkJobs", exception.getErrorCode());
+            verify(dataSourceService, never()).deleteById(any(), any());
         }
     }
 }

@@ -260,7 +260,15 @@ public class CommonUtil {
 	}
 
 	public static boolean compare(Object val1, Object val2, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
+		return compare(val1, val2, ignoreTimePrecision, roundingMode, false);
+	}
+
+	public static boolean compare(Object val1, Object val2, boolean ignoreTimePrecision, String roundingMode, boolean treatEmptyStringAsNull) throws CompareException {
 		try {
+			if (treatEmptyStringAsNull) {
+				if (val1 instanceof String && ((String) val1).isEmpty()) val1 = null;
+				if (val2 instanceof String && ((String) val2).isEmpty()) val2 = null;
+			}
 			if (val1 == null && val2 == null) return false;
 			if (val1 == null || val2 == null) return true;
 

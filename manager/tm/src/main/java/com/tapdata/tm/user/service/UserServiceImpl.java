@@ -30,6 +30,7 @@ import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
+import com.tapdata.tm.sso.entity.SsoExternalIdentity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
 import com.tapdata.tm.tcm.service.TcmService;
@@ -49,6 +50,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
@@ -89,6 +91,34 @@ public class UserServiceImpl extends UserService{
      * 权限过滤关键字：包含这些关键字的子权限不会被自动添加，需要用户手动指定
      */
     private static final List<String> EXCLUDED_PERMISSION_KEYWORDS = List.of("import", "export", "all_data", "copy", "creation");
+    private static final Set<String> SELF_UPDATE_FIELDS = Set.of(
+            "notification",
+            "guideData",
+            "isCompleteGuide",
+            "locale",
+            "photo"
+    );
+    private static final Set<String> USER_MANAGEMENT_UPDATE_FIELDS = Set.of(
+            "id",
+            "username",
+            "email",
+            "ldapAccount",
+            "roleusers",
+            "status",
+            "password",
+            "accesscode",
+            "emailVerified",
+            "emailVerified_from_frontend",
+            "account_status",
+            "listtags",
+            "phone",
+            "photo",
+            "locale"
+    );
+    private static final Set<String> IGNORED_USER_UPDATE_FIELDS = Set.of(
+            "id",
+            "groups"
+    );
 
     public UserServiceImpl(@NonNull UserRepository repository) {
         super(repository);
@@ -135,7 +165,85 @@ public class UserServiceImpl extends UserService{
 
     @Override
     protected void beforeSave(UserDto dto, UserDetail userDetail) {
+        fillMapGids(dto.getListTags());
+    }
 
+    @Override
+    public void fillTagGids(List<com.tapdata.tm.commons.schema.Tag> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return;
+        }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (com.tapdata.tm.commons.schema.Tag tag : tags) {
+            if (tag == null || StringUtils.isNotBlank(tag.getGid()) || StringUtils.isBlank(tag.getId()) || !ObjectId.isValid(tag.getId())) {
+                continue;
+            }
+            ids.add(tag.getId());
+        }
+        Map<String, String> gidById = loadUserGroupGids(ids);
+        for (com.tapdata.tm.commons.schema.Tag tag : tags) {
+            if (tag == null || StringUtils.isNotBlank(tag.getGid()) || StringUtils.isBlank(tag.getId())) {
+                continue;
+            }
+            String gid = gidById.get(tag.getId());
+            if (gid != null) {
+                tag.setGid(gid);
+            }
+        }
+    }
+
+    private void fillMapGids(List<Map<String, Object>> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return;
+        }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (Map<String, Object> tag : tags) {
+            if (tag == null || tag.get("gid") != null || tag.get("id") == null || !ObjectId.isValid(tag.get("id").toString())) {
+                continue;
+            }
+            ids.add(tag.get("id").toString());
+        }
+        Map<String, String> gidById = loadUserGroupGids(ids);
+        for (Map<String, Object> tag : tags) {
+            if (tag == null || tag.get("gid") != null || tag.get("id") == null) {
+                continue;
+            }
+            String gid = gidById.get(tag.get("id").toString());
+            if (gid != null) {
+                tag.put("gid", gid);
+            }
+        }
+    }
+
+    private Map<String, String> loadUserGroupGids(java.util.Collection<String> ids) {
+        Map<String, String> gidById = new java.util.HashMap<>();
+        if (ids == null || ids.isEmpty()) {
+            return gidById;
+        }
+        java.util.List<ObjectId> objectIds = new java.util.ArrayList<>();
+        for (String id : ids) {
+            if (ObjectId.isValid(id)) {
+                objectIds.add(new ObjectId(id));
+            }
+        }
+        if (objectIds.isEmpty()) {
+            return gidById;
+        }
+        java.util.List<Document> groups = repository.getMongoOperations().find(
+                Query.query(Criteria.where("_id").in(objectIds)), Document.class, "UserGroup");
+        if (groups == null) {
+            return gidById;
+        }
+        for (Document group : groups) {
+            if (group == null || group.getObjectId("_id") == null) {
+                continue;
+            }
+            String gid = group.getString("gid");
+            if (gid != null) {
+                gidById.put(group.getObjectId("_id").toHexString(), gid);
+            }
+        }
+        return gidById;
     }
 
     /**
@@ -331,11 +439,17 @@ public class UserServiceImpl extends UserService{
      *                                                                                                                                                               {\"guideData\":{\"noShow\":false,\"updateTime\":1632380823831,\"action\":false}}"
      * @return
      */
-    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail,Locale locale) {
+    @Override
+    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail, Locale locale, boolean userManagementAllowed) {
         JSONObject jsonObject = new JSONObject(settingJson);
+        validateUserSettingFields(id, jsonObject, userDetail, userManagementAllowed);
+        boolean updateRoleUsers = jsonObject.containsKey("roleusers");
         Iterator<String> iterator = jsonObject.keySet().iterator();
         while (iterator.hasNext()) {
             String key = iterator.next();
+            if (IGNORED_USER_UPDATE_FIELDS.contains(key) || "roleusers".equals(key)) {
+                continue;
+            }
             Object value = jsonObject.get(key);
             if ("password".equals(key) && value != null) {
                 if (StringUtils.isEmpty(value.toString())) {
@@ -350,10 +464,37 @@ public class UserServiceImpl extends UserService{
             UpdateResult updateResult = repository.getMongoOperations().updateMulti(query, update, User.class);
         }
         UserDto userDto = findById(toObjectId(id));
-        List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, userDto.getRoleusers(), userDetail);
-        userDto.setRoleMappings(roleMappingDtos);
+        if (updateRoleUsers) {
+            List<Object> roleusers = jsonObject.getJSONArray("roleusers") == null
+                    ? Collections.emptyList()
+                    : jsonObject.getJSONArray("roleusers").toList(Object.class);
+            List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, roleusers, userDetail);
+            userDto.setRoleMappings(roleMappingDtos);
+        }
         userLogService.addUserLog(Modular.USER, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), StringUtils.isNotBlank(userDto.getLdapAccount()) ? userDto.getLdapAccount() : userDto.getEmail());
         return userDto;
+    }
+
+    protected void validateUserSettingFields(String id, JSONObject jsonObject, UserDetail userDetail, boolean userManagementAllowed) {
+        if (jsonObject == null || jsonObject.isEmpty()) {
+            throw new BizException("IllegalArgument", "settingJson");
+        }
+        boolean selfUpdate = StringUtils.equals(id, userDetail.getUserId());
+        Set<String> allowedFields = userManagementAllowed ? USER_MANAGEMENT_UPDATE_FIELDS : SELF_UPDATE_FIELDS;
+        for (String key : jsonObject.keySet()) {
+            if (IGNORED_USER_UPDATE_FIELDS.contains(key)) {
+                if (!"id".equals(key) && !userManagementAllowed) {
+                    throw new BizException("NotAuthorized");
+                }
+                continue;
+            }
+            if (!allowedFields.contains(key)) {
+                throw new BizException("NotAuthorized");
+            }
+        }
+        if (!userManagementAllowed && !selfUpdate) {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     /**
@@ -431,9 +572,14 @@ public class UserServiceImpl extends UserService{
     }
     protected List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
         // delete old role mapping
-        if (CollectionUtils.isNotEmpty(roleusers)) {
+        if (roleusers != null) {
+            validateRoleUsers(roleusers);
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
+            //update roleusers
+            Update update = new Update();
+            update.set("roleusers", roleusers);
+            updateById(userId, update, userDetail);
         // add new role mapping
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
                 RoleMappingDto roleMappingDto = new RoleMappingDto();
@@ -447,6 +593,24 @@ public class UserServiceImpl extends UserService{
             }
         }
         return null;
+    }
+
+    protected void validateRoleUsers(List<Object> roleusers) {
+        if (CollectionUtils.isEmpty(roleusers)) {
+            return;
+        }
+        List<ObjectId> roleIds = roleusers.stream()
+                .map(roleId -> {
+                    if (!(roleId instanceof String) || !ObjectId.isValid((String) roleId)) {
+                        throw new BizException("IllegalArgument", "roleusers");
+                    }
+                    return new ObjectId((String) roleId);
+                })
+                .collect(Collectors.toList());
+        long roleCount = roleService.count(Query.query(Criteria.where("_id").in(roleIds)));
+        if (roleCount != new HashSet<>(roleIds).size()) {
+            throw new BizException("IllegalArgument", "roleusers");
+        }
     }
 
     protected String randomHexString() {
@@ -562,6 +726,11 @@ public class UserServiceImpl extends UserService{
     public void delete(String id, UserDetail userDetail) {
         //delete role mapping
         roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(id).and("principalType").is("USER")));
+        // Remove external SAML bindings together with the logically deleted user.
+        // Keeping a binding to a recycled/deleted user can make future SSO attempts
+        // resolve to a stale account instead of the newly created account.
+        repository.getMongoOperations().remove(
+                Query.query(Criteria.where("tapdataUserId").is(id)), SsoExternalIdentity.class);
         Update update = new Update().set("isDeleted", true);
         Query query = Query.query(Criteria.where("id").is(id));
         UpdateResult updateResult = repository.getMongoOperations().updateFirst(query, update, User.class);
@@ -570,7 +739,13 @@ public class UserServiceImpl extends UserService{
         field.put("ldapAccount", 1);
         UserDto user = findById(new ObjectId(id), field);
         if (updateResult.getModifiedCount() > 0) {
-            userLogService.addUserLog(Modular.USER, Operation.DELETE, userDetail.getUserId(), id, StringUtils.isNotBlank(user.getLdapAccount()) ? user.getLdapAccount() : user.getEmail());
+            String name = StringUtils.isNotBlank(user.getLdapAccount()) ? user.getLdapAccount() : user.getEmail();
+            long directTasks = repository.getMongoOperations().count(
+                    Query.query(Criteria.where("alarmReceivers").elemMatch(Criteria.where("type").is("USER").and("id").is(id))
+                            .and("is_deleted").ne(true)),
+                    "Task");
+            userLogService.addUserLog(Modular.USER, Operation.DELETE, userDetail, id, name, null,
+                    "{\"directTaskCount\":" + directTasks + "}");
         }
     }
 
@@ -799,38 +974,38 @@ public class UserServiceImpl extends UserService{
 			return permissionService.find(new Filter(where));
     }
 
-		private final static Set<String> topPermissionCodes = new HashSet<String>() {{
-			add("v2_dashboard");
-			add("v2_data-console");
-			add("v2_datasource_menu");
-			add("v2_data_pipeline");
-			add("v2_advanced_features");
-			add("v2_data_replication");
-			add("v2_data_flow");
-			add("v2_data_check");
-			add("v2_log_collector");
-			add("v2_function_management");
-			add("v2_custom_node");
-			add("v2_shared_cache");
-			add("v2_data_discovery");
-			add("v2_data_object");
-			add("v2_data_catalogue");
-			add("v2_data");
-			add("v2_data-server");
-			add("v2_api-application");
-			add("v2_data-server-list");
-			add("v2_api-client");
-			add("v2_api-servers");
-			add("v2_data_server_audit");
-			add("v2_api_monitor");
-			add("v2_system-management");
-			add("v2_external-storage_menu");
-			add("v2_cluster-management_menu");
-			add("v2_user_management_menu");
-			add("v2_role_management");
-            add("v2_project_management");
-            add("v2_project_import_and_export");
-		}};
+		private final static Set<String> topPermissionCodes = Set.of(
+			"v2_dashboard",
+			"v2_data-console",
+			"v2_datasource_menu",
+			"v2_data_pipeline",
+			"v2_advanced_features",
+			"v2_data_replication",
+			"v2_data_flow",
+			"v2_data_check",
+			"v2_log_collector",
+			"v2_function_management",
+			"v2_custom_node",
+			"v2_shared_cache",
+			"v2_data_discovery",
+			"v2_data_object",
+			"v2_data_catalogue",
+			"v2_data",
+			"v2_data-server",
+			"v2_api-application",
+			"v2_data-server-list",
+			"v2_api-client",
+			"v2_api-servers",
+			"v2_data_server_audit",
+			"v2_api_monitor",
+			"v2_system-management",
+			"v2_external-storage_menu",
+			"v2_cluster-management_menu",
+			"v2_user_management_menu",
+			"v2_role_management",
+			"v2_project_management",
+			"v2_project_import_and_export"
+		);
 
     @Override
     public boolean checkLdapLoginEnable() {
@@ -888,8 +1063,11 @@ public class UserServiceImpl extends UserService{
 
     @Override
     public boolean loginByLdap(String username, String password) {
-        List<Settings> all = settingsService.findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+        Query query = Query.query(Criteria.where("category").is(CategoryEnum.LDAP.getValue()));
+        List<Settings> all = settingsService.findAll(query);
+        Map<String, Object> collect = all.stream()
+                .filter(settings -> settings.getValue() != null)
+                .collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
         String host = (String) collect.get("ldap.server.host");
         String port = (String) collect.get("ldap.server.port");

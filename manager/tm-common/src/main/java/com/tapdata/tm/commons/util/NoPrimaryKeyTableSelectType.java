@@ -9,7 +9,8 @@ public enum NoPrimaryKeyTableSelectType {
 	NoKeys, // 无主键无索引
 	All, // 全部
 	OnlyPrimaryKey, // 仅包含主键
-	OnlyUniqueIndex // 仅包含唯一索引
+	OnlyUniqueIndex, // 仅包含唯一索引
+	View,//logic view or materialized View
 	;
 
 	public boolean equals(String value) {
@@ -17,14 +18,14 @@ public enum NoPrimaryKeyTableSelectType {
 	}
 
 	public static NoPrimaryKeyTableSelectType parse(String value) {
-		if (HasKeys.name().equals(value)) {
-			return HasKeys;
-		} else if (NoKeys.name().equals(value)) {
-			return NoKeys;
-		} else if (OnlyPrimaryKey.name().equals(value)) {
-			return OnlyPrimaryKey;
-		} else if (OnlyUniqueIndex.name().equals(value)) {
-			return OnlyUniqueIndex;
+		if (null == value) {
+			return All;
+		}
+		value = value.trim();
+		for (NoPrimaryKeyTableSelectType t : values()) {
+			if (t.name().equals(value)) {
+				return t;
+			}
 		}
 		return All;
 	}

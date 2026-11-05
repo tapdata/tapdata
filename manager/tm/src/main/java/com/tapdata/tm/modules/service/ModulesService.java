@@ -56,6 +56,7 @@ import com.tapdata.tm.module.dto.ServingIndexNormalizer;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
+import com.tapdata.tm.modules.dto.PublishApi;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
@@ -84,6 +85,8 @@ import com.tapdata.tm.modules.vo.Source;
 import com.tapdata.tm.module.dto.TextEncryption;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
@@ -153,7 +156,7 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
 	public static final String USER_ID = "user_id";
-
+	public static final String MODULES_BASE_PATH_AND_VERSION_EXISTED = "Modules.BasePathAndVersion.Existed";
 	private static final String URI = "uri";
 	private static final String PROPERTIES = "properties";
 	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
@@ -338,7 +341,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (nameExists(null, modulesDto.getName()))
 			throw new BizException("Modules.Name.Existed");
 		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
-			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 		}
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
 		modulesDto.setLastUpdAt(new Date());
@@ -351,8 +354,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 		// TAP-12057 · P2-1：写入前确定性归一化 servingIndexes（排序 + 方向规范），避免 Module 全量 diff 抖动（ADR-0001）。
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
-        removeStatusInfo(modulesDto);
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
+        removeStatusInfo(modulesDto);
 		return super.save(modulesDto, userDetail);
 
 	}
@@ -409,8 +412,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		checkModule(checkItem);
 		// TAP-12057 · P2-1：更新链路同样归一化 servingIndexes（ADR-0001）。
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
-        removeStatusInfo(modulesDto);
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
+        removeStatusInfo(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
@@ -419,7 +422,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			return;
 		}
 		if (isBasePathAndVersionRepeat(dto.getId(), dto.getBasePath(), dto.getApiVersion(), dto.getPrefix())) {
-			throw new BizException("Modules.BasePathAndVersion.Existed", paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
 		}
 		boolean nameExists = nameExists(dto.getId(), dto.getName());
 		if (nameExists) {
@@ -556,8 +559,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					newDto.setListtags(listTag);
 				}
 				newDto.setIsDeleted(false);
-				removeStatusInfo(newDto);
 				FieldTypeUtil.validCustomWhereIfNeed(newDto);
+				removeStatusInfo(newDto);
 				super.upsert(query, newDto, userDetail);
 			}
 		}
@@ -593,6 +596,45 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
 		return apiDefinitionVo;
+	}
+
+	public ApiDefinitionVo simplifyApiInfo(ApiDefinitionVo infoVo) {
+		List<?> apis = infoVo.getApis();
+		if (null == apis) {
+			infoVo.setApiInfo(new ArrayList<>());
+			return infoVo;
+		}
+		List<PublishApi> simplify = new ArrayList<>();
+		apis.forEach(api -> {
+			if (api instanceof ModulesDto apiInfo) {
+				PublishApi from = PublishApi.from(apiInfo);
+				if (null != from) {
+					from.setId(apiInfo.getId().toHexString());
+					simplify.add(from);
+				}
+			}
+		});
+		infoVo.setApis(simplify);
+		return infoVo;
+	}
+
+	void readSslPasswordIfNeed(DataSourceConnectionDto dataSourceConnectionDto) {
+		Boolean ssl = dataSourceConnectionDto.getSsl();
+		if (null == ssl || !ssl) {
+			return;
+		}
+		Map<String, Object> config = dataSourceConnectionDto.getConfig();
+		if (null == config || config.isEmpty()) {
+			return;
+		}
+		Object sslPassObj = config.get("sslPass");
+		if (null == sslPassObj) {
+			return;
+		}
+		String sslPass = String.valueOf(sslPassObj);
+		if (StringUtils.isNotBlank(sslPass)) {
+			dataSourceConnectionDto.setSslPass(sslPass);
+		}
 	}
 
 	protected List<ModulesDto> activeApis(ApiDefinitionVo apiDefinitionVo, UserDetail userDetail) {
@@ -654,6 +696,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					log.warn("Failed to parse mongo connection config: {}, connection id: {}", e.getMessage(), connectionId);
 				}
 			}
+			readSslPasswordIfNeed(dataSourceConnectionDto);
 			Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
 			if (properties != null) {
 				LinkedHashMap<String, Object> connection = (LinkedHashMap<String, Object>) properties.get("connection");
@@ -845,9 +888,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (null == workerCount || workerCount <= 0) {
 			return new ArrayList<>();
 		}
-		Criteria criteria = Criteria.where("deleted").ne(true);
-		criteria.and("worker_type").is("api-server");
-		criteria.and("process_id").is(processId);
+		Criteria criteria = Criteria.where(WorkerField.DELETED.field()).ne(true);
+		criteria.and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType());
+		criteria.and(WorkerField.PROCESS_ID.field()).is(processId);
 		Query query = Query.query(criteria);
 		query.limit(1);
 		WorkerDto one = workerService.findOne(query);
@@ -980,7 +1023,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					analyzeApiServerKey(dataSourceConnectionDto, v1, key);
 				}
 				String apiServerKey = (String) v1.get("apiServerKey");
-				if (StringUtils.isNotBlank(apiServerKey)) {
+				if (StringUtils.isNotBlank(apiServerKey) && !"Password".equals(v1.get("x-component"))) {
 					setApiServerKey(dataSourceConnectionDto, key, apiServerKey);
 				}
 				LinkedHashMap<String, Object> properties = (LinkedHashMap) v1.get("properties");
@@ -991,7 +1034,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 	}
 
-	private void setApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, String k, String apiServerKey) {
+	protected void setApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, String k, String apiServerKey) {
 		Map<String, Object> config = dataSourceConnectionDto.getConfig();
 		Object value = getValue(k, config);
 		Class<? extends DataSourceConnectionDto> aClass = dataSourceConnectionDto.getClass();
@@ -1279,9 +1322,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				field1.setField_type(StringUtils.isNotBlank(field.getJavaType()) ? field.getJavaType() : field.getField_type());
 				field1.setRequired(required);
 				field1.setExample("");
+				FieldTypeUtil.parseTapType(field1);
 				newField.add(field1);
 			}
-			FieldTypeUtil.parseTapType(field);
 		}
 		return newField;
 	}
@@ -1672,7 +1715,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			throw new BizException("Modules.Name.Existed");
 		}
 		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
-			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 		}
 		checkoutInputParamIsValid(modulesDto);
 		modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
@@ -1906,14 +1949,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				// 根据导入模式处理
 				switch (importMode) {
 					case REPLACE,REUSE_EXISTING: {
-						// 基于 _id 查找现有模块，不使用 name 匹配，避免不同用户相同名称模块相互覆盖
-						if (modulesDto.getId() == null) {
-							throw new BizException("Modules.ImportMissingId", modulesDto.getName());
-						}
-						Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
-						idQuery.fields().include("_id", "user_id", "name", "status");
-						ModulesDto existingModuleById = findOne(idQuery, user);
-						handleReplaceMode(modulesDto, existingModuleById, user, conMap, importResult);
+						// 基于名称查找现有模块
+						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
+						handleReplaceMode(modulesDto, existingModuleByName, user, conMap, importResult);
 						break;
 					}
 					case GROUP_IMPORT:
@@ -1924,14 +1962,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						handleImportAsCopyMode(modulesDto, user, conMap);
 						break;
 					case CANCEL_IMPORT: {
-						// 基于 _id 查找现有模块
-						ModulesDto existingModuleById = null;
-						if (modulesDto.getId() != null) {
-							Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
-							idQuery.fields().include("_id", "user_id", "name", "status");
-							existingModuleById = findOne(idQuery, user);
-						}
-						if (null != existingModuleById) {
+						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
+						if (null != existingModuleByName) {
 							return importResult;
 						} else {
 							if (checkConnectionIdDuplicate(modulesDto, conMap)) {

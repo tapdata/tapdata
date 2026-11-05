@@ -1,5 +1,6 @@
 package com.tapdata.tm.utils;
 
+import com.tapdata.tm.commons.dag.NodeEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.springframework.data.util.Streamable;
@@ -7,6 +8,7 @@ import org.springframework.data.util.Streamable;
 import java.text.MessageFormat;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 import org.springframework.web.context.request.RequestAttributes;
@@ -19,17 +21,19 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * @description
  */
 public class MessageUtil {
+	private static final ResourceBundle.Control NO_DEFAULT_LOCALE_CONTROL =
+			ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_DEFAULT);
 
 	private static ResourceBundle getResourceBundle(Locale locale){
 		if (locale == null)
 			locale = Locale.CHINA;
-		return ResourceBundle.getBundle("messages", locale);
+		return ResourceBundle.getBundle("messages", locale, NO_DEFAULT_LOCALE_CONTROL);
 	}
 
 	private static ResourceBundle getResourceBundle(Locale locale, String bundleName){
 		if (locale == null)
 			locale = Locale.CHINA;
-		return ResourceBundle.getBundle(bundleName, locale);
+		return ResourceBundle.getBundle(bundleName, locale, NO_DEFAULT_LOCALE_CONTROL);
 	}
 
 	/**
@@ -91,7 +95,9 @@ public class MessageUtil {
 	private static String getString(Locale locale, String resourceId, String msg, Object[] params) {
 		if(msg == null) {
 			if (params != null && params.length > 0){
-				String paramsString = Streamable.of(params).stream().map(Object::toString).collect(Collectors.joining(","));
+				String paramsString = Streamable.of(params).stream()
+						.map(param -> Objects.toString(param, "null"))
+						.collect(Collectors.joining(","));
 				return paramsString;
 			}
 			return resourceId;
@@ -105,7 +111,45 @@ public class MessageUtil {
 
 	public static String getDagCheckMsg(Locale locale, String resourceId, Object... params){
 		String msg = getStringOrNull(getResourceBundle(locale, "dagCheck"), resourceId);
-		return getString(locale, resourceId, msg, params);
+		if (msg == null) {
+			return resourceId;
+		}
+		return getString(locale, resourceId, msg, localizeDagCheckParams(locale, params));
+	}
+
+	public record DagNodeName(String nodeType, String name) {
+	}
+
+	public static DagNodeName dagNodeName(String nodeType, String name) {
+		return new DagNodeName(nodeType, name);
+	}
+
+	public static String localizeDagNodeName(Locale locale, String nodeType, String nodeName) {
+		if (StringUtils.isBlank(nodeType) || StringUtils.isBlank(nodeName)) {
+			return nodeName;
+		}
+		NodeEnum nodeEnum;
+		try {
+			nodeEnum = NodeEnum.valueOf(nodeType);
+		} catch (IllegalArgumentException ignored) {
+			return nodeName;
+		}
+		if (!StringUtils.equals(nodeEnum.getNodeName(), nodeName)) {
+			return nodeName;
+		}
+		String localized = getStringOrNull(getResourceBundle(locale, "dagCheck"), "NODE_NAME_" + nodeEnum.name());
+		return StringUtils.defaultIfBlank(localized, nodeName);
+	}
+
+	public static Object[] localizeDagCheckParams(Locale locale, Object[] params) {
+		if (params == null) {
+			return new Object[0];
+		}
+		return Streamable.of(params).stream()
+				.map(param -> param instanceof DagNodeName nodeName
+						? localizeDagNodeName(locale, nodeName.nodeType(), nodeName.name())
+						: param)
+				.toArray();
 	}
 	public static String getAlarmMsg(Locale locale, String resourceId, Object... params){
 		String msg = getStringOrNull(getResourceBundle(locale, "alarmTemplate"), resourceId);
@@ -116,12 +160,19 @@ public class MessageUtil {
 		return getString(locale, resourceId, msg, params);
 	}
 
-	protected static String getStringOrNull(ResourceBundle bundle, String key){
-		try{
-			return bundle.getString(key);
-		} catch (Exception e){
+	public static String getBundleMessageOrNull(Locale locale, String bundleName, String resourceId) {
+		try {
+			return getStringOrNull(getResourceBundle(locale, bundleName), resourceId);
+		} catch (Exception e) {
 			return null;
 		}
+	}
+
+	protected static String getStringOrNull(ResourceBundle bundle, String key){
+		if (bundle == null || key == null || !bundle.containsKey(key)) {
+			return null;
+		}
+		return bundle.getString(key);
 	}
 
 	/**

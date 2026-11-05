@@ -50,8 +50,25 @@ public class ExternalStorageDto extends BaseDto {
 	 */
 	private ResponseBody response_body;
 
+	public ExternalStorageDto maskSensitiveData() {
+		this.uri = maskUriPassword();
+		if (StringUtils.isNotBlank(this.accessToken)) {
+			this.accessToken = MASK_PWD;
+		}
+		if (StringUtils.isNotBlank(this.sslCA)) {
+			this.sslCA = MASK_PWD;
+		}
+		if (StringUtils.isNotBlank(this.sslKey)) {
+			this.sslKey = MASK_PWD;
+		}
+		if (StringUtils.isNotBlank(this.sslPass)) {
+			this.sslPass = MASK_PWD;
+		}
+		return this;
+	}
+
 	public String maskUriPassword() {
-		if (ExternalStorageType.mongodb.name().equals(type) && StringUtils.isNotBlank(uri)) {
+		if (isMongoDBUri() && StringUtils.isNotBlank(uri)) {
 			try {
 				ConnectionString connectionString = new ConnectionString(uri);
 				char[] passwordChars = connectionString.getPassword();
@@ -62,14 +79,62 @@ public class ExternalStorageDto extends BaseDto {
 					}
 					String username = connectionString.getUsername();
 					if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
-						return uri.replace(username + ":" + password, username + ":" + MASK_PWD).
+						String maskedUri = uri.replace(username + ":" + password, username + ":" + MASK_PWD).
 								replace(username + ":" + URLEncoder.encode(password.toString(), "UTF-8"), username + ":" + MASK_PWD);
+						if (!StringUtils.equals(uri, maskedUri)) {
+							return maskedUri;
+						}
 					}
 				}
 			} catch (Exception ignored) {
 			}
+			return maskUserInfoPassword();
 		}
 		return uri;
+	}
+
+	private boolean isMongoDBUri() {
+		return ExternalStorageType.mongodb.name().equals(type)
+				|| StringUtils.startsWithIgnoreCase(uri, "mongodb://")
+				|| StringUtils.startsWithIgnoreCase(uri, "mongodb+srv://");
+	}
+
+	private String maskUserInfoPassword() {
+		int schemeIndex = StringUtils.indexOf(uri, "://");
+		if (schemeIndex < 0) {
+			return uri;
+		}
+		int userInfoStart = schemeIndex + 3;
+		int userInfoEnd = StringUtils.indexOf(uri, '@', userInfoStart);
+		if (userInfoEnd < 0) {
+			return uri;
+		}
+		int pathStart = findFirstPathSeparator(userInfoStart);
+		if (pathStart >= 0 && pathStart < userInfoEnd) {
+			return uri;
+		}
+		int passwordStart = StringUtils.indexOf(uri, ':', userInfoStart);
+		if (passwordStart < 0 || passwordStart > userInfoEnd) {
+			return uri;
+		}
+		return uri.substring(0, passwordStart + 1) + MASK_PWD + uri.substring(userInfoEnd);
+	}
+
+	private int findFirstPathSeparator(int start) {
+		int pathIndex = StringUtils.indexOf(uri, '/', start);
+		int queryIndex = StringUtils.indexOf(uri, '?', start);
+		int fragmentIndex = StringUtils.indexOf(uri, '#', start);
+		int result = -1;
+		if (pathIndex >= 0) {
+			result = pathIndex;
+		}
+		if (queryIndex >= 0 && (result < 0 || queryIndex < result)) {
+			result = queryIndex;
+		}
+		if (fragmentIndex >= 0 && (result < 0 || fragmentIndex < result)) {
+			result = fragmentIndex;
+		}
+		return result;
 	}
 
 	@Override

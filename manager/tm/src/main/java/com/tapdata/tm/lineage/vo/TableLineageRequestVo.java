@@ -1,6 +1,7 @@
 package com.tapdata.tm.lineage.vo;
 
 import com.tapdata.tm.lineage.entity.LineageType;
+import com.tapdata.tm.lineage.util.LineageTypeUtil;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
@@ -12,8 +13,6 @@ import org.apache.commons.lang3.StringUtils;
 @Data
 public class TableLineageRequestVo {
 
-	public static final LineageType DEFAULT_LINEAGE_TYPE = LineageType.ALL_STREAM;
-
 	private String connectionId;
 	private String table;
 	private String type;
@@ -23,18 +22,7 @@ public class TableLineageRequestVo {
 		this.connectionId = connectionId;
 		this.table = table;
 		this.type = type;
-		this.lineageType = initLineageType(type);
-	}
-
-	private LineageType initLineageType(String type) {
-		if (StringUtils.isBlank(type)) {
-			return DEFAULT_LINEAGE_TYPE;
-		}
-		LineageType lineageType = LineageType.fromType(type);
-		if (null == lineageType) {
-			lineageType = DEFAULT_LINEAGE_TYPE;
-		}
-		return lineageType;
+		this.lineageType = LineageTypeUtil.initLineageType(type);
 	}
 
 	public boolean isEmpty() {

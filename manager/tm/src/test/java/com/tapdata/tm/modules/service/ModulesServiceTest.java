@@ -57,6 +57,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -525,7 +526,7 @@ class ModulesServiceTest {
 
 				BizException exception = assertThrows(BizException.class, () -> spyService.checkModule(dto));
 
-				assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
+				assertEquals(ModulesService.MODULES_BASE_PATH_AND_VERSION_EXISTED, exception.getErrorCode());
 				assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
 				verify(spyService, never()).nameExists(any(), any());
 			}
@@ -985,6 +986,8 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			MongoTemplate mongoOperations = mock(MongoTemplate.class);
+			ReflectionTestUtils.setField(modulesService, "mongoOperations", mongoOperations);
 			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
@@ -1063,6 +1066,9 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			MongoTemplate mongoOperations = mock(MongoTemplate.class);
+			when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ModulesEntity.class)).thenReturn(mock(BulkOperations.class));
+			ReflectionTestUtils.setField(modulesService, "mongoOperations", mongoOperations);
 			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
@@ -1082,7 +1088,7 @@ class ModulesServiceTest {
 			config.put("host", "127.0.0.1:27017");
 			config.put("database", "test");
 			config.put("ssl", false);
-			config.put("uri", null);
+			config.put("uri", "mongodb://localhost:27017/test");
 			config.put("_connectionType", "source_and_target");
 			config.put("id", "677648e54a46a10e04af5446");
 			dataSourceConnectionDto.setConfig(config);
@@ -1116,6 +1122,9 @@ class ModulesServiceTest {
 			userDetail = mock(UserDetail.class);
 			when(userDetail.getCustomerId()).thenReturn("testCustomerId");
 			when(userDetail.getUserId()).thenReturn("testUserId");
+			MongoTemplate mongoOperations = mock(MongoTemplate.class);
+			when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ModulesEntity.class)).thenReturn(mock(BulkOperations.class));
+			ReflectionTestUtils.setField(modulesService, "mongoOperations", mongoOperations);
 			modulesService = spy(modulesService);
 		}
 
@@ -1409,36 +1418,45 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
-			assertEquals(0, apiDefinitionVo.getConnections().size());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
 		}
 
 		@Test
-		@DisplayName("test activeApis with empty database types")
-		void testActiveApisWithEmptyDatabaseTypes() {
+		@DisplayName("test activeApis logs warning when MongoDB URI parsing fails")
+		void testActiveApisWhenMongoDbUriParsingFails() {
 			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
 			ObjectId connectionId = new ObjectId();
-			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
 			modulesDto.setId(new ObjectId());
 			modulesDto.setConnection(connectionId);
-			apis.add(modulesDto);
-			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+			doReturn(List.of(modulesDto)).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
 
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
 			dataSourceConnectionDto.setId(connectionId);
-			dataSourceConnectionDto.setDatabase_type(null);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
 			Map<String, Object> config = new HashMap<>();
+			config.put("isUri", true);
+			config.put("uri", "xxx");
 			dataSourceConnectionDto.setConfig(config);
-			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
-			connectionDtoList.add(dataSourceConnectionDto);
-			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(List.of(dataSourceConnectionDto));
 
-			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail)))
+					.thenReturn(List.of(definitionDto));
 
-			assertTrue(result.isEmpty());
-			verify(dataSourceDefinitionService, never()).findAllDto(any(Query.class), eq(userDetail));
+			List<ModulesDto> result = assertDoesNotThrow(
+					() -> modulesService.activeApis(apiDefinitionVo, userDetail));
+
+			assertNotNull(result);
+			assertEquals("xxx", dataSourceConnectionDto.getConfig().get("uri"));
 		}
 
 		@Test
@@ -3163,6 +3181,121 @@ class ModulesServiceTest {
         }
     }
 
+	@Nested
+	class parseTapTypeTest {
+		@Test
+		void testParseTapTypeListNullAndEmpty() {
+			modulesService.parseTapType((List<ModulesDto>) null);
+			modulesService.parseTapType(Collections.emptyList());
+		}
+
+		@Test
+		void testParseTapTypeListFilterNullAndParse() {
+			com.tapdata.tm.commons.schema.Field field = new com.tapdata.tm.commons.schema.Field();
+			field.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("String"));
+
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setPaths(null);
+			modulesDto.setFields(List.of(field));
+
+			List<ModulesDto> list = new ArrayList<>();
+			list.add(null);
+			list.add(modulesDto);
+			modulesService.parseTapType(list);
+
+			assertEquals("String", field.getSimpleTypeName());
+		}
+
+		@Test
+		void testParseTapTypeModulesDtoNull() {
+			modulesService.parseTapType((ModulesDto) null);
+		}
+
+		@Test
+		void testParseTapTypeModulesDtoWithPathsAndFields() {
+			com.tapdata.tm.commons.schema.Field pathField = new com.tapdata.tm.commons.schema.Field();
+			pathField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Array"));
+			com.tapdata.tm.commons.schema.Field availableField = new com.tapdata.tm.commons.schema.Field();
+			availableField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Map"));
+			com.tapdata.tm.commons.schema.Field requiredField = new com.tapdata.tm.commons.schema.Field();
+			requiredField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Boolean"));
+
+			Path path1 = new Path();
+			path1.setFields(List.of(pathField));
+			path1.setAvailableQueryField(List.of(availableField));
+			path1.setRequiredQueryField(List.of(requiredField));
+
+			Path path2 = new Path();
+			path2.setFields(null);
+			path2.setAvailableQueryField(null);
+			path2.setRequiredQueryField(null);
+
+			com.tapdata.tm.commons.schema.Field rootField = new com.tapdata.tm.commons.schema.Field();
+			rootField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("DateTime"));
+
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setPaths(List.of(path1, path2));
+			modulesDto.setFields(List.of(rootField));
+
+			modulesService.parseTapType(modulesDto);
+
+			assertEquals("Array", pathField.getSimpleTypeName());
+			assertEquals("Map", availableField.getSimpleTypeName());
+			assertEquals("Boolean", requiredField.getSimpleTypeName());
+			assertEquals("DateTime", rootField.getSimpleTypeName());
+		}
+	}
+
+	@Nested
+	class analyzeApiServerKey {
+		@Test
+		void testPassword() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			connection.put("properties", properties);
+			properties.put("key", info);
+			info.put("apiServerKey", "abc");
+			info.put("x-component", "Password");
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+		@Test
+		void testPassword1() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			connection.put("properties", properties);
+			properties.put("key", info);
+			info.put("apiServerKey", "abc");
+			info.put("x-component", "Password1");
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+		@Test
+		void testPassword2() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			properties.put("key", info);
+			connection.put("properties", properties);
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+	}
+
     @Nested
     @DisplayName("导入时恢复目标环境已删除的 API")
     class RestoreDeletedModuleOnImportTest {
@@ -3200,6 +3333,187 @@ class ModulesServiceTest {
 
             assertEquals(Boolean.FALSE, moduleDto.getIsDeleted(),
                     "导入被删除的 API 时必须清除删除标记，否则它依然不可见");
+        }
+    }
+
+    @Nested
+    @DisplayName("Method readSslPasswordIfNeed Test")
+    class ReadSslPasswordIfNeedTest {
+
+        @Test
+        @DisplayName("ssl is null, should return directly without setting sslPass")
+        void testSslIsNull() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(null);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "test-ssl-password");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is false, should return directly without setting sslPass")
+        void testSslIsFalse() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(false);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "test-ssl-password");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true but config is null, should return directly without setting sslPass")
+        void testConfigIsNull() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            dto.setConfig(null);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true but config is empty, should return directly without setting sslPass")
+        void testConfigIsEmpty() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            dto.setConfig(new HashMap<>());
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has no sslPass key, should return directly without setting sslPass")
+        void testNoSslPassInConfig() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("host", "localhost");
+            config.put("port", 3306);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass but value is null, should return directly without setting sslPass")
+        void testSslPassValueIsNull() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", null);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass but it's empty string, should not set sslPass")
+        void testSslPassIsEmptyString() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass but it's blank string (whitespace), should not set sslPass")
+        void testSslPassIsBlankString() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "   ");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has valid sslPass string, should set sslPass to dto")
+        void testValidSslPassString() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            String expectedSslPass = "my-secure-ssl-password-123";
+            config.put("sslPass", expectedSslPass);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertEquals(expectedSslPass, dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass with non-String type (Integer), should convert via String.valueOf and set")
+        void testSslPassIsIntegerType() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            Integer sslPassInt = 123456;
+            config.put("sslPass", sslPassInt);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertEquals(String.valueOf(sslPassInt), dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass with leading/trailing spaces, should set as-is (only blank check skips)")
+        void testSslPassWithLeadingTrailingSpaces() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            String sslPassWithSpaces = "  password  ";
+            config.put("sslPass", sslPassWithSpaces);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertEquals(sslPassWithSpaces, dto.getSslPass());
         }
     }
 }

@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
@@ -24,6 +25,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
@@ -70,6 +72,8 @@ import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -106,6 +110,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
@@ -118,6 +123,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
@@ -1899,9 +1905,52 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void test1() throws Exception {
             doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
             ShareCdcTaskContext shareCdcTaskContext = mock(ShareCdcTaskContext.class);
-            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext()).thenReturn(shareCdcTaskContext);
+            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext(anyList())).thenReturn(shareCdcTaskContext);
             hazelcastSourcePdkDataNode.doShareCdc();
             verify(cdcDelay, times(1)).addHeartbeatTable(any());
+        }
+
+        @Test
+        @DisplayName("test do ShareCdc ensures the filtered runtime table list")
+        void testEnsureUsesFilteredRuntimeTables() throws Exception {
+            doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
+            doCallRealMethod().when(hazelcastSourcePdkDataNode).excludeRemoveTable(anyList());
+            ArgumentCaptor<List<String>> contextTablesCaptor = ArgumentCaptor.forClass(List.class);
+            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext(contextTablesCaptor.capture()))
+                    .thenReturn(mock(ShareCdcTaskContext.class));
+            TapTableMap<String, TapTable> tapTableMap = new TestTapTableMap(",", System.currentTimeMillis(), new HashMap<>());
+            tapTableMap.putNew("active_table", new TapTable("active_table"), "active_table");
+            tapTableMap.putNew("removed_table", new TapTable("removed_table"), "removed_table");
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setTableNames(Collections.singletonList("stale_table"));
+            doReturn(databaseNode).when(dataProcessorContext).getNode();
+            ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "removeTables", new CopyOnWriteArrayList<>(Collections.singletonList("removed_table")));
+
+            RuntimeException stop = new RuntimeException("stop after ensure");
+            ArgumentCaptor<List<String>> tablesCaptor = ArgumentCaptor.forClass(List.class);
+            Mockito.doThrow(stop).when(hazelcastSourcePdkDataNode).ensureShareCdcTablesReady(tablesCaptor.capture());
+
+            assertSame(stop, assertThrows(RuntimeException.class, hazelcastSourcePdkDataNode::doShareCdc));
+            assertEquals(Collections.singletonList("active_table"), tablesCaptor.getValue());
+            assertEquals(Collections.singletonList("active_table"), contextTablesCaptor.getValue());
+        }
+
+        @Test
+        @DisplayName("test ensure transport failures allow normal CDC fallback")
+        void testEnsureTransportFailureIsShareCdcUnsupported() throws Exception {
+            doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
+            when(hazelcastSourcePdkDataNode.createShareCDCTaskContext(anyList())).thenReturn(mock(ShareCdcTaskContext.class));
+            RuntimeException transportFailure = new RuntimeException("TM unavailable");
+            TapCodeException ensureFailure = new TapCodeException(
+                    ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, transportFailure.getMessage(), transportFailure);
+            Mockito.doThrow(ensureFailure).when(hazelcastSourcePdkDataNode).ensureShareCdcTablesReady(anyList());
+
+            ShareCdcUnsupportedException thrown = assertThrows(
+                    ShareCdcUnsupportedException.class, hazelcastSourcePdkDataNode::doShareCdc);
+
+            assertTrue(thrown.isContinueWithNormalCdc());
+            assertSame(ensureFailure, thrown.getCause());
         }
     }
 
@@ -3932,12 +3981,19 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testNormalFlowWithInitialSyncAndCDC() throws Throwable {
             // Setup
             Set<String> tables = new HashSet<>(Arrays.asList("table1", "table2"));
+            TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+            when(tableMap.remove(anyString())).thenReturn(null);
+            when(tableMap.isEmpty()).thenReturn(false);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
+            when(tableMap.iterator()).thenReturn(iterator);
+            when(iterator.hasNext()).thenReturn(false);
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
             doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
             doReturn(true).when(sourceNode).isRunning();
-            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList(),anyBoolean());
             doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
             doNothing().when(sourceNode).enqueue(any(TapdataCompleteSnapshotEvent.class));
             doReturn(true).when(sourceNode).need2CDC();
@@ -3955,7 +4011,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 // Verify
                 verify(sourceNode, times(1)).reportBatchSize(1000, 1000);
                 verify(sourceNode, times(1)).filterSubTableIfMasterExists();
-                verify(sourceNode, times(1)).doSnapshotWithControl(argThat(list -> list.size() == 2));
+                verify(sourceNode, times(1)).doSnapshotWithControl(argThat(list -> list.size() == 2),anyBoolean());
                 verify(sourceNode, times(1)).addLdpNewTablesIfNeed(taskDto);
                 verify(sourceNode, times(1)).enqueue(any(TapdataCompleteSnapshotEvent.class));
                 verify(sourceNode, times(1)).need2CDC();
@@ -3977,7 +4033,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
             doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
             doReturn(true).when(sourceNode).isRunning();
-            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList(),anyBoolean());
             doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
             doNothing().when(sourceNode).enqueue(any(TapdataCompleteSnapshotEvent.class));
             doReturn(false).when(sourceNode).need2CDC();
@@ -3994,7 +4050,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 sourceNode.startSourceRunner();
 
                 // Verify
-                verify(sourceNode, times(1)).doSnapshotWithControl(anyList());
+                verify(sourceNode, times(1)).doSnapshotWithControl(anyList(),anyBoolean());
                 verify(sourceNode, times(1)).need2CDC();
                 verify(sourceNode, never()).doCdc();
                 verify(taskClient, times(1)).terminalMode(TerminalMode.COMPLETE);
@@ -4007,6 +4063,18 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testNormalFlowWithCDCOnly() throws Throwable {
             // Setup
             Set<String> tables = new HashSet<>(Arrays.asList("table1"));
+            TapTable table1 = new TapTable("table1");
+            table1.setType(MetaType.table.name());
+            TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+            when(tableMap.remove(anyString())).thenReturn(null);
+            when(tableMap.isEmpty()).thenReturn(false);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
+            when(tableMap.iterator()).thenReturn(iterator);
+            when(iterator.hasNext()).thenReturn(true, false);
+            Map<String, TapTable> map = new HashMap<>();
+            Entry<TapTable> entry = new TapTableEntry("table1", table1);
+            when(iterator.next()).thenReturn(entry);
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(false).when(sourceNode).need2InitialSync(syncProgress);
@@ -4027,13 +4095,33 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
                 // Verify
                 verify(sourceNode, times(1)).reportBatchSize(1000, 1000);
-                verify(sourceNode, times(0)).doSnapshotWithControl(argThat(list -> list.size() == 2));
+                verify(sourceNode, times(0)).doSnapshotWithControl(argThat(list -> list.size() == 2),anyBoolean());
                 verify(sourceNode, times(1)).need2CDC();
                 verify(sourceNode, times(1)).waitAllSnapshotCompleteIfNeed();
                 verify(sourceNode, times(1)).doCdc();
                 verify(sourceNode, times(1)).executeAspect(any(CDCReadBeginAspect.class));
                 verify(sourceNode, times(1)).executeAspect(any(CDCReadEndAspect.class));
                 verify(snapshotProgressManager, times(1)).close();
+            }
+        }
+
+        class TapTableEntry implements Entry<TapTable> {
+            private final String tableName;
+            private TapTable tapTable = null;
+
+            public TapTableEntry(String tableName, TapTable table) {
+                this.tableName = tableName;
+                this.tapTable = table;
+            }
+
+            @Override
+            public String getKey() {
+                return tableName;
+            }
+
+            @Override
+            public synchronized TapTable getValue() {
+                return tapTable;
             }
         }
 
@@ -4053,9 +4141,10 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(false).when(sourceNode).need2InitialSync(syncProgress);
+            doReturn(true).when(sourceNode).isReFullRunTask();
             doReturn(true).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
             doReturn(true).when(sourceNode).isRunning();
-            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList(),anyBoolean());
             doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
             doNothing().when(sourceNode).enqueue(any());
             doReturn(false).when(sourceNode).need2CDC();
@@ -4078,7 +4167,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 sourceNode.startSourceRunner();
 
                 // Verify
-                verify(sourceNode, times(1)).doSnapshotWithControl(anyList());
+                verify(sourceNode, times(1)).doSnapshotWithControl(anyList(),anyBoolean());
                 verify(controller, times(1)).finish(tableNode);
                 verify(controller, times(1)).flush();
                 verify(sourceNode, times(1)).enqueue(any(TapdataMergeTableCacheRebuildCompleteEvent.class));
@@ -4131,6 +4220,298 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doCallRealMethod().when(node).doClose();
             Assertions.assertDoesNotThrow(node::doClose);
             verify(mockBatchAcceptor, times(1)).close();
+        }
+    }
+
+    @Nested
+    class tryNormalCdcIfNeedTest {
+        @Test
+        void testTryNormalCdcIfNeed() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(true);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", false);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doNothing().when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(ShareCdcReaderExCode_13.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+        @Test
+        void testTryNormalCdcIfNeed1() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(false);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", true);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doAnswer(a -> {throw new RuntimeException("null");}).when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(TaskProcessorExCode_11.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+        @Test
+        void testTryNormalCdcIfNeed2() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(true);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", true);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doNothing().when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(ShareCdcReaderExCode_13.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+        @Test
+        void testTryNormalCdcIfNeed3() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(null);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", true);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doNothing().when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(ShareCdcReaderExCode_13.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+    }
+
+    @Nested
+    @DisplayName("ensureShareCdcForNewTables method test")
+    class EnsureShareCdcForNewTablesTest {
+        @Test
+        @DisplayName("test ensureShareCdcForNewTables delegates to ensureShareCdcTablesReady")
+        void testEnsureShareCdcForNewTables() {
+            List<String> tables = Arrays.asList("table1", "table2");
+            doNothing().when(hazelcastSourcePdkDataNode).ensureShareCdcTablesReady(anyList());
+
+            hazelcastSourcePdkDataNode.ensureShareCdcForNewTables(tables);
+
+            verify(hazelcastSourcePdkDataNode, times(1)).ensureShareCdcTablesReady(tables);
+        }
+    }
+
+    @Nested
+    @DisplayName("ensureShareCdcTablesReady method test")
+    class EnsureShareCdcTablesReadyTest {
+        private ClientMongoOperator clientMongoOperator;
+
+        @BeforeEach
+        void setUp() {
+            clientMongoOperator = mock(ClientMongoOperator.class);
+            ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "clientMongoOperator", clientMongoOperator);
+        }
+
+        @Test
+        @DisplayName("test tableNames is null or empty should return early")
+        void testTableNamesNullOrEmpty() {
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(null);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(Collections.emptyList());
+            verify(clientMongoOperator, never()).postOne(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test taskDto is null or shareCdc disabled or id is null should return early")
+        void testTaskDtoChecks() {
+            List<String> tables = Collections.singletonList("table1");
+
+            // taskDto == null
+            when(dataProcessorContext.getTaskDto()).thenReturn(null);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            // shareCdcEnable is null
+            TaskDto mockTaskDto = mock(TaskDto.class);
+            when(dataProcessorContext.getTaskDto()).thenReturn(mockTaskDto);
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(null);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            // shareCdcEnable is false
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(false);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            // taskDto.getId() is null
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(true);
+            when(mockTaskDto.getId()).thenReturn(null);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            verify(clientMongoOperator, never()).postOne(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test sourceConn is null or id is blank should return early")
+        void testSourceConnChecks() {
+            List<String> tables = Collections.singletonList("table1");
+            TaskDto mockTaskDto = mock(TaskDto.class);
+            when(dataProcessorContext.getTaskDto()).thenReturn(mockTaskDto);
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(true);
+            when(mockTaskDto.getId()).thenReturn(new ObjectId());
+
+            // sourceConn == null
+            when(dataProcessorContext.getSourceConn()).thenReturn(null);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            // sourceConn.getId() == null
+            Connections sourceConn = mock(Connections.class);
+            when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+            when(sourceConn.getId()).thenReturn(null);
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            // sourceConn.getId() is empty or blank
+            when(sourceConn.getId()).thenReturn("   ");
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            verify(clientMongoOperator, never()).postOne(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test node is null or id is blank should throw TapCodeException")
+        void testNodeChecks() {
+            List<String> tables = Collections.singletonList("table1");
+            TaskDto mockTaskDto = mock(TaskDto.class);
+            when(dataProcessorContext.getTaskDto()).thenReturn(mockTaskDto);
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(true);
+            when(mockTaskDto.getId()).thenReturn(new ObjectId());
+
+            Connections sourceConn = mock(Connections.class);
+            when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+            when(sourceConn.getId()).thenReturn("conn-1");
+
+            // node == null
+            when(dataProcessorContext.getNode()).thenReturn(null);
+            TapCodeException ex1 = assertThrows(TapCodeException.class, () -> hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables));
+            assertEquals(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, ex1.getCode());
+            assertTrue(ex1.getMessage().contains("Source node id is empty"));
+
+            // node.getId() == null
+            Node mockNode = mock(Node.class);
+            when(dataProcessorContext.getNode()).thenReturn(mockNode);
+            when(mockNode.getId()).thenReturn(null);
+            TapCodeException ex2 = assertThrows(TapCodeException.class, () -> hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables));
+            assertEquals(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, ex2.getCode());
+
+            // node.getId() is blank
+            when(mockNode.getId()).thenReturn("  ");
+            TapCodeException ex3 = assertThrows(TapCodeException.class, () -> hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables));
+            assertEquals(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, ex3.getCode());
+        }
+
+        @Test
+        @DisplayName("test postOne success with expected parameters")
+        void testEnsureTablesReadySuccess() {
+            List<String> tables = Arrays.asList("table1", "table2");
+            ObjectId taskId = new ObjectId();
+            TaskDto mockTaskDto = mock(TaskDto.class);
+            when(dataProcessorContext.getTaskDto()).thenReturn(mockTaskDto);
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(true);
+            when(mockTaskDto.getId()).thenReturn(taskId);
+
+            Connections sourceConn = mock(Connections.class);
+            when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+            when(sourceConn.getId()).thenReturn("conn-123");
+
+            Node mockNode = mock(Node.class);
+            when(dataProcessorContext.getNode()).thenReturn(mockNode);
+            when(mockNode.getId()).thenReturn("node-456");
+
+            hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables);
+
+            ArgumentCaptor<Map<String, Object>> bodyCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(clientMongoOperator, times(1)).postOne(bodyCaptor.capture(), eq(ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES), eq(Object.class));
+
+            Map<String, Object> body = bodyCaptor.getValue();
+            assertNotNull(body);
+            assertEquals(taskId.toHexString(), body.get("syncTaskId"));
+            assertEquals("conn-123", body.get("connectionId"));
+            assertEquals("node-456", body.get("nodeId"));
+            assertEquals(tables, body.get("tableNames"));
+            assertEquals(true, body.get("waitReady"));
+
+            verify(obsLogger, times(1)).info(anyString(), eq("conn-123"), eq("node-456"), eq(tables));
+        }
+
+        @Test
+        @DisplayName("test postOne throws TapCodeException should rethrow directly")
+        void testPostThrowsTapCodeException() {
+            List<String> tables = Collections.singletonList("table1");
+            ObjectId taskId = new ObjectId();
+            TaskDto mockTaskDto = mock(TaskDto.class);
+            when(dataProcessorContext.getTaskDto()).thenReturn(mockTaskDto);
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(true);
+            when(mockTaskDto.getId()).thenReturn(taskId);
+
+            Connections sourceConn = mock(Connections.class);
+            when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+            when(sourceConn.getId()).thenReturn("conn-123");
+
+            Node mockNode = mock(Node.class);
+            when(dataProcessorContext.getNode()).thenReturn(mockNode);
+            when(mockNode.getId()).thenReturn("node-456");
+
+            TapCodeException targetEx = new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, "custom error");
+            when(clientMongoOperator.postOne(anyMap(), eq(ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES), eq(Object.class)))
+                    .thenThrow(targetEx);
+
+            TapCodeException thrown = assertThrows(TapCodeException.class, () -> hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables));
+            assertSame(targetEx, thrown);
+        }
+
+        @Test
+        @DisplayName("test postOne throws generic Exception should wrap as TapCodeException")
+        void testPostThrowsGenericException() {
+            List<String> tables = Collections.singletonList("table1");
+            ObjectId taskId = new ObjectId();
+            TaskDto mockTaskDto = mock(TaskDto.class);
+            when(dataProcessorContext.getTaskDto()).thenReturn(mockTaskDto);
+            when(mockTaskDto.getShareCdcEnable()).thenReturn(true);
+            when(mockTaskDto.getId()).thenReturn(taskId);
+
+            Connections sourceConn = mock(Connections.class);
+            when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+            when(sourceConn.getId()).thenReturn("conn-123");
+
+            Node mockNode = mock(Node.class);
+            when(dataProcessorContext.getNode()).thenReturn(mockNode);
+            when(mockNode.getId()).thenReturn("node-456");
+
+            RuntimeException runtimeEx = new RuntimeException("Http connection timeout");
+            when(clientMongoOperator.postOne(anyMap(), eq(ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES), eq(Object.class)))
+                    .thenThrow(runtimeEx);
+
+            TapCodeException thrown = assertThrows(TapCodeException.class, () -> hazelcastSourcePdkDataNode.ensureShareCdcTablesReady(tables));
+            assertEquals(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, thrown.getCode());
+            assertEquals("Http connection timeout", thrown.getMessage());
+            assertSame(runtimeEx, thrown.getCause());
         }
     }
 }

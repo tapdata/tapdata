@@ -28,6 +28,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
@@ -52,6 +53,8 @@ import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -122,6 +125,8 @@ public class WorkerServiceImpl extends WorkerService{
 
     private final MultiTaggedCounter workerPing;
     private Random random = new Random();
+    private static final String STATUS = "status";
+    private static final String USER_ID = "user_id";
 
     public WorkerServiceImpl(@NonNull WorkerRepository repository) {
         super(repository);
@@ -151,7 +156,7 @@ public class WorkerServiceImpl extends WorkerService{
             // query user have share worker
             WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
             if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
-                criteria.orOperator(Criteria.where("user_id").is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
+                criteria.orOperator(Criteria.where(USER_ID).is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
                 return repository.findAll(Query.query(criteria));
             } else {
                 return repository.findAll(Query.query(criteria), userDetail);
@@ -319,17 +324,16 @@ public class WorkerServiceImpl extends WorkerService{
 
         workers.forEach(worker -> {
 
-            // query task : 1.status is running 2.crontabExpressionFlag is true
+            // Align with TaskServiceImpl.findDataCopyList: ADMIN / data-permission users
+            // see all running tasks on this engine; others stay scoped to user_id.
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
-                    .and("user_id").is(userDetail.getUserId())
-                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
-                     Criteria.where("crontabExpressionFlag").is(true),
-                     Criteria.where("planStartDateFlag").is(true));
+                    .and(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN);
             Query query = Query.query(criteria);
+            if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
+                query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
+            }
             query.fields().include("id", "name", "syncType");
-            //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
             List<TaskDto> tasks = taskService.findAll(query);
 
             query = Query.query(Criteria.where("systemInfo.process_id").is(worker.getProcessId()));
@@ -366,8 +370,17 @@ public class WorkerServiceImpl extends WorkerService{
      *
      */
     public CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
+        return scheduleTaskToEngine(entity, userDetail, type, name, false);
+    }
 
-        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail, type);
+    @Override
+    public CalculationEngineVo scheduleTaskToEngineWithStrictAgent(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
+        return scheduleTaskToEngine(entity, userDetail, type, name, true);
+    }
+
+    private CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name, boolean strictAgent) throws BizException {
+
+        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail, type, strictAgent);
         String processId = calculationEngineVo.getProcessId();
         String filter = calculationEngineVo.getFilter();
 
@@ -389,6 +402,10 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     public CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
+        return calculationEngine(entity, userDetail, type, false);
+    }
+
+    private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type, boolean strictAgent) {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         String filter;
         int availableNum;
@@ -408,6 +425,9 @@ public class WorkerServiceImpl extends WorkerService{
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
+        if (strictAgent && StringUtils.isBlank(agentId)) {
+            throw new BizException("Task.AgentNotFound");
+        }
         if (StringUtils.isNotBlank(agentId)) {
             Criteria where = Criteria.where("worker_type").is("connector")
                     .and("ping_time").gte(findTime)
@@ -445,6 +465,9 @@ public class WorkerServiceImpl extends WorkerService{
                 calculationEngineVo.setTotalLimit(taskLimit);
                 return calculationEngineVo;
             }
+            if (strictAgent) {
+                throw new BizException("Task.AgentNotFound");
+            }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
 
@@ -456,9 +479,9 @@ public class WorkerServiceImpl extends WorkerService{
             // query user have share worker
             WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
             if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
-                where.and("user_id").in(userDetail.getUserId(), workerExpire.getShareTmUserId());
+                where.and(USER_ID).in(userDetail.getUserId(), workerExpire.getShareTmUserId());
             } else {
-                where.and("user_id").is(userDetail.getUserId());
+                where.and(USER_ID).is(userDetail.getUserId());
             }
         }
 
@@ -604,7 +627,7 @@ public class WorkerServiceImpl extends WorkerService{
             String processId = MapUtil.getStr(data, "process_id");
             if (StringUtils.isNotBlank(processId)) {
                 String progress = MapUtil.getStr(data, "progres");
-                String status = MapUtil.getStr(data, "status");
+                String status = MapUtil.getStr(data, STATUS);
                 String msg = MapUtil.getStr(data, "msg");
                 Date now = new Date();
 
@@ -626,9 +649,10 @@ public class WorkerServiceImpl extends WorkerService{
 
 
     public Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("worker_type").is("api-server"));
-        query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
-        query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+        Query query = Query.query(Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true));
+        query.addCriteria(Criteria.where(WorkerField.PING_TIME.field()).gte(System.currentTimeMillis() - 30000L));
+        query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
         WorkerDto worker = findOne(query);
         log.debug("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
         List<ApiWorkerStatusVo> list = Lists.newArrayList();
@@ -648,9 +672,9 @@ public class WorkerServiceImpl extends WorkerService{
 
     @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
-        final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
-                .and("worker_type").is("api-server")
-                .and("delete").ne(true);
+        final Criteria criteria = Criteria.where(WorkerField.PROCESS_ID.field()).is(status.getProcessId())
+                .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true);
         final Update update = new Update();
         final Query query = Query.query(criteria);
         final Long time = Optional.ofNullable(status.getTime()).orElse(new Date().getTime());
@@ -796,7 +820,9 @@ public class WorkerServiceImpl extends WorkerService{
 //        }
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-        Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
+        Criteria where = Criteria.where("process_id").is(worker.getProcessId())
+                .and("worker_type").is(worker.getWorkerType())
+                .and(WorkerField.DELETED.field()).ne(true);
         if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
                 .of(Query.query(where))
                 .map(query -> {
@@ -873,7 +899,7 @@ public class WorkerServiceImpl extends WorkerService{
     public void sendStopWorkWs(String processId, UserDetail userDetail) {
         UpdataStatusRequest updataStatusRequest = new UpdataStatusRequest();
         ClusterStateDto clusterStateDto = clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
-                is(processId).and("status").is("running")));
+                is(processId).and(STATUS).is("running")));
         updataStatusRequest.setUuid(clusterStateDto.getUuid());
         updataStatusRequest.setOperation("stop");
         updataStatusRequest.setServer("backend");
@@ -944,7 +970,7 @@ public class WorkerServiceImpl extends WorkerService{
         if (CollectionUtils.isNotEmpty(workerExpires)) {
             workerExpires.forEach(workerExpire -> {
                 // query worker by shareUser
-                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("user_id").is(workerExpire.getShareTmUserId())));
+                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where(USER_ID).is(workerExpire.getShareTmUserId())));
                 shareWorkers.forEach(workerDto -> {
                     String processId = workerDto.getProcessId();
                     CommonUtils.ignoreAnyError(() -> taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId()), "TM");

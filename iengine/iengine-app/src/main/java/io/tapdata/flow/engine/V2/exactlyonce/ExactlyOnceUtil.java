@@ -27,17 +27,24 @@ import java.util.Map;
  **/
 public class ExactlyOnceUtil {
 	public static final String EXACTLY_ONCE_CACHE_TABLE_NAME = "_TAP_EXACTLY_ONCE_CACHE";
+	public static final String UUID_ID = "ID";
 	public static final String NODE_ID_COL_NAME = "NODE_ID";
 	public static final String TABLE_NAME_COL_NAME = "TABLE_NAME";
-	public static final String EXACTLY_ONCE_ID_COL_NAME = "EXACTLY_ONCE_ID";
+	public static final String EXACTLY_ONCE_ID_COL_NAME = "EXACTLY_ONCE_IDS";
 	public static final String TIMESTAMP_COL_NAME = "TIMESTAMP";
-	public static final long EXACTLY_ONCE_ID_COL_LENGTH = 500L;
+	public static final long EXACTLY_ONCE_ID_COL_LENGTH = 1_000_000L;
 
 	public static TapTable generateExactlyOnceTable(ConnectorNode connectorNode) {
-		TapTable exactlyOnceTable = new TapTable(EXACTLY_ONCE_CACHE_TABLE_NAME);
-		exactlyOnceTable.add(new TapField().name(NODE_ID_COL_NAME).tapType(new TapString(50L, false)).primaryKeyPos(1));
-		exactlyOnceTable.add(new TapField().name(TABLE_NAME_COL_NAME).tapType(new TapString(200L, false)).primaryKeyPos(2));
-		exactlyOnceTable.add(new TapField().name(EXACTLY_ONCE_ID_COL_NAME).tapType(new TapString(EXACTLY_ONCE_ID_COL_LENGTH, false)).primaryKeyPos(3));
+		return generateExactlyOnceTableForNode(connectorNode, null);
+	}
+
+	public static TapTable generateExactlyOnceTableForNode(ConnectorNode connectorNode, String nodeId) {
+		String exactlyOnceTableName = EXACTLY_ONCE_CACHE_TABLE_NAME + (nodeId == null ? "" : "_" + nodeId);
+		TapTable exactlyOnceTable = new TapTable(exactlyOnceTableName);
+		exactlyOnceTable.add(new TapField().name(UUID_ID).tapType(new TapString(32L, false)).primaryKeyPos(1));
+		exactlyOnceTable.add(new TapField().name(NODE_ID_COL_NAME).tapType(new TapString(50L, false)));
+		exactlyOnceTable.add(new TapField().name(TABLE_NAME_COL_NAME).tapType(new TapString(200L, false)));
+		exactlyOnceTable.add(new TapField().name(EXACTLY_ONCE_ID_COL_NAME).tapType(new TapString(EXACTLY_ONCE_ID_COL_LENGTH, false)));
 		exactlyOnceTable.add(new TapField().name(TIMESTAMP_COL_NAME).tapType(new TapNumber()
 				.precision(20)
 				.scale(0)
@@ -56,7 +63,10 @@ public class ExactlyOnceUtil {
 					.dynamicDescriptionParameters(exactlyOnceTable.getNameFieldMap());
 		}
 		exactlyOnceTable.setNameFieldMap(tapResult.getData());
-		exactlyOnceTable.add(new TapIndex().indexField(new TapIndexField().name("TIMESTAMP").fieldAsc(true)));
+		exactlyOnceTable.add(new TapIndex()
+				.indexField(new TapIndexField().name(NODE_ID_COL_NAME).fieldAsc(true))
+				.indexField(new TapIndexField().name(TABLE_NAME_COL_NAME).fieldAsc(true)));
+		exactlyOnceTable.add(new TapIndex().indexField(new TapIndexField().name(TIMESTAMP_COL_NAME).fieldAsc(true)));
 		return exactlyOnceTable;
 	}
 
@@ -68,10 +78,6 @@ public class ExactlyOnceUtil {
 		if (StringUtils.isBlank(exactlyOnceId)) {
 			throw new TapCodeException(TapExactlyOnceWriteExCode_22.EXACTLY_ONCE_ID_IS_BLANK, "Record event tableId: " + tapRecordEvent.getTableId())
 					.dynamicDescriptionParameters(tapRecordEvent.getTableId());
-		}
-
-		if (exactlyOnceId.length() >= EXACTLY_ONCE_ID_COL_LENGTH) {
-			exactlyOnceId = MD5Util.crypt(exactlyOnceId, false);
 		}
 		exactlyOnceCacheRow.put(EXACTLY_ONCE_ID_COL_NAME, exactlyOnceId);
 		exactlyOnceCacheRow.put(TIMESTAMP_COL_NAME, referenceTime);

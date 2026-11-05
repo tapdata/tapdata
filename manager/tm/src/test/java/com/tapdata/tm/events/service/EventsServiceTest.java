@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.entity.Events;
+import com.tapdata.tm.events.entity.FailResult;
 import com.tapdata.tm.events.repository.EventsRepository;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
@@ -23,6 +24,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -32,6 +34,10 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -122,5 +128,94 @@ class EventsServiceTest {
         when(mockRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
         eventsServiceUnderTest.completeInform();
         verify(mockMailUtils,times(0)).sendHtmlMail(anyString(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testExcludeDeliveredRemovesAlreadyNotifiedAddresses() {
+        FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
+                Arrays.asList("ok1@tapdata.io", "ok2@tapdata.io"));
+
+        String remaining = EventsServiceImpl.excludeDelivered(
+                "ok1@tapdata.io,busy@tapdata.io,ok2@tapdata.io", failResult);
+
+        // 已送达的两人不再重发，只对临时失败地址重试
+        assertEquals("busy@tapdata.io", remaining);
+    }
+
+    @Test
+    void testExcludeDeliveredKeepsReceiversWhenNothingToExclude() {
+        assertEquals("a@tapdata.io,b@tapdata.io",
+                EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", null));
+        assertEquals("a@tapdata.io,b@tapdata.io",
+                EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io",
+                        new FailResult(1L, 0L, "failed", 0L)));
+    }
+
+    @Test
+    void testExcludeDeliveredReturnsNullWhenEveryAddressAlreadyDelivered() {
+        FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
+                Arrays.asList("a@tapdata.io", "b@tapdata.io"));
+
+        // 全部已送达时没有需重发地址，必须返回 null 让调用方结束事件；
+        // 退回原收件人会让已收到的人重复收到
+        assertNull(EventsServiceImpl.excludeDelivered("a@tapdata.io,b@tapdata.io", failResult));
+    }
+
+    @Test
+    void testExcludeDeliveredKeepsPendingRecipientAlongsideDelivered() {
+        // 真实场景：用户邮箱已送达，额外配置的收件人被 450 临时拒绝
+        FailResult failResult = new FailResult(1L, 0L, "partial", 0L,
+                List.of("owner@example.com"));
+
+        assertEquals("busy@example.com",
+                EventsServiceImpl.excludeDelivered("owner@example.com,busy@example.com", failResult));
+    }
+
+    @Test
+    void testBuildFailResultCarriesDeliveredAddressesOnlyWhenRetrying() {
+        SendStatus partial = new SendStatus("false", "partial");
+        partial.setDeliveredAddresses(Set.of("ok@tapdata.io"));
+
+        FailResult retrying = EventsServiceImpl.buildFailResult(partial, 1);
+        assertEquals("false", retrying.getRetry() == null ? null : partial.getStatus());
+        assertEquals(List.of("ok@tapdata.io"), retrying.getDelivered_addresses());
+        assertNotNull(retrying.getNext_retry());
+
+        // 整体成功不登记重试信息，也不需要排除地址
+        SendStatus success = new SendStatus("true", null);
+        success.setDeliveredAddresses(Set.of("ok@tapdata.io"));
+        FailResult ok = EventsServiceImpl.buildFailResult(success, 1);
+        assertEquals(0L, ok.getRetry());
+        assertTrue(ok.getDelivered_addresses().isEmpty());
+    }
+
+    @Test
+    void testUpdateFailInfoMergesNewlyDeliveredAddresses() {
+        ObjectId id = new ObjectId();
+        UserDetail user = new UserDetail("u1", "customer", "user1", "unused", List.of());
+        SendStatus retryPartial = new SendStatus("false", "partial");
+        retryPartial.setDeliveredAddresses(Set.of("b@example.com"));
+
+        when(mockRepository.update(any(Query.class), any(Update.class)))
+                .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+
+        java.lang.reflect.Method method = Arrays.stream(EventsServiceImpl.class.getDeclaredMethods())
+                .filter(m -> m.getName().equals("updateFailInfo"))
+                .findFirst().orElseThrow();
+        method.setAccessible(true);
+        try {
+            method.invoke(eventsServiceUnderTest, id, user, retryPartial);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+
+        ArgumentCaptor<Update> captor = ArgumentCaptor.forClass(Update.class);
+        verify(mockRepository).update(any(Query.class), captor.capture());
+        org.bson.Document updateObject = captor.getValue().getUpdateObject();
+        // 多轮重试必须累计本轮新送达地址，否则下一轮会重复通知已收到的人
+        org.bson.Document addToSet = (org.bson.Document) updateObject.get("$addToSet");
+        assertNotNull(addToSet, "重试更新应包含 $addToSet 以累计已送达地址");
+        assertNotNull(addToSet.get("failed_result.delivered_addresses"));
+        assertTrue(addToSet.get("failed_result.delivered_addresses").toString().contains("b@example.com"));
     }
 }

@@ -93,7 +93,7 @@ class TaskStatusMetricsTest {
         // 第一次调用 → 创建两个 Gauge
         taskStatusMetrics.refreshTaskStatuses();
 
-        assertThat(testRegistry.find("task_status").gauges()).hasSize(3);
+        assertThat(testRegistry.find("task_status").gauges()).hasSize(2);
 
         // 验证 tag 和值
         assertGaugeValueAndTags("69902630d652589d497a8ab1", "Task One", 5);
@@ -106,7 +106,7 @@ class TaskStatusMetricsTest {
 
         taskStatusMetrics.refreshTaskStatuses();
 
-        assertThat(testRegistry.find("task_status").gauges()).hasSize(4);
+        assertThat(testRegistry.find("task_status").gauges()).hasSize(2);
         assertGaugeValueAndTags("69902630d652589d497a8ab1", "Task One", 5);
         assertGaugeValueAndTags("69902630d652589d497a8ab4", "Task Four", 8);
 

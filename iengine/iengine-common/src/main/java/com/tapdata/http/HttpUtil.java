@@ -423,6 +423,38 @@ public class HttpUtil {
 	}
 
 	/**
+	 * 下载远程文件数据，支持30x跳转
+	 *
+	 * @param url     请求的url
+	 * @param timeout 超时毫秒数；小于等于0时使用全局超时配置
+	 * @return 文件数据
+	 */
+	public static byte[] downloadBytes(String url, int timeout) {
+		return HttpDownloader.downloadBytes(url, timeout);
+	}
+
+	/**
+	 * 打开远程文件响应流。调用方负责关闭返回的流。
+	 *
+	 * @param url 请求下载文件地址
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url) {
+		return HttpDownloader.openStream(url);
+	}
+
+	/**
+	 * 打开远程文件响应流。调用方负责关闭返回的流。
+	 *
+	 * @param url     请求下载文件地址
+	 * @param timeout 连接和读取超时时间，单位毫秒，必须大于0
+	 * @return 文件数据流
+	 */
+	public static InputStream openStream(String url, int timeout) {
+		return HttpDownloader.openStream(url, timeout);
+	}
+
+	/**
 	 * 将Map形式的Form表单数据转换为Url参数形式，会自动url编码键和值
 	 *
 	 * @param paramMap 表单数据

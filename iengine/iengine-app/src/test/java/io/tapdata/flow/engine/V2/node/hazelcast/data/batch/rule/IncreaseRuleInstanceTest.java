@@ -204,6 +204,15 @@ class IncreaseRuleInstanceTest {
         }
 
         @Test
+        void testExitWhenNotAliveEvenWithQueuedInfo() {
+            AdjustStage stage = mock(AdjustStage.class);
+            IncreaseRuleInstance instance = new IncreaseRuleInstance(new AtomicBoolean(false), "task1", 5000L, stage);
+            instance.queue.offer(new AdjustInfo("task1"));
+
+            Assertions.assertTrue(instance.exit());
+        }
+
+        @Test
         void testCheckOnceWithQueueIsNotEmpty() {
             ObjectId taskId = new ObjectId();
             AdjustStage stage = mock(AdjustStage.class);
@@ -416,4 +425,3 @@ class IncreaseRuleInstanceTest {
         }
     }
 }
-

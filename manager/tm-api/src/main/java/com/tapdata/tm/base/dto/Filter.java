@@ -8,7 +8,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
-import org.springdoc.core.converters.models.DefaultPageable;
 
 
 import java.util.ArrayList;
@@ -21,9 +20,20 @@ import java.util.List;
  */
 @Getter
 @Setter
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode
 @ToString
-public class Filter extends DefaultPageable {
+public class Filter {
+
+	@Min(1)
+	@Parameter(description = "One-based page number.", schema = @Schema(type = "integer", defaultValue = "1"))
+	private int page = 1;
+
+	@Min(0)
+	@Parameter(description = "Page size.", schema = @Schema(type = "integer", defaultValue = "20"))
+	private int size = 20;
+
+	@Parameter(description = "Sorting criteria in the format: property( asc|desc). Default sort order is ascending.")
+	private List<String> sort = new ArrayList<>();
 
 	@Parameter(description = "Conditions for querying data, see <a href='https://docs.mongodb.com/manual/tutorial/query-documents/'>https://docs.mongodb.com/manual/tutorial/query-documents/</a> for more details.")
 	private Where where;
@@ -43,7 +53,6 @@ public class Filter extends DefaultPageable {
 	private Object order;
 
 	public Filter(){
-		super(1, 20, new ArrayList<>());
 		this.where = new Where();
 	}
 
@@ -53,14 +62,20 @@ public class Filter extends DefaultPageable {
 	}
 
 	/**
-	 * Instantiates a new Default pageable.
+	 * Instantiates a new filter with explicit pagination defaults.
 	 *
 	 * @param page the page
 	 * @param size the size
 	 * @param sort the sort
 	 */
 	public Filter(int page, int size, List<String> sort) {
-		super(page, size, sort);
+		this.page = Math.max(page, 1);
+		this.size = size;
+		this.sort = sort;
+	}
+
+	public int getPage() {
+		return Math.max(page, 1);
 	}
 
 	public Where where(String prop, Object value) {
@@ -78,9 +93,8 @@ public class Filter extends DefaultPageable {
 		return limit > 0 ? limit : getSize();
 	}
 
-	@Override
 	public List<String> getSort() {
-		List<String> sort = new ArrayList<>(super.getSort());
+		List<String> sort = this.sort == null ? new ArrayList<>() : new ArrayList<>(this.sort);
 		if (order != null) {
 			if (order instanceof String) {
 				if (StringUtils.isNotBlank((String)order)) {

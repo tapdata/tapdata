@@ -108,8 +108,9 @@ public class OAuth2JsonSupportFilter implements Filter {
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        
-        String errorJson = String.format("{\"error\":\"%s\",\"error_description\":\"%s\"}", error, description);
+        log.error("OAuth2 token request rejected in json-support filter, error={}, description={}", error, description);
+        String errorJson = String.format("{\"error\":\"%s\",\"error_description\":\"%s\",\"code\":%d}",
+                error, description, HttpServletResponse.SC_BAD_REQUEST);
         response.getWriter().write(errorJson);
         response.getWriter().flush();
     }

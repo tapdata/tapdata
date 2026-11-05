@@ -14,6 +14,8 @@
 	<packaging>jar</packaging>
 
 	<properties>
+		<skipITs>true</skipITs>
+		<tm.skipITs>${skipITs}</tm.skipITs>
 		<resource.dir>src/main/resources</resource.dir>
 		<maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
 		<okhttp3.version>4.8.0</okhttp3.version>
@@ -357,12 +359,13 @@
 			<version>3.0.3</version>
 		</dependency>
 
-		<!-- Swagger Parser for OpenAPI Generator -->
-		<dependency>
-			<groupId>io.swagger.parser.v3</groupId>
-			<artifactId>swagger-parser</artifactId>
-			<version>2.1.31</version>
-		</dependency>
+        <!-- Swagger Parser for OpenAPI Generator -->
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser</artifactId>
+            <version>2.1.41</version>
+        </dependency>
+
 		<dependency>
 			<groupId>io.swagger.core.v3</groupId>
 			<artifactId>swagger-core</artifactId>
@@ -426,7 +429,7 @@
 		<dependency>
 			<groupId>com.networknt</groupId>
 			<artifactId>json-schema-validator</artifactId>
-			<version>1.0.58</version>
+			<version>3.0.0</version>
 		</dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -523,6 +526,21 @@
 				<exclusion>
 					<artifactId>nimbus-jose-jwt</artifactId>
 					<groupId>com.nimbusds</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<!-- SAML 2.0 Service Provider (SSO). Version managed by Spring Boot BOM; brings OpenSAML 5. -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-saml2-service-provider</artifactId>
+			<exclusions>
+				<exclusion>
+					<artifactId>bcprov-jdk15on</artifactId>
+					<groupId>org.bouncycastle</groupId>
+				</exclusion>
+				<exclusion>
+					<artifactId>bcpkix-jdk15on</artifactId>
+					<groupId>org.bouncycastle</groupId>
 				</exclusion>
 			</exclusions>
 		</dependency>
@@ -734,6 +752,31 @@
 
 		<plugins>
 			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<version>3.6.1</version>
+				<executions>
+					<execution>
+						<id>add-integration-test-source</id>
+						<phase>generate-test-sources</phase>
+						<goals><goal>add-test-source</goal></goals>
+						<configuration><sources><source>src/it/java</source></sources></configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>3.0.0</version>
+				<configuration>
+					<skipITs>${tm.skipITs}</skipITs>
+					<argLine>${tm.test.jvmArgs} ${surefireArgLine}</argLine>
+					<includes><include>**/*IT.java</include></includes>
+					<failIfNoTests>true</failIfNoTests>
+				</configuration>
+				<executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
@@ -742,6 +785,20 @@
 					<classifier>exec</classifier>
 					<!--<executable>true</executable>-->
 					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
+                    <requiresUnpack>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcprov-jdk18on</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcpkix-jdk18on</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcutil-jdk18on</artifactId>
+                        </dependency>
+                    </requiresUnpack>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -801,6 +858,12 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+					</execution>
+				</executions>
             </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

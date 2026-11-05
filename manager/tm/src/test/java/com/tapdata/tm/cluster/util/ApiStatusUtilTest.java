@@ -119,6 +119,25 @@ class ApiStatusUtilTest {
     }
 
     @Test
+    void statusOfApi_freshActiveTime_promotesStatusWhenMetricTimestampMissing() {
+        // worker_status.activeTime 是 TM 在每次 update-status 时写入的心跳时间。
+        // 不能因为历史记录没有 metricValues.lastUpdateTime 就把仍可用的 API Server 判为 stopped。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", null);
+            apiInfo.getWorkerStatus().setMetricValues(null);
+            apiInfo.getWorkerStatus().setActiveTime(System.currentTimeMillis());
+            Component api = apiComponent("stopped");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("running", setServiceStatus.get());
+        }
+    }
+
+    @Test
     void statusOfApi_apiWorkerStale_keepsPersistedStatus() {
         // apiserver 自身超过 30s 未心跳：status 沿用 DB 陈值，serviceStatus 报 stopped
         try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {

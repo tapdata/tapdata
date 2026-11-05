@@ -269,13 +269,83 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     public void onStart(TaskStartAspect startAspect) {
         log.trace("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
         initPrometheus();
+
+        this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+        try {
+            Query query = Query.query(Criteria.where("_id").is(task.getId()));
+            query.fields().include("attrs.milestone", "attrs.nodeMilestones");
+            TaskDto taskFromDb = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+            if (taskFromDb != null && taskFromDb.getAttrs() != null) {
+                Object milestoneObj = taskFromDb.getAttrs().get("milestone");
+                if (milestoneObj instanceof Map) {
+                    Map<String, Object> milestoneMap = (Map<String, Object>) milestoneObj;
+                    for (Map.Entry<String, Object> entry : milestoneMap.entrySet()) {
+                        MilestoneEntity entity = MilestoneEntity.valueOf(entry.getValue());
+                        if (entity != null) {
+                            entity.setCode(entry.getKey());
+                            milestones.put(entry.getKey(), entity);
+                        }
+                    }
+                }
+                Object nodeMilestonesObj = taskFromDb.getAttrs().get("nodeMilestones");
+                if (nodeMilestonesObj instanceof Map) {
+                    Map<String, Object> nodeMilestonesMap = (Map<String, Object>) nodeMilestonesObj;
+                    for (Map.Entry<String, Object> entry : nodeMilestonesMap.entrySet()) {
+                        String nodeId = entry.getKey();
+                        Object val = entry.getValue();
+                        if (val instanceof Map) {
+                            Map<String, Object> nodeMap = (Map<String, Object>) val;
+                            Map<String, MilestoneEntity> entityMap = new ConcurrentHashMap<>();
+                            for (Map.Entry<String, Object> subEntry : nodeMap.entrySet()) {
+                                MilestoneEntity entity = MilestoneEntity.valueOf(subEntry.getValue());
+                                if (entity != null) {
+                                    entity.setCode(subEntry.getKey());
+                                    entityMap.put(subEntry.getKey(), entity);
+                                }
+                            }
+                            nodeMilestones.put(nodeId, entityMap);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Load initial milestones from db failed, err: {}", e.getMessage());
+        }
+
+        milestones.remove(KPI_TASK);
+        milestones.remove(KPI_DEDUCTION);
+        milestones.remove(KPI_TABLE_INIT);
+        milestones.remove(KPI_DATA_NODE_INIT);
+        milestones.remove(KPI_CDC);
+
+        MilestoneEntity lastSnapshot = milestones.get(KPI_SNAPSHOT);
+        boolean isSnapshotFinishedFromDb = lastSnapshot != null && lastSnapshot.getStatus() != null &&
+                (MilestoneStatus.FINISH.name().equals(lastSnapshot.getStatus().name()) || MilestoneStatus.SKIP.name().equals(lastSnapshot.getStatus().name()));
+        boolean isSkipSnapshot = hasSnapshot() && task.hasSyncProgress() && isSnapshotFinishedFromDb;
+        if (isSkipSnapshot) {
+            taskMilestone(KPI_SNAPSHOT, m -> m.setStatus(MilestoneStatus.SKIP));
+            for (Map<String, MilestoneEntity> nodeMap : nodeMilestones.values()) {
+                if (nodeMap.containsKey(KPI_SNAPSHOT_READ)) {
+                    nodeMap.get(KPI_SNAPSHOT_READ).setStatus(MilestoneStatus.SKIP);
+                }
+                if (nodeMap.containsKey(KPI_SNAPSHOT_WRITE)) {
+                    nodeMap.get(KPI_SNAPSHOT_WRITE).setStatus(MilestoneStatus.SKIP);
+                }
+            }
+        } else {
+            milestones.remove(KPI_SNAPSHOT);
+            milestones.remove(KPI_SNAPSHOT_READ);
+            milestones.remove(KPI_SNAPSHOT_WRITE);
+            nodeMilestones.clear();
+        }
+
         taskMilestone(KPI_TASK, this::setFinish);
-        taskMilestone(KPI_DEDUCTION,null);
+        taskMilestone(KPI_DEDUCTION, null);
         if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
             taskMilestone(KPI_TABLE_INIT, null);
         }
         taskMilestone(KPI_DATA_NODE_INIT, null);
-        if (hasSnapshot()) taskMilestone(KPI_SNAPSHOT, null);
+        if (hasSnapshot() && !isSkipSnapshot) taskMilestone(KPI_SNAPSHOT, null);
         if (hasCdc()) taskMilestone(KPI_CDC, null);
 
         for (Node<?> n : task.getDag().getNodes()) {
@@ -284,7 +354,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             }
         }
 
-        this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
         executorService.scheduleWithFixedDelay(this::storeMilestone, 200, 5000, TimeUnit.MILLISECONDS);
     }
 
@@ -628,6 +697,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected void setRunning(MilestoneEntity milestone) {
+        if (MilestoneStatus.SKIP.equals(milestone.getStatus())) {
+            return;
+        }
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.RUNNING);
@@ -639,6 +711,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected void setFinish(MilestoneEntity milestone) {
+        if (MilestoneStatus.SKIP.equals(milestone.getStatus())) {
+            return;
+        }
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
         }

@@ -36,6 +36,6 @@ public class NoPrimaryKeyException extends RuntimeException {
     }
 
     public static NoPrimaryKeyException otherFailed(Throwable e) {
-        return new NoPrimaryKeyException("add hash filed value failed", e, CODE_OTHER);
+        return new NoPrimaryKeyException("add hash field value failed", e, CODE_OTHER);
     }
 }

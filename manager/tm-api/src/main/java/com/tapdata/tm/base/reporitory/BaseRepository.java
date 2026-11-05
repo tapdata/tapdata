@@ -1,8 +1,6 @@
 package com.tapdata.tm.base.reporitory;
 
-import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
@@ -20,6 +18,7 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.TapQueryUtil;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.Document;
@@ -1056,25 +1055,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
      * @return
      */
     public List findAll(JSONObject where) {
-        Query query = new Query();
-
-        if (null != where) {
-            Iterator iter = where.entrySet().iterator();
-            while (iter.hasNext()) {
-                Map.Entry entry = (Map.Entry) iter.next();
-                String proName = entry.getKey().toString();
-                String proValue = entry.getValue().toString();
-                if (proValue.contains("$in")) {
-                    JSONObject jsonObjectValue = JSONUtil.parseObj(proValue);
-                    JSONArray jsonArray = jsonObjectValue.getJSONArray("$in");
-                    List list = jsonArray.toList(Object.class);
-                    query.addCriteria(Criteria.where(proName).in(list));
-                } else {
-                    query.addCriteria(Criteria.where(proName).is(proValue));
-                }
-            }
-        }
-        query.addCriteria(Criteria.where("is_deleted").ne(true));
+        Query query = TapQueryUtil.buildQuery(where);
         //page由limit 和skip计算的来
         List records = this.mongoOperations.find(query,entityClass);
         return records;

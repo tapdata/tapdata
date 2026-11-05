@@ -1,7 +1,7 @@
 package io.tapdata.observable.metric;
 
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -93,7 +93,7 @@ public class ObservableAspectTaskTest {
         taskDto.setStartTime(new Date());
         observableAspectTask.setTask(taskDto);
 
-        RestTemplateOperator mockRestTemplateOperator = mock(RestTemplateOperator.class);
+        HttpClientMongoOperator mockRestTemplateOperator = mock(HttpClientMongoOperator.class);
         TaskSampleRetriever.getInstance().start(mockRestTemplateOperator);
 
         // test onStart and onStop if null handler
@@ -379,7 +379,7 @@ public class ObservableAspectTaskTest {
 
         @Test
         void testStateStart_1() {
-            TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
+            TaskSampleRetriever.getInstance().start(mock(HttpClientMongoOperator.class));
 
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
@@ -458,7 +458,7 @@ public class ObservableAspectTaskTest {
 
         @Test
         void testStateStart_2() {
-            TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
+            TaskSampleRetriever.getInstance().start(mock(HttpClientMongoOperator.class));
 
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());

@@ -186,6 +186,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 }
             }
             handleAppendWrite(schema);
+            sortFieldsByPostion(schema);
             if (getSyncTargetPartitionTableEnable() == null || !getSyncTargetPartitionTableEnable()) {
                 schema.setPartitionMasterTableId(null);
             }

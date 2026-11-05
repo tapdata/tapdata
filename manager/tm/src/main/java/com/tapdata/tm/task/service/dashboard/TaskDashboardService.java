@@ -146,7 +146,7 @@ public class TaskDashboardService {
             fillActiveTasks(result.getSummary().getActiveTasks(), tasks, latestSamples);
         }
         if (dt.needThroughput()) {
-            fillThroughput(result.getSummary().getTotalThroughput(), result.getTrends().getThroughput(), trendVo, dt.needThroughputSummary(), dt.needThroughputTrend());
+            fillThroughput(result.getSummary().getTotalThroughput(), result.getTrends().getThroughput(), trendVo, dashboardQuery, dt.needThroughputSummary(), dt.needThroughputTrend());
         }
         if (dt.needConnectedDbs()) {
             fillConnectedDbs(result.getSummary().getConnectedDbs(), user);
@@ -231,13 +231,18 @@ public class TaskDashboardService {
         }
     }
 
-    private void fillThroughput(TaskDashboardVo.TotalThroughput totalThroughput, TaskDashboardVo.Trend trend, TaskMetricsTrendVo trendVo,
+    private void fillThroughput(TaskDashboardVo.TotalThroughput totalThroughput, TaskDashboardVo.Trend trend, TaskMetricsTrendVo trendVo, DashboardQuery dashboardQuery,
                                 boolean includeSummary, boolean includeTrend) {
         List<Double> outputQps = Optional.ofNullable(trendVo.getOutputQps()).orElseGet(ArrayList::new);
         List<Double> outputSizeQps = Optional.ofNullable(trendVo.getOutputSizeQps()).orElseGet(ArrayList::new);
         if (includeTrend) {
-            trend.setTs(Optional.ofNullable(trendVo.getTs()).orElseGet(ArrayList::new));
-            trend.setValues(outputQps);
+            List<Long> ts = Optional.ofNullable(trendVo.getTs()).orElseGet(ArrayList::new);
+            if (CollectionUtils.isEmpty(ts) || CollectionUtils.isEmpty(outputQps)) {
+                fillZeroTrend(trend, buildThroughputTimeline(dashboardQuery));
+            } else {
+                trend.setTs(ts);
+                trend.setValues(outputQps);
+            }
         }
         if (!includeSummary || CollectionUtils.isEmpty(outputQps)) {
             return;
@@ -283,9 +288,61 @@ public class TaskDashboardService {
             QueryBase trendQuery = buildApiQuery(dashboardQuery);
             ApiRequestTrend apiRequestTrend = Optional.ofNullable(apiMetricsChartQuery.homepageRequestTrend(trendQuery))
                     .orElse(ApiRequestTrend.create(TimeGranularity.SECOND_FIVE));
-            trend.setTs(apiRequestTrend.getTs());
-            trend.setValues(apiRequestTrend.getValues());
+            List<Long> ts = Optional.ofNullable(apiRequestTrend.getTs()).orElseGet(ArrayList::new);
+            List<Double> values = Optional.ofNullable(apiRequestTrend.getValues()).orElseGet(ArrayList::new);
+            if (CollectionUtils.isEmpty(ts) || CollectionUtils.isEmpty(values)) {
+                fillZeroTrend(trend, buildApiRequestTimeline(dashboardQuery));
+            } else {
+                trend.setTs(ts);
+                trend.setValues(values);
+            }
         }
+    }
+
+    private void fillZeroTrend(TaskDashboardVo.Trend trend, List<Long> ts) {
+        trend.setTs(ts);
+        trend.setValues(ts.stream().map(value -> 0D).collect(Collectors.toList()));
+    }
+
+    private List<Long> buildThroughputTimeline(DashboardQuery dashboardQuery) {
+        long rangeMs = dashboardQuery.endAtMs - dashboardQuery.startAtMs;
+        long stepSeconds;
+        if (rangeMs <= 5L * 60L * 1000L) {
+            stepSeconds = 5L;
+        } else if (rangeMs <= 60L * 60L * 1000L) {
+            stepSeconds = 60L;
+        } else if (rangeMs <= 24L * 60L * 60L * 1000L) {
+            stepSeconds = 60L * 60L;
+        } else {
+            stepSeconds = 24L * 60L * 60L;
+        }
+        return buildTimeline(dashboardQuery.startAtSec, dashboardQuery.endAtSec, stepSeconds);
+    }
+
+    private List<Long> buildApiRequestTimeline(DashboardQuery dashboardQuery) {
+        long rangeSeconds = dashboardQuery.endAtSec - dashboardQuery.startAtSec;
+        TimeGranularity granularity;
+        if (rangeSeconds < TimeGranularity.HOUR.getSeconds()) {
+            granularity = TimeGranularity.SECOND_FIVE;
+        } else if (rangeSeconds < TimeGranularity.DAY.getSeconds()) {
+            granularity = TimeGranularity.MINUTE;
+        } else {
+            granularity = TimeGranularity.HOUR;
+        }
+        return buildTimeline(dashboardQuery.startAtSec, dashboardQuery.endAtSec, granularity.getSeconds());
+    }
+
+    private List<Long> buildTimeline(long startAtSec, long endAtSec, long stepSeconds) {
+        if (startAtSec > endAtSec || stepSeconds <= 0L) {
+            return new ArrayList<>();
+        }
+        long start = startAtSec / stepSeconds * stepSeconds;
+        long end = endAtSec / stepSeconds * stepSeconds;
+        List<Long> ts = new ArrayList<>();
+        for (long cursor = start; cursor <= end; cursor += stepSeconds) {
+            ts.add(cursor);
+        }
+        return ts;
     }
 
     private QueryBase buildApiQuery(DashboardQuery dashboardQuery) {

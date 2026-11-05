@@ -1,96 +1,61 @@
 package io.tapdata.observable.logging.appender;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.serializer.SerializeConfig;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import lombok.SneakyThrows;
+import io.tapdata.observable.logging.cache.CacheLogSink;
+import io.tapdata.observable.logging.cache.MonitoringLogCodec;
+import io.tapdata.observable.logging.cache.TaskCacheManager;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
-import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.wire.ValueIn;
-import net.openhft.chronicle.wire.ValueOut;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
-import java.io.Serializable;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author jackin
  * @date 2022/6/20 11:55
  **/
-public class AppenderFactory implements Serializable {
+public class AppenderFactory {
 	public static final String FILE_APPENDER_TAILER_ID = "FILE_APPENDER_TAILER";
 	public static final String DEBUG_FILE_APPENDER_TAILER_ID = "DEBUG_FILE_APPENDER_TAILER";
-	public static final String TM_APPENDER_TAILER_ID= "TM_APPENDER_TAILER";
-	private volatile static AppenderFactory INSTANCE;
+	public static final String TM_APPENDER_TAILER_ID = "TM_APPENDER_TAILER";
+	private static final String DEBUG_APPENDER_SUFFIX = "_debug";
 
 	public static AppenderFactory getInstance() {
-		if (INSTANCE == null) {
-			synchronized (AppenderFactory.class) {
-				if (INSTANCE == null) {
-					INSTANCE = new AppenderFactory();
-				}
-			}
-		}
-		return INSTANCE;
+		return InstanceHolder.INSTANCE;
+	}
+
+	private static class InstanceHolder {
+		private static final AppenderFactory INSTANCE = new AppenderFactory();
 	}
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
-	public final static int BATCH_SIZE = 100;
-	private final static String READ_TM_APPENDER_TAILER_THREAD = "Read_TM_Appender_TAILER_Thread";
-	private final static String READ_FILE_APPENDER_TAILER_THREAD = "Read_File_Appender_TAILER_Thread";
-	private final static String CACHE_QUEUE_DIR = "." + File.separator + "CacheObserveLogs";
-	private final SingleChronicleQueue cacheLogsQueue;
+	public static final int BATCH_SIZE = 100;
+	/**
+	 * Test-only compatibility hook for existing Wire-format tests. Production writes always
+	 * use {@link TaskCacheManager} and never initialize a shared queue.
+	 */
+	private SingleChronicleQueue cacheLogsQueue;
+	private final TaskCacheManager taskCacheManager;
+	private final MonitoringLogCodec codec = new MonitoringLogCodec();
 	private final Map<String, List<Appender<MonitoringLogsDto>>> appenderMap = new ConcurrentHashMap<>();
 	private final Semaphore emptyWaiting = new Semaphore(1);
-	private final ExecutorService fileAppenderTailerExecutor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
-			r -> new Thread(r, READ_FILE_APPENDER_TAILER_THREAD)
-	);
-	private final ExecutorService tmHttpAppenderTailerExecutor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
-			r -> new Thread(r, READ_TM_APPENDER_TAILER_THREAD)
-	);
 	private long cycle;
 
 	private AppenderFactory() {
-		String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-		String tapdataCacheObserveLogsDir = null;
-		if(StringUtils.isNotBlank(tapdataWorkDir)) {
-			tapdataCacheObserveLogsDir = tapdataWorkDir + File.separator + "CacheObserveLogs";
-		}
-		cacheLogsQueue = ChronicleQueue.singleBuilder(StringUtils.isNotBlank(tapdataCacheObserveLogsDir) ? tapdataCacheObserveLogsDir : CACHE_QUEUE_DIR)
-				.rollCycle(RollCycles.FAST_DAILY)
-				.storeFileListener(this::deleteFileIfLessThanCurrentCycle)
-				.build();
-		cycle = cacheLogsQueue.cycle();
-		fileAppenderTailerExecutor.submit(() -> {
-			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(FILE_APPENDER_TAILER_ID)) {
-				while (true) {
-					readMessageFromCacheQueue(tailer,FILE_APPENDER_TAILER_ID);
-				}
-			}
-		});
-		tmHttpAppenderTailerExecutor.submit(() -> {
-			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(TM_APPENDER_TAILER_ID)) {
-				while (true){
-					readMessageFromCacheQueue(tailer,TM_APPENDER_TAILER_ID);
-				}
-			}
-		});
+		taskCacheManager = TaskCacheManager.createDefault((log, sink) ->
+				appenderAppendLog(log, sink == CacheLogSink.FILE
+						? FILE_APPENDER_TAILER_ID
+						: TM_APPENDER_TAILER_ID));
+		Runtime.getRuntime().addShutdownHook(new Thread(this::closeAll, "CacheObserveLogs-Shutdown"));
 	}
 
 	protected void readMessageFromCacheQueue(ExcerptTailer tailer,String tailerType) {
@@ -102,41 +67,46 @@ public class AppenderFactory implements Serializable {
 			} else {
 				emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
 			}
-		} catch (Throwable e) {
-			logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (Exception e) {
+			logger.warn("Failed to append task logs", e);
 		}
 	}
 
 	protected void appenderAppendLog(MonitoringLogsDto.MonitoringLogsDtoBuilder builder, String tailerType) {
-		MonitoringLogsDto monitoringLogsDto = builder.build();
+		appenderAppendLog(builder.build(), tailerType);
+	}
+
+	protected void appenderAppendLog(MonitoringLogsDto monitoringLogsDto, String tailerType) {
 		String taskId = monitoringLogsDto.getTaskId();
-		List<Appender<MonitoringLogsDto>> appenders = appenderMap.keySet()
-				.stream().filter(k -> k.startsWith(taskId))
+		if (StringUtils.isBlank(taskId)) {
+			return;
+		}
+		List<Appender<MonitoringLogsDto>> appenders = Stream.of(taskId, taskId + DEBUG_APPENDER_SUFFIX)
 				.map(appenderMap::get)
 				.filter(Objects::nonNull)
 				.flatMap(Collection::stream)
-				.collect(Collectors.toList());
-		if (CollectionUtils.isNotEmpty(appenders)) {
-			appenders.stream().filter(appender -> null != appender).filter((appender -> {
-				if (FILE_APPENDER_TAILER_ID.equals(tailerType)) {
-					return appender instanceof FileAppender;
-				} else {
-					return appender instanceof ObsHttpTMAppender || appender instanceof ScriptNodeProcessNodeAppender;
-				}
-			})).forEach(appender -> {
-				appender.append(monitoringLogsDto);
-			});
+				.toList();
+		appenders.stream()
+				.filter(Objects::nonNull)
+				.filter(appender -> supportsSink(appender, tailerType))
+				.forEach(appender -> appender.append(monitoringLogsDto));
+	}
+
+	private static boolean supportsSink(Appender<MonitoringLogsDto> appender, String tailerType) {
+		if (FILE_APPENDER_TAILER_ID.equals(tailerType)) {
+			return appender instanceof FileAppender;
 		}
+		return appender instanceof ObsHttpTMAppender || appender instanceof ScriptNodeProcessNodeAppender;
 	}
 
 	protected void deleteFileIfLessThanCurrentCycle(int cycle, File file) {
 		if (cycle < this.cycle) {
 			boolean successFlag = FileUtils.deleteQuietly(file);
 			logger.info("Delete chronic released store file: {}, success: {}. cycle: {}", file, successFlag, cycle);
-			this.cycle = cycle;
-		} else {
-			this.cycle = cycle;
 		}
+		this.cycle = cycle;
 	}
 
 	public void addTaskAppender(BaseTaskAppender<MonitoringLogsDto> taskAppender) {
@@ -151,113 +121,71 @@ public class AppenderFactory implements Serializable {
 	}
 
 	public void addAppender(String key, Appender<MonitoringLogsDto> appender) {
-		this.appenderMap.computeIfAbsent(key, k -> new ArrayList<>());
-		this.appenderMap.computeIfPresent(key, (k, v) -> {
-			v.add(appender);
-			return v;
-		});
+		if (StringUtils.isBlank(key) || appender == null) {
+			return;
+		}
+		this.appenderMap.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(appender);
+	}
+
+	public void activateTask(String taskId, String taskName) {
+		taskCacheManager.activateTask(taskId, taskName);
+	}
+
+	public void deactivateTask(String taskId) {
+		taskCacheManager.deactivateTask(taskId);
 	}
 
 	public void removeAppenders(String key) {
+		taskCacheManager.deactivateTask(key);
 		this.appenderMap.remove(key);
+		this.appenderMap.remove(key + DEBUG_APPENDER_SUFFIX);
 	}
 
 	public void appendLog(MonitoringLogsDto logsDto) {
+		if (cacheLogsQueue == null) {
+			taskCacheManager.append(logsDto);
+			return;
+		}
 		try (ExcerptAppender excerptAppender = cacheLogsQueue.acquireAppender()) {
-				excerptAppender.writeDocument(w -> {
-				final ValueOut valueOut = w.getValueOut();
-				final Date date = logsDto.getDate();
-				final String dateString = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(date);
-				valueOut.writeString(dateString);
-				valueOut.writeString(logsDto.getLevel());
-				valueOut.writeString(logsDto.getErrorStack());
-				valueOut.writeString(logsDto.getMessage());
-				valueOut.writeString(logsDto.getTaskId());
-				valueOut.writeString(logsDto.getTaskRecordId());
-				valueOut.writeLong(logsDto.getTimestamp());
-				valueOut.writeString(logsDto.getTaskName());
-				valueOut.writeString(logsDto.getNodeId());
-				valueOut.writeString(logsDto.getNodeName());
-				valueOut.writeString(logsDto.getErrorCode());
-				valueOut.writeString(logsDto.getFullErrorCode());
-				String[] dynamicDescriptionParameters = logsDto.getDynamicDescriptionParameters();
-				if(null != dynamicDescriptionParameters && dynamicDescriptionParameters.length > 0) {
-					try {
-						String dynamicDescriptionParametersJson = JSONUtil.obj2Json(dynamicDescriptionParameters);
-						valueOut.writeString(dynamicDescriptionParametersJson);
-					} catch (JsonProcessingException e) {
-						logger.error("Failed to convert dynamicDescriptionParameters to JSON: {}", dynamicDescriptionParameters, e);
-						valueOut.writeString("[]");
-					}
-				} else {
-					valueOut.writeString("[]");
-				}
-				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
-				valueOut.writeString(logTagsJoinStr);
-				if (null != logsDto.getData()) {
-					SerializeConfig config = logsDto.getSerializeConfig() != null ? logsDto.getSerializeConfig() : SerializeConfig.getGlobalInstance();
-					try {
-						valueOut.writeString(JSON.toJSON(logsDto.getData(), config).toString());
-					} catch (Exception e) {
-						logger.error("Convert data to json failed {}", e.getMessage(), e);
-						valueOut.writeString("[]");
-					}
-				}
-			});
-		} catch (InterruptedRuntimeException ignored) {
+			excerptAppender.writeDocument(w -> codec.write(w.getValueOut(), logsDto));
+		} catch (InterruptedRuntimeException e) {
+			Thread.currentThread().interrupt();
 		} catch (Exception e) {
-			logger.warn("Append log in cache queue failed, error: {}\n Stack: {}", e.getMessage(), Log4jUtil.getStackString(e));
+			logger.warn("Append log in cache queue failed", e);
 		}
 		if (emptyWaiting.availablePermits() < 1) {
 			emptyWaiting.release(1);
 		}
 	}
 
-	@SneakyThrows
-	protected void decodeFromWireIn(ValueIn valueIn, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
-		final String dateString = valueIn.readString();
-		final Date date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
-		builder.date(date);
-		final String level = valueIn.readString();
-		builder.level(level);
-		final String errorStack = valueIn.readString();
-		builder.errorStack(errorStack);
-		final String message = valueIn.readString();
-		builder.message(message);
-		final String taskId = valueIn.readString();
-		builder.taskId(taskId);
-		final String taskRecordId = valueIn.readString();
-		builder.taskRecordId(taskRecordId);
-		final long timestamp = valueIn.readLong();
-		builder.timestamp(timestamp);
-		final String taskName = valueIn.readString();
-		builder.taskName(taskName);
-		final String nodeId = valueIn.readString();
-		builder.nodeId(nodeId);
-		final String nodeName = valueIn.readString();
-		builder.nodeName(nodeName);
-		final String errorCode = valueIn.readString();
-		builder.errorCode(errorCode);
-		final String fullErrorCode = valueIn.readString();
-		builder.fullErrorCode(fullErrorCode);
-		String dynamicDescriptionJson = valueIn.readString();
-		builder.dynamicDescriptionParameters(JSONUtil.json2POJO(dynamicDescriptionJson, String[].class));
-		final String logTaskStr = valueIn.readString();
-		if (StringUtils.isNotBlank(logTaskStr)) {
-			builder.logTags(Arrays.asList(logTaskStr.split(",")));
-		}
-		final String dataStr = valueIn.readString();
-		if (StringUtils.isNotBlank(dataStr)) {
-			try {
-				builder.data((Collection<? extends Map<String, Object>>) JSON.parseArray(dataStr, (new HashMap<String, Object>()).getClass()));
-			} catch (Exception e) {
-				logger.error("Read log from file cache queue failed, parse dataStr json failed: {}", dataStr, e);
-			}
+	public void appendLogWithoutCache(MonitoringLogsDto logsDto) {
+		appendLogWithoutCache(logsDto, FILE_APPENDER_TAILER_ID);
+		appendLogWithoutCache(logsDto, TM_APPENDER_TAILER_ID);
+	}
 
+	private void appendLogWithoutCache(MonitoringLogsDto logsDto, String tailerType) {
+		try {
+			appenderAppendLog(logsDto, tailerType);
+		} catch (RuntimeException e) {
+			logger.warn("Failed to append test task log directly, taskId: {}, tailerType: {}, error: {}",
+					logsDto.getTaskId(), tailerType, e.getMessage(), e);
 		}
 	}
 
-	private <T> T nullStringProcess(String inputString, Supplier<T> nullSupplier, Supplier<T> getResult) {
-		return "null".equals(inputString) || null == inputString ? nullSupplier.get() : getResult.get();
+	public void deleteTaskCache(String taskId) {
+		this.appenderMap.remove(taskId);
+		this.appenderMap.remove(taskId + DEBUG_APPENDER_SUFFIX);
+		taskCacheManager.deleteTaskCache(taskId);
+	}
+
+	public void closeAll() {
+		taskCacheManager.close();
+		if (cacheLogsQueue != null) {
+			cacheLogsQueue.close();
+		}
+	}
+
+	protected void decodeFromWireIn(ValueIn valueIn, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
+		codec.read(valueIn, builder);
 	}
 }

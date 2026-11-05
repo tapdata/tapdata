@@ -38,6 +38,7 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -48,6 +49,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
@@ -84,6 +87,7 @@ import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -732,6 +736,47 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapCreateTableEvent);
 			hazelcastBaseNode.transformToTapValue(tapdataEvent, tapTableMap, TABLE_NAME);
 			assertEquals(tapCreateTableEvent, tapdataEvent.getTapEvent());
+		}
+
+		@Test
+		void testTransformToTapValuePreservesLegacyNumericPrecision() {
+			Long largeInteger = 9007199254740993L;
+			BigDecimal preciseDecimal = new BigDecimal("123456789.0123456789");
+			Map<String, Object> after = new LinkedHashMap<>();
+			after.put("integer", largeInteger);
+			after.put("decimal", preciseDecimal);
+			tapTable.setNameFieldMap(new LinkedHashMap<>());
+			tapTable.getNameFieldMap().put("integer", new TapField("integer", "bigint").tapType(new TapNumber()));
+			tapTable.getNameFieldMap().put("decimal", new TapField("decimal", "decimal").tapType(new TapNumber()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapdataEvent event = new TapdataEvent();
+			event.setTapEvent(tapInsertRecordEvent);
+
+			hazelcastBaseNode.transformToTapValue(event, tapTableMap, TABLE_NAME);
+
+			assertSame(largeInteger, after.get("integer"));
+			assertSame(preciseDecimal, after.get("decimal"));
+		}
+
+		@Test
+		void testTransformToTapValueKeepsRawFloatingPointValues() {
+			Double value = 1.234567890123D;
+			Map<String, Object> after = new LinkedHashMap<>();
+			after.put("single", value);
+			after.put("double", value);
+			tapTable.setNameFieldMap(new LinkedHashMap<>());
+			tapTable.getNameFieldMap().put("single", new TapField("single", "real").tapType(new TapFloat()));
+			tapTable.getNameFieldMap().put("double", new TapField("double", "double").tapType(new TapDouble()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapdataEvent event = new TapdataEvent();
+			event.setTapEvent(tapInsertRecordEvent);
+
+			hazelcastBaseNode.transformToTapValue(event, tapTableMap, TABLE_NAME);
+
+			assertEquals((double) value.floatValue(), after.get("single"));
+			assertEquals(value, after.get("double"));
+			assertFalse(after.get("single") instanceof TapValue);
+			assertFalse(after.get("double") instanceof TapValue);
 		}
 
 		@Test
@@ -1788,6 +1833,41 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastBaseNode.lastTableName = "lastTableName";
 			String actual = hazelcastBaseNode.getTgtTableNameFromTapEvent(tapEvent);
 			assertEquals("lastTableName", actual);
+		}
+	}
+
+	@Nested
+	@DisplayName("UpdateMemoryFromDDLInfoMap method test")
+	class UpdateMemoryFromDDLInfoMapTest {
+		@Test
+		@DisplayName("When target table update is disabled, expect DAG and node updated without resolving target table")
+		void testSkipTargetTableUpdate() {
+			HazelcastBaseNode spyNode = spy(hazelcastBaseNode);
+			TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(createTableEvent);
+			doNothing().when(spyNode).updateDAG(tapdataEvent);
+			doNothing().when(spyNode).updateNode(tapdataEvent);
+
+			spyNode.updateMemoryFromDDLInfoMap(tapdataEvent, false);
+
+			verify(spyNode).updateDAG(tapdataEvent);
+			verify(spyNode).updateNode(tapdataEvent);
+			verify(spyNode, never()).getTgtTableNameFromTapEvent(any(TapEvent.class));
+		}
+
+		@Test
+		@DisplayName("When tap event is TapDDLWarningEvent, expect skip and not throw NPE")
+		void testSkipTapDDLWarningEvent() {
+			HazelcastBaseNode spyNode = spy(hazelcastBaseNode);
+			TapDDLWarningEvent warningEvent = new TapDDLWarningEvent();
+			warningEvent.setOriginDDL("alter table I6_11956_DDL_FILTER add supplemental log data (all) columns");
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(warningEvent);
+
+			assertTrue(tapdataEvent.isDDL());
+			assertDoesNotThrow(() -> spyNode.updateMemoryFromDDLInfoMap(tapdataEvent));
+			verify(spyNode, never()).getTgtTableNameFromTapEvent(any(TapEvent.class));
 		}
 	}
 

@@ -9,6 +9,9 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.externalStorage.param.ConnectionSharedCDCParam;
+import com.tapdata.tm.externalStorage.vo.ConnectionSharedCDCEnable;
+import com.tapdata.tm.externalStorage.vo.SettingOfSharedCDCEnable;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
@@ -58,7 +61,7 @@ public class ExternalStorageController extends BaseController {
 	@PostMapping
 	public ResponseMessage<ExternalStorageDto> save(@RequestBody(required = false) ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
-			return success(externalStorageService.save(externalStorage, getLoginUser()));
+			return success(maskSensitiveData(externalStorageService.save(externalStorage, getLoginUser())));
 		} else {
 			throw new BizException("NotAuthorized");
 		}
@@ -74,7 +77,7 @@ public class ExternalStorageController extends BaseController {
 	@PatchMapping()
 	public ResponseMessage<ExternalStorageDto> update(@RequestBody ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
-			return success(externalStorageService.update(externalStorage, getLoginUser()));
+			return success(maskSensitiveData(externalStorageService.update(externalStorage, getLoginUser())));
 		} else {
 			throw new BizException("NotAuthorized");
 		}
@@ -142,7 +145,7 @@ public class ExternalStorageController extends BaseController {
 	public ResponseMessage<ExternalStorageDto> updateById(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
 			externalStorage.setId(MongoUtils.toObjectId(id));
-			return success(externalStorageService.update(externalStorage, getLoginUser()));
+			return success(maskSensitiveData(externalStorageService.update(externalStorage, getLoginUser())));
 		}else{
 			throw new BizException("NotAuthorized");
 		}
@@ -162,10 +165,7 @@ public class ExternalStorageController extends BaseController {
 														@RequestParam(value = "fields", required = false) String fieldsJson) {
 		Field fields = parseField(fieldsJson);
 		ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(id), fields, getLoginUser());
-		if (null != externalStorageDto) {
-			externalStorageDto.setUri(externalStorageDto.maskUriPassword());
-		}
-		return success(externalStorageDto);
+		return success(maskSensitiveData(externalStorageDto));
 	}
 
 	/**
@@ -238,7 +238,7 @@ public class ExternalStorageController extends BaseController {
 		if (filter == null) {
 			filter = new Filter();
 		}
-		return success(externalStorageService.findOne(filter, getLoginUser()));
+		return success(maskSensitiveData(externalStorageService.findOne(filter, getLoginUser())));
 	}
 
 	/**
@@ -289,7 +289,14 @@ public class ExternalStorageController extends BaseController {
 	@PostMapping("upsertWithWhere")
 	public ResponseMessage<ExternalStorageDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody ExternalStorageDto externalStorage) {
 		Where where = parseWhere(whereJson);
-		return success(externalStorageService.upsertByWhere(where, externalStorage, getLoginUser()));
+		return success(maskSensitiveData(externalStorageService.upsertByWhere(where, externalStorage, getLoginUser())));
+	}
+
+	private ExternalStorageDto maskSensitiveData(ExternalStorageDto externalStorageDto) {
+		if (null != externalStorageDto && !isAgentReq()) {
+			externalStorageDto.maskSensitiveData();
+		}
+		return externalStorageDto;
 	}
 
 	@Operation(summary = "Set default external storage")
@@ -304,5 +311,17 @@ public class ExternalStorageController extends BaseController {
 	@GetMapping("{id}/usingTask")
 	public ResponseMessage<List<TaskDto>> getUsingTask(@PathVariable("id") String id) {
 		return success(externalStorageService.findUsingTasks(id));
+	}
+
+	@Operation(summary = "Get shared cdc enable status")
+	@GetMapping("shared-cdc-enable")
+	public ResponseMessage<SettingOfSharedCDCEnable> settingOfSharedCDCEnable() {
+		return success(externalStorageService.settingOfSharedCDCEnable());
+	}
+
+	@Operation(summary = "Get using tasks")
+	@PostMapping("ds-shared-cdc-status")
+	public ResponseMessage<ConnectionSharedCDCEnable> checkConnectionSharedCDCEnable(@RequestBody ConnectionSharedCDCParam param) {
+		return success(externalStorageService.checkConnectionSharedCDCEnable(param));
 	}
 }

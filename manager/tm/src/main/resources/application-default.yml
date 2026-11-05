@@ -6,6 +6,20 @@ application:
   build: '@maven.build.timestamp@'
   admin-account: 'admin@admin.com'
 
+security:
+  auth:
+    # COMPAT: accept URL access_token (V4.x default). WARN: accept + alert. REJECT: 401.
+    # REJECT is not ready to enable: SAML ACS still redirects with ?access_token=,
+    # enterprise apiserver-java TmHttpClient still appends URL tokens, and deployments
+    # that use the official CI/CD worker (tapdata-cicd-worker) also cannot enable REJECT
+    # because those scripts still call TM with ?access_token=. Switching to REJECT
+    # before those paths use Bearer will 401 SAML login, apiserver calls, and
+    # cicd-worker flows.
+    url-token-mode: ${SECURITY_AUTH_URL_TOKEN_MODE:COMPAT}
+    # Extra Origins allowed to authenticate /ws/agent with a cookie. Same-host Origin
+    # is always allowed. Engine Bearer connections do not use this list.
+    websocket-allowed-origins: ${SECURITY_AUTH_WEBSOCKET_ALLOWED_ORIGINS:}
+
 spring:
   servlet:
     multipart:
@@ -14,6 +28,21 @@ spring:
       enabled: true
   application:
     name: TCMApplication
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: mcp-tap-server
+        version: 1.0.0
+        type: SYNC
+        protocol: STREAMABLE
+        capabilities:
+          tool: true
+          resource: true
+          prompt: false
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
 
   thymeleaf:
     cache: false
@@ -174,6 +203,10 @@ openapi:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
 
 management:
+  health:
+    elasticsearch:
+      # Elasticsearch is optional; deployments using it can explicitly enable this check.
+      enabled: false
   prometheus:
     metrics:
       export:
@@ -188,3 +221,7 @@ management:
 
 api-server:
   supplement-hour: ${supplement.api.call.hour:16}
+
+sso:
+  master:
+    key: 'F2QiotN6p1mNV3IW+M8PXU41TEVtOJiy5kZ9yNLuW00='

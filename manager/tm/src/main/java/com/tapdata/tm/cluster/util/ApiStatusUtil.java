@@ -66,10 +66,17 @@ public final class ApiStatusUtil {
     }
 
     private static boolean isApiWorkerFresh(Worker apiInfo) {
-        if (null == apiInfo || null == apiInfo.getWorkerStatus() || null == apiInfo.getWorkerStatus().getMetricValues()) {
+        if (null == apiInfo || null == apiInfo.getWorkerStatus()) {
             return false;
         }
-        Object activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
+        // activeTime is written by TM for every API Server status report and is the
+        // liveness signal even when an older worker record has no metric timestamp.
+        // Keep metricValues as a compatibility fallback for records created before
+        // activeTime was persisted.
+        Object activeTime = apiInfo.getWorkerStatus().getActiveTime();
+        if (activeTime == null && apiInfo.getWorkerStatus().getMetricValues() != null) {
+            activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
+        }
         long threshold = System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1_000L);
         // MetricInfo.lastUpdateTime 是 Object，BSON 编码后可能落地为 Number / Date / String 三种。
         // 对齐 MetricInfo.toUsage() 的三态处理（同文件里已存在的样板），否则 Date 类型会让

@@ -161,11 +161,10 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 
 		Document queryObject = query.getQueryObject();
 		Map<String, Object> reqParams = new HashMap<>();
-		addToken(reqParams);
-
 		if (MapUtils.isNotEmpty(queryObject)) {
 			reqParams.put("where", queryObject.toJson());
 		}
+		addToken(reqParams);
 
 		try {
 			T t = restTemplateOperator.upsert(reqParams, update.getUpdateObject().get("$set"), collection, clazz);
@@ -263,7 +262,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 
 		validateToken();
 
-		final String resource = addToken(collection + "/" + id);
+		final String resource = addToken(resourceWithId(collection, id));
 
 		T result = null;
 		try {
@@ -368,7 +367,6 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		validateToken();
 
 		Map<String, Object> params = new HashMap<>();
-		addToken(params);
 		Document queryObject = query.getQueryObject();
 		if (MapUtils.isNotEmpty(queryObject)) {
 			queryObject.keySet().forEach(key -> {
@@ -382,6 +380,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			});
 			params.put("where", queryObject.toJson());
 		}
+		addToken(params);
 
 		ResponseCount responseCount = restTemplateOperator.getOne(params, collection + "/count", ResponseCount.class, cookies(), cloudRegion);
 		if (responseCount == null) {
@@ -504,16 +503,29 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 	}
 
 	public Map<String, Object> addToken(Map<String, Object> params) {
-		params.put("access_token", configCenter.getConfig(ConfigurationCenter.TOKEN));
+		bindAccessToken();
+		if (params != null) {
+			params.remove("access_token");
+		}
 		return params;
 	}
 
 	public String addToken(String url) {
-		StringBuilder sb = new StringBuilder(url);
+		bindAccessToken();
+		return RestTemplateOperator.stripAccessTokenQuery(url);
+	}
 
-		sb.append("?").append("access_token=").append(configCenter.getConfig(ConfigurationCenter.TOKEN));
+	private AutoCloseable bindAccessToken() {
+		Object token = configCenter.getConfig(ConfigurationCenter.TOKEN);
+		return RestTemplateOperator.bindAccessToken(token == null ? null : String.valueOf(token));
+	}
 
-		return sb.toString();
+	private String resourceWithId(String collection, String id) {
+		int queryStart = collection.indexOf('?');
+		if (queryStart < 0) {
+			return collection + "/" + id;
+		}
+		return collection.substring(0, queryStart) + "/" + id + collection.substring(queryStart);
 	}
 
 	public String cookies() {

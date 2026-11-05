@@ -10,6 +10,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.error.TaskDateProcessorExCode_17;
 import io.tapdata.exception.TapCodeException;
@@ -183,6 +184,17 @@ class HazelcastDateProcessorNodeTest extends BaseTaskTest {
 			assertDoesNotThrow(() -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
 			}));
 			assertNull(tapUpdateRecordEvent.getBefore().get("_datetime"));
+		}
+
+		@Test
+		@DisplayName("test TapRawValue with null content (Excel empty DATE cell) should be skipped")
+		void test6() {
+			TapRawValue rawValue = new TapRawValue();
+			rawValue.setOriginType("DATE");
+			tapUpdateRecordEvent.getBefore().put("_datetime", rawValue);
+			assertDoesNotThrow(() -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
+			}));
+			assertSame(rawValue, tapUpdateRecordEvent.getBefore().get("_datetime"));
 		}
 	}
 }

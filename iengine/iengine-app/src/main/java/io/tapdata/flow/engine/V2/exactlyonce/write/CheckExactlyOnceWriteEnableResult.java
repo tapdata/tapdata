@@ -8,6 +8,7 @@ package io.tapdata.flow.engine.V2.exactlyonce.write;
 public class CheckExactlyOnceWriteEnableResult {
 	private Boolean enable = false;
 	private String message;
+	private ExactlyOnceWriteMode mode;
 
 	private CheckExactlyOnceWriteEnableResult() {
 	}
@@ -32,11 +33,25 @@ public class CheckExactlyOnceWriteEnableResult {
 		return this;
 	}
 
+	public CheckExactlyOnceWriteEnableResult mode(ExactlyOnceWriteMode mode) {
+		this.mode = mode;
+		return this;
+	}
+
 	public Boolean getEnable() {
 		return enable;
 	}
 
 	public String getMessage() {
 		return message;
+	}
+
+	public ExactlyOnceWriteMode getMode() {
+		return mode;
+	}
+
+	public enum ExactlyOnceWriteMode {
+		MQ_MODE,
+		SQL_MODE,
 	}
 }

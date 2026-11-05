@@ -1,6 +1,7 @@
 package com.tapdata.tm.init;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -29,6 +30,7 @@ import java.util.Map;
 @RestController
 @Slf4j
 @RequestMapping("/api/init")
+@IgnoreLogin
 public class InitController {
     @Autowired
     private UserService userService;

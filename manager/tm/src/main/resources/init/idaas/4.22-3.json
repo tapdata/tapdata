@@ -1,0 +1,78 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": { "key": "syncColumns" },
+        "u": {
+          "$set": {
+            "hot_reloading": false,
+            "key": "syncColumns",
+            "last_update": 0,
+            "user_visible": false
+          },
+          "$setOnInsert": { "value": "" }
+        },
+        "upsert": true
+      },
+      {
+        "q": { "key": "migrateColumns" },
+        "u": {
+          "$set": {
+            "hot_reloading": false,
+            "key": "migrateColumns",
+            "last_update": 0,
+            "user_visible": false
+          },
+          "$setOnInsert": { "value": "" }
+        },
+        "upsert": true
+      },
+      {
+        "q": { "key": "enableEnvTag" },
+        "u": {
+          "$set": {
+            "category": "Appearance",
+            "category_sort": "0",
+            "enums": ["true", "false"],
+            "key": "enableEnvTag",
+            "key_label": "enableEnvTag",
+            "sort": "1",
+            "user_visible": true
+          },
+          "$setOnInsert": { "value": "false" }
+        },
+        "upsert": true
+      },
+      {
+        "q": { "key": "envTagContent" },
+        "u": {
+          "$set": {
+            "category": "Appearance",
+            "key": "envTagContent",
+            "key_label": "envTagContent",
+            "sort": "2",
+            "user_visible": true
+          },
+          "$setOnInsert": { "value": "" }
+        },
+        "upsert": true
+      },
+      {
+        "q": { "key": "envTagColor" },
+        "u": {
+          "$set": {
+            "category": "Appearance",
+            "enums": ["red", "orange", "yellow", "blue", "green", "purple"],
+            "key": "envTagColor",
+            "key_label": "envTagColor",
+            "sort": "3",
+            "user_visible": true
+          },
+          "$setOnInsert": { "value": "red" }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

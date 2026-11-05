@@ -62,6 +62,9 @@ public class MergeTableNode extends ProcessorNode {
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Map<String, Schema> schemaMap = inputSchemas.stream().collect(Collectors.toMap(Schema::getQualifiedName, s -> s, (a1, a2) -> a1));
+        inputSchemas.stream()
+                .filter(s -> StringUtils.isNotBlank(s.getNodeId()))
+                .forEach(s -> schemaMap.putIfAbsent(s.getNodeId(), s));
 
         Schema main = null;
         Set<String> inlineF = new HashSet<>();
@@ -102,6 +105,9 @@ public class MergeTableNode extends ProcessorNode {
     private Schema merge(Map<String, Schema> schemaMap, MergeTableProperties mergeProperty, Schema main, Set<String> inlineF) {
         String id = mergeProperty.getId();
         Schema schema1 = schemaMap.get(getQualifiedNameByNodeId(this.getDag(), id));
+        if (schema1 == null) {
+            schema1 = schemaMap.get(id);
+        }
         String targetPath = mergeProperty.getTargetPath();
         if (StringUtils.isNotBlank(targetPath)) {
             if (schema1 != null) {

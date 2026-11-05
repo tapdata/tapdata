@@ -825,6 +825,7 @@ public class TaskServiceTest {
         void testImportRmProject() throws IOException {
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
+            taskService.setAlarmReceiverTransfer(new AlarmReceiverTransfer());
             ParseParam param = new ParseParam()
                     .withMultipartFile(mockMultipartFile)
                     .withSink("sink")

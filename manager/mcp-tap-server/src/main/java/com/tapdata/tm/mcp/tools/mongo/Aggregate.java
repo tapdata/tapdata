@@ -1,50 +1,51 @@
 package com.tapdata.tm.mcp.tools.mongo;
 
-import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.mongodb.MongoOperator;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
-
-import static com.tapdata.tm.mcp.Utils.getStringValue;
-import static com.tapdata.tm.mcp.Utils.readJsonSchema;
-import static java.util.Collections.emptyList;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2025/3/26 19:24
  */
 @Component
-public class Aggregate extends MongoTool {
+public class Aggregate {
 
-    public Aggregate(SessionAttribute sessionAttribute, UserService userService, DataSourceService dataSourceService) {
-        super("aggregate", "Execute a MongoDB aggregation pipeline process multiple documents and return computed results",
-                readJsonSchema("MongoAggregate.json"), sessionAttribute, userService, dataSourceService);
+    private final MongoOperatorFactory mongoOperatorFactory;
+
+    public Aggregate(MongoOperatorFactory mongoOperatorFactory) {
+        this.mongoOperatorFactory = mongoOperatorFactory;
     }
 
-    @Override
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-
-        String collectionName = getStringValue(params, "collectionName");
+    @McpTool(name = "aggregate", description = "Execute a MongoDB aggregation pipeline through a TapData MongoDB connection.")
+    public List<Document> aggregate(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "TapData MongoDB connection id.") String connectionId,
+            @McpToolParam(description = "MongoDB collection name.") String collectionName,
+            @McpToolParam(description = "MongoDB aggregation pipeline stages.") List<Map<String, Object>> pipeline,
+            @McpToolParam(required = false, description = "Explain verbosity, such as queryPlanner, executionStats, or allPlansExecution.") String explain) {
         if (StringUtils.isBlank(collectionName)) {
             throw new RuntimeException("Parameter collectionName is required");
         }
-        try (MongoOperator mongoOperator = createMongoClient(exchange, params)){
+
+        Map<String, Object> params = new java.util.LinkedHashMap<>();
+        params.put("pipeline", pipeline);
+        params.put("explain", explain);
+
+        try (MongoOperator mongoOperator = mongoOperatorFactory.create(context, connectionId)){
 
             mongoOperator.connect();
-            List<Document> data = mongoOperator.aggregate(collectionName, params);
-            return makeCallToolResult(data);
+            return mongoOperator.aggregate(collectionName, params);
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
     }
 }

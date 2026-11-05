@@ -31,7 +31,7 @@ public class FieldChangeRule implements Serializable {
 
     private String id;
     private Scope scope;
-    private String[] namespace;//[nodeId,qualifiedName,fieldName]
+    private String[] namespace;//[nodeId,ancestorsName,fieldName]
     private Type type;
     private String accept;
     private Double multiple;
@@ -42,7 +42,7 @@ public class FieldChangeRule implements Serializable {
         return (null == namespace || namespace.length < 1) ? null : namespace[0];
     }
 
-    public String getQualifiedName() {
+    public String getAncestorsName() {
         return (null == namespace || namespace.length < 2) ? null : namespace[1];
     }
 

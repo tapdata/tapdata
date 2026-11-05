@@ -255,6 +255,7 @@ public class TableNode extends DataNode {
         outputSchema.setOriginalName(tableName);
         updateSchemaAfterDynamicTableName(outputSchema, dynamicTableResult.getOldName(), dynamicTableResult.getDynamicName());
         handleAppendWrite(outputSchema);
+        sortFieldsByPostion(outputSchema);
         if (dataSource.getDatabase_type().contains(MONGODB)){
             SchemaUtils.addFieldObjectIdIfMongoDatabase(outputSchema, dataSource.getDatabase_type());
         }
@@ -370,5 +371,9 @@ public class TableNode extends DataNode {
             schema.setAfterDynamicTableName(after);
             schema.setBeforeDynamicTableName(before);
         }
+    }
+
+    protected boolean matchTable(String configTableName, Schema schema) {
+        return true;
     }
 }

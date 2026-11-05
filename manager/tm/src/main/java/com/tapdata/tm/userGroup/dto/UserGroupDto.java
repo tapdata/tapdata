@@ -1,6 +1,7 @@
 package com.tapdata.tm.userGroup.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -11,7 +12,7 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class UserGroupDto extends BaseDto {
+public class UserGroupDto extends BaseDto implements IDataPermissionDto {
 
     private String name;
 

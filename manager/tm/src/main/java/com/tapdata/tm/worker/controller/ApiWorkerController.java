@@ -1,5 +1,6 @@
 package com.tapdata.tm.worker.controller;
 
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.ping.PingDto;
@@ -59,6 +60,7 @@ public class ApiWorkerController extends BaseController {
         return success();
     }
 
+    @IgnoreLogin
     @GetMapping("/ping")
     public ResponseMessage<PingDto> ping() {
         PingDto dto = new PingDto();

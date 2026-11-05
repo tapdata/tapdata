@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.List;
 
 public enum DifferenceTypeEnum {
@@ -31,18 +33,20 @@ public enum DifferenceTypeEnum {
     Different{
         @Override
         public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
-            if(field.getDataType().equals(differenceField.getSourceField().getDataType())) {
+            if(field != null && StringUtils.equals(field.getDataType(), differenceField.getSourceField().getDataType())) {
                 differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
+                differenceField.getTargetField().setPrimaryKey(field.getPrimaryKey());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
         }
         @Override
         public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
-            if(field.getDataType().equals(differenceField.getTargetField().getDataType())) {
+            if(field != null && StringUtils.equals(field.getDataType(), differenceField.getTargetField().getDataType())) {
                 fields.remove(field);
                 fields.add(differenceField.getSourceField());
             }
@@ -51,18 +55,20 @@ public enum DifferenceTypeEnum {
     Precision{
         @Override
         public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
-            if(field.getDataType().equals(differenceField.getSourceField().getDataType())) {
+            if(field != null && StringUtils.equals(field.getDataType(), differenceField.getSourceField().getDataType())) {
                 differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
+                differenceField.getTargetField().setPrimaryKey(field.getPrimaryKey());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
         }
         @Override
         public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
-            if(field.getDataType().equals(differenceField.getTargetField().getDataType())) {
+            if(field != null && StringUtils.equals(field.getDataType(), differenceField.getTargetField().getDataType())) {
                 fields.remove(field);
                 fields.add(differenceField.getSourceField());
             }

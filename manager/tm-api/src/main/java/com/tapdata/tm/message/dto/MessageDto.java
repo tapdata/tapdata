@@ -50,6 +50,8 @@ public class MessageDto  extends BaseDto {
     private Boolean read = false;
     private Boolean isDeleted = false;
     private Boolean isSend = false;
+    /** 告警通知关联的告警事件 */
+    private String alarmEventId;
 
     private String time;
     private String last_updated;

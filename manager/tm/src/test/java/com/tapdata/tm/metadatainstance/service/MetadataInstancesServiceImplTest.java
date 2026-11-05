@@ -2126,6 +2126,69 @@ public class MetadataInstancesServiceImplTest {
 			doReturn(metadatas).when(metadataInstancesService).findByNodeId(anyString(), anyList(), any(UserDetail.class), any(TaskDto.class));
 			assertThrows(RuntimeException.class, () -> metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node));
 		}
+
+		@Test
+		@DisplayName("TAP-12745 TableNode inspect table uses stored originalName/qualifiedName like migrate")
+		void tableNodeMapsOriginalNameToStoredQualifiedName() {
+			kv = new HashMap<>();
+			TableNode tableNode = new TableNode();
+			tableNode.setId("mongo-target");
+			tableNode.setTableName("i83_12741_finspect");
+			tableNode.setConnectionId(new ObjectId().toHexString());
+			node = tableNode;
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setOriginalName("i83_12741_finspect");
+			meta.setQualifiedName("MC_mongodb_official_v1_i83_12741_finspect_conn_task");
+			doReturn(List.of(meta)).when(metadataInstancesService).findByNodeId(eq("mongo-target"), anyList(), any(UserDetail.class), any(TaskDto.class));
+
+			Map<String, String> actual = metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node);
+
+			assertEquals("MC_mongodb_official_v1_i83_12741_finspect_conn_task", actual.get("i83_12741_finspect"));
+			verify(metadataInstancesService, never()).getQualifiedNameByNodeId(any(), any(), any(), any(), any());
+		}
+
+		@Test
+		@DisplayName("TAP-12745 TableNode does not recompute QN when tableName differs from originalName")
+		void tableNodeDoesNotRecomputeQualifiedNameWhenTableNameDiffers() {
+			kv = new HashMap<>();
+			TableNode tableNode = new TableNode();
+			tableNode.setId("mongo-target");
+			tableNode.setTableName("node_table");
+			tableNode.setConnectionId(new ObjectId().toHexString());
+			node = tableNode;
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setOriginalName("i83_12741_finspect");
+			meta.setQualifiedName("T_stored_collection");
+			doReturn(List.of(meta)).when(metadataInstancesService).findByNodeId(eq("mongo-target"), anyList(), any(UserDetail.class), any(TaskDto.class));
+
+			Map<String, String> actual = metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node);
+
+			assertEquals("T_stored_collection", actual.get("i83_12741_finspect"));
+			assertNull(actual.get("node_table"));
+			verify(metadataInstancesService, never()).getQualifiedNameByNodeId(any(), any(), any(), any(), any());
+		}
+
+		@Test
+		@DisplayName("TAP-12745 TableNode empty metadata does not invent recomputed QN")
+		void tableNodeEmptyMetadataDoesNotRecomputeQualifiedName() {
+			kv = new HashMap<>();
+			TableNode tableNode = new TableNode();
+			tableNode.setId("mongo-target");
+			tableNode.setTableName("i83_12741_finspect");
+			node = tableNode;
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			doReturn(List.of()).when(metadataInstancesService).findByNodeId(eq("mongo-target"), anyList(), any(UserDetail.class), any(TaskDto.class));
+
+			Map<String, String> actual = metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node);
+
+			assertTrue(actual.isEmpty());
+			verify(metadataInstancesService, never()).getQualifiedNameByNodeId(any(), any(), any(), any(), any());
+		}
 	}
 
 	@Nested
@@ -2229,6 +2292,85 @@ public class MetadataInstancesServiceImplTest {
 		}
 
 		@Test
+		@DisplayName("test getQualifiedNameByNodeId method uses source model meta type")
+		void testTableNodeUseSourceModelMetaType() {
+			ObjectId connectionId = new ObjectId("65bc933c6129fe73d7858b40");
+			taskId = new ObjectId("65bc933c6129fe73d7858b41").toHexString();
+			TableNode tableNode = new TableNode();
+			tableNode.setConnectionId(connectionId.toHexString());
+			tableNode.setTableName("viewName");
+
+			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+			connectionDto.setId(connectionId);
+			connectionDto.setDatabase_type("mysql");
+			connectionDto.setDatabase_name("test");
+			DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
+
+			MetadataInstancesDto viewMetadata = new MetadataInstancesDto();
+			viewMetadata.setOriginalName("viewName");
+			viewMetadata.setMetaType(MetaType.view.name());
+			doReturn(Collections.singletonList(viewMetadata)).when(metadataInstancesService).findAllDto(any(Query.class), eq(userDetail));
+
+			String actual = metadataInstancesService.getQualifiedNameByNodeId(tableNode, userDetail, connectionDto, dataSourceDefinitionDto, taskId);
+
+			assertEquals(MetaDataBuilderUtils.generateQualifiedName(MetaType.view.name(), connectionDto, "viewName", taskId), actual);
+		}
+
+		@Test
+		@DisplayName("test getQualifiedNameByNodeId method prefers default meta type")
+		void testTableNodePreferDefaultMetaType() {
+			ObjectId connectionId = new ObjectId("65bc933c6129fe73d7858b40");
+			taskId = new ObjectId("65bc933c6129fe73d7858b41").toHexString();
+			TableNode tableNode = new TableNode();
+			tableNode.setConnectionId(connectionId.toHexString());
+			tableNode.setTableName("tableName");
+
+			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+			connectionDto.setId(connectionId);
+			connectionDto.setDatabase_type("mysql");
+			connectionDto.setDatabase_name("test");
+			DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
+
+			MetadataInstancesDto viewMetadata = new MetadataInstancesDto();
+			viewMetadata.setOriginalName("tableName");
+			viewMetadata.setMetaType(MetaType.view.name());
+			MetadataInstancesDto tableMetadata = new MetadataInstancesDto();
+			tableMetadata.setOriginalName("tableName");
+			tableMetadata.setMetaType(MetaType.table.name());
+			doReturn(Lists.newArrayList(viewMetadata, tableMetadata)).when(metadataInstancesService).findAllDto(any(Query.class), eq(userDetail));
+
+			String actual = metadataInstancesService.getQualifiedNameByNodeId(tableNode, userDetail, connectionDto, dataSourceDefinitionDto, taskId);
+
+			assertEquals(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, "tableName", taskId), actual);
+		}
+
+		@Test
+		@DisplayName("test getQualifiedNameByNodeId method keeps default meta type for target node")
+		void testTargetTableNodeUseDefaultMetaType() {
+			ObjectId connectionId = new ObjectId("65bc933c6129fe73d7858b40");
+			taskId = new ObjectId("65bc933c6129fe73d7858b41").toHexString();
+			TableNode tableNode = spy(new TableNode());
+			tableNode.setConnectionId(connectionId.toHexString());
+			tableNode.setTableName("viewName");
+			doReturn(Node.SourceType.target).when(tableNode).sourceType();
+
+			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+			connectionDto.setId(connectionId);
+			connectionDto.setDatabase_type("mysql");
+			connectionDto.setDatabase_name("test");
+			DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
+
+			MetadataInstancesDto viewMetadata = new MetadataInstancesDto();
+			viewMetadata.setOriginalName("viewName");
+			viewMetadata.setMetaType(MetaType.view.name());
+			doReturn(Collections.singletonList(viewMetadata)).when(metadataInstancesService).findAllDto(any(Query.class), eq(userDetail));
+
+			String actual = metadataInstancesService.getQualifiedNameByNodeId(tableNode, userDetail, connectionDto, dataSourceDefinitionDto, taskId);
+
+			assertEquals(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, "viewName", taskId), actual);
+		}
+
+		@Test
 		@DisplayName("test getQualifiedNameByNodeId method for ProcessorNode")
 		void test3() {
 			node = new MergeTableNode();
@@ -2291,6 +2433,38 @@ public class MetadataInstancesServiceImplTest {
 			when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
 			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId, userDetail, taskDto, dataSource, definitionDto, includes);
 			assertNotEquals(null, actual.get(0));
+		}
+
+		@Test
+		@DisplayName("test findDatabaseNodeQualifiedName method uses source model meta type")
+		void testFindDatabaseNodeQualifiedNameUseSourceModelMetaType() {
+			nodeId = "111";
+			includes = Collections.singletonList("viewName");
+			ObjectId connectionId = new ObjectId("65bc933c6129fe73d7858b40");
+			ObjectId taskObjectId = new ObjectId("65bc933c6129fe73d7858b41");
+			TaskDto task = new TaskDto();
+			DAG dag = mock(DAG.class);
+			task.setDag(dag);
+			task.setId(taskObjectId);
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(task);
+			DatabaseNode node = new DatabaseNode();
+			node.setConnectionId(connectionId.toHexString());
+			when(dag.getNode(nodeId)).thenReturn((Node) node);
+
+			dataSource = new DataSourceConnectionDto();
+			dataSource.setId(connectionId);
+			dataSource.setDatabase_type("mysql");
+			dataSource.setDatabase_name("test");
+			definitionDto = new DataSourceDefinitionDto();
+
+			MetadataInstancesDto viewMetadata = new MetadataInstancesDto();
+			viewMetadata.setOriginalName("viewName");
+			viewMetadata.setMetaType(MetaType.view.name());
+			doReturn(Collections.singletonList(viewMetadata)).when(metadataInstancesService).findAllDto(any(Query.class), eq(userDetail));
+
+			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId, userDetail, taskDto, dataSource, definitionDto, includes);
+
+			assertEquals(MetaDataBuilderUtils.generateQualifiedName(MetaType.view.name(), dataSource, "viewName", taskObjectId.toHexString()), actual.get(0));
 		}
 
 		@Test

@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import io.tapdata.entity.schema.TapIndex;
 
@@ -39,6 +40,15 @@ public class MetadataInstancesFilterUtil {
             realMetadata.addAll(metaList);
         }
         return realMetadata;
+    }
+
+    public static boolean isExpressionSelection(DatabaseNode sourceNode) {
+        return "expression".equals(sourceNode.getMigrateTableSelectType());
+    }
+
+    public static List<String> getSelectedOriginalNames(List<MetadataInstancesDto> metaList, DatabaseNode sourceNode) {
+        return isExpressionSelection(sourceNode)
+                ? getFilteredOriginalNames(metaList, sourceNode) : sourceNode.getTableNames();
     }
 
     public static List<String> getFilteredOriginalNames(List<MetadataInstancesDto> metaList, DatabaseNode sourceNode){
@@ -106,6 +116,11 @@ public class MetadataInstancesFilterUtil {
                                     }
                                 }
                                 return true;
+                            };
+                        case View:
+                            return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+                                String metaType = metadataInstancesDto.getMetaType();
+                                return MetaType.isView(metaType);
                             };
                         default:
                     }

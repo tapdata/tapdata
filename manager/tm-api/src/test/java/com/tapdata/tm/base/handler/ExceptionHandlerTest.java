@@ -18,6 +18,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 public class ExceptionHandlerTest {
@@ -61,6 +62,7 @@ public class ExceptionHandlerTest {
             doNothing().when(httpServletResponse).setStatus(HttpStatus.SC_UNAUTHORIZED);
             ResponseMessage<?> responseMessage = exceptionHandler.handlerException(notAuthorized, httpServletRequest, httpServletResponse);
             assertEquals("NotLogin", responseMessage.getMessage());
+            assertNull(responseMessage.getStack());
         }
     }
 

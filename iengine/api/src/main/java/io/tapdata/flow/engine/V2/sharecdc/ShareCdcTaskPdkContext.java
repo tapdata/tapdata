@@ -6,6 +6,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.pdk.core.api.ConnectorNode;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * @author samuel
  * @Description
@@ -15,7 +18,12 @@ public class ShareCdcTaskPdkContext extends ShareCdcTaskContext {
 	private final ConnectorNode connectorNode;
 
 	public ShareCdcTaskPdkContext(Long cdcStartTs, ConfigurationCenter configurationCenter, TaskDto taskDto, Node node, Connections connections, ConnectorNode connectorNode) {
-		super(cdcStartTs, configurationCenter, taskDto, node, connections);
+		this(cdcStartTs, configurationCenter, taskDto, node, connections, connectorNode, Collections.emptyList());
+	}
+
+	public ShareCdcTaskPdkContext(Long cdcStartTs, ConfigurationCenter configurationCenter, TaskDto taskDto, Node node,
+								  Connections connections, ConnectorNode connectorNode, List<String> tableNames) {
+		super(cdcStartTs, configurationCenter, taskDto, node, connections, tableNames);
 		this.connectorNode = connectorNode;
 	}
 

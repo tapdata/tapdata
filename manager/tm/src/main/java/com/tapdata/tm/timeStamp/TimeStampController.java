@@ -6,6 +6,7 @@
  */
 package com.tapdata.tm.timeStamp;
 
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +22,7 @@ public class TimeStampController extends BaseController {
 
 	@Operation(summary = "获取当前时间戳")
 	@GetMapping
+    @IgnoreLogin
 	public ResponseMessage<Long> timeStamp() {
 		return success(System.currentTimeMillis());
 	}

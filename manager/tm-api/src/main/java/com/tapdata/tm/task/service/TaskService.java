@@ -51,6 +51,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public abstract class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
+    /** batchImport 结果里的非致命警告：值为 Map&lt;原任务 id, List&lt;警告&gt;&gt;，不是某个任务的导入计数 */
+    public static final String IMPORT_WARNINGS_KEY = "__importWarnings";
+
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -81,7 +84,12 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract TaskDto updateAfter(TaskDto taskDto, UserDetail user);
 
-    public abstract TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user);
+    public abstract TaskDto updateShareCacheTask(
+            String id,
+            SaveShareCacheParam saveShareCacheParam,
+            UserDetail user,
+            boolean canStart
+    );
 
     public abstract void checkTaskName(String newName, UserDetail user, ObjectId id);
 
@@ -96,6 +104,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask);
 
     public abstract void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg);
+
+    public abstract void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user);
 
     public abstract TaskDto remove(ObjectId id, UserDetail user);
 
@@ -221,6 +231,10 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean findAgent(TaskDto taskDto, UserDetail user);
 
+    public abstract void clearAgentAffinityForManualStart(ObjectId taskId, UserDetail user);
+
+    public abstract void clearAgentAffinityForManualStart(List<ObjectId> taskIds, UserDetail user);
+
     public abstract void start(ObjectId id, UserDetail user);
 
     public abstract void start(ObjectId id, UserDetail user, boolean system);
@@ -248,11 +262,19 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract String running(ObjectId id, UserDetail user);
 
+    public abstract String running(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId);
+
     public abstract String runError(ObjectId id, UserDetail user, String errMsg, String errStack);
+
+    public abstract String runError(ObjectId id, UserDetail user, String errMsg, String errStack, String reportAgentId, String reportTaskRecordId);
 
     public abstract String complete(ObjectId id, UserDetail user);
 
+    public abstract String complete(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId);
+
     public abstract String stopped(ObjectId id, UserDetail user);
+
+    public abstract String stopped(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId);
 
     public abstract RunTimeInfo runtimeInfo(ObjectId id, Long endTime, UserDetail user);
 

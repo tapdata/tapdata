@@ -23,11 +23,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitio
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -55,6 +51,7 @@ public class PartitionFieldParentHandler {
 //			//return;
 //		}
 		partitionFields = new ArrayList<>();
+		dateFieldFactionMap = new HashMap<>();
 		if (partitionIndex != null) {
 			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 			for (TapIndexField field : partitionIndex.getIndexFields()) {

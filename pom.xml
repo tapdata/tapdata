@@ -122,20 +122,9 @@
     </build>
     <repositories>
         <repository>
-            <id>tapdata-wendangshujuku-mongo</id>
-            <name>mongo</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
             <id>nexus-releases</id>
             <name>nexus-maven-release</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -154,24 +143,13 @@
                 <enabled>true</enabled>
             </snapshots>
         </repository>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
     </repositories>
 
     <distributionManagement>
         <repository>
             <id>nexus-tapdata-net</id>
             <name>Nexus Release Repository</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
         </repository>
         <snapshotRepository>
             <id>nexus-tapdata-net</id>

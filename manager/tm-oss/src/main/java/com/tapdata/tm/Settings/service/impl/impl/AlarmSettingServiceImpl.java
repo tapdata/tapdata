@@ -48,6 +48,11 @@ public class AlarmSettingServiceImpl extends AlarmSettingService{
     }
 
     @Override
+    public boolean isSystemNotificationStatusSupported() {
+        return false;
+    }
+
+    @Override
     public void updateSystemNotify(UpdateRuleDto ruleDto, UserDetail userDetail) {
         throw new BizException("TapOssNonSupportFunctionException");
     }

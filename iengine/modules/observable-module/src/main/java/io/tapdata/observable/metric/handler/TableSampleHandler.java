@@ -35,8 +35,8 @@ public class TableSampleHandler extends AbstractHandler {
         this.table = table;
         this.snapshotRowTotal = countResult.getCount();
         this.retrievedTableValues = retrievedTableValues;
-        this.snapshotSyncRate = countResult.getCount() == 0 || countResult.getDone() ? BigDecimal.ONE : snapshotSyncRate;
-        this.isSnapshotDone  = countResult.getCount() == 0 || countResult.getDone();
+        this.snapshotSyncRate = Boolean.TRUE.equals(countResult.getDone()) ? BigDecimal.ONE : snapshotSyncRate;
+        this.isSnapshotDone  = Boolean.TRUE.equals(countResult.getDone());
     }
 
     @Override
@@ -71,14 +71,17 @@ public class TableSampleHandler extends AbstractHandler {
         snapshotInsertRowCounter = getCounterSampler(values, MetricCons.SS.VS.F_SNAPSHOT_INSERT_ROW_TOTAL);
 
         collector.addSampler(MetricCons.SS.VS.F_SNAPSHOT_SYNC_RATE, () -> {
+            if (Boolean.TRUE.equals(isSnapshotDone) && !errorSkipped) {
+                snapshotSyncRate = BigDecimal.ONE;
+                return snapshotSyncRate;
+            }
             if ((snapshotSyncRate.compareTo(BigDecimal.ONE) != 0 || errorSkipped) &&
-                    Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowCounter.value())) {
+                    Objects.nonNull(snapshotRowTotal) && snapshotRowTotal > 0 &&
+                    Objects.nonNull(snapshotInsertRowCounter.value())) {
                 BigDecimal decimal = BigDecimal.valueOf(snapshotInsertRowCounter.value().longValue())
                         .divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
                 if (errorSkipped) {
                     snapshotSyncRate = decimal;
-                } else if (isSnapshotDone) {
-                    snapshotSyncRate = BigDecimal.ONE;
                 } else if(decimal.compareTo(BigDecimal.ONE) >= 0) {
                     snapshotSyncRate = new BigDecimal("0.99");
                 } else {

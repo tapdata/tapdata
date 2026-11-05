@@ -55,7 +55,10 @@ public class DDLSchemaHandler {
 		List<TapField> newFields = tapNewFieldEvent.getNewFields();
 		for (TapField newField : newFields) {
 			String fieldName = newField.getName();
-			nameFieldMap.put(fieldName, newField);
+			// Clone the TapField before storing in the nameFieldMap to avoid
+			// in-place mutation by subsequent handleAlterFieldNameEvent changing
+			// the field name inside the original TapNewFieldEvent's newFields list.
+			nameFieldMap.put(fieldName, newField.clone());
 		}
 		return null;
 	}
@@ -83,13 +86,18 @@ public class DDLSchemaHandler {
 		if (StringUtils.isBlank(after)) {
 			throw new RuntimeException("Invalid alter field name event, missing new field name");
 		}
-		TapField tapField = nameFieldMap.get(before);
+		TapField tapField = nameFieldMap.remove(before);
 		if (null == tapField) {
 			return null;
 		}
-		tapField.setName(after);
-		nameFieldMap.remove(before);
-		nameFieldMap.put(after, tapField);
+		// Clone the field before renaming to avoid mutating the original
+		// TapField object that may be shared with other DDL events (e.g.
+		// TapNewFieldEvent's newFields list). Without this clone,
+		// setName(after) would also change the field name inside the
+		// ADD COLUMN event, causing downstream errors.
+		TapField renamed = tapField.clone();
+		renamed.setName(after);
+		nameFieldMap.put(after, renamed);
 		return null;
 	}
 

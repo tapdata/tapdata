@@ -71,15 +71,18 @@ public class DiscoverSchemaService {
 		}
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		String associateId = "DiscoverSchema_" + connectionId + "_" + UUID.randomUUID();
-		ConnectionNode connectionNode = ConnectionNodeUtil.createConnectionNode(clientMongoOperator, connectionId, associateId);
+		ConnectionNode connectionNode = null;
 		try {
+			connectionNode = ConnectionNodeUtil.createConnectionNode(clientMongoOperator, connectionId, associateId);
 			DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 			String schemaVersion = UUIDGenerator.uuid();
 			Long lastUpdate = System.currentTimeMillis();
 			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init PDK", TAG);
+			ConnectionNode finalConnectionNode = connectionNode;
+			int batchSize = Math.min(tables.size(), BATCH_SIZE);
 			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
 					() -> {
-						connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tables, BATCH_SIZE,
+						finalConnectionNode.getConnector().discoverSchema(finalConnectionNode.getConnectionContext(), tables, batchSize,
 								tapTables -> LoadSchemaRunner.consumeTapTable(ts -> {
 									Update update = new Update();
 									if (CollectionUtils.isNotEmpty(tapTables)) {
@@ -91,7 +94,7 @@ public class DiscoverSchemaService {
 											.set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
 											.set(DataSourceConnectionDto.FIELD_EVER_LOAD_SCHEMA, true);
 									Query query = new Query(Criteria.where("_id").is(connectionId));
-									clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
+									clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION + "/module");
 								}, dataTypesMap, tapTables));
 					}, TAG);
 			Map<String, Object> where = new HashMap<>();

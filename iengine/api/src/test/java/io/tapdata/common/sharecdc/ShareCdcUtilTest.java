@@ -1,5 +1,6 @@
 package io.tapdata.common.sharecdc;
 
+import com.google.common.collect.Lists;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.bson.types.ObjectId;
@@ -67,6 +68,11 @@ class ShareCdcUtilTest {
 			assertFalse(tapUpdateRecordEvent.getBeforeIllegalDateFieldName().isEmpty());
 			assertEquals(1, tapUpdateRecordEvent.getBeforeIllegalDateFieldName().size());
 			assertEquals("_str", tapUpdateRecordEvent.getBeforeIllegalDateFieldName().get(0));
+		}
+
+		@Test
+		void testJoinNamespaces() {
+			assertNotEquals(ShareCdcUtil.joinNamespaces(Lists.newArrayList("db.schema", "table")), ShareCdcUtil.joinNamespaces(Lists.newArrayList("db", "schema.table")));
 		}
 	}
 

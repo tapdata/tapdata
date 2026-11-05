@@ -23,6 +23,11 @@ public abstract class AlarmSettingService extends BaseService<AlarmSettingDto, A
 
     public abstract List<AlarmSettingDto> findAllAlarmSetting(UserDetail userDetail);
 
+    /** Whether this product provides system alarm notification settings. */
+    public boolean isSystemNotificationStatusSupported() {
+        return true;
+    }
+
     public abstract void updateSystemNotify(UpdateRuleDto ruleDto, UserDetail userDetail);
 
     public abstract AlarmSettingDto findByKey(AlarmKeyEnum keyEnum, UserDetail userDetail);

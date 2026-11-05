@@ -1,0 +1,15 @@
+[
+  {
+    "delete": "Workers",
+    "deletes": [
+      {
+        "q": {
+          "worker_type": "api-server",
+          "worker_status": {
+            "$exists": false
+          }
+        }
+      }
+    ]
+  }
+]

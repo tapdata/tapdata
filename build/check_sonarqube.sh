@@ -9,6 +9,7 @@ GITHUB_TOKEN=""
 OWNER="tapdata"
 REPO=""
 PR_NUMBER=
+SONAR_PULL_REQUEST=
 
 which jq > /dev/null
 if [[ $? -ne 0 ]]; then
@@ -42,6 +43,10 @@ do
     PR_NUMBER="${arg#*=}"
     shift
     ;;
+    --pull-request=*)
+    SONAR_PULL_REQUEST="${arg#*=}"
+    shift
+    ;;
   esac
 done
 
@@ -49,7 +54,7 @@ if [[ -z $PROJECT_KEY ]]; then
   error 'Project Key is not set.'
 fi
 
-if [[ -z $BRANCH ]]; then
+if [[ -z $BRANCH && -z $SONAR_PULL_REQUEST ]]; then
   error 'Branch is not set.'
 fi
 
@@ -58,7 +63,17 @@ if [[ -z $SONAR_TOKEN ]]; then
 fi
 
 info "Get Sonar Scan Result"
-result=$(curl -L "$BASE_URI/api/qualitygates/project_status?projectKey=$PROJECT_KEY&branch=$BRANCH" -u "$SONAR_TOKEN:" 2>/dev/null)
+query=(--data-urlencode "projectKey=$PROJECT_KEY")
+if [[ -n "$SONAR_PULL_REQUEST" ]]; then
+  [[ "$SONAR_PULL_REQUEST" =~ ^[1-9][0-9]*$ ]] || error "Invalid Sonar pull request key"
+  query+=(--data-urlencode "pullRequest=$SONAR_PULL_REQUEST")
+  result_link="$BASE_URI/dashboard?id=$PROJECT_KEY&pullRequest=$SONAR_PULL_REQUEST"
+else
+  query+=(--data-urlencode "branch=$BRANCH")
+  encoded_branch=$(printf '%s' "$BRANCH" | jq -sRr @uri)
+  result_link="$BASE_URI/dashboard?id=$PROJECT_KEY&branch=$encoded_branch"
+fi
+result=$(curl -L --get "$BASE_URI/api/qualitygates/project_status" "${query[@]}" -u "$SONAR_TOKEN:" 2>/dev/null)
 
 QUALITY_GATE_STATUS=$(echo $result | jq -r .projectStatus.status)
 CONDITIONS=$(echo $result | jq -c .projectStatus.conditions[])
@@ -77,7 +92,7 @@ if [[ $QUALITY_GATE_STATUS == "ERROR" ]]; then
       COMMENT+="- Status: **$status**, MetricKey: **$metricKey**, ActualValue: **$actualValue**\n"
     fi
   done
-  COMMENT+="\n\nSee Sonar Scan Result at: $BASE_URI/dashboard?branch=$BRANCH&id=$PROJECT_KEY"
+  COMMENT+="\n\nSee Sonar Scan Result at: $result_link"
   info "Send message to Github Pr Comment"
   if [[ -z $PR_NUMBER ]]; then
     warn "variable PR_NUMBER is not set, sending termination."

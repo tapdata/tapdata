@@ -1,0 +1,15 @@
+[
+  {
+    "createIndexes": "InspectDetails",
+    "indexes": [
+      {
+        "name": "taskId_1_inspectResultId_1",
+        "key": {
+          "taskId": 1,
+          "inspectResultId": 1
+        },
+        "background": true
+      }
+    ]
+  }
+]

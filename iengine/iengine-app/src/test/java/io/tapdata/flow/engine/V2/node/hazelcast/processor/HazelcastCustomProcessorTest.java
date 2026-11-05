@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -75,7 +77,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
             assertEquals(TaskProcessorExCode_11.CUSTOM_NODE_NOT_FOUND, e.getCode());
         }
     }
-    @DisplayName("test doInit method for exception CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED")
+    @DisplayName("test getOrInitEngine method for exception CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED")
     @Test
     void test2() {
         CustomProcessorNode customProcessorNode = new CustomProcessorNode();
@@ -83,12 +85,14 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         ReflectionTestUtils.setField(dataProcessorContext, "node", customProcessorNode);
         doCallRealMethod().when(dataProcessorContext).getNode();
         CustomNodeTempDto customNodeTempDto = new CustomNodeTempDto();
-        when(clientMongoOperator.findOne(any(Query.class), anyString(), any(), any())).thenReturn(customNodeTempDto);
+        ReflectionTestUtils.setField(hazelcastCustomProcessor, "customNodeTempDto", customNodeTempDto);
+        ReflectionTestUtils.setField(hazelcastCustomProcessor, "engineMap", new java.util.concurrent.ConcurrentHashMap<Long, Invocable>());
+        doCallRealMethod().when(hazelcastCustomProcessor).getOrInitEngine();
         try (MockedStatic<ScriptUtil> scriptUtilMockedStatic = mockStatic(ScriptUtil.class);) {
             scriptUtilMockedStatic.when(() -> {
                 ScriptUtil.getScriptEngine(anyString(),
                         any(),
-                        anyList(),
+                        any(),
                         any(ClientMongoOperator.class),
                         any(),
                         any(),
@@ -97,8 +101,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         anyBoolean());
             }).thenThrow(new ScriptException("getFailed"));
             try{
-
-                hazelcastCustomProcessor.doInit(jetContext);
+                hazelcastCustomProcessor.getOrInitEngine();
             }catch (TapCodeException e){
                 assertEquals(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED,e.getCode());
             }
@@ -168,12 +171,17 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
 
             // mock jetContext field for scriptExecutorsManager
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "jetContext", jetContext);
+            ReflectionTestUtils.setField(hazelcastCustomProcessor, "engineMap", new java.util.concurrent.ConcurrentHashMap<Long, Invocable>());
 
             hazelcastCustomProcessor.doInit(jetContext);
 
-            // verify engine was set
-            Invocable engineField = (Invocable) ReflectionTestUtils.getField(hazelcastCustomProcessor, "engine");
-            assertNotNull(engineField);
+            // verify customNodeTempDto and javaScriptFunctions cached
+            assertNotNull(ReflectionTestUtils.getField(hazelcastCustomProcessor, "customNodeTempDto"));
+            assertNotNull(ReflectionTestUtils.getField(hazelcastCustomProcessor, "javaScriptFunctions"));
+
+            // trigger lazy engine creation
+            doCallRealMethod().when(hazelcastCustomProcessor).getOrInitEngine();
+            Invocable engineField = hazelcastCustomProcessor.getOrInitEngine();
             assertSame(mockEngine, engineField);
 
             // verify stateMap was set via engine.put("state", ...)
@@ -225,10 +233,13 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
             ObsLogger mockScriptObsLogger = mock(ObsLogger.class);
             when(hazelcastCustomProcessor.getScriptObsLogger()).thenReturn(mockScriptObsLogger);
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "jetContext", jetContext);
+            ReflectionTestUtils.setField(hazelcastCustomProcessor, "engineMap", new java.util.concurrent.ConcurrentHashMap<Long, Invocable>());
 
             hazelcastCustomProcessor.doInit(jetContext);
 
-            Invocable engineField = (Invocable) ReflectionTestUtils.getField(hazelcastCustomProcessor, "engine");
+            assertNotNull(ReflectionTestUtils.getField(hazelcastCustomProcessor, "customNodeTempDto"));
+            doCallRealMethod().when(hazelcastCustomProcessor).getOrInitEngine();
+            Invocable engineField = hazelcastCustomProcessor.getOrInitEngine();
             assertNotNull(engineField);
         }
     }
@@ -261,7 +272,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                 clientMongoOperator,
                 null,
                 null);
-        ReflectionTestUtils.setField(hazelcastCustomProcessor, "engine", engine);
+        doReturn(engine).when(hazelcastCustomProcessor).getOrInitEngine();
         ThreadLocal<Map<String, Object>> processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         ReflectionTestUtils.setField(hazelcastCustomProcessor, "processContextThreadLocal", processContextThreadLocal);
         when(hazelcastCustomProcessor.getProcessorBaseContext()).thenReturn(dataProcessorContext);
@@ -305,7 +316,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                 clientMongoOperator,
                 null,
                 null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         List<TapdataEvent> outputEvents = new ArrayList<>();
         processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));
@@ -350,7 +361,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         "\treturn {id: '1', name: 'processed'};\n" +
                         "}",
                 null, clientMongoOperator, null, null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         List<TapdataEvent> outputEvents = new ArrayList<>();
         processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));
@@ -389,7 +400,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         "\treturn null;\n" +
                         "}",
                 null, clientMongoOperator, null, null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         List<TapdataEvent> outputEvents = new ArrayList<>();
         processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));
@@ -426,7 +437,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         "\treturn {id: '1', name: 'updated'};\n" +
                         "}",
                 null, clientMongoOperator, null, null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         List<TapdataEvent> outputEvents = new ArrayList<>();
         processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));
@@ -485,7 +496,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         "\treturn record;\n" +
                         "}",
                 null, clientMongoOperator, null, null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         Object result = processor.executeAndGetResult(tapdataEvent);
         assertNotNull(result);
@@ -500,7 +511,11 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         @DisplayName("test doClose with GraalJSScriptEngine should close engine")
         void testDoCloseWithGraalJSScriptEngine() {
             GraalJSScriptEngine mockEngine = mock(GraalJSScriptEngine.class);
-            ReflectionTestUtils.setField(hazelcastCustomProcessor, "engine", mockEngine);
+            SimpleConcurrentProcessorImpl<?, ?> concurrentProcessor = mock(SimpleConcurrentProcessorImpl.class);
+            Map<Long, Invocable> engineMap = new java.util.concurrent.ConcurrentHashMap<>();
+            engineMap.put(Thread.currentThread().getId(), mockEngine);
+            ReflectionTestUtils.setField(hazelcastCustomProcessor, "engineMap", engineMap);
+            ReflectionTestUtils.setField(hazelcastCustomProcessor, "simpleConcurrentProcessor", concurrentProcessor);
             ThreadLocal<Map<String, Object>> threadLocal = ThreadLocal.withInitial(HashMap::new);
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "processContextThreadLocal", threadLocal);
             ScriptExecutorsManager mockScriptMgr = mock(ScriptExecutorsManager.class);
@@ -512,13 +527,16 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
             doCallRealMethod().when(hazelcastCustomProcessor).doClose();
 
             assertDoesNotThrow(() -> hazelcastCustomProcessor.doClose());
-            verify(mockScriptMgr).close();
+            InOrder closeOrder = inOrder(concurrentProcessor, mockEngine, mockScriptMgr);
+            closeOrder.verify(concurrentProcessor).close();
+            closeOrder.verify(mockEngine).close();
+            closeOrder.verify(mockScriptMgr).close();
         }
 
         @Test
-        @DisplayName("test doClose with null engine and null scriptExecutorsManager should not throw")
+        @DisplayName("test doClose with empty engineMap and null scriptExecutorsManager should not throw")
         void testDoCloseWithNullFields() {
-            ReflectionTestUtils.setField(hazelcastCustomProcessor, "engine", null);
+            ReflectionTestUtils.setField(hazelcastCustomProcessor, "engineMap", new java.util.concurrent.ConcurrentHashMap<Long, Invocable>());
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "processContextThreadLocal", null);
             ReflectionTestUtils.setField(hazelcastCustomProcessor, "scriptExecutorsManager", null);
             CustomProcessorNode mockNode = mock(CustomProcessorNode.class);
@@ -582,7 +600,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         "\t];\n" +
                         "}",
                 null, clientMongoOperator, null, null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         List<TapdataEvent> outputEvents = new ArrayList<>();
         processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));
@@ -620,7 +638,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
                         "\treturn {id: '1', name: 'deleted'};\n" +
                         "}",
                 null, clientMongoOperator, null, null);
-        ReflectionTestUtils.setField(processor, "engine", engine);
+        doReturn(engine).when(processor).getOrInitEngine();
 
         List<TapdataEvent> outputEvents = new ArrayList<>();
         processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));

@@ -144,6 +144,7 @@ public class TestConnectionHandlerTest {
             data.put("database_type","Mysql");
             messageInfo.setData(data);
             DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setPasswordTag(Collections.singleton("password"));
             Map dataSourceConfig = new HashMap();
             dataSourceConfig.put("password","123456");
             dataSourceConnectionDto.setConfig(dataSourceConfig);
@@ -175,14 +176,15 @@ public class TestConnectionHandlerTest {
             String pdkHash = (String) data.get("pdkHash");
             when(dataSourceDefinitionService.findByPdkHash(pdkHash, Integer.MAX_VALUE, userDetail, "type")).thenReturn(definitionDto);
             DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setPasswordTag(Collections.singleton("otherToken"));
             Map dataSourceConfig = new HashMap();
-            dataSourceConfig.put("password","123456");
+            dataSourceConfig.put("otherToken", "123456");
             dataSourceConnectionDto.setConfig(dataSourceConfig);
             when(dataSourceService.findById(toObjectId("111"))).thenReturn(dataSourceConnectionDto);
             doCallRealMethod().when(testConnectionHandler).handleMessage(context);
             testConnectionHandler.handleMessage(context);
             Map config1 = (Map)data.get("config");
-            assertEquals(dataSourceConfig.get("password"),config1.get("password"));
+            assertEquals(dataSourceConfig.get("otherToken"),config1.get("otherToken"));
         }
     }
     @Nested

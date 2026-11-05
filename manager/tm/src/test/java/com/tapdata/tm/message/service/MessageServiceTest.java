@@ -858,7 +858,8 @@ class MessageServiceTest {
                 Level level = Level.INFO;
                 UserDetail userDetail = mock(UserDetail.class);
                 MessageEntity saveMessage = mock(MessageEntity.class);
-                when(messageServiceUnderTest.addMessage(anyString(),anyString(),any(),any(),anyString(),any(),any(),anyBoolean())).thenReturn(saveMessage);
+                // 站内系统通知下线后，邮件经隐藏载体消息发送
+                when(messageServiceUnderTest.addEmailCarrier(anyString(),anyString(),any(),any(),any(),any())).thenReturn(saveMessage);
                 when(mockSettingsService.isCloud()).thenReturn(true);
                 when(messageServiceUnderTest.checkSending(userDetail)).thenReturn(true);
                 when(saveMessage.getId()).thenReturn(mock(ObjectId.class));
@@ -923,7 +924,8 @@ class MessageServiceTest {
             messageServiceUnderTest = spy(messageServiceUnderTest);
             MongoTemplate template = mock(MongoTemplate.class);
             when(mockMessageRepository.getMongoOperations()).thenReturn(template);
-            Query query = new Query(Criteria.where("msg").is(type.getValue()));
+            // 停写系统通知的隐藏载体不返回
+            Query query = new Query(Criteria.where("msg").is(type.getValue()).and("isDeleted").ne(true));
             when(template.count(query, MessageEntity.class)).thenReturn(1L);
             when(userDetail.isRoot()).thenReturn(true);
             Page<MessageListVo> list = messageServiceUnderTest.list(locale, type, level, read, page, size, userDetail);
@@ -943,6 +945,85 @@ class MessageServiceTest {
             Page<MessageListVo> list = messageServiceUnderTest.list(locale, type, level, read, page, size, userDetail);
             verify(messageServiceUnderTest, new Times(1)).getMessageListVoPage(any(Locale.class), any(Query.class), any(TmPageable.class));
             assertEquals(1, list.getTotal());
+        }
+    }
+
+    @Nested
+    class GetMessageListVoPageTest {
+        private MongoTemplate template;
+        private TmPageable tmPageable;
+        private Query query;
+
+        @BeforeEach
+        void beforeEach() {
+            template = mock(MongoTemplate.class);
+            when(mockMessageRepository.getMongoOperations()).thenReturn(template);
+            tmPageable = new TmPageable();
+            tmPageable.setPage(1);
+            tmPageable.setSize(20);
+            query = new Query();
+        }
+
+        @Test
+        void renderTitleForExpiringMessage() {
+            MessageEntity entity = new MessageEntity();
+            entity.setMsg(MsgTypeEnum.EXPIRING.getValue());
+            entity.setLevel(Level.WARN.getValue());
+            entity.setSystem("system");
+            entity.setTemplate("LICENSE_EXPIRING");
+            Map<String, Object> param = new HashMap<>();
+            param.put("dayAlarm", 10L);
+            entity.setParam(param);
+
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(template.find(query, MessageEntity.class)).thenReturn(Collections.singletonList(entity));
+
+            Page<MessageListVo> result = messageServiceUnderTest.getMessageListVoPage(Locale.US, query, tmPageable);
+
+            assertEquals(1, result.getTotal());
+            assertEquals(1, result.getItems().size());
+            assertEquals(
+                    "Your license will expire in 10 days. To avoid any impact on your service after expiration, please contact Tapdata as soon as possible to obtain a new license.",
+                    result.getItems().get(0).getTitle());
+        }
+
+        @Test
+        void renderTitleForExpiredMessage() {
+            MessageEntity entity = new MessageEntity();
+            entity.setMsg(MsgTypeEnum.EXPIRED.getValue());
+            entity.setLevel(Level.WARN.getValue());
+            entity.setSystem("system");
+            entity.setTemplate("LICENSE_EXPIRED");
+            Map<String, Object> param = new HashMap<>();
+            param.put("dayAlarm", 0L);
+            entity.setParam(param);
+
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(template.find(query, MessageEntity.class)).thenReturn(Collections.singletonList(entity));
+
+            Page<MessageListVo> result = messageServiceUnderTest.getMessageListVoPage(Locale.US, query, tmPageable);
+
+            assertEquals(
+                    "Your license has expired and your service will be affected. If you need to continue using the service, please contact Tapdata as soon as possible to obtain a new license.",
+                    result.getItems().get(0).getTitle());
+        }
+
+        @Test
+        void doNotRenderForOtherMsgTypes() {
+            MessageEntity entity = new MessageEntity();
+            entity.setMsg(MsgTypeEnum.DELETED.getValue());
+            entity.setTitle("original title");
+            entity.setTemplate("LICENSE_EXPIRING");
+            Map<String, Object> param = new HashMap<>();
+            param.put("dayAlarm", 10L);
+            entity.setParam(param);
+
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(template.find(query, MessageEntity.class)).thenReturn(Collections.singletonList(entity));
+
+            Page<MessageListVo> result = messageServiceUnderTest.getMessageListVoPage(Locale.US, query, tmPageable);
+
+            assertEquals("original title", result.getItems().get(0).getTitle());
         }
     }
 }

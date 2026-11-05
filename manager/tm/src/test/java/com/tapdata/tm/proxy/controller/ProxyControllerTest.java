@@ -1,10 +1,13 @@
 package com.tapdata.tm.proxy.controller;
 
+import com.tapdata.tm.proxy.service.impl.RemoteCaller;
+import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import io.tapdata.modules.api.net.data.FileMeta;
 import org.apache.http.entity.ContentType;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -25,9 +28,6 @@ public class ProxyControllerTest {
 
     @Test
     void testResponseForFileMeta() throws IOException {
-
-        ProxyController proxyController = new ProxyController();
-
         byte[] data = new byte[1024];
         FileMeta fileMeta = FileMeta.builder().transferFile(true)
                 .filename("test.log.zip")
@@ -59,8 +59,7 @@ public class ProxyControllerTest {
                 counter.incrementAndGet();
             }
         });
-
-        ReflectionTestUtils.invokeMethod(proxyController, "responseForFileMeta", fileMeta, response);
+        RemoteCallerUtil.responseForFileMeta(fileMeta, response, mock(Logger.class));
 
         Assertions.assertEquals(1, counter.get());
         verify(response, times(1)).setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());

@@ -8,10 +8,9 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 public class TimeUtil {
@@ -190,4 +189,25 @@ public class TimeUtil {
         return  day;
     }
 
+    public static String secondsToHhmmss(long totalSeconds) {
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    public static Long hhmmssToSeconds(String time) {
+        if (null != time) {
+            Pattern p  = Pattern.compile("^(\\d{2}):(\\d{2}):(\\d{2})$");
+            Matcher m = p.matcher(time);
+            if (m.matches()) {
+                long hours = Long.parseLong(m.group(1));
+                long minutes = Long.parseLong(m.group(2));
+                long seconds = Long.parseLong(m.group(3));
+                return hours * 3600 + minutes * 60 + seconds;
+            }
+        }
+
+        return null;
+    }
 }

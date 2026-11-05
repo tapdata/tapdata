@@ -71,4 +71,14 @@ public class StopTaskOnErrorLog implements Log {
 			log.fatal(message, params);
 		}
 	}
+
+	@Override
+	public void alert(String message, Object... params) {
+		log.alert(message, params);
+	}
+
+	@Override
+	public void alert(String message, Throwable throwable) {
+		log.alert(message, throwable);
+	}
 }

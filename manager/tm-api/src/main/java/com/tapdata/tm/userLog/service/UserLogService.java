@@ -10,6 +10,8 @@ import com.tapdata.tm.userLog.dto.UserLogDto;
 public interface UserLogService {
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, Boolean rename);
 
+    void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, String parameter3);
+
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1);
 
     void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, Object systemStart);
@@ -21,4 +23,9 @@ public interface UserLogService {
     void addUserLog(Modular modular, Operation OperationType, String parameter1, UserDetail userDetail);
 
     Page<UserLogDto> find(Filter filter, UserDetail userDetail);
+
+    /**
+     * @param allData 为 true 时查询全部用户的操作日志（调用方已校验审计查看权限），否则只查询当前用户的
+     */
+    Page<UserLogDto> find(Filter filter, UserDetail userDetail, boolean allData);
 }

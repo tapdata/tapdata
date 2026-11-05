@@ -62,11 +62,13 @@ public class FileAppenderTest {
 
         @BeforeEach
         void before() {
-            try (MockedStatic<BeanUtil> mockStaticBeanUtil = mockStatic(BeanUtil.class)) {
+            try (MockedStatic<BeanUtil> mockStaticBeanUtil = mockStatic(BeanUtil.class);
+                 MockedStatic<ObsLoggerFactory> mockStaticObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
                 mockStaticBeanUtil.when(() -> BeanUtil.getBean(any())).thenAnswer(answer -> {
                     Class<?> cls = answer.getArgument(0);
                     return mock(cls);
                 });
+                mockStaticObsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
                 fileAppender = FileAppender.create("", "taskId");
                 Assertions.assertNotNull(fileAppender);
             }

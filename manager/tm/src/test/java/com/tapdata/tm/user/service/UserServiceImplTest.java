@@ -17,6 +17,7 @@ import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
+import com.tapdata.tm.sso.entity.SsoExternalIdentity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
@@ -92,9 +93,19 @@ public class UserServiceImplTest {
 
         @Test
         void testForAdmin(){
-            doCallRealMethod().when(userService).updateRoleMapping(userId,roleusers,userDetail);
-            List<RoleMappingDto> actual = userService.updateRoleMapping(userId, roleusers, userDetail);
+            doCallRealMethod().when(userService).updateRoleMapping(userId,null,userDetail);
+            List<RoleMappingDto> actual = userService.updateRoleMapping(userId, null, userDetail);
             verify(roleMappingService,new Times(0)).deleteAll(any(Query.class));
+            assertNull(actual);
+        }
+
+        @Test
+        void testForClearRoles(){
+            doCallRealMethod().when(userService).updateRoleMapping(userId,roleusers,userDetail);
+            doCallRealMethod().when(userService).validateRoleUsers(roleusers);
+            List<RoleMappingDto> actual = userService.updateRoleMapping(userId, roleusers, userDetail);
+            verify(roleMappingService,new Times(1)).deleteAll(any(Query.class));
+            verify(roleMappingService,new Times(0)).updateUserRoleMapping(anyList(), any(UserDetail.class));
             assertNull(actual);
         }
 
@@ -103,6 +114,8 @@ public class UserServiceImplTest {
             when(userDetail.getEmail()).thenReturn("test@tapdata.com");
             roleusers.add("5d31ae1ab953565ded04badd");
             doCallRealMethod().when(userService).updateRoleMapping(userId,roleusers,userDetail);
+            doCallRealMethod().when(userService).validateRoleUsers(roleusers);
+            when(roleService.count(any(Query.class))).thenReturn(1L);
             List<RoleMappingDto> actual = userService.updateRoleMapping(userId, roleusers, userDetail);
             verify(roleMappingService,new Times(1)).deleteAll(any(Query.class));
             verify(roleMappingService,new Times(1)).updateUserRoleMapping(anyList(), any(UserDetail.class));
@@ -220,28 +233,30 @@ public class UserServiceImplTest {
         private String username;
         private String password;
 
+        private Settings ldapSetting(String key, Object value) {
+            Settings settings = new Settings();
+            settings.setCategory(CategoryEnum.LDAP.getValue());
+            settings.setKey(key);
+            settings.setValue(value);
+            return settings;
+        }
+
         @BeforeEach
         void beforeEach() {
             username = "user1";
             password = "password1";
-            Settings settings1 = new Settings();
-            settings1.setKey("ad.server.host");
-            settings1.setValue("ldap://ad.example.com");
-            Settings settings2 = new Settings();
-            settings2.setKey("ad.server.port");
-            settings2.setValue("389");
-            Settings settings3 = new Settings();
-            settings3.setKey("ad.bind.dn");
-            settings3.setValue("CN=Admin,CN=Users,DC=example,DC=com");
-            Settings settings4 = new Settings();
-            settings4.setKey("ad.bind.password");
-            settings4.setValue("adminPassword");
-            Settings settings5 = new Settings();
-            settings5.setKey("ad.base.dn");
-            settings5.setValue("DC=example,DC=com");
-            settingsList = Arrays.asList(
-                    settings1, settings2, settings3, settings4, settings5
-            );
+            settingsList = new ArrayList<>(Arrays.asList(
+                    ldapSetting("ldap.server.host", "ldap://ad.example.com"),
+                    ldapSetting("ldap.server.port", "389"),
+                    ldapSetting("ldap.bind.dn", "CN=Admin,CN=Users,DC=example,DC=com"),
+                    ldapSetting("ldap.bind.password", "adminPassword"),
+                    ldapSetting("ldap.base.dn", "DC=example,DC=com")
+            ));
+            Settings unrelatedSetting = new Settings();
+            unrelatedSetting.setCategory(CategoryEnum.JOB.getValue());
+            unrelatedSetting.setKey("task.statistics.restriction");
+            unrelatedSetting.setValue(null);
+            settingsList.add(unrelatedSetting);
             doCallRealMethod().when(userService).loginByLdap(username, password);
         }
 
@@ -249,7 +264,7 @@ public class UserServiceImplTest {
         void testLoginByAD_Success() throws NamingException {
             when(settingsService.findAll()).thenReturn(settingsList);
             Settings settings = new Settings();
-            settings.setKey("ad.ssl.enable");
+            settings.setKey("ldap.ssl.enable");
             settings.setOpen(true);
             when(settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE))
                     .thenReturn(settings);
@@ -281,7 +296,7 @@ public class UserServiceImplTest {
         void testLoginByAD_SSLDisabled() throws NamingException {
             when(settingsService.findAll()).thenReturn(settingsList);
             Settings settings = new Settings();
-            settings.setKey("ad.ssl.enable");
+            settings.setKey("ldap.ssl.enable");
             settings.setOpen(true);
             when(settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE))
                     .thenReturn(settings);
@@ -769,9 +784,47 @@ public class UserServiceImplTest {
         when(userService.findById(any(ObjectId.class))).thenReturn(userDto);
         when(userDto.getUserId()).thenReturn("671b091f4193690843a27c9a");
         when(userDto.getEmail()).thenReturn("test@tapdata.io");
-        doCallRealMethod().when(userService).updateUserSetting(id, settingJson, userDetail, locale);
-        userService.updateUserSetting(id, settingJson, userDetail, locale);
+        when(roleService.count(any(Query.class))).thenReturn(1L);
+        doCallRealMethod().when(userService).updateUserSetting(id, settingJson, userDetail, locale, true);
+        doCallRealMethod().when(userService).validateUserSettingFields(anyString(), any(), any(UserDetail.class), anyBoolean());
+        doCallRealMethod().when(userService).validateRoleUsers(anyList());
+        userService.updateUserSetting(id, settingJson, userDetail, locale, true);
         verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.UPDATE, "671b091f4193690843a27c9a", "671b091f4193690843a27c9a", "test@tapdata.io");
+    }
+
+    @Test
+    void testUpdateUserSettingWithoutUserManagementCannotUpdateRoleUsers() {
+        String id = "675fa0e310853b4b042db50c";
+        String settingJson = "{\"roleusers\":[\"671b07fd4193690843a27bd4\"]}";
+        UserDetail userDetail = mock(UserDetail.class);
+        when(userDetail.getUserId()).thenReturn(id);
+        doCallRealMethod().when(userService).updateUserSetting(id, settingJson, userDetail, Locale.CHINA, false);
+        doCallRealMethod().when(userService).validateUserSettingFields(anyString(), any(), any(UserDetail.class), anyBoolean());
+
+        BizException exception = assertThrows(BizException.class, () -> userService.updateUserSetting(id, settingJson, userDetail, Locale.CHINA, false));
+        assertEquals("NotAuthorized", exception.getErrorCode());
+        verify(roleMappingService, never()).deleteAll(any(Query.class));
+    }
+
+    @Test
+    void testUpdateUserSettingWithoutUserManagementCanUpdateSelfNotification() {
+        String id = "675fa0e310853b4b042db50c";
+        String settingJson = "{\"notification\":{\"connected\":{\"email\":true,\"sms\":false}}}";
+        UserDetail userDetail = mock(UserDetail.class);
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        UserDto userDto = mock(UserDto.class);
+        when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+        when(userDetail.getUserId()).thenReturn(id);
+        when(userDto.getUserId()).thenReturn(id);
+        when(userDto.getEmail()).thenReturn("test@tapdata.io");
+        when(userService.findById(any(ObjectId.class))).thenReturn(userDto);
+        doCallRealMethod().when(userService).updateUserSetting(id, settingJson, userDetail, Locale.CHINA, false);
+        doCallRealMethod().when(userService).validateUserSettingFields(anyString(), any(), any(UserDetail.class), anyBoolean());
+
+        userService.updateUserSetting(id, settingJson, userDetail, Locale.CHINA, false);
+
+        verify(mongoTemplate, new Times(1)).updateMulti(any(Query.class), any(Update.class), eq(User.class));
+        verify(roleMappingService, never()).deleteAll(any(Query.class));
     }
 
     @Nested
@@ -824,11 +877,12 @@ public class UserServiceImplTest {
     class deleteTest {
         String id = "675fa0e310853b4b042db50c";
         UserDetail userDetail = mock(UserDetail.class);
+        MongoTemplate mongoTemplate;
         UpdateResult updateResult;
         @BeforeEach
         void beforeEach() {
             when(userDetail.getUserId()).thenReturn("66ea9f7af4ec565576fc87ab");
-            MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+            mongoTemplate = mock(MongoTemplate.class);
             when(repository.getMongoOperations()).thenReturn(mongoTemplate);
             updateResult = mock(UpdateResult.class);
             when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), any(Class.class))).thenReturn(updateResult);
@@ -841,7 +895,8 @@ public class UserServiceImplTest {
             when(userDto.getLdapAccount()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(mongoTemplate).remove(any(Query.class), eq(SsoExternalIdentity.class));
+            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
         @Test
         void testDeleteFailed() {
@@ -851,7 +906,7 @@ public class UserServiceImplTest {
             when(userDto.getEmail()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(0)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(0)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
         @Test
         void testDeleteWithEmail() {
@@ -861,7 +916,7 @@ public class UserServiceImplTest {
             when(userDto.getEmail()).thenReturn("test");
             doCallRealMethod().when(userService).delete(id, userDetail);
             userService.delete(id, userDetail);
-            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, "66ea9f7af4ec565576fc87ab", id, "test");
+            verify(userLogService, new Times(1)).addUserLog(Modular.USER, Operation.DELETE, userDetail, id, "test", null, "{\"directTaskCount\":0}");
         }
     }
 

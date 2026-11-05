@@ -529,7 +529,7 @@ public class FieldProcessUtil {
 		return value;
 	}
 
-	public static Date convert2Date(Object value) {
+	public static Object convert2Date(Object value) {
 		if (value == null) {
 			return null;
 		}
@@ -542,7 +542,7 @@ public class FieldProcessUtil {
 				result = dateTime.toDate();
 			}
 		} catch (Throwable e) {
-			throw new FieldProcessRuntimeException(String.format("Convert value %s to Date failed , error message: %s ", value, e.getMessage()), e);
+			return new DateTime(String.valueOf(value),  DateTime.DATE_TYPE);
 		}
 		return result;
 	}

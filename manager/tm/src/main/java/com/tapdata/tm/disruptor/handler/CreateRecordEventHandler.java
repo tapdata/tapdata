@@ -23,7 +23,7 @@ public class CreateRecordEventHandler implements BaseEventHandler<TaskRecord, Bo
         taskRecordService.createRecord(event.getData());
 
         String taskId = event.getData().getTaskId();
-        SpringUtil.getBean(AlarmService.class).delAlarm(taskId);
+        SpringUtil.getBean(AlarmService.class).archiveTaskAlarms(taskId);
         SpringUtil.getBean(ShareCdcTableMetricsService.class).deleteByTaskId(taskId);
         SpringUtil.getBean(MeasureAOP.class).removeObsInfoByTaskId(taskId);
 

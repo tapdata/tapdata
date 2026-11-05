@@ -2,16 +2,24 @@ package com.tapdata.tm.modules.util;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.enums.TableFieldTag;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.entity.Path;
 import io.tapdata.entity.schema.type.TapArray;
+import io.tapdata.entity.schema.type.TapBoolean;
+import io.tapdata.entity.schema.type.TapDate;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapFloat;
 import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapTime;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.simplify.TapSimplify;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,18 +31,34 @@ import java.util.Map;
  */
 public final class FieldTypeUtil {
     // List.of("Array", "Map", "Boolean", "Integer", "Number", "String", "Time", "Date", "DateTime", "Any")
-    public static final Map<String, String> FILED_TYPE = Map.of(
-            "Array", "{\"type\": 2}",
-            "Map", "{\"type\": 4}",
-            "Boolean", "{\"type\": 3}",
-            "Integer", "{\"bit\":32,\"maxValue\":2147483647,\"minValue\":-2147483648,\"precision\":10,\"type\":8}",
-            "Number", "{\"fixed\":false,\"maxValue\":1.7976931348623157E+308,\"minValue\":-1.7976931348623157E+308,\"precision\":255,\"scale\":30,\"type\":8}",
-            "String", "{\"type\": 10}",
-            "Time", "{\"defaultFraction\":3,\"fraction\":3,\"max\":\"23:59:59.999\",\"min\":\"00:00:00.000\",\"type\":6}",
-            "Date", "{\"defaultFraction\":0,\"fraction\":0,\"max\":\"9999-12-31\",\"min\":\"1000-01-01\",\"type\":11}",
-            "DateTime", "{\"defaultFraction\":3,\"fraction\":3,\"max\":\"9999-12-31T23:59:59.999Z\",\"min\":\"1000-01-01T00:00:00.001Z\",\"type\":1}",
-            "Any", "{\"type\": 7}"
+    public static final Map<String, String> FILED_TYPE = new HashMap<>();
+    static {
+        FILED_TYPE.put("Array", "{\"type\": 2}");
+        FILED_TYPE.put("Map", "{\"type\": 4}");
+        FILED_TYPE.put("Boolean", "{\"type\": 3}");
+        FILED_TYPE.put("Integer", "{\"bit\":32,\"maxValue\":2147483647,\"minValue\":-2147483648,\"precision\":10,\"type\":8}");
+        FILED_TYPE.put("Number", "{\"fixed\":false,\"maxValue\":1.7976931348623157E+308,\"minValue\":-1.7976931348623157E+308,\"precision\":255,\"scale\":30,\"type\":8}");
+        FILED_TYPE.put("String", "{\"type\": 10}");
+        FILED_TYPE.put("Time", "{\"defaultFraction\":3,\"fraction\":3,\"max\":\"23:59:59.999\",\"min\":\"00:00:00.000\",\"type\":6}");
+        FILED_TYPE.put("Date", "{\"defaultFraction\":0,\"fraction\":0,\"max\":\"9999-12-31\",\"min\":\"1000-01-01\",\"type\":11}");
+        FILED_TYPE.put("DateTime", "{\"defaultFraction\":3,\"fraction\":3,\"max\":\"9999-12-31T23:59:59.999Z\",\"min\":\"1000-01-01T00:00:00.001Z\",\"type\":1}");
+        FILED_TYPE.put("Any", "{\"type\": 7}");
+        FILED_TYPE.put("Float", "{\"type\":8,\"typeName\":\"TapFloat\",\"bit\":32,\"storageBytes\":4,\"effectivePrecision\":7,\"fixed\":false}");
+        FILED_TYPE.put("Double", "{\"type\":8,\"typeName\":\"TapDouble\",\"bit\":64,\"storageBytes\":8,\"effectivePrecision\":15,\"fixed\":false}");
+    }
+    public static final Map<Class<? extends TapType>, String> FILED_TAP_TYPE = Map.of(
+            TapArray.class, "Array",
+            TapMap.class, "Map",
+            TapBoolean.class, "Boolean",
+            TapFloat.class, "Float",
+            TapDouble.class, "Double",
+            TapNumber.class, "Number",
+            TapString.class, "String",
+            TapTime.class, "Time",
+            TapDate.class, "Date",
+            TapDateTime.class, "DateTime"
     );
+
     private FieldTypeUtil() {
 
     }
@@ -42,7 +66,16 @@ public final class FieldTypeUtil {
     public static void parseTapType(Field field) {
         String tapType = field.getTapType();
         TapType type = TapSimplify.fromJson(tapType, TapType.class);
-        field.setSimpleTypeName(type.getClass().getSimpleName().replace("Tap", ""));
+        if (type == null) {
+            field.setSimpleTypeName("Any");
+        } else {
+            String simpleType = FILED_TAP_TYPE.get(type.getClass());
+            if (StringUtils.isEmpty(simpleType)) {
+                field.setSimpleTypeName("Any");
+            } else {
+                field.setSimpleTypeName(simpleType);
+            }
+        }
     }
 
     public static void parseTapType(List<Field> field) {
@@ -76,19 +109,19 @@ public final class FieldTypeUtil {
     }
 
     public static void genericFieldIfNeed(Field field) {
-        String tag = field.getTag();
-        if (StringUtils.isBlank(field.getTapType()) && TableFieldTag.USER_CREATE.getType().equals(tag)) {
-            String simpleTypeName = field.getSimpleTypeName();
-            if (StringUtils.isBlank(simpleTypeName)) {
-                throw new BizException("schema.field.type.empty");
-            }
-            String tapType = FILED_TYPE.get(simpleTypeName.trim());
-            if (null == tapType) {
-                throw new BizException("schema.field.type.noSupport", simpleTypeName, TapSimplify.toJson(FILED_TYPE.keySet()));
-            }
+        String simpleTypeName = field.getSimpleTypeName();
+        String tapType = StringUtils.isBlank(simpleTypeName) ? null : FILED_TYPE.get(simpleTypeName.trim());
+        if (StringUtils.isNotBlank(simpleTypeName) && null == tapType) {
+            throw new BizException("schema.field.type.noSupport", simpleTypeName, TapSimplify.toJson(FILED_TYPE.keySet()));
+        }
+        if (StringUtils.isBlank(simpleTypeName) && StringUtils.isBlank(field.getTapType())) {
+            throw new BizException("schema.field.type.empty");
+        }
+        if (StringUtils.isBlank(simpleTypeName)) {
+            parseTapType(field);
+        } else {
             field.setTapType(tapType);
         }
-
         String fieldName = field.getFieldName();
         if (StringUtils.isBlank(fieldName)) {
             throw new BizException("schema.field.name.empty");

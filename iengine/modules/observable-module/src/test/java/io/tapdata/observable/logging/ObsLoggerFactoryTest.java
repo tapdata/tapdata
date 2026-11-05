@@ -9,6 +9,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -33,6 +35,7 @@ public class ObsLoggerFactoryTest {
 
     @BeforeEach
     void beforeEach() {
+        resetObsLoggerFactory();
         taskDto = new TaskDto();
         taskDto.setId(new ObjectId());
         taskDto.setName("taskName");
@@ -47,6 +50,22 @@ public class ObsLoggerFactoryTest {
         ConfigurationCenter configurationCenter = new ConfigurationCenter();
         configurationCenter.putConfig("workDir", "/tmp");
         GlobalConstant.getInstance().configurationCenter(configurationCenter);
+    }
+
+    @AfterEach
+    void afterEach() {
+        resetObsLoggerFactory();
+    }
+
+    private void resetObsLoggerFactory() {
+        ObsLoggerFactory obsLoggerFactory = (ObsLoggerFactory) ReflectionTestUtils.getField(ObsLoggerFactory.class, "INSTANCE");
+        if (obsLoggerFactory != null) {
+            ScheduledExecutorService scheduleExecutorService = (ScheduledExecutorService) ReflectionTestUtils.getField(obsLoggerFactory, "scheduleExecutorService");
+            if (scheduleExecutorService != null) {
+                scheduleExecutorService.shutdownNow();
+            }
+        }
+        ReflectionTestUtils.setField(ObsLoggerFactory.class, "INSTANCE", null);
     }
 
     @DisplayName("test Get Task Log Configuration ")
@@ -93,8 +112,6 @@ public class ObsLoggerFactoryTest {
             ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto, "nodeId", "nodeName");
             Assertions.assertNotNull(obsLogger);
             ObsLoggerFactory.getInstance().removeTaskLogger(taskDto);
-        } catch (Exception e) {
-            e.printStackTrace(System.err);
         }
 
     }
@@ -120,8 +137,6 @@ public class ObsLoggerFactoryTest {
             result = ObsLoggerFactory.getInstance().closeCatchData(taskDto.getId().toHexString());
             Assertions.assertTrue(result);
 
-        } catch (Exception e) {
-            e.printStackTrace(System.err);
         }
     }
 
@@ -155,8 +170,6 @@ public class ObsLoggerFactoryTest {
             Assertions.assertTrue(status.containsKey("taskLogger.enableDebugLogger"));
             Assertions.assertTrue((Boolean) status.get("taskLogger.enableDebugLogger"));
 
-        } catch (Exception e) {
-            e.printStackTrace(System.err);
         }
     }
 
@@ -178,6 +191,20 @@ public class ObsLoggerFactoryTest {
 
             ObsLoggerFactory.getInstance().onFetchCacheData("taskId");
             verify(taskLogger, times(1)).setIntervalCeiling(any());
+        }
+    }
+
+    @Test
+    void getBeanWaitAvailableOrTimeoutShouldReturnNullAfterTimeout() {
+        ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+        ReflectionTestUtils.setField(obsLoggerFactory, "logger", org.apache.logging.log4j.LogManager.getLogger(ObsLoggerFactory.class));
+        try (MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class)) {
+            beanUtilMock.when(() -> BeanUtil.getBean(eq(SettingService.class))).thenReturn(null);
+            doCallRealMethod().when(obsLoggerFactory).getBeanWaitAvailableOrTimeout(eq(SettingService.class), eq(10L));
+
+            Object bean = obsLoggerFactory.getBeanWaitAvailableOrTimeout(SettingService.class, 10L);
+
+            Assertions.assertNull(bean);
         }
     }
 }

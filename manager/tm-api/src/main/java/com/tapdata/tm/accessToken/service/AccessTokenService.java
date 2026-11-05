@@ -16,7 +16,28 @@ public interface AccessTokenService {
 
     ObjectId validate(String accessToken);
 
+    /**
+     * 校验 token，并通过 {@code countAsActivity} 标记本次请求是否计入用户活跃。
+     * <p>由 {@link com.tapdata.tm.base.security.LoginUserResolver} 根据 {@code X-User-Activity} 请求头判定：
+     * 前端定时轮询等被动请求应传 {@code false}，避免无操作期间持续顺延滑动过期时间。
+     * 默认值（无 header 时）为 {@code true}，向后兼容老前端。
+     */
+    ObjectId validate(String accessToken, boolean countAsActivity);
+
+    /**
+     * 校验 access token，并在同一次查询内返回校验通过的 token 实体（含 userId 与 authType）。
+     * token 无效时返回 {@code null}。供鉴权链路一次性取得 userId 与 authType，避免重复查库。
+     */
+    AccessTokenEntity validateEntity(String accessToken, boolean countAsActivity);
+
     AccessTokenDto save(User user);
+
+    /**
+     * Issue a token for the given user tagged with the supplied auth type (e.g.
+     * {@code AuthType.SAML_LOGIN}) so SSO sessions can be targeted independently by
+     * single-session and Single Logout handling.
+     */
+    AccessTokenDto save(User user, String authType);
 
     long removeAccessToken(String accessToken, UserDetail userDetail);
 

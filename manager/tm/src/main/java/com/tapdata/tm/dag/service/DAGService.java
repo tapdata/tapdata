@@ -436,6 +436,7 @@ public class DAGService implements DAGDataService {
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
             metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail, options);
+            String inferredMetaType = SchemaUtils.inferModelMetaType(_metaType, schema.getMetaType(), metadataInstancesDto.getMetaType());
             metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
             metadataInstancesDto.getFields().forEach(field -> {
@@ -443,7 +444,7 @@ public class DAGService implements DAGDataService {
                 field.setDataTypeTemp(field.getDataType());
             });
 
-            metadataInstancesDto.setMetaType(_metaType);
+            metadataInstancesDto.setMetaType(inferredMetaType);
             metadataInstancesDto.setDeleted(false);
             metadataInstancesDto.setSource(sourceDto);
 
@@ -458,7 +459,7 @@ public class DAGService implements DAGDataService {
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
 
-            MetaDataBuilderUtils.build(_metaType, dataSource, userDetail.getUserId(), userDetail.getUsername(), metadataInstancesDto.getOriginalName(),
+            MetaDataBuilderUtils.build(metadataInstancesDto.getMetaType(), dataSource, userDetail.getUserId(), userDetail.getUsername(), metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString());
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());

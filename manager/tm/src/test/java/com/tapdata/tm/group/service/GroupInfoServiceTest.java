@@ -169,6 +169,38 @@ public class GroupInfoServiceTest {
         ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", resourceHandlerRegistry);
     }
 
+    @Test
+    void inspectTaskComparisonIgnoresFieldMappingInsertionOrderButKeepsContent() {
+        com.tapdata.tm.inspect.bean.Task first = inspectTaskWithMapping(
+                "SELECT id, total FROM source_rows", "id", "target_id", "total", "target_total");
+        com.tapdata.tm.inspect.bean.Task reordered = inspectTaskWithMapping(
+                "SELECT id, total FROM source_rows", "total", "target_total", "id", "target_id");
+        com.tapdata.tm.inspect.bean.Task changed = inspectTaskWithMapping(
+                "SELECT id, amount FROM source_rows", "id", "target_id", "total", "target_total");
+
+        Boolean reorderedTasksEqual = ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
+                Collections.singletonList(first), Collections.singletonList(reordered));
+        Boolean changedTasksEqual = ReflectionTestUtils.invokeMethod(groupInfoService, "inspectTasksEqual",
+                Collections.singletonList(first), Collections.singletonList(changed));
+
+        assertTrue(Boolean.TRUE.equals(reorderedTasksEqual));
+        assertFalse(Boolean.TRUE.equals(changedTasksEqual));
+    }
+
+    private com.tapdata.tm.inspect.bean.Task inspectTaskWithMapping(
+            String query, String firstKey, String firstValue, String secondKey, String secondValue) {
+        com.tapdata.tm.inspect.bean.Task task = new com.tapdata.tm.inspect.bean.Task();
+        com.tapdata.tm.inspect.bean.Source source = new com.tapdata.tm.inspect.bean.Source();
+        source.setCustomQuery(query);
+        task.setSource(source);
+        Map<String, String> mapping = new LinkedHashMap<>();
+        mapping.put(firstKey, firstValue);
+        mapping.put(secondKey, secondValue);
+        task.setFieldMapping(mapping);
+        task.setSortFields(Arrays.asList("id", "total"));
+        return task;
+    }
+
     @Nested
     @DisplayName("groupList Tests")
     class GroupListTests {
@@ -3869,4 +3901,43 @@ public class GroupInfoServiceTest {
         }
     }
 
+
+    @Nested
+    class ImportWarningsTest {
+        @Test
+        void taskWarningsAreAttachedWithoutChangingAction() {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceId("t1");
+            row.setResourceType(ResourceType.SYNC_TASK);
+            detail.getRecordDetails().add(row);
+            ResourceItem item = new ResourceItem();
+            item.setId("t1");
+            item.setType(ResourceType.SYNC_TASK);
+            Map<String, Object> taskResult = new HashMap<>();
+            taskResult.put("t1", 1L);
+            taskResult.put(com.tapdata.tm.task.service.TaskService.IMPORT_WARNINGS_KEY,
+                    Map.of("t1", List.of("Alarm receiver group ops not found, dropped")));
+
+            groupInfoService.mapResourceItems(List.of(item), new HashMap<>(), detail, null, taskResult);
+
+            assertEquals(GroupInfoRecordDetail.RecordAction.REPLACED, row.getAction());
+            assertEquals("Alarm receiver group ops not found, dropped", row.getMessage());
+        }
+
+        @Test
+        void noWarningsLeaveMessageEmpty() {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceId("t1");
+            detail.getRecordDetails().add(row);
+            ResourceItem item = new ResourceItem();
+            item.setId("t1");
+            item.setType(ResourceType.MIGRATE_TASK);
+
+            groupInfoService.mapResourceItems(List.of(item), new HashMap<>(), detail, null, Map.of("t1", 0L));
+
+            assertNull(row.getMessage());
+        }
+    }
 }

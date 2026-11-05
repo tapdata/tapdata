@@ -3,6 +3,7 @@ package com.tapdata.tm.group.service;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
@@ -23,6 +24,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.group.dto.*;
@@ -92,6 +94,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.springframework.data.mongodb.core.query.Update;
@@ -182,9 +185,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             "id", "customId", "createTime", "last_updated", "lastUpdBy", "createUser", "permissionActions"
     ));
 
-    public GroupInfoService(@NotNull GroupInfoRepository repository) {
-        super(repository, GroupInfoDto.class, GroupInfoEntity.class);
-    }
+	public GroupInfoService(@NotNull GroupInfoRepository repository) {
+		super(repository, GroupInfoDto.class, GroupInfoEntity.class);
+	}
+
+	public Supplier<GroupInfoDto> dataPermissionFindById(ObjectId groupId, Field fields) {
+		return () -> {
+			fields.put(BaseDto.FIELD_USER_ID, true);
+			fields.put(DataPermissionHelper.FIELD_NAME, true);
+			return findById(groupId, fields);
+		};
+	}
 
     private TaskService taskService;
     private ModulesService modulesService;
@@ -2116,28 +2127,39 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     ((Map<String, Object>) sideObj).remove("nodeId");
                 }
             }
-            return map;
+            return canonicalizeInspectJson(map);
         } catch (Exception e) {
             log.warn("Failed to normalize inspect task item", e);
             return Collections.emptyMap();
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private String buildInspectTaskKey(Map<String, Object> normalizedTask) {
-        // uniqueness: source(connectionName+nodeName+databaseType+table) + target(same)
-        StringBuilder sb = new StringBuilder();
-        for (String side : new String[]{"source", "target"}) {
-            Object sideObj = normalizedTask.get(side);
-            if (sideObj instanceof Map) {
-                Map<String, Object> m = (Map<String, Object>) sideObj;
-                sb.append(m.getOrDefault("connectionName", "")).append("|")
-                  .append(m.getOrDefault("nodeName", "")).append("|")
-                  .append(m.getOrDefault("databaseType", "")).append("|")
-                  .append(m.getOrDefault("table", "")).append("||");
-            }
+    private Map<String, Object> canonicalizeInspectJson(Map<String, Object> value) {
+        Map<String, Object> canonical = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : value.entrySet()) {
+            canonical.put(entry.getKey(), canonicalizeInspectJsonValue(entry.getValue()));
         }
-        return sb.toString();
+        return canonical;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object canonicalizeInspectJsonValue(Object value) {
+        if (value instanceof Map) {
+            return canonicalizeInspectJson((Map<String, Object>) value);
+        }
+        if (value instanceof List) {
+            List<Object> canonical = new ArrayList<>(((List<?>) value).size());
+            for (Object item : (List<?>) value) canonical.add(canonicalizeInspectJsonValue(item));
+            return canonical;
+        }
+        return value;
+    }
+
+    private String buildInspectTaskKey(Map<String, Object> normalizedTask) {
+        // Sort by the complete comparison payload so custom queries and other task fields
+        // disambiguate tasks that share the same source/target table identity.
+        String json = JsonUtil.toJsonUseJackson(normalizedTask);
+        return json != null ? json : "";
     }
 
     /**
@@ -3610,9 +3632,32 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             }
             updateRecordAction(item.getId(), copy.getId(), item.getType() == ResourceType.MODULE ? moduleImportResult : taskImportResult, recordDetailMap);
+            if (item.getType() != ResourceType.MODULE) {
+                attachImportWarnings(item.getId(), taskImportResult, recordDetailMap);
+            }
             mapped.add(copy);
         }
         return mapped;
+    }
+
+    /**
+     * 任务导入成功但有非致命警告（如告警接收人映射不到）时挂到报告行上，不改 action。
+     */
+    @SuppressWarnings("unchecked")
+    protected void attachImportWarnings(String resourceId, Map<String, Object> importResult,
+                                        Map<String, GroupInfoRecordDetail.RecordDetail> recordDetailMap) {
+        if (MapUtils.isEmpty(importResult) || !(importResult.get(TaskService.IMPORT_WARNINGS_KEY) instanceof Map<?, ?> all)) {
+            return;
+        }
+        Object warnings = all.get(resourceId);
+        if (!(warnings instanceof List<?> list) || list.isEmpty()) {
+            return;
+        }
+        String message = String.join("; ", (List<String>) list);
+        recordDetailMap.computeIfPresent(resourceId, (k, v) -> {
+            v.setMessage(StringUtils.isBlank(v.getMessage()) ? message : v.getMessage() + " | " + message);
+            return v;
+        });
     }
 
     protected void updateRecordAction(String resourceId,String newId,Map<String, Object> importResult,Map<String, GroupInfoRecordDetail.RecordDetail> recordDetailMap){

@@ -7,7 +7,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
@@ -84,36 +83,43 @@ public abstract class TaskCleaner {
 		startClean();
 		if (null == taskDto.getDag()) {
 			logger.warn("Task[{}]'s dag is empty, will not do any clean operation", taskDto.getName());
-			return;
-		}
-		if (CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
+		} else if (CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
 			logger.warn("Task[{}]'s node list is empty, will not do any clean operation", taskDto.getName());
-			return;
-		}
-		// Loop nodes
-		List<Node> nodes = taskDto.getDag().getNodes();
-		List<Edge> edges = taskDto.getDag().getEdges();
-		for (Node node : nodes) {
-			if (null == node) {
-				logger.warn("Reset/Delete task {}({}) found an empty node, will skip it", taskDto.getName(), taskDto.getId());
-				continue;
-			}
-			// Clean node resource
-			try {
-				if (node instanceof TableNode || node instanceof DatabaseNode || node instanceof LogCollectorNode) {
-					dataNodeDestroy(node);
-				} else if (node instanceof CacheNode) {
-					cacheNodeDestroy(node);
-				} else if (node instanceof CustomProcessorNode) {
-					customNodeDestroy(node);
-				} else if (node instanceof JoinProcessorNode) {
-					joinNodeDestroy(node);
+		} else {
+			// Loop nodes
+			List<Node> nodes = taskDto.getDag().getNodes();
+			for (Node node : nodes) {
+				if (null == node) {
+					logger.warn("Reset/Delete task {}({}) found an empty node, will skip it", taskDto.getName(), taskDto.getId());
+					continue;
 				}
-			} catch (Throwable throwable) {
-				errorHandle(node, throwable);
+				// Clean node resource
+				try {
+					if (node instanceof TableNode || node instanceof DatabaseNode || node instanceof LogCollectorNode) {
+						dataNodeDestroy(node);
+					} else if (node instanceof CacheNode) {
+						cacheNodeDestroy(node);
+					} else if (node instanceof CustomProcessorNode) {
+						customNodeDestroy(node);
+					} else if (node instanceof JoinProcessorNode) {
+						joinNodeDestroy(node);
+					}
+				} catch (Throwable throwable) {
+					errorHandle(node, throwable);
+				}
 			}
+		}
+		try {
+			beforeEndClean();
+		} catch (TaskCleanerException e) {
+			hasError.set(true);
+			endClean();
+			throw e;
 		}
 		endClean();
+	}
+
+	protected void beforeEndClean() throws TaskCleanerException {
 	}
 
 	private void errorHandle(Node node, Throwable throwable) {

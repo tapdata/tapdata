@@ -15,6 +15,7 @@ import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.mongodb.ConnectionString;
+import com.mongodb.client.MongoClient;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.constant.ConfigurationCenter;
@@ -25,7 +26,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -50,7 +50,6 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -80,10 +79,12 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.utils.CapabilityChecker;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
+import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -203,11 +204,10 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			ConnectionString connectionString = clientMongoOperator.getConnectionString();
 
 			if (connectionString != null) {
-				String mongoUri = connectionString.getConnectionString();
 				String databaseName = connectionString.getDatabase();
-
-				if (mongoUri != null && databaseName != null) {
-					HazelcastUtil.initCacheInvalidationService(hazelcastInstance, mongoUri, databaseName, nodeId);
+				if (databaseName != null) {
+					MongoClient mongoClient = clientMongoOperator.getMongoClient();
+					HazelcastUtil.initCacheInvalidationService(hazelcastInstance, mongoClient, databaseName, nodeId);
 					logger.info("Cache invalidation service initialized successfully for database: {}", databaseName);
 				} else {
 					logger.warn("Cannot initialize cache invalidation service: MongoDB URI or database name is null");
@@ -254,13 +254,22 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient, open);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
-			if (open) {
-				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
-				obsLogger.info("Task supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
+			try {
+				if (open && CapabilityChecker.hasAutoIncrementalBatchSizeNode(taskDto, this::getConnection, clientMongoOperator)) {
+					AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+					obsLogger.info("Task supports automatic adjustment of incremental batch size and the automatic adjustment of batch size switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
+				}
+			} catch (Exception e) {
+				obsLogger.warn("When checking whether automatic adjustment of batch size is required, an exception occurs: {}. This exception does not affect the actual operation of the task.", e.getMessage(), e);
 			}
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			try {
+				AutoRecovery.remove(taskDto.getId().toHexString());
+			} catch (Throwable t) {
+				logger.warn("Failed to safety remove AutoRecovery instance, error: {}", t.getMessage());
+			}
 			throw throwable;
 		}
 	}

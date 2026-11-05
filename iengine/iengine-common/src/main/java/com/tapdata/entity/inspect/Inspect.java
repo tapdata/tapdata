@@ -27,9 +27,7 @@ public class Inspect extends BaseEntity implements Serializable {
 	private String status;
 	private String mode;
 
-	/**
-	 * row_count,field
-	 */
+	/** Supported values: row_count, field, jointField, cdcCount, junitTest, hash, custom_query. */
 	private String inspectMethod;
 	/**
 	 * 差异结果模式：All,OnSourceExists
@@ -58,6 +56,8 @@ public class Inspect extends BaseEntity implements Serializable {
 
 	private Boolean ignoreTimePrecision = false;
 	private String roundingMode;
+
+	private Boolean treatEmptyStringAsNull = true;
 
 	private Boolean isExportSql = false;
 

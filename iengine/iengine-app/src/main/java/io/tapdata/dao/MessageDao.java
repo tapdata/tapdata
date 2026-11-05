@@ -11,6 +11,8 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.error.ShareCacheExCode_20;
+import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
@@ -38,6 +40,8 @@ public class MessageDao {
 	private LinkedBlockingQueue<String> stopJobs = new LinkedBlockingQueue<>();
 
 	private Set<String> cacheRegisterJobIds = new HashSet<>();
+	private final Set<String> cacheCleanupJobIds = new HashSet<>();
+	private final Object cacheLifecycleMonitor = new Object();
 	private ICacheService cacheService;
 
 	public synchronized LinkedBlockingQueue<List<MessageEntity>> createJobMessageQueue(Job job) {
@@ -97,35 +101,99 @@ public class MessageDao {
 		this.cacheService = memoryCacheService;
 	}
 
-	public synchronized void registerCache(Job job, ClientMongoOperator clientMongoOperator) {
-		if (cacheRegisterJobIds.contains(job.getId())) {
-			logger.info("Job cache is registered '{}'", job.getId());
+	public void registerCache(Job job, ClientMongoOperator clientMongoOperator) {
+		String jobId = job.getId();
+		if (!prepareCacheRegistration(jobId)) {
 			return;
 		}
-		cacheRegisterJobIds.add(job.getId());
-		CacheUtil.registerCache(job, clientMongoOperator, cacheService);
+		try {
+			CacheUtil.registerCache(job, clientMongoOperator, cacheService);
+		} catch (RuntimeException | Error e) {
+			rollbackCacheRegistration(jobId);
+			throw e;
+		}
 	}
 
-	public synchronized void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
-		if (cacheRegisterJobIds.contains(taskDto.getId().toHexString())) {
-			logger.info("Job cache is registered '{}'", taskDto.getId());
+	public void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
+		String taskId = taskDto.getId().toHexString();
+		if (!prepareCacheRegistration(taskId)) {
 			return;
 		}
-		cacheRegisterJobIds.add(taskDto.getId().toHexString());
-		CacheUtil.registerCache(cacheNode, sourceNode, sourceConnection, clientMongoOperator, cacheService);
+		try {
+			CacheUtil.registerCache(cacheNode, sourceNode, sourceConnection, clientMongoOperator, cacheService);
+		} catch (RuntimeException | Error e) {
+			rollbackCacheRegistration(taskId);
+			throw e;
+		}
 	}
 
-	public synchronized void destroyCache(Job job) {
-		cacheRegisterJobIds.remove(job.getId());
-		CacheUtil.destroyCache(job, cacheService);
+	public void destroyCache(Job job) {
+		String jobId = job.getId();
+		if (!prepareCacheCleanup(jobId)) {
+			return;
+		}
+		try {
+			CacheUtil.destroyCache(job, cacheService);
+		} finally {
+			completeCacheCleanup(jobId);
+		}
 	}
 
-	public synchronized void destroyCache(TaskDto taskDto, String cacheName) {
-		cacheRegisterJobIds.remove(taskDto.getId().toHexString());
-		cacheService.destroy(cacheName);
+	public void destroyCache(TaskDto taskDto, String cacheName) {
+		String taskId = taskDto.getId().toHexString();
+		if (!prepareCacheCleanup(taskId)) {
+			return;
+		}
+		try {
+			cacheService.destroy(cacheName);
+		} finally {
+			completeCacheCleanup(taskId);
+		}
 	}
 
-	public synchronized void updateCacheStatus(String cacheName, String status) {
+	public void updateCacheStatus(String cacheName, String status) {
 		cacheService.updateCacheStatus(cacheName, status);
+	}
+
+	private boolean prepareCacheRegistration(String jobId) {
+		synchronized (cacheLifecycleMonitor) {
+			if (cacheCleanupJobIds.contains(jobId)) {
+				// 这条会直接抛给用户：注册缓存的四个入口里只有正常启动经过
+				// TapdataTaskScheduler.deferStartUntilCacheCleanupCompletes，试运行与预览是同步的用户操作、
+				// 等不起 defer，所以这里必须给一个能看懂的业务错误，而不是裸的 IllegalStateException。
+				throw new TapCodeException(ShareCacheExCode_20.CACHE_CLEANUP_IN_PROGRESS,
+						"Cache cleanup is still running for task " + jobId)
+						.dynamicDescriptionParameters(jobId);
+			}
+			if (cacheRegisterJobIds.contains(jobId)) {
+				logger.info("Job cache is registered '{}'", jobId);
+				return false;
+			}
+			cacheRegisterJobIds.add(jobId);
+			return true;
+		}
+	}
+
+	private void rollbackCacheRegistration(String jobId) {
+		synchronized (cacheLifecycleMonitor) {
+			cacheRegisterJobIds.remove(jobId);
+		}
+	}
+
+	private boolean prepareCacheCleanup(String jobId) {
+		synchronized (cacheLifecycleMonitor) {
+			if (!cacheCleanupJobIds.add(jobId)) {
+				logger.warn("Cache cleanup is already running for task '{}'", jobId);
+				return false;
+			}
+			cacheRegisterJobIds.remove(jobId);
+			return true;
+		}
+	}
+
+	private void completeCacheCleanup(String jobId) {
+		synchronized (cacheLifecycleMonitor) {
+			cacheCleanupJobIds.remove(jobId);
+		}
 	}
 }

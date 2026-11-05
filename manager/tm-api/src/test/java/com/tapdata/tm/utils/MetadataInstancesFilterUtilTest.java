@@ -19,6 +19,64 @@ import static org.mockito.Mockito.when;
 
 public class MetadataInstancesFilterUtilTest {
     @Test
+    void selectedNamesKeepExplicitAndExpressionSemantics() {
+        DatabaseNode node = new DatabaseNode();
+        node.setTableNames(List.of("explicit"));
+        MetadataInstancesDto schema = new MetadataInstancesDto();
+        schema.setOriginalName("matched");
+        Assertions.assertEquals(List.of("explicit"), MetadataInstancesFilterUtil.getSelectedOriginalNames(List.of(schema), node));
+        node.setMigrateTableSelectType("expression");
+        node.setTableExpression("match.*");
+        Assertions.assertEquals(List.of("matched"), MetadataInstancesFilterUtil.getSelectedOriginalNames(List.of(schema), node));
+    }
+
+    @Test
+    void startupProjectionRetainsSelectionAcrossKeyAndPartitionModes() {
+        DatabaseNode node = new DatabaseNode();
+        node.setMigrateTableSelectType("expression");
+        node.setTableExpression(".*");
+        List<MetadataInstancesDto> full = new ArrayList<>();
+        List<MetadataInstancesDto> projected = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            MetadataInstancesDto original = new MetadataInstancesDto();
+            original.setOriginalName("table" + i);
+            original.setName("table" + i);
+            original.setMetaType(i == 2 ? "view" : "table");
+            Field field = new Field();
+            field.setPrimaryKey(i == 0);
+            field.setFieldName("unused_payload");
+            original.setFields(List.of(field));
+            TableIndex index = new TableIndex();
+            index.setUnique(i == 1);
+            original.setIndices(List.of(index));
+            original.setPartitionInfo(mock(TapPartition.class));
+            original.setPartitionMasterTableId(i == 0 ? original.getName() : "master");
+            full.add(original);
+            MetadataInstancesDto light = new MetadataInstancesDto();
+            light.setOriginalName(original.getOriginalName());
+            light.setName(original.getName());
+            light.setMetaType(original.getMetaType());
+            Field lightField = new Field();
+            lightField.setPrimaryKey(field.getPrimaryKey());
+            light.setFields(List.of(lightField));
+            TableIndex lightIndex = new TableIndex();
+            lightIndex.setUnique(index.isUnique());
+            light.setIndices(List.of(lightIndex));
+            light.setPartitionInfo(original.getPartitionInfo());
+            light.setPartitionMasterTableId(original.getPartitionMasterTableId());
+            projected.add(light);
+        }
+        for (com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType mode : com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType.values()) {
+            node.setNoPrimaryKeyTableSelectType(mode.name());
+            for (Boolean partition : new Boolean[]{null, true, false}) {
+                node.setSyncSourcePartitionTableEnable(partition);
+                Assertions.assertEquals(MetadataInstancesFilterUtil.getSelectedOriginalNames(full, node),
+                        MetadataInstancesFilterUtil.getSelectedOriginalNames(projected, node), mode.name() + "/" + partition);
+            }
+        }
+    }
+
+    @Test
     void test_getFilteredOriginalNames(){
         DatabaseNode databaseNode = new DatabaseNode();
         databaseNode.setMigrateTableSelectType("expression");

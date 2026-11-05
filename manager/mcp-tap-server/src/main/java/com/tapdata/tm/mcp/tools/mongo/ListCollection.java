@@ -1,17 +1,13 @@
 package com.tapdata.tm.mcp.tools.mongo;
 
-import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.mongodb.MongoOperator;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
-import static com.tapdata.tm.mcp.Utils.readJsonSchema;
+import java.util.List;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -19,22 +15,26 @@ import static com.tapdata.tm.mcp.Utils.readJsonSchema;
  */
 @Slf4j
 @Component
-public class ListCollection extends MongoTool {
+public class ListCollection {
 
-    public ListCollection(SessionAttribute sessionAttribute, UserService userService, DataSourceService dataSourceService) {
-        super("listCollection", "List all collections in the MongoDB database",
-                readJsonSchema("MongoListCollection.json"), sessionAttribute, userService, dataSourceService);
+    private final MongoOperatorFactory mongoOperatorFactory;
+
+    public ListCollection(MongoOperatorFactory mongoOperatorFactory) {
+        this.mongoOperatorFactory = mongoOperatorFactory;
     }
 
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
+    @McpTool(name = "listCollection", description = "List MongoDB collections through a TapData MongoDB connection.")
+    public List<Object> listCollection(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "TapData MongoDB connection id.") String connectionId,
+            @McpToolParam(required = false, description = "Whether to return only collection names.") Boolean nameOnly) {
+        boolean onlyNames = Boolean.TRUE.equals(nameOnly);
 
-        boolean nameOnly = Boolean.TRUE.equals(params.get("nameOnly"));
-
-        try (MongoOperator mongoOperator = createMongoClient(exchange, params)){
+        try (MongoOperator mongoOperator = mongoOperatorFactory.create(context, connectionId)){
 
             mongoOperator.connect();
 
-            return makeCallToolResult(mongoOperator.listCollections(nameOnly));
+            return mongoOperator.listCollections(onlyNames);
 
         } catch (Exception e) {
             throw new RuntimeException(e);

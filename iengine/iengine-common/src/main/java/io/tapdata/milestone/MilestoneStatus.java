@@ -14,6 +14,7 @@ public enum MilestoneStatus {
 	RUNNING("running"),
 	ERROR("error"),
 	FINISH("finish"),
+	SKIP("skip"),
 	;
 
 	private String status;

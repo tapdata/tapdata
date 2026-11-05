@@ -20,4 +20,12 @@ public abstract class BaseAnalyzer implements AnalyzerService {
 	protected DataSourceRepository dataSourceRepository;
 	protected ModulesRepository modulesRepository;
 	protected MetadataInstancesRepository metadataInstancesRepository;
+
+	protected abstract String[] taskIncludeFields();
+
+	protected abstract String[] datasourceIncludeFields();
+
+	protected abstract String[] moduleIncludeFields();
+
+	protected abstract String[] metadataIncludeFields();
 }

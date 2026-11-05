@@ -121,13 +121,6 @@ public class CacheInvalidationService {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        if (mongoClient != null) {
-            try {
-                mongoClient.close();
-            } catch (Exception e) {
-                logger.error("Failed to close MongoClient", e);
-            }
-        }
         logger.info("Cache invalidation service stopped");
     }
     

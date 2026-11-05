@@ -140,6 +140,10 @@ public final class MetricCons {
             public static final String F_SNAPSHOT_SOURCE_READ_TIME_COST_AVG = "snapshotSourceReadTimeCostAvg";
             public static final String F_INCR_SOURCE_READ_TIME_COST_AVG = "incrementalSourceReadTimeCostAvg";
             public static final String F_TARGET_WRITE_TIME_COST_AVG = "targetWriteTimeCostAvg";
+            public static final String F_SOURCE_INCREMENTAL_MONITOR_START_AT = "sourceIncrementalMonitorStartAt";
+            public static final String F_LAST_CAPTURED_INCREMENTAL_EVENT_AT = "lastCapturedIncrementalEventAt";
+            public static final String F_LAST_ENQUEUED_INCREMENTAL_EVENT_AT = "lastEnqueuedIncrementalEventAt";
+            public static final String F_PENDING_INCREMENTAL_EVENT = "pendingIncrementalEvent";
 
             // monitor
             public static final String F_CPU_USAGE = "cpuUsage";

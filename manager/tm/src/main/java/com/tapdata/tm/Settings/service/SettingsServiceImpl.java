@@ -18,7 +18,6 @@ import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +35,7 @@ import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -50,6 +50,8 @@ import org.springframework.stereotype.Service;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class SettingsServiceImpl implements SettingsService {
+    public static final String SMTP_SERVER_PASSWORD = "smtp.server.password";
+    public static final String CATEGORY = "category";
     private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
@@ -68,7 +70,7 @@ public class SettingsServiceImpl implements SettingsService {
     @Deprecated
     public Object getByCategoryAndKey(String category, String key) {
         Object value = null;
-        Query query = Query.query(Criteria.where("category").is(category));
+        Query query = Query.query(Criteria.where(CATEGORY).is(category));
         query.addCriteria(Criteria.where("key").is(key));
 
         Settings settings = null;
@@ -107,14 +109,18 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public MailAccountDto getMailAccount(String userId) {
-        List<Settings> all = findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+        Query query = Query.query(Criteria.where(CATEGORY).is(CategoryEnum.SMTP.getValue()));
+        List<Settings> all = findAll(query);
+        Map<String, Object> collect = all.stream()
+                .filter(settings -> settings.getValue() != null)
+                .collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
         String host = (String) collect.get("smtp.server.host");
-        String port = (String) collect.getOrDefault("smtp.server.port", "0");
+        String port = (String) collect.get("smtp.server.port");
+        port = StringUtils.isNotBlank(port) ? port : "0";
         String from = (String) collect.get("email.send.address");
         String user = (String) collect.get("smtp.server.user");
-        Object pwd = collect.get("smtp.server.password");
+        Object pwd = collect.get(SMTP_SERVER_PASSWORD);
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
         String proxyHost = (String) collect.get("smtp.proxy.host");
@@ -149,7 +155,7 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
-        Query query = Query.query(Criteria.where("category").is(category.getValue()));
+        Query query = Query.query(Criteria.where(CATEGORY).is(category.getValue()));
         query.addCriteria(Criteria.where("key").is(key.getValue()));
 
         Settings settings = null;
@@ -206,7 +212,8 @@ public class SettingsServiceImpl implements SettingsService {
                         .orElseGet(() -> findAll(query));
 
             }else {
-                settingsList = settingsRepository.findAll();
+                Query query = TapQueryUtil.buildQuery(filter, Settings.class);
+                settingsList = mongoTemplate.find(query, Settings.class);
             }
         }
         if ("1".equals(decode)) {
@@ -221,7 +228,7 @@ public class SettingsServiceImpl implements SettingsService {
             settingsList = settingsList.stream().filter(settings -> !"License".equals(settings.getCategory())).toList();
         } else {
             settingsList.stream().filter(settings -> {
-                if ("smtp.server.password".equals(settings.getKey()) || "ldap.bind.password".equals(settings.getKey()))
+                if (SMTP_SERVER_PASSWORD.equals(settings.getKey()) || "ldap.bind.password".equals(settings.getKey()))
                     settings.setValue("*****");
                 return true;
             }).collect(Collectors.toList());
@@ -270,18 +277,38 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public void save(List<SettingsDto> settingsDto) {
-        if (CollectionUtils.isNotEmpty(settingsDto)) {
-            for (SettingsDto dto : settingsDto) {
-                // category: "SMTP", key: "smtp.server.password", value: "*****"
-                if (!Objects.isNull(dto.getValue()) &&
-                        StringUtils.equals("smtp.server.password", dto.getKey()) &&
-                        StringUtils.equals("*****", dto.getValue().toString())) {
-                    continue;
-                }
-
-                mongoTemplate.save(dto, "Settings");
-            }
+        if (CollectionUtils.isEmpty(settingsDto)) {
+            return;
         }
+        List<SettingsDto> validSettings = settingsDto.stream()
+                .filter(Objects::nonNull)
+                .filter(dto -> StringUtils.isNotBlank(dto.getId()))
+                .filter(dto -> !isMaskedPassword(dto))
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(validSettings)) {
+            return;
+        }
+        BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class);
+        for (SettingsDto dto : validSettings) {
+            bulkOperations.updateOne(Query.query(Criteria.where(CATEGORY).is(dto.getCategory()).and("key").is(dto.getKey())), buildSettingsUpdate(dto));
+        }
+        bulkOperations.execute();
+    }
+
+    private boolean isMaskedPassword(SettingsDto dto) {
+        return !Objects.isNull(dto.getValue()) &&
+                (StringUtils.equals(SMTP_SERVER_PASSWORD, dto.getKey())
+                        || StringUtils.equals("ldap.bind.password", dto.getKey())) &&
+                StringUtils.equals("*****", dto.getValue().toString());
+    }
+
+    private Update buildSettingsUpdate(SettingsDto dto) {
+        Update update = new Update();
+        update.set("value", dto.getValue());
+        if (dto.getOpen() != null) {
+            update.set("open", dto.getOpen());
+        }
+        return update;
     }
 
     /**
@@ -294,7 +321,7 @@ public class SettingsServiceImpl implements SettingsService {
     public List<Object> getByKeysOnSameCateGory(String category, String... keys) {
 
 
-        Query query = Query.query(Criteria.where("category").is(category).and("key").in(keys));
+        Query query = Query.query(Criteria.where(CATEGORY).is(category).and("key").in(keys));
 
         List<Settings> settingsList = mongoTemplate.find(query, Settings.class);
         Map<String, List<Settings>> settingMap = settingsList.stream().collect(Collectors.groupingBy(Settings::getKey));
@@ -319,7 +346,7 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public void update(SettingsEnum settingsEnum, Object value) {
-        Criteria criteria = Criteria.where("category").is(settingsEnum.getCategory()).and("key").is(settingsEnum.getKey());
+        Criteria criteria = Criteria.where(CATEGORY).is(settingsEnum.getCategory()).and("key").is(settingsEnum.getKey());
         Query query = new Query(criteria);
         Update update = Update.update("value", value);
         mongoTemplate.updateFirst(query, update, Settings.class);
@@ -372,5 +399,18 @@ public class SettingsServiceImpl implements SettingsService {
         }
         log.info("app version: {}", appVersion);
         return appVersion;
+    }
+
+    @Override
+    public SettingsDto getSettingInfo(String category, String settingKey) {
+        if (StringUtils.isEmpty(settingKey) || StringUtils.isEmpty(category)) {
+            return null;
+        }
+        Query query = Query.query(Criteria.where("key").is(settingKey.trim()).and(CATEGORY).is(category.trim()));
+        List<SettingsDto> settings = mongoTemplate.find(query, SettingsDto.class, "Settings");
+        if (CollectionUtils.isNotEmpty(settings)) {
+            return settings.get(0);
+        }
+        return null;
     }
 }

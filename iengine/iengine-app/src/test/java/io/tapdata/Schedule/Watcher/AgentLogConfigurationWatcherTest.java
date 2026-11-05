@@ -32,7 +32,7 @@ public class AgentLogConfigurationWatcherTest {
         try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
             MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)){
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
-            when(ObsLoggerFactory.getInstance()).thenReturn(obsLoggerFactory);
+            obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
             SettingService settingService = mock(SettingService.class);
             when(BeanUtil.getBean(SettingService.class)).thenReturn(settingService);
             when(settingService.getString("scriptEngineHttpAppender", "false")).thenReturn("false");

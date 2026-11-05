@@ -9,5 +9,6 @@ public enum MilestoneStatus {
     RUNNING,
     ERROR,
     FINISH,
+    SKIP,
     ;
 }

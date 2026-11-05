@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.schema;
 
 
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
+import com.tapdata.tm.commons.util.MetaType;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -231,6 +232,26 @@ class SchemaUtilsTest {
         schema = SchemaUtils.mergeSchema(inputSchemas, targetSchema, false);
         assertNotNull(schema);
         assertEquals(counter.get(), schema.getFields().size());
+    }
+
+    @Test
+    public void testMergeSchemaPrefersTableMetaTypeOverView() {
+        List<Schema> inputSchemas = new ArrayList<>();
+        inputSchemas.add(schema(MetaType.view.name(), "view_field"));
+        inputSchemas.add(schema(MetaType.table.name(), "table_field"));
+
+        Schema schema = SchemaUtils.mergeSchema(inputSchemas, null, false);
+
+        assertEquals(MetaType.table.name(), schema.getMetaType());
+    }
+
+    private Schema schema(String metaType, String fieldName) {
+        Schema schema = new Schema();
+        schema.setMetaType(metaType);
+        Field field = new Field();
+        field.setFieldName(fieldName);
+        schema.setFields(Collections.singletonList(field));
+        return schema;
     }
 
     @Nested

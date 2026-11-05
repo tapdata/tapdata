@@ -198,6 +198,10 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
 
     public abstract void updateTableFieldDesc(String id, DiscoveryFieldDto discoveryFieldDto, UserDetail userDetail);
 
+    public abstract void updateTableFieldDescByName(String id, String fieldName, String businessDesc, UserDetail userDetail);
+
+    public abstract void batchUpdateTableFieldDescByName(String id, Map<String, String> fieldDescMap, UserDetail userDetail);
+
     public abstract MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail);
 
     public abstract void updateTableCustomDesc(String qualifiedName, String customDesc, UserDetail user);

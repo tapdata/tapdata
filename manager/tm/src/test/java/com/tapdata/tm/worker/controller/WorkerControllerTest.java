@@ -2,17 +2,16 @@ package com.tapdata.tm.worker.controller;
 
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.config.component.ProductComponent;
+import com.tapdata.tm.base.security.LoginUserResolver;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,17 +19,20 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.InOrder;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 class WorkerControllerTest {
@@ -62,18 +64,51 @@ class WorkerControllerTest {
     }
 
     @Nested
+    class TestApiServerUpsertOrder {
+        @Test
+        void statusUpdateHappensAfterWorkerUpsert() {
+            workerService = mock(WorkerService.class);
+            workerController = spy(new WorkerController(workerService, mock(UserLogService.class), mock(SettingsService.class)));
+
+            LoginUserResolver loginUserResolver = mock(LoginUserResolver.class);
+            UserDetail userDetail = mock(UserDetail.class);
+            ReflectionTestUtils.setField(workerController, "loginUserResolver", loginUserResolver);
+            when(loginUserResolver.resolve(any(HttpServletRequest.class), nullable(String.class))).thenReturn(userDetail);
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+
+            WorkerDto worker = new WorkerDto();
+            worker.setProcessId("api-server-1");
+            worker.setWorkerType("api-server");
+            ApiServerStatus workerStatus = new ApiServerStatus();
+            workerStatus.setStatus("UP");
+            workerStatus.setUpdateCpuMem(true);
+            worker.setWorkerStatus(workerStatus);
+            WorkerDto upserted = new WorkerDto();
+            when(workerService.upsertByWhere(any(), same(worker), same(userDetail))).thenReturn(upserted);
+
+            workerController.upsertByWhere("{\"process_id\":\"api-server-1\",\"worker_type\":\"api-server\"}", worker);
+
+            InOrder order = inOrder(workerService);
+            order.verify(workerService).upsertByWhere(any(), same(worker), same(userDetail));
+            order.verify(workerService).updateWorkerStatus(any(), same(userDetail));
+            assertNull(worker.getWorkerStatus());
+            assertEquals(false, worker.getDeleted());
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Nested
     class TestUpdateByWhere{
-        UserService userService = mock(UserService.class);
-        AccessTokenService accessTokenService = mock(AccessTokenService.class);
-        ProductComponent productComponent = mock(ProductComponent.class);
+        LoginUserResolver loginUserResolver = mock(LoginUserResolver.class);
         UserLogService userLogService = mock(UserLogService.class);
+        UserDetail mockUserDetail;
        @BeforeEach
        void before(){
            workerService = mock(WorkerService.class);
+           mockUserDetail = mock(UserDetail.class);
            workerController = spy(new WorkerController(workerService,userLogService,mock(SettingsService.class)));
-           ReflectionTestUtils.setField(workerController, "userService", userService);
-           ReflectionTestUtils.setField(workerController, "accessTokenService", accessTokenService);
-           ReflectionTestUtils.setField(workerController, "productComponent", productComponent);
+           ReflectionTestUtils.setField(workerController, "loginUserResolver", loginUserResolver);
+           when(loginUserResolver.resolve(any(HttpServletRequest.class), nullable(String.class))).thenReturn(mockUserDetail);
        }
         @Test
         void testOperationStop(){
@@ -91,8 +126,6 @@ class WorkerControllerTest {
                 mockHttpServletRequest.addHeader("user_id","test");
                 ServletRequestAttributes servletRequestAttributes = new ServletRequestAttributes(mockHttpServletRequest);
                 holderMockedStatic.when(RequestContextHolder::currentRequestAttributes).thenReturn(servletRequestAttributes);
-                UserDetail mockUserDetail = mock(UserDetail.class);
-                when(userService.loadUserByExternalId("test")).thenReturn(mockUserDetail);
                 WorkerDto mockWorkerDto = new WorkerDto();
                 TcmInfo mockTcmInfo = new TcmInfo();
                 mockTcmInfo.setAgentName("test");
@@ -121,8 +154,6 @@ class WorkerControllerTest {
                 mockHttpServletRequest.addHeader("user_id","test");
                 ServletRequestAttributes servletRequestAttributes = new ServletRequestAttributes(mockHttpServletRequest);
                 holderMockedStatic.when(RequestContextHolder::currentRequestAttributes).thenReturn(servletRequestAttributes);
-                UserDetail mockUserDetail = mock(UserDetail.class);
-                when(userService.loadUserByExternalId("test")).thenReturn(mockUserDetail);
                 WorkerDto mockWorkerDto = new WorkerDto();
                 TcmInfo mockTcmInfo = new TcmInfo();
                 mockTcmInfo.setAgentName("test");
@@ -151,8 +182,6 @@ class WorkerControllerTest {
                 mockHttpServletRequest.addHeader("user_id","test");
                 ServletRequestAttributes servletRequestAttributes = new ServletRequestAttributes(mockHttpServletRequest);
                 holderMockedStatic.when(RequestContextHolder::currentRequestAttributes).thenReturn(servletRequestAttributes);
-                UserDetail mockUserDetail = mock(UserDetail.class);
-                when(userService.loadUserByExternalId("test")).thenReturn(mockUserDetail);
                 WorkerDto mockWorkerDto = new WorkerDto();
                 TcmInfo mockTcmInfo = new TcmInfo();
                 mockTcmInfo.setAgentName("test");
@@ -180,8 +209,6 @@ class WorkerControllerTest {
                 mockHttpServletRequest.addHeader("user_id","test");
                 ServletRequestAttributes servletRequestAttributes = new ServletRequestAttributes(mockHttpServletRequest);
                 holderMockedStatic.when(RequestContextHolder::currentRequestAttributes).thenReturn(servletRequestAttributes);
-                UserDetail mockUserDetail = mock(UserDetail.class);
-                when(userService.loadUserByExternalId("test")).thenReturn(mockUserDetail);
                 WorkerDto mockWorkerDto = new WorkerDto();
                 TcmInfo mockTcmInfo = new TcmInfo();
                 mockTcmInfo.setAgentName("test");

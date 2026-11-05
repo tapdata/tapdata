@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
@@ -32,8 +33,10 @@ import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.internal.verification.Times;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -154,8 +157,12 @@ class MeasurementServiceV2ImplTest {
 
     @Nested
     class FindLastMinuteSamplesByTaskIdsTest {
+        private MongoTemplate mongoOperations;
+
         @BeforeEach
         void init() {
+            mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
             when(measurementServiceV2.findLastMinuteSamplesByTaskIds(any())).thenCallRealMethod();
         }
 
@@ -176,26 +183,65 @@ class MeasurementServiceV2ImplTest {
         @Test
         @DisplayName("跳过空白taskId")
         void testBlankTaskIdSkipped() {
-            when(measurementServiceV2.findLastMinuteByTaskId(anyString())).thenReturn(null);
             Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("", "  "));
             assertTrue(result.isEmpty());
-            verify(measurementServiceV2, never()).findLastMinuteByTaskId(anyString());
+            verifyNoInteractions(mongoOperations);
         }
 
         @Test
-        @DisplayName("findLastMinuteByTaskId返回null时跳过")
+        @DisplayName("无匹配实体时返回空Map")
         void testEntityNull() {
-            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(null);
+            mockAggregationResults(List.of());
             Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
             assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("聚合查询限制最近五分钟并允许磁盘排序")
+        void testAggregationLimitsTimeRangeAndAllowsDiskUse() {
+            mockAggregationResults(List.of());
+            long beforeQuery = System.currentTimeMillis();
+
+            measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
+
+            long afterQuery = System.currentTimeMillis();
+            ArgumentCaptor<Aggregation> aggregationCaptor = ArgumentCaptor.forClass(Aggregation.class);
+            verify(mongoOperations).aggregate(aggregationCaptor.capture(), eq(MeasurementEntity.COLLECTION_NAME),
+                    eq(MeasurementEntity.class));
+            Aggregation aggregation = aggregationCaptor.getValue();
+            Document match = aggregation.toPipeline(Aggregation.DEFAULT_CONTEXT).get(0).get("$match", Document.class);
+            Document dateRange = match.get(MetricCons.F_DATE, Document.class);
+            Date queryStart = dateRange.getDate("$gte");
+            Date queryEnd = dateRange.getDate("$lte");
+
+            assertEquals(5L * 60L * 1000L, queryEnd.getTime() - queryStart.getTime());
+            assertTrue(queryEnd.getTime() >= beforeQuery && queryEnd.getTime() <= afterQuery);
+            assertTrue(aggregation.getOptions().isAllowDiskUse());
+        }
+
+        @Test
+        @DisplayName("聚合查询去重并过滤空白taskId")
+        void testTaskIdsAreNormalizedBeforeAggregation() {
+            mockAggregationResults(List.of());
+
+            measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1", "task-1", " ", "task-2"));
+
+            ArgumentCaptor<Aggregation> aggregationCaptor = ArgumentCaptor.forClass(Aggregation.class);
+            verify(mongoOperations).aggregate(aggregationCaptor.capture(), eq(MeasurementEntity.COLLECTION_NAME),
+                    eq(MeasurementEntity.class));
+            Document match = aggregationCaptor.getValue().toPipeline(Aggregation.DEFAULT_CONTEXT)
+                    .get(0).get("$match", Document.class);
+            assertEquals(List.of("task-1", "task-2"),
+                    match.get(MeasurementServiceV2Impl.PATH_TAGS_TASK_ID, Document.class).getList("$in", String.class));
         }
 
         @Test
         @DisplayName("entity的samples为空时跳过")
         void testEntityEmptySamples() {
             MeasurementEntity entity = new MeasurementEntity();
+            entity.setTags(Map.of("taskId", "task-1"));
             entity.setSamples(new ArrayList<>());
-            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(entity);
+            mockAggregationResults(List.of(entity));
             Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
             assertTrue(result.isEmpty());
         }
@@ -211,7 +257,8 @@ class MeasurementServiceV2ImplTest {
             newer.setDate(new Date(2000L));
             newer.setVs(new HashMap<>());
             entity.setSamples(List.of(older, newer));
-            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(entity);
+            entity.setTags(Map.of("taskId", "task-1"));
+            mockAggregationResults(List.of(entity));
 
             Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
             assertEquals(1, result.size());
@@ -226,16 +273,15 @@ class MeasurementServiceV2ImplTest {
             s1.setDate(new Date(1000L));
             s1.setVs(new HashMap<>());
             entity1.setSamples(List.of(s1));
-            when(measurementServiceV2.findLastMinuteByTaskId("t1")).thenReturn(entity1);
-
-            when(measurementServiceV2.findLastMinuteByTaskId("t2")).thenReturn(null);
+            entity1.setTags(Map.of("taskId", "t1"));
 
             MeasurementEntity entity3 = new MeasurementEntity();
             Sample s3 = new Sample();
             s3.setDate(new Date(3000L));
             s3.setVs(new HashMap<>());
             entity3.setSamples(List.of(s3));
-            when(measurementServiceV2.findLastMinuteByTaskId("t3")).thenReturn(entity3);
+            entity3.setTags(Map.of("taskId", "t3"));
+            mockAggregationResults(List.of(entity1, entity3));
 
             Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("t1", "t2", "t3"));
             assertEquals(2, result.size());
@@ -257,11 +303,53 @@ class MeasurementServiceV2ImplTest {
             samples.add(nullDateSample);
             samples.add(validSample);
             entity.setSamples(samples);
-            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(entity);
+            entity.setTags(Map.of("taskId", "task-1"));
+            mockAggregationResults(List.of(entity));
 
             Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
             assertEquals(1, result.size());
             assertSame(validSample, result.get("task-1"));
+        }
+
+        @Test
+        @DisplayName("超过单批上限时分批聚合")
+        void testTaskIdsAreBatched() {
+            AtomicInteger batchCount = new AtomicInteger();
+            when(mongoOperations.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(MeasurementEntity.class)))
+                    .thenAnswer(invocation -> {
+                        int batch = batchCount.incrementAndGet();
+                        return aggregationResults(List.of(entityWithSample("task-" + batch, batch)));
+                    });
+
+            List<String> taskIds = new ArrayList<>();
+            for (int index = 1; index <= 101; index++) {
+                taskIds.add("task-" + index);
+            }
+
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(taskIds);
+
+            assertEquals(2, batchCount.get());
+            assertEquals(2, result.size());
+            verify(measurementServiceV2, never()).findLastMinuteByTaskId(anyString());
+        }
+
+        private void mockAggregationResults(List<MeasurementEntity> entities) {
+            when(mongoOperations.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(MeasurementEntity.class)))
+                    .thenReturn(aggregationResults(entities));
+        }
+
+        private AggregationResults<MeasurementEntity> aggregationResults(List<MeasurementEntity> entities) {
+            return new AggregationResults<>(entities, new org.bson.Document());
+        }
+
+        private MeasurementEntity entityWithSample(String taskId, long timestamp) {
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setTags(Map.of("taskId", taskId));
+            Sample sample = new Sample();
+            sample.setDate(new Date(timestamp));
+            sample.setVs(new HashMap<>());
+            entity.setSamples(List.of(sample));
+            return entity;
         }
     }
 
@@ -282,12 +370,12 @@ class MeasurementServiceV2ImplTest {
             entity.setGranularity(Granularity.GRANULARITY_MINUTE);
             entity.setTags(Map.of("taskId", "task-1"));
             entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 120D, 12D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
-                        return query.getQueryObject().toJson().contains("\"grnty\": \"minute\"")
+                        return closeableIterator(query.getQueryObject().toJson().contains("\"grnty\": \"minute\"")
                                 ? List.of(entity)
-                                : new ArrayList<>();
+                                : new ArrayList<>());
                     });
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
@@ -305,12 +393,12 @@ class MeasurementServiceV2ImplTest {
             entity.setGranularity(Granularity.GRANULARITY_HOUR);
             entity.setTags(Map.of("taskId", "task-1"));
             entity.setSamples(List.of(sample(new Date(endAt - 60L * 60L * 1000L), 300D, 30D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
-                        return query.getQueryObject().toJson().contains("\"grnty\": \"hour\"")
+                        return closeableIterator(query.getQueryObject().toJson().contains("\"grnty\": \"hour\"")
                                 ? List.of(entity)
-                                : new ArrayList<>();
+                                : new ArrayList<>());
                     });
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
@@ -332,12 +420,12 @@ class MeasurementServiceV2ImplTest {
             stale.setGranularity(Granularity.GRANULARITY_MINUTE);
             stale.setTags(Map.of("taskId", "task-1", "taskRecordId", "record-old"));
             stale.setSamples(List.of(sample(new Date(endAt - 60_000L), 900D, 90D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
                         String json = query.getQueryObject().toJson();
                         assertTrue(json.contains("\"grnty\": \"minute\""));
-                        return List.of(matched);
+                        return closeableIterator(List.of(matched));
                     });
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
@@ -380,8 +468,8 @@ class MeasurementServiceV2ImplTest {
             long startAt = endAt - 60L * 60L * 1000L;
             List<MeasurementEntity> entities = new ArrayList<>();
             entities.add(null);
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(entities);
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(entities));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertFalse(result.getTs().isEmpty());
@@ -396,8 +484,8 @@ class MeasurementServiceV2ImplTest {
             MeasurementEntity entity = new MeasurementEntity();
             entity.setTags(null);
             entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 100D, 10D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(List.of(entity));
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(List.of(entity)));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
@@ -411,8 +499,8 @@ class MeasurementServiceV2ImplTest {
             MeasurementEntity entity = new MeasurementEntity();
             entity.setTags(Map.of("taskId", ""));
             entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 100D, 10D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(List.of(entity));
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(List.of(entity)));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
@@ -423,8 +511,8 @@ class MeasurementServiceV2ImplTest {
         void testNoEntitiesAllZero() {
             long endAt = 1_710_000_000_000L;
             long startAt = endAt - 60L * 60L * 1000L;
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(new ArrayList<>());
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(new ArrayList<>()));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertFalse(result.getTs().isEmpty());
@@ -447,8 +535,8 @@ class MeasurementServiceV2ImplTest {
             entity2.setTags(Map.of("taskId", "task-2"));
             entity2.setSamples(List.of(sample(new Date(sampleTs), 200D, 20D)));
 
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(List.of(entity1, entity2));
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(List.of(entity1, entity2)));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1", "task-2"), startAt, endAt);
             // 最后一个bucket应该是两个task的和: 100+200=300, 10+20=30
@@ -456,6 +544,32 @@ class MeasurementServiceV2ImplTest {
             Double lastSizeQps = result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1);
             assertEquals(300D, lastQps);
             assertEquals(30D, lastSizeQps);
+        }
+
+        @Test
+        @DisplayName("超过单批上限时分批查询并合并指标")
+        void testTaskIdsAreBatched() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            AtomicInteger batchCount = new AtomicInteger();
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        int batch = batchCount.incrementAndGet();
+                        MeasurementEntity entity = new MeasurementEntity();
+                        entity.setTags(Map.of("taskId", "task-" + batch));
+                        entity.setSamples(List.of(sample(new Date(endAt - 60_000L), batch * 100D, batch * 10D)));
+                        return closeableIterator(List.of(entity));
+                    });
+            List<String> taskIds = new ArrayList<>();
+            for (int index = 1; index <= 101; index++) {
+                taskIds.add("task-" + index);
+            }
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(taskIds, startAt, endAt);
+
+            assertEquals(2, batchCount.get());
+            assertEquals(300D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(30D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
         }
 
         private Sample sample(Date date, double outputQps, double outputSizeQps) {
@@ -466,6 +580,10 @@ class MeasurementServiceV2ImplTest {
             vs.put("outputSizeQps", outputSizeQps);
             sample.setVs(vs);
             return sample;
+        }
+
+        private Stream<MeasurementEntity> closeableIterator(List<MeasurementEntity> entities) {
+            return entities.stream();
         }
     }
 
@@ -520,7 +638,7 @@ class MeasurementServiceV2ImplTest {
             when(sampleRequest.getSample()).thenReturn(sample);
             doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
             measurementServiceV2.addAgentMeasurement(samples);
-            verify(taskService).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 0L);
+            verify(taskService, never()).updateDelayTime(any(ObjectId.class), anyLong());
         }
         @Test
         @DisplayName("test addBulkAgentMeasurement method when taskDelayTimeMap contains taskId")
@@ -529,13 +647,13 @@ class MeasurementServiceV2ImplTest {
             Date date = new Date();
             sample.setDate(date);
             Map vs = new HashMap();
-            vs.put("replicateLag",null);
+            vs.put("replicateLag",111);
             sample.setVs(vs);
             when(sampleRequest.getSample()).thenReturn(sample);
             samples.add(sampleRequest);
             doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
             measurementServiceV2.addAgentMeasurement(samples);
-            verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 0L);
+            verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 111L);
         }
         @Test
         @DisplayName("test addBulkAgentMeasurement method when taskDelayTimeMap not contains taskId")
@@ -544,7 +662,7 @@ class MeasurementServiceV2ImplTest {
             Date date = new Date();
             sample.setDate(date);
             Map vs = new HashMap();
-            vs.put("replicateLag",null);
+            vs.put("replicateLag",0);
             sample.setVs(vs);
             when(sampleRequest.getSample()).thenReturn(sample);
             SampleRequest sampleRequest1 = mock(SampleRequest.class);
@@ -1442,5 +1560,120 @@ class MeasurementServiceV2ImplTest {
         }
     }
 
+    @Nested
+    class FillNodeCurrentEventTimestampIfNeedTest {
+        private TaskService taskService;
+
+        @BeforeEach
+        void setup() {
+            taskService = mock(TaskService.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "taskService", taskService);
+        }
+
+        @Test
+        @DisplayName("test fillNodeCurrentEventTimestampIfNeed - isNode, migrate task")
+        void testIsNodeMigrateTask() {
+            Map<String, List<Map<String, Object>>> data = new HashMap<>();
+            List<Map<String, Object>> uniqueData = new ArrayList<>();
+            Map<String, Object> sample1 = new HashMap<>();
+            Map<String, String> tags1 = new HashMap<>();
+            tags1.put("type", "node");
+            tags1.put("taskId", "6a46322e5b75c32ed96ac543");
+            tags1.put("nodeId", "node1");
+            sample1.put("tags", tags1);
+            sample1.put("currentEventTimestamp", null);
+            sample1.put("snapshotDoneAt", 0L);
+            uniqueData.add(sample1);
+            data.put("uniqueKey", uniqueData);
+
+            MeasurementQueryParam param = new MeasurementQueryParam();
+            Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = new HashMap<>();
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            Map<String, String> qtags = new HashMap<>();
+            qtags.put("type", "node");
+            qtags.put("taskId", "6a46322e5b75c32ed96ac543");
+            querySample.setTags(qtags);
+            querySample.setType("instant");
+            samples.put("uniqueKey", querySample);
+            param.setSamples(samples);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("migrate");
+            taskDto.setSnapshotDoneAt(123456789L);
+            Map<String, Long> nodeTs = new HashMap<>();
+            nodeTs.put("node1", 987654321L);
+            nodeTs.put("node2", 888888888L);
+            taskDto.setNodeCurrentEventTimestamp(nodeTs);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, Object> milestone = new HashMap<>();
+            Map<String, Object> snapshot = new HashMap<>();
+            snapshot.put("progress", 2);
+            milestone.put("SNAPSHOT", snapshot);
+            attrs.put("milestone", milestone);
+            taskDto.setAttrs(attrs);
+
+            when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
+
+            ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
+
+            assertEquals(987654321L, sample1.get("currentEventTimestamp"));
+            assertEquals(123456789L, sample1.get("snapshotDoneAt"));
+
+            List<Map<String, Object>> resultList = data.get("uniqueKey");
+            assertEquals(2, resultList.size());
+            Map<String, Object> paddedSample = resultList.stream()
+                    .filter(s -> "node2".equals(((Map<String, String>) s.get("tags")).get("nodeId")))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(paddedSample);
+            assertEquals(888888888L, paddedSample.get("currentEventTimestamp"));
+            assertEquals(123456789L, paddedSample.get("snapshotDoneAt"));
+            assertEquals(2L, paddedSample.get("snapshotTableTotal"));
+            assertEquals("database", ((Map<String, String>) paddedSample.get("tags")).get("nodeType"));
+        }
+
+        @Test
+        @DisplayName("test fillNodeCurrentEventTimestampIfNeed - isTask, sync task")
+        void testIsTaskSyncTask() {
+            Map<String, List<Map<String, Object>>> data = new HashMap<>();
+            List<Map<String, Object>> uniqueData = new ArrayList<>();
+            data.put("uniqueKey", uniqueData);
+
+            MeasurementQueryParam param = new MeasurementQueryParam();
+            Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = new HashMap<>();
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            Map<String, String> qtags = new HashMap<>();
+            qtags.put("type", "task");
+            qtags.put("taskId", "69feb7076daae8c9545dad1c");
+            querySample.setTags(qtags);
+            querySample.setType("instant");
+            samples.put("uniqueKey", querySample);
+            param.setSamples(samples);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            taskDto.setSnapshotDoneAt(555555L);
+            taskDto.setCurrentEventTimestamp(999999L);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, Object> milestone = new HashMap<>();
+            Map<String, Object> snapshot = new HashMap<>();
+            snapshot.put("progress", 2);
+            milestone.put("SNAPSHOT", snapshot);
+            attrs.put("milestone", milestone);
+            taskDto.setAttrs(attrs);
+
+            when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
+
+            ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
+
+            List<Map<String, Object>> resultList = data.get("uniqueKey");
+            assertEquals(1, resultList.size());
+            Map<String, Object> padded = resultList.get(0);
+            assertEquals(999999L, padded.get("currentEventTimestamp"));
+            assertEquals(555555L, padded.get("snapshotDoneAt"));
+            assertEquals(2L, padded.get("snapshotTableTotal"));
+            assertEquals("task", ((Map<String, String>) padded.get("tags")).get("type"));
+        }
+    }
 
 }

@@ -12,6 +12,9 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.common.reflect.TypeToken;
 import io.tapdata.entity.schema.partition.type.TapPartitionRange;
 import io.tapdata.entity.schema.partition.type.TapPartitionType;
+import io.tapdata.entity.schema.type.TapDouble;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -144,6 +147,17 @@ class JsonUtilTest {
         Assertions.assertNotNull(data);
         Assertions.assertInstanceOf(Map.class, data);
         Assertions.assertEquals("test", ((Map) data).get("type"));
+    }
+
+    @Test
+    void testFloatingPointTapTypeCompatibility() {
+        String json = JsonUtil.toJsonUseJackson(new TapDouble());
+        Assertions.assertTrue(json.contains("\"typeName\":\"TapDouble\""));
+        TapType type = JsonUtil.parseJsonUseJackson(json, TapType.class);
+        Assertions.assertInstanceOf(TapDouble.class, type);
+
+        TapType legacy = JsonUtil.parseJsonUseJackson("{\"type\":8}", TapType.class);
+        Assertions.assertInstanceOf(TapNumber.class, legacy);
     }
 
     @Nested

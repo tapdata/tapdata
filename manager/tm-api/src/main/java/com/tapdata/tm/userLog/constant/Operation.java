@@ -10,6 +10,8 @@ public enum Operation {
     START("start"),
     STOP("stop"),
     FORCE_STOP("forceStop"),
+    REBALANCE_START("rebalanceStart"),
+    REBALANCE_STOP("rebalanceStop"),
 
     RENAME("rename"),
     PAUSE("pause"),
@@ -20,6 +22,8 @@ public enum Operation {
 
     READ_ALL("readAll"),
     READ("read"),
+    UNREAD("unread"),
+    CLOSE("close"),
     LOGOUT("logout"),
     LOGIN("login"),
 
