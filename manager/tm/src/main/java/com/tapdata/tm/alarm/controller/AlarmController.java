@@ -262,29 +262,20 @@ public class AlarmController extends BaseController {
                                DataPermissionActionEnums action, Supplier<T> supplier) {
         ObjectId decoded = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString()))
                 .map(MongoUtils::toObjectId).orElse(id);
-        return DataPermissionHelper.checkOfQuery(
-                user,
-                DataPermissionDataTypeEnums.INSPECT,
-                action,
-                inspectService.dataPermissionFindById(decoded, new Field()),
-                dto -> DataPermissionMenuEnums.INSPECT_TACK,
-                supplier,
-                () -> {
-                    throw new BizException("insufficient.permissions",
-                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(action)),
-                            needAction(DataPermissionDataTypeEnums.INSPECT, Collections.singletonList(action)));
-                });
+        return checkInspectPermission(user, inspectService.dataPermissionFindById(decoded, new Field()),
+                action, supplier, () -> { throw insufficientInspectPermissions(action); });
     }
 
     private boolean canAccessInspect(UserDetail user, InspectDto inspect, DataPermissionActionEnums action) {
-        return Boolean.TRUE.equals(DataPermissionHelper.checkOfQuery(
-                user,
-                DataPermissionDataTypeEnums.INSPECT,
-                action,
-                () -> inspect,
-                dto -> DataPermissionMenuEnums.INSPECT_TACK,
-                () -> true,
-                () -> false));
+        return Boolean.TRUE.equals(checkInspectPermission(user, () -> inspect, action,
+                () -> true, () -> false));
+    }
+
+    private <T> T checkInspectPermission(UserDetail user, Supplier<InspectDto> inspect,
+                                         DataPermissionActionEnums action, Supplier<T> authorized,
+                                         Supplier<T> unauthorized) {
+        return DataPermissionHelper.checkOfQuery(user, DataPermissionDataTypeEnums.INSPECT, action,
+                inspect, dto -> DataPermissionMenuEnums.INSPECT_TACK, authorized, unauthorized);
     }
 
     @PostMapping("/updateTaskAlarm")
