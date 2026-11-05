@@ -23,6 +23,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -95,7 +96,7 @@ class WorkerServiceImplTest {
 
             ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
             verify(repository).upsert(queryCaptor.capture(), any(Worker.class), same(userDetail));
-            assertEquals(false, queryCaptor.getValue().getQueryObject().get("deleted"));
+            assertEquals(true, ((Map)queryCaptor.getValue().getQueryObject().get("deleted")).get("$ne"));
         }
     }
 }
