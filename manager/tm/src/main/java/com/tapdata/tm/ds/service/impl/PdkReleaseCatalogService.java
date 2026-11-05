@@ -31,12 +31,13 @@ public class PdkReleaseCatalogService {
     private static final String BOM_METADATA_PATH = "io/tapdata/connectors-bom/maven-metadata.xml";
     private static final String BOM_PATH = "io/tapdata/connectors-bom/%s/connectors-bom-%s.pom";
     private static final Pattern RELEASE_VERSION = Pattern.compile("\\d+(?:\\.\\d+)*");
+    private static final String ARTIFACT_ID_KEY = "artifactId";
+    private static final String VERSION_KEY = "version";
 
     @Value("${pdk.release.repository-url:https://nexus.tapdata.net/repository/maven-releases/}")
     private String repositoryUrl;
 
-    private volatile List<Map<String, Object>> cachedReleases;
-    private volatile long cachedAt;
+    private volatile CacheEntry cacheEntry;
 
     private static final long CACHE_TTL_MILLIS = Duration.ofMinutes(5).toMillis();
 
@@ -45,10 +46,20 @@ public class PdkReleaseCatalogService {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
+    private static class CacheEntry {
+        final List<Map<String, Object>> releases;
+        final long timestamp;
+
+        CacheEntry(List<Map<String, Object>> releases, long timestamp) {
+            this.releases = releases;
+            this.timestamp = timestamp;
+        }
+    }
+
     public List<Map<String, Object>> findLatestReleases() {
-        List<Map<String, Object>> cached = cachedReleases;
-        if (cached != null && System.currentTimeMillis() - cachedAt < CACHE_TTL_MILLIS) {
-            return cached;
+        CacheEntry cached = cacheEntry;
+        if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MILLIS) {
+            return cached.releases;
         }
         try {
             String repository = repositoryUrl.endsWith("/") ? repositoryUrl : repositoryUrl + "/";
@@ -90,22 +101,22 @@ public class PdkReleaseCatalogService {
                 }
                 String pdkId = toPdkId(artifactId);
                 Map<String, Object> release = new HashMap<>();
-                release.put("artifactId", artifactId);
+                release.put(ARTIFACT_ID_KEY, artifactId);
                 release.put("pdkId", pdkId);
-                release.put("version", version);
+                release.put(VERSION_KEY, version);
                 release.put("pdkAPIVersion", pdkApiVersions.get(artifactId));
                 release.put("bomVersion", bomVersion);
                 releases.add(release);
             }
             releases.sort(Comparator.comparing(release -> String.valueOf(release.get("pdkId"))));
-            cachedReleases = List.copyOf(releases);
-            cachedAt = System.currentTimeMillis();
-            return cachedReleases;
+            List<Map<String, Object>> immutableReleases = List.copyOf(releases);
+            cacheEntry = new CacheEntry(immutableReleases, System.currentTimeMillis());
+            return immutableReleases;
         } catch (Exception e) {
             log.warn("Failed to read connector release catalog from Nexus", e);
             if (cached != null) {
                 log.info("Using cached connector release catalog after Nexus request failed");
-                return cached;
+                return cached.releases;
             }
             throw new IllegalStateException("Failed to read connector release catalog from Nexus", e);
         }
@@ -113,7 +124,7 @@ public class PdkReleaseCatalogService {
 
     public Map<String, Object> findRelease(String artifactId) {
         return findLatestReleases().stream()
-                .filter(release -> artifactId.equals(release.get("artifactId")))
+                .filter(release -> artifactId.equals(release.get(ARTIFACT_ID_KEY)))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Connector has no published formal release"));
     }
@@ -138,8 +149,8 @@ public class PdkReleaseCatalogService {
     public byte[] downloadJar(Map<String, Object> release) {
         try {
             String repository = repositoryUrl.endsWith("/") ? repositoryUrl : repositoryUrl + "/";
-            String artifactId = String.valueOf(release.get("artifactId"));
-            String version = String.valueOf(release.get("version"));
+            String artifactId = String.valueOf(release.get(ARTIFACT_ID_KEY));
+            String version = String.valueOf(release.get(VERSION_KEY));
             String base = repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
             byte[] jarBytes = fetchBytes(base);
             String expectedSha256 = fetch(repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar.sha256").trim();

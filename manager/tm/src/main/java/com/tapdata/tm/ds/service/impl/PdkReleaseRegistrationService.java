@@ -60,7 +60,7 @@ public class PdkReleaseRegistrationService {
         List<MultipartFile> files = new ArrayList<>();
         MultipartFile jar = new ByteArrayMultipartFile("file", fileName, "application/java-archive", jarBytes);
         files.add(jar);
-        List<PdkSourceDto> sources = readSources(jarBytes, expectedPdkId, artifactId, version, pdkApiVersion, files);
+        List<PdkSourceDto> sources = readSources(jarBytes, expectedPdkId, version, pdkApiVersion, files);
         if (sources.isEmpty()) {
             throw new BizException("Released connector artifact does not contain its PDK specification");
         }
@@ -77,69 +77,87 @@ public class PdkReleaseRegistrationService {
         return Boolean.TRUE.equals(impact.get("hasInFlightResources"));
     }
 
-    private List<PdkSourceDto> readSources(byte[] jarBytes, String expectedPdkId, String artifactId,
+    private List<PdkSourceDto> readSources(byte[] jarBytes, String expectedPdkId,
                                            String version, String pdkApiVersion, List<MultipartFile> files) {
         List<PdkSourceDto> sources = new ArrayList<>();
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(jarBytes))) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
-                if (entry.isDirectory()) continue;
+                if (entry.isDirectory()) {
+                    continue;
+                }
                 byte[] content = readEntry(zip);
-                if (entry.getName().endsWith(".md")) {
-                    files.add(new ByteArrayMultipartFile("file", entry.getName(), "text/markdown", content));
+                String entryName = entry.getName();
+
+                if (entryName.endsWith(".md")) {
+                    files.add(new ByteArrayMultipartFile("file", entryName, "text/markdown", content));
                     continue;
                 }
-                if (entry.getName().startsWith("icons/")) {
-                    files.add(new ByteArrayMultipartFile("file", entry.getName(), "image/*", content));
-                }
-                if (!entry.getName().endsWith(".json")) continue;
-                JSONObject specification;
-                try {
-                    specification = JSON.parseObject(new String(content, StandardCharsets.UTF_8));
-                } catch (Exception ignored) {
-                    continue;
-                }
-                JSONObject properties = specification == null ? null : specification.getJSONObject("properties");
-                if (properties == null || !expectedPdkId.equals(properties.getString("id"))) continue;
 
-                PdkSourceDto source = new PdkSourceDto();
-                source.setId(expectedPdkId);
-                source.setName(properties.getString("name"));
-                source.setRealName(properties.getString("realName"));
-                source.setIcon(properties.getString("icon"));
-                source.setGroup("io.tapdata");
-                source.setVersion(version);
-                source.setPdkAPIVersion(pdkApiVersion);
-                source.setPdkAPIBuildNumber(CommonUtils.getPdkBuildNumer(pdkApiVersion));
-                source.setType("source_and_target");
-                JSONObject manifest = specification.getJSONObject("manifest");
-                String authentication = manifest == null ? null : manifest.getString("Authentication");
-                DataSourceQCType qcType = DataSourceQCType.parse(authentication);
-                source.setQcType(qcType == null ? DataSourceQCType.Alpha : qcType);
-                source.setAuthentication(authentication);
-                source.setTags(JSON.parseArray(JSON.toJSONString(properties.get("tags")), String.class));
-                source.setConfigOptions(asLinkedMap(specification.get("configOptions")));
-                source.setMessages(asLinkedMap(specification.get("messages")));
-                source.setExpression(JSON.toJSONString(specification.get("dataTypes")));
+                if (entryName.startsWith("icons/")) {
+                    files.add(new ByteArrayMultipartFile("file", entryName, "image/*", content));
+                }
 
-                List<Capability> capabilities = new ArrayList<>();
-                JSONObject configOptions = specification.getJSONObject("configOptions");
-                if (configOptions != null && configOptions.getJSONArray("capabilities") != null) {
-                    for (Object capability : configOptions.getJSONArray("capabilities")) {
-                        JSONObject capabilityObject = (JSONObject) capability;
-                        String id = capabilityObject.getString("id");
-                        if (id != null) {
-                            capabilities.add(Capability.create(id).type(Capability.TYPE_OTHER));
-                        }
+                if (entryName.endsWith(".json")) {
+                    PdkSourceDto source = processJsonEntry(content, expectedPdkId, version, pdkApiVersion);
+                    if (source != null) {
+                        sources.add(source);
                     }
                 }
-                source.setCapabilities(capabilities);
-                sources.add(source);
             }
         } catch (Exception e) {
             throw new BizException("Unable to read PDK specification from released connector", e);
         }
         return sources;
+    }
+
+    private PdkSourceDto processJsonEntry(byte[] content, String expectedPdkId, String version, String pdkApiVersion) {
+        JSONObject specification;
+        try {
+            specification = JSON.parseObject(new String(content, StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            return null;
+        }
+
+        JSONObject properties = specification == null ? null : specification.getJSONObject("properties");
+        if (properties == null || !expectedPdkId.equals(properties.getString("id"))) {
+            return null;
+        }
+
+        PdkSourceDto source = new PdkSourceDto();
+        source.setId(expectedPdkId);
+        source.setName(properties.getString("name"));
+        source.setRealName(properties.getString("realName"));
+        source.setIcon(properties.getString("icon"));
+        source.setGroup("io.tapdata");
+        source.setVersion(version);
+        source.setPdkAPIVersion(pdkApiVersion);
+        source.setPdkAPIBuildNumber(CommonUtils.getPdkBuildNumer(pdkApiVersion));
+        source.setType("source_and_target");
+
+        JSONObject manifest = specification.getJSONObject("manifest");
+        String authentication = manifest == null ? null : manifest.getString("Authentication");
+        DataSourceQCType qcType = DataSourceQCType.parse(authentication);
+        source.setQcType(qcType == null ? DataSourceQCType.Alpha : qcType);
+        source.setAuthentication(authentication);
+        source.setTags(JSON.parseArray(JSON.toJSONString(properties.get("tags")), String.class));
+        source.setConfigOptions(asLinkedMap(specification.get("configOptions")));
+        source.setMessages(asLinkedMap(specification.get("messages")));
+        source.setExpression(JSON.toJSONString(specification.get("dataTypes")));
+
+        List<Capability> capabilities = new ArrayList<>();
+        JSONObject configOptions = specification.getJSONObject("configOptions");
+        if (configOptions != null && configOptions.getJSONArray("capabilities") != null) {
+            for (Object capability : configOptions.getJSONArray("capabilities")) {
+                JSONObject capabilityObject = (JSONObject) capability;
+                String id = capabilityObject.getString("id");
+                if (id != null) {
+                    capabilities.add(Capability.create(id).type(Capability.TYPE_OTHER));
+                }
+            }
+        }
+        source.setCapabilities(capabilities);
+        return source;
     }
 
     private byte[] readEntry(InputStream inputStream) throws Exception {
@@ -149,7 +167,9 @@ public class PdkReleaseRegistrationService {
     }
 
     private LinkedHashMap<String, Object> asLinkedMap(Object value) {
-        if (value == null) return null;
+        if (value == null) {
+            return new LinkedHashMap<>();
+        }
         return JSON.parseObject(JSON.toJSONString(value), LinkedHashMap.class);
     }
 

@@ -66,6 +66,7 @@ public class PkdSourceService {
 
 	public static final String METADATA_PDK_APIBUILD_NUMBER = "metadata.pdkAPIBuildNumber";
 	public static final String METADATA_PDK_HASH = "metadata.pdkHash";
+	private static final String SYNC_TYPE_KEY = "syncType";
 	@Setter(AccessLevel.NONE)
 	@Value("${pdk.registration.task-stop-timeout-millis:60000}")
 	private long taskStopTimeoutMillis = 60_000L;
@@ -209,15 +210,19 @@ public class PkdSourceService {
 		List<InspectDto> inspectCandidates = findAffectedInspects(connectionIds, user);
 		List<InspectDto> inspects = findCurrentAffectedInspects(inspectCandidates, user);
 		Map<String, Object> result = new HashMap<>();
-		result.put("tasks", tasks.stream().map(task -> new HashMap<String, Object>() {{
-			put("id", task.getId() == null ? null : task.getId().toHexString());
-			put("name", task.getName());
-			put("syncType", task.getSyncType());
-		}}).collect(Collectors.toList()));
-		result.put("inspects", inspects.stream().map(inspect -> new HashMap<String, Object>() {{
-			put("id", inspect.getId() == null ? null : inspect.getId().toHexString());
-			put("name", inspect.getName());
-		}}).collect(Collectors.toList()));
+		result.put("tasks", tasks.stream().map(task -> {
+			Map<String, Object> taskMap = new HashMap<>();
+			taskMap.put("id", task.getId() == null ? null : task.getId().toHexString());
+			taskMap.put("name", task.getName());
+			taskMap.put(SYNC_TYPE_KEY, task.getSyncType());
+			return taskMap;
+		}).toList());
+		result.put("inspects", inspects.stream().map(inspect -> {
+			Map<String, Object> inspectMap = new HashMap<>();
+			inspectMap.put("id", inspect.getId() == null ? null : inspect.getId().toHexString());
+			inspectMap.put("name", inspect.getName());
+			return inspectMap;
+		}).toList());
 		result.put("hasInFlightResources", !tasks.isEmpty() || !inspects.isEmpty());
 		return result;
 	}
