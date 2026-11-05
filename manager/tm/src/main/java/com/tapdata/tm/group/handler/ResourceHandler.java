@@ -1221,7 +1221,7 @@ public interface ResourceHandler {
             String configPath = apiKeyToConfigPath.get("database_uri");
             Object incomingUriValue = getNestedValue(incomingConfig, configPath);
             String incomingUri = incomingUriValue instanceof String ? (String) incomingUriValue : null;
-            if (StringUtils.isBlank(incomingUri) || mongoDatabaseOf(incomingUri) != null) {
+            if (incomingUri == null || StringUtils.isBlank(incomingUri) || mongoDatabaseOf(incomingUri) != null) {
                 return null;    // DSN 自己带了库名 ⇒ DSN 赢
             }
             Object existingUriValue = existingConfig == null ? null : getNestedValue(existingConfig, configPath);
