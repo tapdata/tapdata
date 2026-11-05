@@ -2,7 +2,6 @@ package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
-import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Where;
@@ -100,9 +99,20 @@ public class PkdSourceService {
 		}
 	}
 
-	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user,
 			boolean uploadOnlyRegistration) {
+		uploadPdk(files, pdkSourceDtos, latest, user, uploadOnlyRegistration, false);
+	}
+
+	// Only the server-side Nexus release flow may replace an existing formal version.
+	void uploadReleasedPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, UserDetail user,
+			boolean uploadOnlyRegistration) {
+		uploadPdk(files, pdkSourceDtos, true, user, uploadOnlyRegistration, true);
+	}
+
+	@SuppressWarnings(value = "unchecked")
+	private void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user,
+			boolean uploadOnlyRegistration, boolean allowReleaseOverwrite) {
 		Map<String, MultipartFile> iconMap = new HashMap<>();
 		Map<String, MultipartFile> docMap = new HashMap<>();
 		MultipartFile jarFile = null;
@@ -135,7 +145,7 @@ public class PkdSourceService {
 			lockRenewal = scheduleRegistrationLockRenewal(registrationLocks, lockOwner);
 			if (uploadOnlyRegistration) {
 				lockRenewal.ensureHealthy();
-				uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+				uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user, allowReleaseOverwrite);
 				lockRenewal.ensureHealthy();
 				return;
 			}
@@ -160,7 +170,7 @@ public class PkdSourceService {
 			stopAffectedInspects(affectedInspects, stoppedInspects, user);
 			waitForAffectedResourcesStopped(stoppedTasks, stoppedInspects, user, lockRenewal);
 			lockRenewal.ensureHealthy();
-			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user);
+			uploadPdkDefinitions(jarFile, iconMap, docMap, pdkSourceDtos, latest, user, allowReleaseOverwrite);
 			lockRenewal.ensureHealthy();
 		} catch (RuntimeException e) {
 			registrationFailure = e;
@@ -374,7 +384,8 @@ public class PkdSourceService {
 	}
 
 	private void uploadPdkDefinitions(MultipartFile jarFile, Map<String, MultipartFile> iconMap,
-			Map<String, MultipartFile> docMap, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
+			Map<String, MultipartFile> docMap, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user,
+			boolean allowReleaseOverwrite) {
 		Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
 		for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
@@ -397,7 +408,7 @@ public class PkdSourceService {
 				criteria.and("customId").is(user.getCustomerId());
 			}
 			DataSourceDefinitionDto oldDefinitionDto = dataSourceDefinitionService.findOne(new Query(criteria));
-			if (!version.endsWith("-SNAPSHOT") && oldDefinitionDto != null) {
+			if (!allowReleaseOverwrite && !version.endsWith("-SNAPSHOT") && oldDefinitionDto != null) {
 				throw new BizException("Only SNAPSHOT version of PDK can be overwritten, please make sure you've updated the version in your pom.");
 			}
 
@@ -416,27 +427,20 @@ public class PkdSourceService {
 			String pdkHash = definitionDto.calculatePdkHash(user.getCustomerId());
 			definitionDto.setPdkHash(pdkHash);
 
-			// remove snapshot overwritten file(jar/icons)
+			// Capture old resources before uploading files with the same metadata.
+			List<ObjectId> oldFileIds = new ArrayList<>();
 			if (oldDefinitionDto != null) {
-				// change to async delete
-				List<ObjectId> fileIds = new ArrayList<>();
-				fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
+				oldFileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
 				if (oldDefinitionDto.getIcon() != null) {
-					fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
+					oldFileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
 				}
 				Query query = Query.query(Criteria.where(METADATA_PDK_HASH).is(pdkHash)
 						.and(METADATA_PDK_APIBUILD_NUMBER).is(pdkAPIBuildNumber));
-				GridFSFindIterable result = fileService.find(query);
-				result.forEach(gridFSFile ->
-					fileIds.add(gridFSFile.getObjectId())
-				);
-
-				fileService.scheduledDeleteFiles(fileIds, "Upload new connector", "DatabaseTypes",
-						oldDefinitionDto.getId(), user);
-				log.debug("Delete original source {}", oldDefinitionDto.getId());
+				fileService.find(query).forEach(file -> oldFileIds.add(file.getObjectId()));
 			}
 
 			// upload the associated files(jar/icons)
+			List<ObjectId> uploadedFileIds = new ArrayList<>();
 			ObjectId jarObjectId = null;
 			ObjectId iconObjectId = null;
 			try {
@@ -449,31 +453,52 @@ public class PkdSourceService {
 
 				// 1. upload jar file, only update once
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
+				uploadedFileIds.add(jarObjectId);
 
 				// 2. upload the associated icon
 				MultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
 				if (icon != null) {
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
+					uploadedFileIds.add(iconObjectId);
 				}
 				// 3. upload readeMe doc
-                uploadDocs(docMap, pdkSourceDto.getMessages(), fileInfo, oemConfig);
-                log.debug("Upload file to GridFS success");
-			} catch (IOException e) {
-				throw new BizException("SystemError", e);
-			}
+				uploadDocs(docMap, pdkSourceDto.getMessages(), fileInfo, oemConfig, uploadedFileIds);
+				log.debug("Upload file to GridFS success");
 
-			definitionDto.setJarRid(jarObjectId.toHexString());
-			if (iconObjectId != null) {
-				definitionDto.setIcon(iconObjectId.toHexString());
-			}
+				definitionDto.setJarRid(jarObjectId.toHexString());
+				if (iconObjectId != null) {
+					definitionDto.setIcon(iconObjectId.toHexString());
+				}
 
+				if (latest) {
+					definitionDto.setLatest(true);
+				}
+				definitionDto.setId(null);
+				if (Objects.isNull(oldDefinitionDto)) {
+					dataSourceDefinitionService.save(definitionDto, user);
+				} else {
+					dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(oldDefinitionDto.getId())), definitionDto, user);
+				}
+			} catch (IOException | RuntimeException e) {
+				for (ObjectId fileId : uploadedFileIds) {
+					try {
+						fileService.deleteFileById(fileId);
+					} catch (RuntimeException cleanupFailure) {
+						e.addSuppressed(cleanupFailure);
+					}
+				}
+				if (e instanceof IOException) {
+					throw new BizException("SystemError", e);
+				}
+				throw (RuntimeException) e;
+			}
 			if (latest) {
-				definitionDto.setLatest(true);
-				// set last latest to false
+				// Clear previous latest definitions only after the new definition is saved.
 				Criteria criteriaLatest = Criteria.where("scope").is(scope)
 						.and("pdkId").is(pdkSourceDto.getId())
 						.and("group").is(pdkSourceDto.getGroup())
 						.and("latest").is(true)
+						.and("jarRid").ne(definitionDto.getJarRid())
 						.and("is_deleted").is(false);
 				if ("customer".equals(scope)) {
 					criteriaLatest.and("customId").is(user.getCustomerId());
@@ -481,11 +506,13 @@ public class PkdSourceService {
 				Update removeLatest = Update.update("latest", false);
 				dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
 			}
-			definitionDto.setId(null);
-			if (Objects.isNull(oldDefinitionDto)) {
-				dataSourceDefinitionService.save(definitionDto, user);
-			} else {
-				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(oldDefinitionDto.getId())), definitionDto, user);
+			if (oldDefinitionDto != null) {
+				try {
+					fileService.scheduledDeleteFiles(oldFileIds, "Upload new connector", "DatabaseTypes",
+							oldDefinitionDto.getId(), user);
+				} catch (RuntimeException e) {
+					log.warn("Failed to schedule deletion of overwritten connector resources {}", oldDefinitionDto.getId(), e);
+				}
 			}
 			log.debug("Upsert data source definition success");
 		}
@@ -981,6 +1008,12 @@ public class PkdSourceService {
 	}
 
     protected void uploadDocs(Map<String, MultipartFile> docMap, LinkedHashMap<String, Object> messages, Map<String, Object> fileInfo, Map<String, Object> oemConfig) throws IOException {
+        uploadDocs(docMap, messages, fileInfo, oemConfig, new ArrayList<>());
+    }
+
+    private void uploadDocs(Map<String, MultipartFile> docMap, LinkedHashMap<String, Object> messages,
+                            Map<String, Object> fileInfo, Map<String, Object> oemConfig,
+                            List<ObjectId> uploadedFileIds) throws IOException {
         if (docMap == null || docMap.isEmpty() || null == messages) return;
 
         Map<String, ObjectId> deduplicatioMap = new HashMap<>();
@@ -1005,6 +1038,7 @@ public class PkdSourceService {
                     doc.getOriginalFilename(),
                     null,
                     fileInfo);
+                uploadedFileIds.add(docId);
                 langEntry.setValue(docId);
                 deduplicatioMap.put(path, docId);
             }

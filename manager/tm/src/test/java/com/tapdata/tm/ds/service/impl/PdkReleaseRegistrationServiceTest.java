@@ -9,8 +9,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
-import java.io.ByteArrayInputStream;
+import io.tapdata.registration.RegistrationTestConnector;
+import io.tapdata.pdk.registration.RegistrationArchive;
+import io.tapdata.pdk.registration.RegistrationMetadata;
+import com.alibaba.fastjson.JSON;
+import java.io.InputStream;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
+import java.util.jar.Attributes;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -22,7 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,7 +85,13 @@ class PdkReleaseRegistrationServiceTest {
 
     private static byte[] zip(Map<String, byte[]> entries) throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        try (ZipOutputStream zip = new ZipOutputStream(output)) {
+        Manifest manifest = new Manifest();
+        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VERSION, "1.0.3");
+        manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "io.tapdata");
+        manifest.getMainAttributes().putValue("Authentication", "GA");
+        manifest.getMainAttributes().putValue("PDK-API-Version", "2.0.0");
+        try (JarOutputStream zip = new JarOutputStream(output, manifest)) {
             zip.putNextEntry(new ZipEntry("icons/"));
             zip.closeEntry();
             for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
@@ -96,19 +107,28 @@ class PdkReleaseRegistrationServiceTest {
         return value.getBytes(StandardCharsets.UTF_8);
     }
 
-    private static byte[] connectorJar() throws Exception {
+    private static Map<String, byte[]> connectorEntries() throws Exception {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("spec_mysql.json", utf8("{\"properties\":{\"id\":\"mysql\",\"name\":\"MySQL\",\"realName\":\"MySQL\","
-                + "\"icon\":\"icons/mysql.png\",\"tags\":[\"Database\"]},"
-                + "\"manifest\":{\"Authentication\":\"GA\"},"
-                + "\"configOptions\":{\"capabilities\":[{\"id\":\"dml_insert_policy\"},{\"name\":\"no-id\"}]},"
-                + "\"messages\":{\"default\":\"en_US\"},\"dataTypes\":{\"int\":{}}}"));
-        entries.put("spec_other.json", utf8("{\"properties\":{\"id\":\"other\"}}"));
+                + "\"icon\":\"assets/mysql.png\",\"tags\":[\"Database\"]},"
+                + "\"configOptions\":{\"capabilities\":[{\"id\":\"dml_insert_policy\",\"alternatives\":[\"ignore\"]},{\"name\":\"no-id\"}],"
+                + "\"supportDDL\":{\"events\":[\"new_field_event\"]}},"
+                + "\"messages\":{\"default\":\"en_US\",\"en_US\":{\"doc\":\"docs/mysql_en_US.md\"}}}"));
+        // Same id, but not referenced by @TapConnectorClass: must never become a second source.
+        entries.put("spec_other.json", utf8("{\"properties\":{\"id\":\"mysql\",\"name\":\"Wrong spec\"}}"));
         entries.put("broken.json", utf8("not json"));
         entries.put("docs/mysql_en_US.md", utf8("# MySQL"));
-        entries.put("icons/mysql.png", new byte[]{9});
-        entries.put("io/tapdata/Connector.class", new byte[]{0});
-        return zip(entries);
+        entries.put("docs/unreferenced.md", utf8("unrelated"));
+        entries.put("assets/mysql.png", new byte[]{9});
+        String classPath = RegistrationTestConnector.class.getName().replace('.', '/') + ".class";
+        try (InputStream input = RegistrationTestConnector.class.getClassLoader().getResourceAsStream(classPath)) {
+            entries.put(classPath, input.readAllBytes());
+        }
+        return entries;
+    }
+
+    private static byte[] connectorJar() throws Exception {
+        return zip(connectorEntries());
     }
 
     @Test
@@ -121,10 +141,10 @@ class PdkReleaseRegistrationServiceTest {
         ArgumentCaptor<MultipartFile[]> files = ArgumentCaptor.forClass(MultipartFile[].class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PdkSourceDto>> sources = ArgumentCaptor.forClass(List.class);
-        verify(pkdSourceService).uploadPdk(files.capture(), sources.capture(), eq(true), eq(user), eq(true));
+        verify(pkdSourceService).uploadReleasedPdk(files.capture(), sources.capture(), eq(user), eq(true));
 
         List<String> names = Arrays.stream(files.getValue()).map(MultipartFile::getOriginalFilename).toList();
-        assertEquals(List.of("mysql-connector-1.0.3.jar", "docs/mysql_en_US.md", "icons/mysql.png"), names);
+        assertEquals(List.of("mysql-connector-1.0.3.jar", "assets/mysql.png", "docs/mysql_en_US.md"), names);
         MultipartFile uploadedJar = files.getValue()[0];
         assertArrayEquals(jar, uploadedJar.getBytes());
         assertEquals("file", uploadedJar.getName());
@@ -150,24 +170,78 @@ class PdkReleaseRegistrationServiceTest {
         assertEquals(DataSourceQCType.GA, source.getQcType());
         assertEquals(List.of("Database"), source.getTags());
         assertEquals("en_US", source.getMessages().get("default"));
-        assertTrue(source.getConfigOptions().containsKey("capabilities"));
-        assertEquals(1, source.getCapabilities().size());
-        assertEquals("dml_insert_policy", source.getCapabilities().get(0).getId());
+        assertEquals("source", source.getType());
+        assertTrue(source.getCapabilities().stream().anyMatch(cap -> "dml_insert_policy".equals(cap.getId())
+                && List.of("ignore").equals(cap.getAlternatives())));
+        assertTrue(source.getCapabilities().stream().anyMatch(cap -> "new_field_event".equals(cap.getId())));
+        assertTrue(source.getCapabilities().size() > 2); // includes functions registered by connector code
+        assertTrue(source.getTapTypeDataTypeMap().contains("varchar"));
+        assertTrue(JSON.parseObject(source.getExpression()).size() > 0); // CLI default data types
+
+        // Compare with exactly the metadata builder used by manual CLI registration.
+        File cliJar = File.createTempFile("cli-registration-", ".jar");
+        Files.write(cliJar.toPath(), jar);
+        try (RegistrationArchive archive = new RegistrationArchive()) {
+            PdkSourceDto manual = JSON.toJavaObject(RegistrationMetadata.build(
+                    archive.load(cliJar).iterator().next(), path -> {}), PdkSourceDto.class);
+            assertEquals(JSON.toJSONString(manual), JSON.toJSONString(source));
+        } finally {
+            Files.deleteIfExists(cliJar.toPath());
+        }
     }
 
     @Test
-    void downloadAndRegisterDefaultsOptionalSpecificationFields() throws Exception {
-        useReleaseJar(zip(Map.of("spec.json", utf8("{\"properties\":{\"id\":\"mysql\"}}"))));
+    void downloadAndRegisterFiltersUnrelatedConnectors() throws Exception {
+        Map<String, byte[]> entries = connectorEntries();
+        entries.put("spec_unrelated.json", utf8("{\"properties\":{\"id\":\"unrelated\","
+                + "\"name\":\"Unrelated\",\"icon\":\"assets/unrelated.png\"}}"));
+        entries.put("assets/unrelated.png", new byte[]{8});
+        String classPath = io.tapdata.registration.UnrelatedRegistrationTestConnector.class
+                .getName().replace('.', '/') + ".class";
+        try (InputStream input = RegistrationTestConnector.class.getClassLoader().getResourceAsStream(classPath)) {
+            entries.put(classPath, input.readAllBytes());
+        }
+        useReleaseJar(zip(entries));
 
-        service.downloadAndRegister("mysql-connector", "mysql", true, false, user);
+        service.downloadAndRegister("mysql-connector", "mysql", false, false, user);
 
+        ArgumentCaptor<MultipartFile[]> files = ArgumentCaptor.forClass(MultipartFile[].class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PdkSourceDto>> sources = ArgumentCaptor.forClass(List.class);
-        verify(pkdSourceService).uploadPdk(any(), sources.capture(), eq(true), eq(user), eq(false));
-        PdkSourceDto source = sources.getValue().get(0);
-        assertEquals(DataSourceQCType.Alpha, source.getQcType());
-        assertTrue(source.getConfigOptions().isEmpty());
-        assertTrue(source.getCapabilities().isEmpty());
+        verify(pkdSourceService).uploadReleasedPdk(files.capture(), sources.capture(), eq(user), eq(true));
+        assertEquals(List.of("mysql"), sources.getValue().stream().map(PdkSourceDto::getId).toList());
+        assertFalse(Arrays.stream(files.getValue())
+                .anyMatch(file -> "assets/unrelated.png".equals(file.getOriginalFilename())));
+    }
+
+    @Test
+    void downloadAndRegisterFailsWhenLoadedConnectorDoesNotMatch() throws Exception {
+        Map<String, byte[]> entries = connectorEntries();
+        entries.put("spec_mysql.json", utf8("{\"properties\":{\"id\":\"unrelated\",\"name\":\"Unrelated\"}}"));
+        useReleaseJar(zip(entries));
+
+        BizException error = assertThrows(BizException.class,
+                () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
+
+        assertEquals("Released connector artifact does not contain its PDK specification", error.getMessage());
+        verify(pkdSourceService, never()).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
+    }
+
+    @Test
+    void encryptedReleaseUsesTheSameLoaderAsManualRegistration() throws Exception {
+        byte[] plain = connectorJar();
+        File encrypted = File.createTempFile("encrypted-release-", ".jar");
+        try {
+            Files.write(encrypted.toPath(), plain);
+            io.tapdata.encryptor.JarEncryptor.encryptJar(encrypted.getAbsolutePath());
+            useReleaseJar(Files.readAllBytes(encrypted.toPath()));
+            service.downloadAndRegister("mysql-connector", "mysql", true, false, user);
+            ArgumentCaptor<MultipartFile[]> files = ArgumentCaptor.forClass(MultipartFile[].class);
+            verify(pkdSourceService).uploadReleasedPdk(files.capture(), anyList(), eq(user), eq(false));
+            assertArrayEquals(plain, files.getValue()[0].getBytes());
+        } finally {
+            Files.deleteIfExists(encrypted.toPath());
+        }
     }
 
     @Test
@@ -185,7 +259,7 @@ class PdkReleaseRegistrationServiceTest {
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
         verify(pkdSourceService).registrationImpact("mysql", "io.tapdata", user);
-        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
+        verify(pkdSourceService, never()).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
     }
 
     @Test
@@ -195,7 +269,7 @@ class PdkReleaseRegistrationServiceTest {
 
         service.downloadAndRegister("mysql-connector", "mysql", false, true, user);
 
-        verify(pkdSourceService).uploadPdk(any(), anyList(), eq(true), eq(user), eq(true));
+        verify(pkdSourceService).uploadReleasedPdk(any(), anyList(), eq(user), eq(true));
     }
 
     @Test
@@ -209,7 +283,7 @@ class PdkReleaseRegistrationServiceTest {
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
 
         verify(pkdSourceService).registrationImpact("mysql", "io.tapdata", user);
-        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
+        verify(pkdSourceService, never()).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
     }
 
     private void assertRegistrationDenied(UserDetail login) {
@@ -237,20 +311,10 @@ class PdkReleaseRegistrationServiceTest {
     }
 
     @Test
-    void readEntryEnforcesRemainingTotalBudget() {
-        assertArrayEquals(new byte[3], ReflectionTestUtils.invokeMethod(service, "readEntry",
-                new ByteArrayInputStream(new byte[3]), 3L));
-        BizException error = assertThrows(BizException.class, () -> ReflectionTestUtils.invokeMethod(service,
-                "readEntry", new ByteArrayInputStream(new byte[4]), 3L));
-        assertEquals("Released connector artifact is too large", error.getMessage());
-    }
-
-    @Test
     void downloadAndRegisterRejectsNonJarRelease() {
         BizException e = assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
-        assertEquals("Released connector artifact does not contain its PDK specification", e.getMessage());
-        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
+        verify(pkdSourceService, never()).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
     }
 
     @Test
@@ -259,30 +323,21 @@ class PdkReleaseRegistrationServiceTest {
 
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
-        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
+        verify(pkdSourceService, never()).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
     }
 
     @Test
-    void downloadAndRegisterRejectsOversizedEntry() throws Exception {
-        byte[] large = new byte[(int) PdkReleaseRegistrationService.MAX_ENTRY_BYTES + 1];
-        useReleaseJar(zip(Map.of("large.bin", large)));
-
-        BizException e = assertThrows(BizException.class,
-                () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
-        assertEquals("Released connector artifact entry is too large", e.getMessage());
-    }
-
-    @Test
-    void downloadAndRegisterRejectsTooManyEntries() throws Exception {
-        Map<String, byte[]> entries = new LinkedHashMap<>();
-        for (int i = 0; i < PdkReleaseRegistrationService.MAX_ENTRIES; i++) {
-            entries.put("e" + i, new byte[0]);
+    void downloadAndRegisterAcceptsLargeArchives() throws Exception {
+        Map<String, byte[]> entries = connectorEntries();
+        entries.put("dependency/large.bin", new byte[64 * 1024 * 1024 + 1]);
+        for (int i = 0; i < 10_001; i++) {
+            entries.put("dependency/e" + i, new byte[0]);
         }
         useReleaseJar(zip(entries));
 
-        BizException e = assertThrows(BizException.class,
-                () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
-        assertEquals("Released connector artifact has too many entries", e.getMessage());
+        service.downloadAndRegister("mysql-connector", "mysql", false, false, user);
+
+        verify(pkdSourceService).uploadReleasedPdk(any(), anyList(), eq(user), eq(true));
     }
 
     @Test
@@ -293,7 +348,7 @@ class PdkReleaseRegistrationServiceTest {
 
         BizException e = assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
-        assertEquals("Unable to read PDK specification from released connector", e.getMessage());
-        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
+        assertTrue(e.getMessage().contains("specification"));
+        verify(pkdSourceService, never()).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
     }
 }
