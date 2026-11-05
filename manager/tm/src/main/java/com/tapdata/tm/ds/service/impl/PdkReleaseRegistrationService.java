@@ -6,7 +6,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
-import io.tapdata.encryptor.JarEncryptor;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.core.constants.DataSourceQCType;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -50,13 +49,10 @@ public class PdkReleaseRegistrationService {
         if (!expectedPdkId.equals(release.get("pdkId"))) {
             throw new BizException("Connector release does not match the requested PDK id");
         }
-        byte[] encryptedJar = releaseCatalogService.downloadJar(release);
-        byte[] jarBytes;
-        try {
-            jarBytes = JarEncryptor.decryptJarBytes(encryptedJar);
-        } catch (Exception e) {
-            throw new BizException("Unable to decrypt the released connector artifact", e);
-        }
+        // Nexus Maven releases are published as ordinary JAR files. The upload
+        // CLI encrypts its local copy only after the server accepted the upload;
+        // decrypting a Nexus release here would corrupt a valid ZIP/JAR.
+        byte[] jarBytes = releaseCatalogService.downloadJar(release);
 
         String version = String.valueOf(release.get("version"));
         String pdkApiVersion = String.valueOf(release.get("pdkAPIVersion"));
@@ -69,7 +65,7 @@ public class PdkReleaseRegistrationService {
             throw new BizException("Released connector artifact does not contain its PDK specification");
         }
 
-        // Inspect current resources after download/decryption, immediately before registration.
+        // Inspect current resources after download, immediately before registration.
         if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
             throw new BizException("Connector resources changed. Review affected tasks before registering.");
         }

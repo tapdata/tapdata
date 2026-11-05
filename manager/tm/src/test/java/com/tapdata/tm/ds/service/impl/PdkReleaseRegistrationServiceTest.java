@@ -4,13 +4,10 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
-import io.tapdata.encryptor.JarEncryptor;
 import io.tapdata.pdk.core.constants.DataSourceQCType;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.io.ByteArrayInputStream;
@@ -37,21 +34,19 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class PdkReleaseRegistrationServiceTest {
-    private static final byte[] ENCRYPTED = {1, 2, 3};
+    private static final byte[] INVALID_ARCHIVE = {1, 2, 3};
 
     private PdkReleaseCatalogService catalogService;
     private PkdSourceService pkdSourceService;
     private PdkReleaseRegistrationService service;
     private UserDetail user;
     private SettingsService settingsService;
-    private MockedStatic<JarEncryptor> jarEncryptor;
     private Map<String, Object> release;
 
     @BeforeEach
@@ -64,20 +59,14 @@ class PdkReleaseRegistrationServiceTest {
         service.setReleaseCatalogService(catalogService);
         service.setPkdSourceService(pkdSourceService);
         service.setSettingsService(settingsService);
-        jarEncryptor = mockStatic(JarEncryptor.class);
         release = new HashMap<>();
         release.put("artifactId", "mysql-connector");
         release.put("pdkId", "mysql");
         release.put("version", "1.0.3");
         release.put("pdkAPIVersion", "2.0.0");
         when(catalogService.findRelease("mysql-connector")).thenReturn(release);
-        when(catalogService.downloadJar(release)).thenReturn(ENCRYPTED);
+        when(catalogService.downloadJar(release)).thenReturn(INVALID_ARCHIVE);
         impact(false);
-    }
-
-    @AfterEach
-    void tearDown() {
-        jarEncryptor.close();
     }
 
     private void impact(boolean hasInFlightResources) {
@@ -85,8 +74,8 @@ class PdkReleaseRegistrationServiceTest {
                 .thenReturn(Map.of("hasInFlightResources", hasInFlightResources));
     }
 
-    private void decryptsTo(byte[] jar) {
-        jarEncryptor.when(() -> JarEncryptor.decryptJarBytes(ENCRYPTED)).thenReturn(jar);
+    private void useReleaseJar(byte[] jar) {
+        when(catalogService.downloadJar(release)).thenReturn(jar);
     }
 
     private static byte[] zip(Map<String, byte[]> entries) throws Exception {
@@ -125,7 +114,7 @@ class PdkReleaseRegistrationServiceTest {
     @Test
     void downloadAndRegisterUploadsJarDocsIconsAndSpecification() throws Exception {
         byte[] jar = connectorJar();
-        decryptsTo(jar);
+        useReleaseJar(jar);
 
         service.downloadAndRegister("mysql-connector", "mysql", false, false, user);
 
@@ -168,7 +157,7 @@ class PdkReleaseRegistrationServiceTest {
 
     @Test
     void downloadAndRegisterDefaultsOptionalSpecificationFields() throws Exception {
-        decryptsTo(zip(Map.of("spec.json", utf8("{\"properties\":{\"id\":\"mysql\"}}"))));
+        useReleaseJar(zip(Map.of("spec.json", utf8("{\"properties\":{\"id\":\"mysql\"}}"))));
 
         service.downloadAndRegister("mysql-connector", "mysql", true, false, user);
 
@@ -191,7 +180,7 @@ class PdkReleaseRegistrationServiceTest {
     @Test
     void downloadAndRegisterStopsWhenResourcesAreInFlight() throws Exception {
         impact(true);
-        decryptsTo(connectorJar());
+        useReleaseJar(connectorJar());
 
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
@@ -202,7 +191,7 @@ class PdkReleaseRegistrationServiceTest {
     @Test
     void downloadAndRegisterIgnoresInFlightResourcesWhenRequested() throws Exception {
         impact(true);
-        decryptsTo(connectorJar());
+        useReleaseJar(connectorJar());
 
         service.downloadAndRegister("mysql-connector", "mysql", false, true, user);
 
@@ -211,10 +200,9 @@ class PdkReleaseRegistrationServiceTest {
 
     @Test
     void checksResourcesOnceAfterDownload() throws Exception {
-        decryptsTo(connectorJar());
         when(catalogService.downloadJar(release)).thenAnswer(invocation -> {
             impact(true);
-            return ENCRYPTED;
+            return connectorJar();
         });
 
         assertThrows(BizException.class,
@@ -258,16 +246,16 @@ class PdkReleaseRegistrationServiceTest {
     }
 
     @Test
-    void downloadAndRegisterFailsWhenDecryptionFails() {
-        jarEncryptor.when(() -> JarEncryptor.decryptJarBytes(ENCRYPTED)).thenThrow(new IllegalStateException("bad"));
-
-        assertThrows(BizException.class,
+    void downloadAndRegisterRejectsNonJarRelease() {
+        BizException e = assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
+        assertEquals("Released connector artifact does not contain its PDK specification", e.getMessage());
+        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
     }
 
     @Test
     void downloadAndRegisterFailsWithoutSpecification() throws Exception {
-        decryptsTo(zip(Map.of("README.md", utf8("readme"))));
+        useReleaseJar(zip(Map.of("README.md", utf8("readme"))));
 
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
@@ -277,7 +265,7 @@ class PdkReleaseRegistrationServiceTest {
     @Test
     void downloadAndRegisterRejectsOversizedEntry() throws Exception {
         byte[] large = new byte[(int) PdkReleaseRegistrationService.MAX_ENTRY_BYTES + 1];
-        decryptsTo(zip(Map.of("large.bin", large)));
+        useReleaseJar(zip(Map.of("large.bin", large)));
 
         BizException e = assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
@@ -290,7 +278,7 @@ class PdkReleaseRegistrationServiceTest {
         for (int i = 0; i < PdkReleaseRegistrationService.MAX_ENTRIES; i++) {
             entries.put("e" + i, new byte[0]);
         }
-        decryptsTo(zip(entries));
+        useReleaseJar(zip(entries));
 
         BizException e = assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
@@ -298,10 +286,14 @@ class PdkReleaseRegistrationServiceTest {
     }
 
     @Test
-    void downloadAndRegisterRejectsInvalidArchive() {
-        decryptsTo(new byte[]{'P', 'K', 3, 4, 0, 0});
+    void downloadAndRegisterRejectsInvalidArchive() throws Exception {
+        // Cut inside the local file header so the entry name is truncated and ZipInputStream fails.
+        byte[] archive = zip(Map.of("spec.json", utf8("{\"properties\":{\"id\":\"mysql\"}}")));
+        useReleaseJar(Arrays.copyOf(archive, 30));
 
-        assertThrows(BizException.class,
+        BizException e = assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
+        assertEquals("Unable to read PDK specification from released connector", e.getMessage());
+        verify(pkdSourceService, never()).uploadPdk(any(), anyList(), anyBoolean(), any(), anyBoolean());
     }
 }
