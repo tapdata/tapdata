@@ -26,6 +26,7 @@ import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.monitor.vo.TaskMetricsTrendVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import io.github.openlg.graphlib.Graph;
@@ -46,6 +47,7 @@ import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -76,6 +78,690 @@ class MeasurementServiceV2ImplTest {
         assertEquals("initial_sync", KeyWords.INITIAL_SYNC);
         assertEquals("DONE", KeyWords.DONE);
         assertEquals("complete", KeyWords.COMPLETE);
+    }
+
+    @Test
+    void selectedNodeBucketIsNullWhenLegacySamplesShareTheBucket() {
+        MeasurementServiceV2Impl.TaskMetricBucket bucket = new MeasurementServiceV2Impl.TaskMetricBucket();
+        ReflectionTestUtils.setField(bucket, "sampleCount", 2L);
+        ReflectionTestUtils.setField(bucket, "unattributedSampleCount", 1L);
+        MeasurementServiceV2Impl.MetricAccumulator node = new MeasurementServiceV2Impl.MetricAccumulator();
+        ReflectionTestUtils.setField(node, "sampleCount", 1L);
+        ReflectionTestUtils.setField(node, "outputQpsSum", 100D);
+        metricAccumulators(bucket).put("node-a", node);
+
+        assertNull(MeasurementServiceV2Impl.nodeBucketContribution(bucket, "node-a"));
+    }
+
+    @Test
+    void selectedNodeZeroSampleDiffersFromMissingSample() {
+        MeasurementServiceV2Impl.TaskMetricBucket zeroBucket = new MeasurementServiceV2Impl.TaskMetricBucket();
+        ReflectionTestUtils.setField(zeroBucket, "sampleCount", 1L);
+        MeasurementServiceV2Impl.MetricAccumulator zeroNode = new MeasurementServiceV2Impl.MetricAccumulator();
+        ReflectionTestUtils.setField(zeroNode, "sampleCount", 1L);
+        ReflectionTestUtils.setField(zeroNode, "outputQpsSum", 0D);
+        metricAccumulators(zeroBucket).put("node-a", zeroNode);
+
+        assertEquals(0D, MeasurementServiceV2Impl.nodeBucketContribution(zeroBucket, "node-a"), 0D);
+        assertNull(MeasurementServiceV2Impl.nodeBucketContribution(new MeasurementServiceV2Impl.TaskMetricBucket(), "node-a"));
+    }
+
+    @Test
+    void selectedNodeMissingSampleDiffersFromAnotherNodesSample() {
+        MeasurementServiceV2Impl.TaskMetricBucket bucket = new MeasurementServiceV2Impl.TaskMetricBucket();
+        ReflectionTestUtils.setField(bucket, "sampleCount", 1L);
+        MeasurementServiceV2Impl.MetricAccumulator otherNode = new MeasurementServiceV2Impl.MetricAccumulator();
+        ReflectionTestUtils.setField(otherNode, "sampleCount", 1L);
+        ReflectionTestUtils.setField(otherNode, "outputQpsSum", 100D);
+        metricAccumulators(bucket).put("node-b", otherNode);
+
+        assertNull(MeasurementServiceV2Impl.nodeBucketContribution(bucket, "node-a"));
+    }
+
+    @Test
+    void aggregateV2UsesOneHourDenominatorAcrossMigrationNodes() throws Exception {
+        long taskSampleStart = 0L;
+        long endAt = 2L * 60L * 60L * 1000L;
+        String taskId = "task-1";
+        List<Sample> nodeASamples = new ArrayList<>();
+        nodeASamples.add(metricSample(-60_000L, 999D));
+        for (int minute = 0; minute < 30; minute++) {
+            nodeASamples.add(metricSample(minute * 60_000L, 100D));
+        }
+        List<Sample> nodeBSamples = new ArrayList<>();
+        for (int minute = 30; minute < 60; minute++) {
+            nodeBSamples.add(metricSample(minute * 60_000L, 100D));
+        }
+        nodeBSamples.add(metricSample(endAt, 999D));
+        List<MeasurementEntity> rows = List.of(
+                taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR, nodeASamples),
+                taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_HOUR, nodeBSamples));
+        List<String> queriedGranularities = new ArrayList<>();
+        MeasurementServiceV2Impl service = measurementServiceWithRows(rows, queriedGranularities);
+
+        TaskMetricsTrendVo nodeA = service.aggregateTaskMetricsByTaskIdsV2(List.of(taskId), taskSampleStart, endAt, "node-a");
+        TaskMetricsTrendVo nodeB = service.aggregateTaskMetricsByTaskIdsV2(List.of(taskId), taskSampleStart, endAt, "node-b");
+        TaskMetricsTrendVo allNodes = service.aggregateTaskMetricsByTaskIdsV2(List.of(taskId), taskSampleStart, endAt, null);
+
+        assertEquals(Arrays.asList(50D, null), nodeA.getOutputQps());
+        assertEquals(Arrays.asList(50D, null), nodeB.getOutputQps());
+        assertEquals(Arrays.asList(100D, null), allNodes.getOutputQps());
+        assertEquals(3600L, nodeA.getIntervalSeconds());
+        assertTrue(queriedGranularities.contains(Granularity.GRANULARITY_HOUR));
+        assertFalse(queriedGranularities.contains(Granularity.GRANULARITY_MINUTE));
+    }
+
+    @Test
+    void selectedNodeAndAllUseTheSameComputableMinuteDenominator() throws Exception {
+        String taskId = "task-common-minute-denominator";
+        MeasurementEntity legacyUnattributedZero = taskMetricsEntity(taskId, null,
+                Granularity.GRANULARITY_HOUR, List.of(metricSample(0L, 0D)));
+        legacyUnattributedZero.getTags().remove("physicalNodeId");
+        MeasurementEntity attributedNodeA = taskMetricsEntity(taskId, "node-a",
+                Granularity.GRANULARITY_HOUR, List.of(metricSample(60_000L, 100D)));
+        attributedNodeA.setDashboardMinuteSummaries(List.of(
+                dashboardMinuteSummary(60_000L, 1_200D, 12L, 120D, 12L)));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(
+                List.of(legacyUnattributedZero, attributedNodeA), new ArrayList<>());
+
+        TaskMetricsTrendVo selected = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * 60L * 60L * 1000L, "node-a");
+        TaskMetricsTrendVo all = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * 60L * 60L * 1000L, null);
+        TaskMetricsTrendVo noSelectedEvidence = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * 60L * 60L * 1000L, "node-b");
+
+        assertEquals(Arrays.asList(50D, null), selected.getOutputQps());
+        assertEquals(Arrays.asList(50D, null), all.getOutputQps());
+        assertEquals("partial", selected.getCoverage());
+        assertEquals(Arrays.asList(null, null), noSelectedEvidence.getOutputQps());
+    }
+
+    @Test
+    void hourlyCoverageRequiresEveryExpectedMinuteButAllowsPartialEdgeHours() throws Exception {
+        String taskId = "task-hourly-coverage";
+        long oneHour = 3_600_000L;
+        MeasurementEntity sparseHour0 = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(0L, 10D)));
+        MeasurementEntity sparseHour1 = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(oneHour, 20D)));
+        MeasurementServiceV2Impl sparseService = measurementServiceWithRows(
+                List.of(sparseHour0, sparseHour1), new ArrayList<>());
+
+        TaskMetricsTrendVo sparse = sparseService.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * oneHour, null);
+
+        assertEquals(Arrays.asList(10D, 20D), sparse.getOutputQps());
+        assertEquals("partial", sparse.getCoverage());
+
+        MeasurementEntity fullHour0 = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                samplesForMinuteRange(0L, 60, 10D));
+        MeasurementEntity fullHour1 = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                samplesForMinuteRange(oneHour, 60, 10D));
+        MeasurementServiceV2Impl fullService = measurementServiceWithRows(
+                List.of(fullHour0, fullHour1), new ArrayList<>());
+
+        TaskMetricsTrendVo full = fullService.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * oneHour, null);
+
+        assertEquals(Arrays.asList(10D, 10D), full.getOutputQps());
+        assertEquals("complete", full.getCoverage());
+
+        long partialStart = 30L * 60L * 1000L;
+        long partialEnd = 2L * oneHour + 30L * 60L * 1000L;
+        List<MeasurementEntity> partialRows = List.of(
+                taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                        samplesForMinuteRange(partialStart, 30, 10D)),
+                taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                        samplesForMinuteRange(oneHour, 60, 10D)),
+                taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                        samplesForMinuteRange(2L * oneHour, 30, 10D)));
+        MeasurementServiceV2Impl partialService = measurementServiceWithRows(partialRows, new ArrayList<>());
+
+        TaskMetricsTrendVo partialEdges = partialService.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), partialStart, partialEnd, null);
+
+        assertEquals(Arrays.asList(10D, 10D, 10D), partialEdges.getOutputQps());
+        assertEquals("complete", partialEdges.getCoverage());
+    }
+
+    @Test
+    void hourlyRollupWeightsLegacyAndSummarizedMinutesEqually() throws Exception {
+        String taskId = "task-hourly-weights";
+        MeasurementEntity hourly = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(0L, 200D), metricSample(60_000L, 100D)));
+        hourly.setDashboardMinuteSummaries(List.of(dashboardMinuteSummary(60_000L, 1_200D, 12L,
+                120D, 12L)));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(hourly), new ArrayList<>());
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * 60L * 60L * 1000L, null);
+
+        assertEquals(Arrays.asList(150D, null), result.getOutputQps());
+    }
+
+    @Test
+    void hourlyRollupSkipsLegacyAndWeightedSamplesMixedInTheSameMinute() throws Exception {
+        String taskId = "task-hourly-mixed";
+        MeasurementEntity oldNode = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(0L, 200D)));
+        MeasurementEntity newNode = taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(0L, 100D), metricSample(60_000L, 60D)));
+        newNode.setDashboardMinuteSummaries(List.of(
+                dashboardMinuteSummary(0L, 1_200D, 12L, 120D, 12L),
+                dashboardMinuteSummary(60_000L, 720D, 12L, 72D, 12L)));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(oldNode, newNode), new ArrayList<>());
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * 60L * 60L * 1000L, null);
+
+        assertEquals(Arrays.asList(60D, null), result.getOutputQps());
+        assertEquals("partial", result.getCoverage());
+    }
+
+    @Test
+    void hourlyRollupMarksInconsistentDuplicateSamplesAsUntrusted() throws Exception {
+        String taskId = "task-hourly-duplicate";
+        MeasurementEntity first = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(0L, 10D)));
+        MeasurementEntity second = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(0L, 20D)));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(first, second), new ArrayList<>());
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * 60L * 60L * 1000L, null);
+
+        assertEquals(Arrays.asList(null, null), result.getOutputQps());
+        assertEquals("unknown", result.getCoverage());
+    }
+
+    @Test
+    void taskCounterRecoverySelectsLatestActualSampleAcrossNodesInTheNewestMinute() throws Exception {
+        String taskId = "task-counter-recovery";
+        String taskRecordId = "record-current";
+        MeasurementEntity nodeB = taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(50_000L, 200L)));
+        nodeB.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+        nodeB.setDate(new Date(0L));
+        MeasurementEntity nodeA = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(10_000L, 100L)));
+        nodeA.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+        nodeA.getTags().remove("physicalNodeId");
+        nodeA.setDate(new Date(0L));
+        List<Query> queries = new ArrayList<>();
+        MeasurementServiceV2Impl service = measurementServiceWithRows(
+                List.of(nodeB, nodeA), new ArrayList<>(), queries);
+
+        Object response = service.getSamples(taskCounterRecoveryQuery(taskId, taskRecordId, 0L, 60_000L), true);
+
+        assertEquals(1, ((Number) ((Map<?, ?>) response).get("taskCounterRecoverySchemaVersion")).intValue());
+        Map<String, Object> item = onlyRecoveryItem(response);
+        assertEquals(200L, ((Number) item.get(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL)).longValue());
+        assertEquals(taskId, ((Map<?, ?>) item.get("tags")).get(MetricCons.Tags.F_TASK_ID));
+        assertEquals(-1, ((Number) queries.get(0).getSortObject().get(MetricCons.F_DATE)).intValue());
+    }
+
+    @Test
+    void taskCounterRecoveryUsesNewestDocumentMinuteThenNewestSampleDate() throws Exception {
+        String taskId = "task-counter-newest-minute";
+        String taskRecordId = "record-current";
+        MeasurementEntity olderMinute = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(50_000L, 900L)));
+        olderMinute.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+        olderMinute.setDate(new Date(0L));
+        MeasurementEntity currentNodeA = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(61_000L, 100L)));
+        currentNodeA.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+        currentNodeA.setDate(new Date(60_000L));
+        MeasurementEntity currentNodeB = taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(65_000L, 200L)));
+        currentNodeB.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+        currentNodeB.setDate(new Date(60_000L));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(
+                List.of(olderMinute, currentNodeB, currentNodeA), new ArrayList<>());
+
+        Object response = service.getSamples(
+                taskCounterRecoveryQuery(taskId, taskRecordId, 0L, 120_000L), true);
+
+        assertEquals(200L, ((Number) onlyRecoveryItem(response)
+                .get(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL)).longValue());
+    }
+
+    @Test
+    void olderTimestampConflictDoesNotOverrideALaterCounterSample() throws Exception {
+        String taskId = "task-counter-later-sample";
+        String taskRecordId = "record-current";
+        MeasurementEntity firstA = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(10_000L, 100L)));
+        MeasurementEntity firstB = taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(10_000L, 101L)));
+        MeasurementEntity latestC = taskMetricsEntity(taskId, "node-c", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(50_000L, 200L)));
+        for (MeasurementEntity row : List.of(firstA, firstB, latestC)) {
+            row.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+            row.setDate(new Date(0L));
+        }
+        MeasurementServiceV2Impl service = measurementServiceWithRows(
+                List.of(firstA, firstB, latestC), new ArrayList<>());
+
+        Object response = service.getSamples(
+                taskCounterRecoveryQuery(taskId, taskRecordId, 0L, 60_000L), true);
+
+        assertEquals(200L, ((Number) onlyRecoveryItem(response)
+                .get(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL)).longValue());
+    }
+
+    @Test
+    void taskCounterRecoveryFiltersByRecordAndExcludesOutOfRangeSamples() throws Exception {
+        String taskId = "task-counter-record-filter";
+        MeasurementEntity oldRecord = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(50_000L, 900L)));
+        oldRecord.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, "record-old");
+        oldRecord.setDate(new Date(0L));
+        MeasurementEntity currentRecord = taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(-1L, 1L), counterSample(10_000L, 100L), counterSample(100_001L, 999L)));
+        currentRecord.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, "record-current");
+        currentRecord.setDate(new Date(0L));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(
+                List.of(oldRecord, currentRecord), new ArrayList<>());
+
+        Object response = service.getSamples(
+                taskCounterRecoveryQuery(taskId, "record-current", 0L, 100_000L), true);
+
+        assertEquals(100L, ((Number) onlyRecoveryItem(response)
+                .get(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL)).longValue());
+    }
+
+    @Test
+    void taskCounterRecoveryReturnsEmptyForNoSamplesAndFailsOnConflictingTimestamp() throws Exception {
+        String taskId = "task-counter-empty";
+        MeasurementServiceV2Impl emptyService = measurementServiceWithRows(List.of(), new ArrayList<>());
+        Object emptyResponse = emptyService.getSamples(
+                taskCounterRecoveryQuery(taskId, "record-current", 0L, 60_000L), true);
+        assertEquals(1, ((Number) ((Map<?, ?>) emptyResponse).get("taskCounterRecoverySchemaVersion")).intValue());
+        assertTrue(recoveryItems(emptyResponse).isEmpty());
+
+        MeasurementEntity first = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(10_000L, 100L)));
+        first.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, "record-current");
+        first.setDate(new Date(0L));
+        MeasurementEntity conflicting = taskMetricsEntity(taskId, "node-b", Granularity.GRANULARITY_MINUTE,
+                List.of(counterSample(10_000L, 200L)));
+        conflicting.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, "record-current");
+        conflicting.setDate(new Date(0L));
+        MeasurementServiceV2Impl conflictService = measurementServiceWithRows(
+                List.of(first, conflicting), new ArrayList<>());
+
+        assertThrows(IllegalStateException.class, () -> conflictService.getSamples(
+                taskCounterRecoveryQuery(taskId, "record-current", 0L, 60_000L), true));
+    }
+
+    @Test
+    void taskCounterRecoveryRejectsNewServiceRowsWithPartialCoreCounters() throws Exception {
+        String taskId = "task-counter-partial-core";
+        Sample incomplete = new Sample();
+        incomplete.setDate(new Date(10_000L));
+        incomplete.setVs(Map.of(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL, 100L));
+        MeasurementEntity row = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(incomplete));
+        row.getTags().put(MetricCons.Tags.F_TASK_RECORD_ID, "record-current");
+        row.setDate(new Date(0L));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(row), new ArrayList<>());
+
+        assertThrows(IllegalStateException.class, () -> service.getSamples(
+                taskCounterRecoveryQuery(taskId, "record-current", 0L, 60_000L), true));
+    }
+
+    @Test
+    void taskCounterRecoveryStreamFailurePropagatesAndOrdinaryInstantUsesLegacyQuery() throws Exception {
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        MeasurementServiceV2Impl service = new MeasurementServiceV2Impl(
+                CompletableFuture.completedFuture(mongo), mock(MetadataInstancesService.class), mock(TaskService.class));
+        ReflectionTestUtils.setField(service, "cpuMemoryService", mock(CpuMemoryService.class));
+        MeasurementQueryParam query = taskCounterRecoveryQuery("task-counter-error", "record-current", 0L, 60_000L);
+        when(mongo.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                .thenThrow(new IllegalStateException("stream failed"));
+
+        assertThrows(IllegalStateException.class, () -> service.getSamples(query, true));
+
+        @SuppressWarnings("unchecked")
+        AggregationResults<MeasurementEntity> emptyResults = mock(AggregationResults.class);
+        when(emptyResults.getMappedResults()).thenReturn(Collections.emptyList());
+        when(mongo.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(MeasurementEntity.class)))
+                .thenReturn(emptyResults);
+        MeasurementQueryParam incomplete = taskCounterRecoveryQuery(
+                "task-counter-error", "record-current", 0L, 60_000L);
+        incomplete.getSamples().get("retriever").getTags().remove(MetricCons.Tags.F_TASK_RECORD_ID);
+        assertTrue(recoveryItems(service.getSamples(incomplete, true)).isEmpty());
+        assertTrue(recoveryItems(service.getSamples(query, false)).isEmpty());
+        verify(mongo, times(2)).aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(MeasurementEntity.class));
+    }
+
+    @Test
+    void attributedHourlyRollupUsesAtomicDateReplacementAndStableIdentity() {
+        Map<String, String> tags = Map.of("type", "task", "taskId", "hourly-pipeline",
+                "taskRecordId", "record-1", "physicalNodeId", "node-a");
+        List<Map<String, Object>> samples = List.of(metricSample(0L, 200D).toMap(),
+                metricSample(60_000L, 100D).toMap());
+        MeasurementEntity.DashboardMinuteSummary summary = dashboardMinuteSummary(
+                60_000L, 1_200D, 12L, 120D, 12L);
+
+        List<org.bson.conversions.Bson> pipeline = MeasurementServiceV2Impl.attributedTaskHourRollupPipeline(
+                tags, new Date(0L), samples, List.of(), List.of(summary), 0L, 60_000L);
+        String pipelineText = pipeline.toString();
+
+        assertEquals(1, pipeline.size());
+        assertTrue(pipelineText.contains("$reduce"));
+        assertTrue(pipelineText.contains("$filter"));
+        assertTrue(pipelineText.contains("$concatArrays"));
+        assertTrue(pipelineText.contains("$slice"));
+        assertTrue(pipelineText.contains("dashboardMinuteSummaries"));
+        assertEquals(MeasurementServiceV2Impl.attributedTaskHourDocumentId(tags, new Date(0L)),
+                MeasurementServiceV2Impl.attributedTaskHourDocumentId(new TreeMap<>(tags), new Date(0L)));
+    }
+
+    @Test
+    void selectedNodeKeepsKnownTaskContributionWhenAnotherTaskRunsOnlyOnAnotherNode() throws Exception {
+        long startAt = 0L;
+        long endAt = 2L * 60L * 60L * 1000L;
+        List<MeasurementEntity> rows = List.of(
+                taskMetricsEntity("task-a", "node-a", Granularity.GRANULARITY_HOUR,
+                        List.of(metricSample(0L, 30D))),
+                taskMetricsEntity("task-b", "node-b", Granularity.GRANULARITY_HOUR,
+                        List.of(metricSample(0L, 60D))));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(rows, new ArrayList<>());
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of("task-a", "task-b"), startAt, endAt, "node-a");
+
+        assertEquals(Arrays.asList(30D, null), result.getOutputQps());
+        assertEquals("partial", result.getCoverage());
+    }
+
+    @Test
+    void dirtyMinuteSummaryReplacesDuplicateHourlySamplesWithoutChangingTheCommonDenominator() throws Exception {
+        long startAt = 0L;
+        long endAt = 2L * 60L * 60L * 1000L;
+        Sample staleOne = metricSample(0L, 10D);
+        Sample staleDuplicate = metricSample(0L, 10D);
+        Sample nextMinute = metricSample(60_000L, 30D);
+        MeasurementEntity hourly = taskMetricsEntity("task-dirty", "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(staleOne, staleDuplicate, nextMinute));
+        hourly.setDashboardMinuteSummaries(List.of(
+                dashboardMinuteSummary(0L, 120D, 12L, 12D, 12L),
+                dashboardMinuteSummary(60_000L, 360D, 12L, 36D, 12L)));
+        MeasurementEntity dirtyMinute = taskMetricsEntity("task-dirty", "node-a", Granularity.GRANULARITY_MINUTE,
+                List.of(metricSample(0L, 20D)));
+        dirtyMinute.setDashboardRollupDirty(true);
+        dirtyMinute.setDashboardOutputQpsSum(240D);
+        dirtyMinute.setDashboardOutputQpsCount(12L);
+        dirtyMinute.setDashboardOutputSizeQpsSum(24D);
+        dirtyMinute.setDashboardOutputSizeQpsCount(12L);
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(hourly, dirtyMinute), new ArrayList<>());
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of("task-dirty"), startAt, endAt, "node-a");
+
+        assertEquals(Arrays.asList(25D, null), result.getOutputQps());
+        assertEquals(Arrays.asList(2.5D, null), result.getOutputSizeQps());
+        assertEquals("partial", result.getCoverage());
+    }
+
+    @Test
+    void dirtyMinutesAcrossHourBoundaryUseBoundedHourlyQueries() throws Exception {
+        String taskId = "task-dirty-hour-boundary";
+        long oneHour = 3_600_000L;
+        MeasurementEntity hourly = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(oneHour - 120_000L, 1D), metricSample(oneHour - 60_000L, 2D),
+                        metricSample(oneHour, 3D)));
+        hourly.setDashboardMinuteSummaries(List.of(
+                dashboardMinuteSummary(oneHour - 120_000L, 12D, 12L, 1.2D, 12L),
+                dashboardMinuteSummary(oneHour - 60_000L, 24D, 12L, 2.4D, 12L),
+                dashboardMinuteSummary(oneHour, 36D, 12L, 3.6D, 12L)));
+        MeasurementEntity lateBeforeBoundary = dirtyMinuteEntity(taskId, "node-a", oneHour - 120_000L, 480D, 12L);
+        MeasurementEntity lateBeforeBoundaryEnd = dirtyMinuteEntity(taskId, "node-a", oneHour - 60_000L, 720D, 12L);
+        MeasurementEntity lateAfterBoundary = dirtyMinuteEntity(taskId, "node-a", oneHour, 1_200D, 12L);
+        List<Query> queries = new ArrayList<>();
+        MeasurementServiceV2Impl service = measurementServiceWithRows(
+                List.of(hourly, lateBeforeBoundary, lateBeforeBoundaryEnd, lateAfterBoundary), new ArrayList<>(), queries);
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of(taskId), 0L, 2L * oneHour, "node-a");
+
+        assertEquals(Arrays.asList(50D, 100D), result.getOutputQps());
+        List<Query> dirtyQueries = queries.stream()
+                .filter(query -> query.getQueryObject().containsKey(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY))
+                .collect(Collectors.toList());
+        assertEquals(2, dirtyQueries.size());
+        for (Query query : dirtyQueries) {
+            Document dateRange = (Document) query.getQueryObject().get(MetricCons.F_DATE);
+            long lower = ((Date) dateRange.get("$gte")).getTime();
+            long upper = ((Date) dateRange.get("$lt")).getTime();
+            assertEquals(oneHour, upper - lower);
+        }
+    }
+
+    @Test
+    void attributedMinutePipelineReplacesSameTimestampAndRecomputesRetainedFieldCounts() {
+        Map<String, String> tags = Map.of("type", "task", "taskId", "task-pipeline",
+                "taskRecordId", "record-1", "physicalNodeId", "node-a");
+        Date sampleDate = new Date(30_000L);
+        Map<String, Object> sample = new HashMap<>();
+        sample.put(Sample.FIELD_DATE, sampleDate);
+        sample.put(Sample.FIELD_VALUES, Map.of(MetricCons.SS.VS.F_OUTPUT_QPS, 0D));
+
+        List<org.bson.conversions.Bson> pipeline = MeasurementServiceV2Impl.attributedTaskMetricUpdatePipeline(
+                tags, new Date(0L), sample, sampleDate, true);
+        String pipelineText = pipeline.toString();
+
+        assertEquals(2, pipeline.size());
+        assertTrue(pipelineText.contains("$gt"));
+        assertTrue(pipelineText.contains("$lt"));
+        assertTrue(pipelineText.contains("$concatArrays"));
+        assertTrue(pipelineText.contains("$slice"));
+        assertTrue(pipelineText.contains("$literal"));
+        assertTrue(pipelineText.contains(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_COUNT));
+        assertTrue(pipelineText.contains(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT));
+        assertEquals(MeasurementServiceV2Impl.attributedTaskMinuteDocumentId(tags, new Date(0L)),
+                MeasurementServiceV2Impl.attributedTaskMinuteDocumentId(tags, new Date(0L)));
+        assertNotEquals(MeasurementServiceV2Impl.attributedTaskMinuteDocumentId(tags, new Date(0L)),
+                MeasurementServiceV2Impl.attributedTaskMinuteDocumentId(Map.of("type", "task", "taskId", "task-pipeline",
+                        "taskRecordId", "record-1", "physicalNodeId", "node-b"), new Date(0L)));
+    }
+
+    @Test
+    void aggregateV2UsesMinuteEdgesAndExcludesSamplesOutsideTheRequestedWindow() throws Exception {
+        long startAt = 30L * 60L * 1000L;
+        long endAt = 2L * 60L * 60L * 1000L;
+        String taskId = "task-2";
+        MeasurementEntity edgeMinutes = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_MINUTE, List.of(
+                metricSample(startAt - 60_000L, 999D),
+                metricSample(startAt, 20D),
+                metricSample(59L * 60L * 1000L, 30D),
+                metricSample(60L * 60L * 1000L, 999D)));
+        MeasurementEntity fullHour = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR, List.of(
+                metricSample(60L * 60L * 1000L, 50D),
+                metricSample(endAt, 999D)));
+        List<String> queriedGranularities = new ArrayList<>();
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(edgeMinutes, fullHour), queriedGranularities);
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(List.of(taskId), startAt, endAt, null);
+
+        assertEquals(List.of(25D, 50D), result.getOutputQps());
+        assertTrue(queriedGranularities.contains(Granularity.GRANULARITY_MINUTE));
+        assertTrue(queriedGranularities.contains(Granularity.GRANULARITY_HOUR));
+    }
+
+    private MeasurementServiceV2Impl measurementServiceWithRows(List<MeasurementEntity> rows, List<String> queriedGranularities) throws Exception {
+        return measurementServiceWithRows(rows, queriedGranularities, new ArrayList<>());
+    }
+
+    private MeasurementServiceV2Impl measurementServiceWithRows(List<MeasurementEntity> rows,
+                                                                 List<String> queriedGranularities,
+                                                                 List<Query> queries) throws Exception {
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        when(mongo.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                .thenAnswer(invocation -> {
+                    Query query = invocation.getArgument(0);
+                    queries.add(query);
+                    String granularity = query.getQueryObject().getString(MetricCons.F_GRANULARITY);
+                    // Dirty-minute overlay probes are bounded correction reads, not base sample reads.
+                    if (!query.getQueryObject().containsKey(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY)) {
+                        queriedGranularities.add(granularity);
+                    }
+                    List<MeasurementEntity> matches = rows.stream()
+                            .filter(row -> queryMatchesMeasurement(row, query, granularity))
+                            .collect(Collectors.toList());
+                    Object sortDirection = query.getSortObject().get(MetricCons.F_DATE);
+                    if (sortDirection instanceof Number direction && direction.intValue() < 0) {
+                        matches.sort(Comparator.comparing(MeasurementEntity::getDate).reversed());
+                    } else if (sortDirection instanceof Number ascendingDirection && ascendingDirection.intValue() > 0) {
+                        matches.sort(Comparator.comparing(MeasurementEntity::getDate));
+                    }
+                    return matches.stream();
+                });
+        return new MeasurementServiceV2Impl(CompletableFuture.completedFuture(mongo),
+                mock(MetadataInstancesService.class), mock(TaskService.class));
+    }
+
+    private boolean queryMatchesMeasurement(MeasurementEntity row, Query query, String granularity) {
+        if (!granularity.equals(row.getGranularity()) || row.getDate() == null || row.getTags() == null) {
+            return false;
+        }
+        Document queryObject = query.getQueryObject();
+        Object taskFilter = queryObject.get(MeasurementServiceV2Impl.PATH_TAGS_TASK_ID);
+        if (taskFilter instanceof Document condition && condition.get("$in") instanceof List<?> taskIds
+                && !taskIds.contains(row.getTags().get(MetricCons.Tags.F_TASK_ID))) {
+            return false;
+        }
+        Object taskRecordFilter = queryObject.get(MeasurementServiceV2Impl.PATH_TAGS_TASK_RECORD_ID);
+        if (taskRecordFilter != null
+                && !Objects.equals(taskRecordFilter, row.getTags().get(MetricCons.Tags.F_TASK_RECORD_ID))) {
+            return false;
+        }
+        Object dateFilter = queryObject.get(MetricCons.F_DATE);
+        if (!(dateFilter instanceof Document range)) {
+            return true;
+        }
+        long timestamp = row.getDate().getTime();
+        Object gte = range.get("$gte");
+        Object gt = range.get("$gt");
+        Object lt = range.get("$lt");
+        Object lte = range.get("$lte");
+        return (gte == null || timestamp >= ((Date) gte).getTime())
+                && (gt == null || timestamp > ((Date) gt).getTime())
+                && (lt == null || timestamp < ((Date) lt).getTime())
+                && (lte == null || timestamp <= ((Date) lte).getTime());
+    }
+
+    private MeasurementQueryParam taskCounterRecoveryQuery(String taskId, String taskRecordId,
+                                                           long startAt, long endAt) {
+        MeasurementQueryParam query = new MeasurementQueryParam();
+        query.setStartAt(startAt);
+        query.setEndAt(endAt);
+        MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+        sample.setType(MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT);
+        sample.setFields(coreCounterFields());
+        Map<String, String> tags = new HashMap<>();
+        tags.put(MetricCons.Tags.F_TYPE, MetricCons.SampleType.TASK.code());
+        tags.put(MetricCons.Tags.F_TASK_ID, taskId);
+        tags.put(MetricCons.Tags.F_TASK_RECORD_ID, taskRecordId);
+        sample.setTags(tags);
+        query.setSamples(Map.of("retriever", sample));
+        return query;
+    }
+
+    private Sample counterSample(long timestamp, long value) {
+        Sample sample = new Sample();
+        sample.setDate(new Date(timestamp));
+        Map<String, Number> values = new HashMap<>();
+        for (String field : coreCounterFields()) {
+            values.put(field, 0L);
+        }
+        values.put(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL, value);
+        sample.setVs(values);
+        return sample;
+    }
+
+    private List<String> coreCounterFields() {
+        return List.of(MetricCons.SS.VS.F_INPUT_DDL_TOTAL, MetricCons.SS.VS.F_INPUT_INSERT_TOTAL,
+                MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL, MetricCons.SS.VS.F_INPUT_DELETE_TOTAL,
+                MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL, MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL, MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL, MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> onlyRecoveryItem(Object response) {
+        List<Map<String, Object>> items = recoveryItems(response);
+        assertEquals(1, items.size());
+        return items.get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> recoveryItems(Object response) {
+        Map<String, Object> envelope = (Map<String, Object>) response;
+        Map<String, List<Map<String, Object>>> samples = (Map<String, List<Map<String, Object>>>) envelope.get("samples");
+        return samples.get("retriever");
+    }
+
+    private MeasurementEntity dirtyMinuteEntity(String taskId, String physicalNodeId, long timestamp,
+                                                double qpsSum, long qpsCount) {
+        MeasurementEntity entity = taskMetricsEntity(taskId, physicalNodeId, Granularity.GRANULARITY_MINUTE,
+                List.of(metricSample(timestamp, qpsSum / qpsCount)));
+        entity.setDashboardRollupDirty(true);
+        entity.setDashboardOutputQpsSum(qpsSum);
+        entity.setDashboardOutputQpsCount(qpsCount);
+        entity.setDashboardOutputSizeQpsSum(qpsSum / 10D);
+        entity.setDashboardOutputSizeQpsCount(qpsCount);
+        return entity;
+    }
+
+    private MeasurementEntity taskMetricsEntity(String taskId, String physicalNodeId, String granularity, List<Sample> samples) {
+        MeasurementEntity entity = new MeasurementEntity();
+        entity.setGranularity(granularity);
+        entity.setDate(samples.isEmpty() ? new Date(0L) : samples.get(0).getDate());
+        Map<String, String> tags = new HashMap<>();
+        tags.put(MetricCons.Tags.F_TYPE, MetricCons.SampleType.TASK.code());
+        tags.put(MetricCons.Tags.F_TASK_ID, taskId);
+        tags.put("physicalNodeId", physicalNodeId);
+        entity.setTags(tags);
+        entity.setSamples(samples);
+        return entity;
+    }
+
+    private Sample metricSample(long timestamp, double outputQps) {
+        Sample sample = new Sample();
+        sample.setDate(new Date(timestamp));
+        sample.setVs(Map.of(MetricCons.SS.VS.F_OUTPUT_QPS, outputQps,
+                MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, outputQps / 10D));
+        return sample;
+    }
+
+    private List<Sample> samplesForMinuteRange(long startAt, int minuteCount, double outputQps) {
+        List<Sample> samples = new ArrayList<>();
+        for (int minute = 0; minute < minuteCount; minute++) {
+            samples.add(metricSample(startAt + minute * 60_000L, outputQps));
+        }
+        return samples;
+    }
+
+    private MeasurementEntity.DashboardMinuteSummary dashboardMinuteSummary(long timestamp, double qpsSum,
+                                                                            long qpsCount, double sizeSum,
+                                                                            long sizeCount) {
+        MeasurementEntity.DashboardMinuteSummary summary = new MeasurementEntity.DashboardMinuteSummary();
+        summary.setDate(new Date(timestamp));
+        summary.setOutputQpsSum(qpsSum);
+        summary.setOutputQpsCount(qpsCount);
+        summary.setOutputSizeQpsSum(sizeSum);
+        summary.setOutputSizeQpsCount(sizeCount);
+        return summary;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, MeasurementServiceV2Impl.MetricAccumulator> metricAccumulators(
+            MeasurementServiceV2Impl.TaskMetricBucket bucket) {
+        return (Map<String, MeasurementServiceV2Impl.MetricAccumulator>) ReflectionTestUtils.getField(bucket, "byPhysicalNode");
     }
 
     @Nested
@@ -1440,6 +2126,13 @@ class MeasurementServiceV2ImplTest {
             verify(mongoOperations, times(1)).find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
             verify(mongoOperations, times(1)).bulkOps(eq(BulkOperations.BulkMode.UNORDERED), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
             verify(bulkOperations, times(1)).execute();
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(bulkOperations).upsert(any(Query.class), updateCaptor.capture());
+            Document updateDocument = updateCaptor.getValue().getUpdateObject();
+            Document pushFields = (Document) updateDocument.get("$push");
+            assertTrue(pushFields.containsKey(MetricCons.F_SAMPLES));
+            assertTrue(pushFields.containsKey(MetricCons.F_DIGEST));
+            assertFalse(updateDocument.containsKey("$set"));
         }
 
         @Test

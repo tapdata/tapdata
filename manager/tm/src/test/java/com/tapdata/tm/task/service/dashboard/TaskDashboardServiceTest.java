@@ -3,6 +3,12 @@ package com.tapdata.tm.task.service.dashboard;
 import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.cluster.dto.AccessNodeInfo;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.Component;
+import com.tapdata.tm.cluster.dto.SystemInfo;
+import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
@@ -17,17 +23,24 @@ import io.tapdata.common.sample.request.Sample;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -57,11 +70,125 @@ class TaskDashboardServiceTest {
         ReflectionTestUtils.setField(taskDashboardService, "measurementServiceV2", measurementServiceV2);
         ReflectionTestUtils.setField(taskDashboardService, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(taskDashboardService, "apiMetricsChartQuery", apiMetricsChartQuery);
+        ReflectionTestUtils.setField(taskDashboardService, "clock", Clock.fixed(Instant.ofEpochSecond(720_000_000L), ZoneOffset.UTC));
 
         when(taskDashboardService.dashboard(any(UserDetail.class), any(), any(), any(), any())).thenCallRealMethod();
+        when(taskDashboardService.dashboard(any(UserDetail.class), any(), any(), any(), any(), any(), any(), any(), any())).thenCallRealMethod();
         when(apiMetricsChartQuery.serverTopOnHomepage(any(QueryBase.class))).thenReturn(ServerTopOnHomepage.create());
         when(apiMetricsChartQuery.homepageRequestTrend(any(QueryBase.class))).thenReturn(ApiRequestTrend.create(TimeGranularity.SECOND_FIVE));
+        when(dataSourceService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
         when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>());
+    }
+
+    @Test
+    void v2DashboardKeepsNullableTrendBucketsAndUsesStoppedTasks() {
+        long endAt = 720_000_000L;
+        long startAt = endAt - 2L * 60L * 60L;
+        TaskDto stoppedTask = task("Stopped task", "stopped", 0L);
+        when(chartViewService.getViewTaskDtoByUser(user)).thenReturn(List.of(stoppedTask));
+
+        TaskMetricsTrendVo throughput = new TaskMetricsTrendVo();
+        throughput.setTs(List.of(startAt, startAt + 3600L));
+        throughput.setOutputQps(Arrays.asList(50D, null));
+        throughput.setOutputSizeQps(Arrays.asList(5D, null));
+        throughput.setStatus("ok");
+        throughput.setTraceability("partial");
+        throughput.setCoverage("partial");
+        throughput.setHasUnattributedData(true);
+        when(measurementServiceV2.aggregateTaskMetricsByTaskIdsV2(anyList(), anyLong(), anyLong(), any()))
+                .thenReturn(throughput);
+
+        ApiRequestTrend api = new ApiRequestTrend();
+        api.setTs(List.of(startAt, startAt + 3600L));
+        api.setValues(Arrays.asList(2D, null));
+        api.setStatus("ok");
+        api.setTraceability("partial");
+        api.setCoverage("partial");
+        api.setHasUnattributedData(true);
+        when(apiMetricsChartQuery.homepageRequestTrendV2(any(QueryBase.class), any())).thenReturn(api);
+
+        TaskDashboardVo result = taskDashboardService.dashboard(user, "range", null, "trends", null,
+                null, startAt, endAt, 2);
+
+        assertEquals(2, result.getQuery().getTrendSchemaVersion());
+        assertEquals(3600L, result.getQuery().getIntervalSeconds());
+        assertEquals("range", result.getQuery().getType());
+        assertEquals(Arrays.asList(50D, null), result.getTrends().getThroughput().getValues());
+        assertEquals(Arrays.asList(2D, null), result.getTrends().getApiRequests().getValues());
+        assertEquals("partial", result.getTrends().getThroughput().getTraceability());
+        assertEquals("partial", result.getTrends().getApiRequests().getTraceability());
+
+        verify(measurementServiceV2).aggregateTaskMetricsByTaskIdsV2(
+                eq(List.of(stoppedTask.getId().toHexString())), eq(startAt * 1000L), eq(endAt * 1000L), eq(null));
+        ArgumentCaptor<QueryBase> apiQuery = ArgumentCaptor.forClass(QueryBase.class);
+        verify(apiMetricsChartQuery).homepageRequestTrendV2(apiQuery.capture(), eq(null));
+        assertEquals("range", apiQuery.getValue().getType());
+        assertEquals(startAt, apiQuery.getValue().getStartAt());
+        assertEquals(endAt, apiQuery.getValue().getEndAt());
+        assertEquals(TimeGranularity.HOUR, apiQuery.getValue().getGranularity());
+    }
+
+    @Test
+    void v2DashboardRejectsNonTrendRequests() {
+        assertThrows(BizException.class, () -> taskDashboardService.dashboard(user, "days", 1L, "summary", null,
+                null, 100L, 200L, 2));
+    }
+
+    @Test
+    void rangeTypeRequiresExplicitV2SchemaAndTimes() {
+        assertThrows(BizException.class, () -> taskDashboardService.dashboard(user, "range", null, "trends", null,
+                null, null, null, null));
+        assertThrows(BizException.class, () -> taskDashboardService.dashboard(user, "range", null, "trends", null,
+                null, null, null, 2));
+    }
+
+    @Test
+    void dashboardNodesUsesComponentStatusForVisibleInstallations() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(taskDashboardService.dashboardNodes(any(UserDetail.class))).thenCallRealMethod();
+        AccessNodeInfo offlineWorker = new AccessNodeInfo("process-1", "host-1", "ip-1", "stopped");
+        AccessNodeInfo secondVisibleWorker = new AccessNodeInfo("process-2", "host-2", "ip-2", "running");
+        when(clusterStateService.findAccessNodeInfo(user)).thenReturn(List.of(offlineWorker, secondVisibleWorker));
+
+        SystemInfo engineSystemInfo = new SystemInfo("host-1", "node-uuid-123456", null, new ArrayList<>(),
+                0L, null, null, "process-1", null, null, null, null, null, null);
+        ClusterStateDto engineOnlyState = new ClusterStateDto();
+        engineOnlyState.setUuid("node-uuid-123456");
+        engineOnlyState.setAgentName("agent-1");
+        engineOnlyState.setSystemInfo(engineSystemInfo);
+        Component deployedEngine = new Component();
+        deployedEngine.setStatus("running");
+        Component undeployedApiServer = new Component();
+        undeployedApiServer.setStatus("not_deploy");
+        engineOnlyState.setEngine(deployedEngine);
+        engineOnlyState.setApiServer(undeployedApiServer);
+
+        SystemInfo apiSystemInfo = new SystemInfo("host-2", "node-uuid-654321", null, new ArrayList<>(),
+                0L, null, null, "process-2", null, null, null, null, null, null);
+        ClusterStateDto secondNodeState = new ClusterStateDto();
+        secondNodeState.setUuid("node-uuid-654321");
+        secondNodeState.setAgentName("agent-2");
+        secondNodeState.setSystemInfo(apiSystemInfo);
+        Component undeployedEngine = new Component();
+        undeployedEngine.setStatus("not_deploy");
+        Component deployedApiServer = new Component();
+        deployedApiServer.setStatus("running");
+        secondNodeState.setEngine(undeployedEngine);
+        secondNodeState.setApiServer(deployedApiServer);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(engineOnlyState, secondNodeState));
+
+        List<TaskDashboardVo.NodeOption> nodes = taskDashboardService.dashboardNodes(user);
+
+        assertEquals(2, nodes.size());
+        assertEquals("node-uuid-123456", nodes.get(0).getPhysicalNodeId());
+        assertEquals("offline", nodes.get(0).getStatus());
+        assertEquals("agent-1 (123456)", nodes.get(0).getLabel());
+        assertEquals(true, nodes.get(0).isEngineDeployed());
+        assertEquals(false, nodes.get(0).isApiServerDeployed());
+        assertEquals("node-uuid-654321", nodes.get(1).getPhysicalNodeId());
+        assertEquals(true, nodes.get(1).isApiServerDeployed());
+        assertEquals(false, nodes.get(1).isEngineDeployed());
     }
 
     @Test

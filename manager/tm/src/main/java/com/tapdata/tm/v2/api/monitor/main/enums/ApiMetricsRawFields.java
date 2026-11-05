@@ -7,6 +7,7 @@ import com.tapdata.tm.base.field.CollectionField;
  * */
 public enum ApiMetricsRawFields implements CollectionField {
     PROCESS_ID("processId"),
+    PHYSICAL_NODE_ID("physicalNodeId"),
     REQ_PATH("reqPath"),
     API_ID("apiId"),
     METRIC_TYPE("metricType"),

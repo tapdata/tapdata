@@ -8,21 +8,28 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
+import com.mongodb.ClientSessionOptions;
+import com.mongodb.ReadConcern;
+import com.mongodb.TransactionOptions;
+import com.mongodb.client.ClientSession;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +58,315 @@ public class ApiMetricsRawService {
         return repository.findAll(query);
     }
 
+    public record DashboardRequestData(Map<Long, Long> requestCounts,
+                                       boolean hasUnattributedData,
+                                       boolean hasAttributableData) {
+    }
+
+    public DashboardRequestData dashboardRequestData(long startAt, long endAt, TimeGranularity granularity,
+                                                      MetricTypes metricType, String physicalNodeId) {
+        if (startAt >= endAt) {
+            return new DashboardRequestData(new HashMap<>(), false, false);
+        }
+        ClientSessionOptions sessionOptions = ClientSessionOptions.builder().build();
+        try (ClientSession session = mongoTemplate.getMongoDatabaseFactory().getSession(sessionOptions)) {
+            session.startTransaction(TransactionOptions.builder().readConcern(ReadConcern.SNAPSHOT).build());
+            try {
+                DashboardRequestData result = mongoTemplate.withSession(() -> session).execute(operations -> {
+                    Map<Long, Long> counts = dashboardRequestCounts(startAt, endAt, granularity,
+                            metricType, physicalNodeId, operations);
+                    boolean hasUnattributedData = hasUnattributedData(startAt, endAt, operations);
+                    boolean hasAttributableData = hasAttributableData(startAt, endAt, operations);
+                    return new DashboardRequestData(counts, hasUnattributedData, hasAttributableData);
+                });
+                session.commitTransaction();
+                return result;
+            } catch (RuntimeException | Error e) {
+                if (session.hasActiveTransaction()) {
+                    session.abortTransaction();
+                }
+                throw e;
+            }
+        }
+    }
+
+    public boolean hasUnattributedData(long startAt, long endAt) {
+        return hasUnattributedData(startAt, endAt, mongoTemplate);
+    }
+
+    private boolean hasUnattributedData(long startAt, long endAt, MongoOperations operations) {
+        List<Criteria> overlappingBuckets = overlappingRawBuckets(startAt, endAt);
+        Criteria missingNodeId = new Criteria().orOperator(
+                Criteria.where(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).is(null),
+                Criteria.where(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).exists(false),
+                Criteria.where(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).is(""));
+        Criteria rawCriteria = new Criteria().andOperator(
+                Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.SERER.getType()),
+                missingNodeId,
+                new Criteria().orOperator(overlappingBuckets));
+        if (operations.count(Query.query(rawCriteria), ApiMetricsRaw.class) > 0) {
+            return true;
+        }
+
+        String apiCallCollection = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
+        if (StringUtils.isBlank(apiCallCollection)) {
+            return false;
+        }
+        Criteria missingCallNodeId = new Criteria().orOperator(
+                Criteria.where(ApiCallField.PHYSICAL_NODE_ID.field()).is(null),
+                Criteria.where(ApiCallField.PHYSICAL_NODE_ID.field()).exists(false),
+                Criteria.where(ApiCallField.PHYSICAL_NODE_ID.field()).is(""));
+        Criteria callCriteria = new Criteria().andOperator(
+                Criteria.where(ApiCallField.DELETE.field()).is(false),
+                Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).exists(true).ne(null),
+                missingCallNodeId,
+                Criteria.where(ApiCallField.REQ_TIME.field()).gte(startAt * 1000L).lt(endAt * 1000L));
+        return operations.count(Query.query(callCriteria), ApiCallEntity.class, apiCallCollection) > 0;
+    }
+
+    public boolean hasAttributableData(long startAt, long endAt) {
+        return hasAttributableData(startAt, endAt, mongoTemplate);
+    }
+
+    private boolean hasAttributableData(long startAt, long endAt, MongoOperations operations) {
+        if (startAt >= endAt) {
+            return false;
+        }
+        Criteria hasNodeId = new Criteria().andOperator(
+                Criteria.where(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).exists(true),
+                Criteria.where(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).nin(Arrays.asList(null, "")));
+        Criteria rawCriteria = new Criteria().andOperator(
+                Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.SERER.getType()),
+                hasNodeId,
+                new Criteria().orOperator(overlappingRawBuckets(startAt, endAt)));
+        if (operations.count(Query.query(rawCriteria), ApiMetricsRaw.class) > 0) {
+            return true;
+        }
+
+        String apiCallCollection = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
+        if (StringUtils.isBlank(apiCallCollection)) {
+            return false;
+        }
+        Criteria callCriteria = new Criteria().andOperator(
+                Criteria.where(ApiCallField.DELETE.field()).is(false),
+                Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).exists(true).ne(null),
+                Criteria.where(ApiCallField.PHYSICAL_NODE_ID.field()).exists(true).ne(null).ne(""),
+                Criteria.where(ApiCallField.REQ_TIME.field()).gte(startAt * 1000L).lt(endAt * 1000L));
+        return operations.count(Query.query(callCriteria), ApiCallEntity.class, apiCallCollection) > 0;
+    }
+
+    private List<Criteria> overlappingRawBuckets(long startAt, long endAt) {
+        List<Criteria> overlappingBuckets = new ArrayList<>();
+        for (TimeGranularity granularity : List.of(TimeGranularity.MINUTE, TimeGranularity.HOUR)) {
+            overlappingBuckets.add(new Criteria().andOperator(
+                    Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(granularity.getType()),
+                    Criteria.where(ApiMetricsRawFields.TIME_START.field()).gt(startAt - granularity.getSeconds()).lt(endAt)));
+        }
+        return overlappingBuckets;
+    }
+
+    public Map<Long, Long> dashboardRequestCounts(long startAt, long endAt, TimeGranularity granularity,
+                                                  MetricTypes metricType, String physicalNodeId) {
+        return dashboardRequestData(startAt, endAt, granularity, metricType, physicalNodeId).requestCounts();
+    }
+
+    private Map<Long, Long> dashboardRequestCounts(long startAt, long endAt, TimeGranularity granularity,
+                                                   MetricTypes metricType, String physicalNodeId,
+                                                   MongoOperations operations) {
+        Map<Long, Long> counts = new HashMap<>();
+        if (startAt >= endAt) {
+            return counts;
+        }
+
+        if (granularity == TimeGranularity.HOUR) {
+            addHourlyRange(counts, granularity, startAt, endAt, metricType, physicalNodeId, operations);
+        } else if (granularity == TimeGranularity.MINUTE) {
+            addMinuteRange(counts, granularity, startAt, endAt, metricType, physicalNodeId, operations);
+        } else {
+            addFiveSecondRange(counts, granularity, startAt, endAt, metricType, physicalNodeId, operations);
+        }
+        return counts;
+    }
+
+    private void addHourlyRange(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                long startAt, long endAt, MetricTypes metricType, String physicalNodeId,
+                                MongoOperations operations) {
+        long hourSeconds = TimeGranularity.HOUR.getSeconds();
+        long fullStart = ceilToInterval(startAt, hourSeconds);
+        long fullEnd = endAt - endAt % hourSeconds;
+        if (fullStart >= fullEnd) {
+            addMinuteWindow(counts, outputGranularity, startAt, endAt, metricType, physicalNodeId, operations);
+            return;
+        }
+        addMinuteWindow(counts, outputGranularity, startAt, fullStart, metricType, physicalNodeId, operations);
+        addRawCountRange(counts, outputGranularity, TimeGranularity.HOUR, fullStart, fullEnd, metricType, physicalNodeId, operations);
+        addMinuteWindow(counts, outputGranularity, fullEnd, endAt, metricType, physicalNodeId, operations);
+    }
+
+    private void addMinuteRange(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                long startAt, long endAt, MetricTypes metricType, String physicalNodeId,
+                                MongoOperations operations) {
+        long minuteSeconds = TimeGranularity.MINUTE.getSeconds();
+        long fullStart = ceilToInterval(startAt, minuteSeconds);
+        long fullEnd = endAt - endAt % minuteSeconds;
+        if (fullStart >= fullEnd) {
+            addApiCallRange(counts, outputGranularity, startAt, endAt, physicalNodeId, operations);
+            return;
+        }
+        addApiCallRange(counts, outputGranularity, startAt, fullStart, physicalNodeId, operations);
+        addRawCountRange(counts, outputGranularity, TimeGranularity.MINUTE, fullStart, fullEnd, metricType, physicalNodeId, operations);
+        addApiCallRange(counts, outputGranularity, fullEnd, endAt, physicalNodeId, operations);
+    }
+
+    private void addMinuteWindow(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                 long startAt, long endAt, MetricTypes metricType, String physicalNodeId,
+                                 MongoOperations operations) {
+        addMinuteRange(counts, outputGranularity, startAt, endAt, metricType, physicalNodeId, operations);
+    }
+
+    private void addFiveSecondRange(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                    long startAt, long endAt, MetricTypes metricType, String physicalNodeId,
+                                    MongoOperations operations) {
+        long fiveSeconds = TimeGranularity.SECOND_FIVE.getSeconds();
+        long fullStart = ceilToInterval(startAt, fiveSeconds);
+        long fullEnd = endAt - endAt % fiveSeconds;
+        if (fullStart >= fullEnd) {
+            addApiCallRange(counts, outputGranularity, startAt, endAt, physicalNodeId, operations);
+            return;
+        }
+        addApiCallRange(counts, outputGranularity, startAt, fullStart, physicalNodeId, operations);
+
+        long parentStart = TimeGranularity.MINUTE.fixTime(fullStart);
+        long parentEnd = TimeGranularity.MINUTE.fixTime(fullEnd - 1L) + TimeGranularity.MINUTE.getSeconds();
+        Criteria criteria = dashboardRawCriteria(TimeGranularity.MINUTE, parentStart, parentEnd, metricType, physicalNodeId);
+        Query query = new Query(criteria);
+        query.fields().include(ApiMetricsRawFields.API_ID.field(), ApiMetricsRawFields.REQ_PATH.field(),
+                ApiMetricsRawFields.PROCESS_ID.field(), ApiMetricsRawFields.PHYSICAL_NODE_ID.field(),
+                ApiMetricsRawFields.TIME_GRANULARITY.field(), ApiMetricsRawFields.TIME_START.field(),
+                ApiMetricsRawFields.SUB_METRICS.field());
+        for (ApiMetricsRaw minute : operations.find(query, ApiMetricsRaw.class)) {
+            if (CollectionUtils.isEmpty(minute.getSubMetrics())) {
+                continue;
+            }
+            for (ApiMetricsRaw sample : minute.getSubMetrics().values()) {
+                if (sample.getTimeStart() != null && sample.getTimeStart() >= fullStart && sample.getTimeStart() < fullEnd) {
+                    mergeRequestCount(counts, outputGranularity, sample.getTimeStart(), sample.getReqCount());
+                }
+            }
+        }
+        addPendingApiCallRange(counts, outputGranularity, fullStart, fullEnd, physicalNodeId, operations);
+        addApiCallRange(counts, outputGranularity, fullEnd, endAt, physicalNodeId, operations);
+    }
+
+    private void addRawCountRange(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                  TimeGranularity sourceGranularity, long startAt, long endAt,
+                                  MetricTypes metricType, String physicalNodeId, MongoOperations operations) {
+        if (startAt >= endAt) {
+            return;
+        }
+        Query query = new Query(dashboardRawCriteria(sourceGranularity, startAt, endAt, metricType, physicalNodeId));
+        query.fields().include(ApiMetricsRawFields.TIME_START.field(), ApiMetricsRawFields.REQ_COUNT.field());
+        for (ApiMetricsRaw row : operations.find(query, ApiMetricsRaw.class)) {
+            if (row.getTimeStart() != null) {
+                mergeRequestCount(counts, outputGranularity, row.getTimeStart(), row.getReqCount());
+            }
+        }
+        addPendingApiCallRange(counts, outputGranularity, startAt, endAt, physicalNodeId, operations);
+    }
+
+    private Criteria dashboardRawCriteria(TimeGranularity sourceGranularity, long startAt, long endAt,
+                                          MetricTypes metricType, String physicalNodeId) {
+        Criteria criteria = Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricType.getType())
+                .and(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(sourceGranularity.getType())
+                .and(ApiMetricsRawFields.TIME_START.field()).gte(startAt).lt(endAt);
+        if (StringUtils.isNotBlank(physicalNodeId)) {
+            criteria.and(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).is(physicalNodeId);
+        }
+        return criteria;
+    }
+
+    private void addApiCallRange(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                 long startAt, long endAt, String physicalNodeId, MongoOperations operations) {
+        if (startAt >= endAt) {
+            return;
+        }
+        String apiCallCollection = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
+        if (StringUtils.isBlank(apiCallCollection)) {
+            return;
+        }
+        Criteria criteria = Criteria.where(ApiCallField.DELETE.field()).is(false)
+                .and(ApiCallField.API_GATEWAY_UUID.field()).exists(true).ne(null)
+                .and(ApiCallField.REQ_TIME.field()).gte(startAt * 1000L).lt(endAt * 1000L);
+        if (StringUtils.isNotBlank(physicalNodeId)) {
+            criteria.and(ApiCallField.PHYSICAL_NODE_ID.field()).is(physicalNodeId);
+        }
+        Query query = Query.query(criteria);
+        query.fields().include(ApiCallField.REQ_TIME.field());
+        query.cursorBatchSize(1000);
+        try (var calls = operations.stream(query, ApiCallEntity.class, apiCallCollection)) {
+            calls.filter(Objects::nonNull)
+                    .map(ApiCallEntity::getReqTime)
+                    .filter(Objects::nonNull)
+                    .forEach(reqTime -> {
+                        long requestAt = reqTime / 1000L;
+                        long bucket = requestAt - requestAt % outputGranularity.getSeconds();
+                        counts.merge(bucket, 1L, Long::sum);
+                    });
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to stream API calls for dashboard trend", e);
+        }
+    }
+
+    private void addPendingApiCallRange(Map<Long, Long> counts, TimeGranularity outputGranularity,
+                                        long startAt, long endAt, String physicalNodeId, MongoOperations operations) {
+        if (startAt >= endAt) {
+            return;
+        }
+        String apiCallCollection = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
+        if (StringUtils.isBlank(apiCallCollection)) {
+            return;
+        }
+        Criteria criteria = Criteria.where(ApiCallField.DELETE.field()).is(false)
+                .and(ApiCallField.HAS_METRIC.field()).is(false)
+                .and(ApiCallField.API_GATEWAY_UUID.field()).exists(true).ne(null)
+                .and(ApiCallField.REQ_TIME.field()).gte(startAt * 1000L).lt(endAt * 1000L);
+        if (StringUtils.isNotBlank(physicalNodeId)) {
+            criteria.and(ApiCallField.PHYSICAL_NODE_ID.field()).is(physicalNodeId);
+        }
+        Query query = Query.query(criteria);
+        query.fields().include(ApiCallField.REQ_TIME.field());
+        query.cursorBatchSize(1000);
+        try (var calls = operations.stream(query, ApiCallEntity.class, apiCallCollection)) {
+            calls.filter(Objects::nonNull)
+                    .map(ApiCallEntity::getReqTime)
+                    .filter(Objects::nonNull)
+                    .forEach(reqTime -> {
+                        long requestAt = reqTime / 1000L;
+                        long bucket = requestAt - requestAt % outputGranularity.getSeconds();
+                        counts.merge(bucket, 1L, Long::sum);
+                    });
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to stream pending API calls for dashboard trend", e);
+        }
+    }
+
+    private void mergeRequestCount(Map<Long, Long> counts, TimeGranularity outputGranularity, Long timestamp, Long requestCount) {
+        if (requestCount == null) {
+            return;
+        }
+        long bucket = timestamp - timestamp % outputGranularity.getSeconds();
+        counts.merge(bucket, requestCount, Long::sum);
+    }
+
+    private long ceilToInterval(long value, long interval) {
+        long remainder = value % interval;
+        return remainder == 0 ? value : value + interval - remainder;
+    }
+
     protected void supplementSeconds(Criteria apiCallCriteria, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
         Criteria criteria = Criteria.where(ApiCallField.DELETE.field()).is(false);
         List<Criteria> andCriteria = new ArrayList<>();
@@ -71,6 +387,7 @@ public class ApiMetricsRawService {
         Query query = Query.query(new Criteria().andOperator(andCriteria));
         String[] filterField = CollectionField.fields(
                 ApiCallField.API_GATEWAY_UUID,
+                ApiCallField.PHYSICAL_NODE_ID,
                 ApiCallField.ALL_PATH_ID,
                 ApiCallField.REQ_PATH,
                 ApiCallField.REQ_TIME,
@@ -107,6 +424,7 @@ public class ApiMetricsRawService {
                 ApiMetricsRawFields.API_ID,
                 ApiMetricsRawFields.REQ_PATH,
                 ApiMetricsRawFields.PROCESS_ID,
+                ApiMetricsRawFields.PHYSICAL_NODE_ID,
                 ApiMetricsRawFields.TIME_GRANULARITY,
                 ApiMetricsRawFields.TIME_START,
                 ApiMetricsRawFields.SUB_METRICS
@@ -164,6 +482,7 @@ public class ApiMetricsRawService {
                     ApiMetricsRawFields.API_ID,
                     ApiMetricsRawFields.REQ_PATH,
                     ApiMetricsRawFields.PROCESS_ID,
+                ApiMetricsRawFields.PHYSICAL_NODE_ID,
                     ApiMetricsRawFields.TIME_GRANULARITY,
                     ApiMetricsRawFields.TIME_START,
                     ApiMetricsRawFields.SUB_METRICS
@@ -253,7 +572,7 @@ public class ApiMetricsRawService {
         for (ApiMetricsRaw apiMetricsRaw : supplement) {
             String serverId = apiMetricsRaw.getProcessId();
             String apiId = apiMetricsRaw.getApiId();
-            String key = String.format("%s_%s", serverId, apiId);
+            String key = String.format("%s_%s_%s", serverId, apiId, param.getPhysicalNodeId());
             Long timeStart = apiMetricsRaw.getTimeStart();
             if (null == timeStart) {
                 continue;
@@ -296,6 +615,7 @@ public class ApiMetricsRawService {
             item.setId(new ObjectId());
             item.setApiId(apiId);
             item.setProcessId(serverId);
+            item.setPhysicalNodeId(param.getPhysicalNodeId());
             item.setTimeStart(param.getStartAt());
             item.setTimeGranularity(param.getGranularity().getType());
             return item;

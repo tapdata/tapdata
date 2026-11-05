@@ -8,6 +8,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.AccessNodeInfo;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
@@ -205,6 +206,20 @@ class ClusterStateServiceTest {
                 clusterStateService.findAccessNodeInfo(userDetail);
             }
             Assertions.assertTrue(captor.getValue().isEmpty());
+        }
+
+        @Test
+        void apiOnlyClusterStateIsNotExposedAsAnEngineAccessNode() {
+            when(workerService.findAllAgent(userDetail)).thenReturn(new ArrayList<>());
+            ClusterStateDto apiOnlyState = new ClusterStateDto();
+            apiOnlyState.setApiServer(new com.tapdata.tm.cluster.dto.Component());
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(apiOnlyState));
+
+            List<AccessNodeInfo> result = clusterStateService.findAccessNodeInfo(userDetail);
+
+            Assertions.assertTrue(result.isEmpty());
+            verify(clusterStateService, never()).findAll(any(Query.class));
+            verify(agentGroupService, never()).filterGroupList(anyList(), any(UserDetail.class));
         }
     }
     @Nested

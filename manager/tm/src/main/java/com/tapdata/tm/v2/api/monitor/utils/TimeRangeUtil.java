@@ -38,7 +38,18 @@ public class TimeRangeUtil {
         valueBase.setGranularity(query.getGranularity().getType());
     }
 
+    public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress, TimeGranularity granularity) {
+        rangeOf(query, delay, compress, granularity);
+        valueBase.setQueryFrom(query.getQueryStart());
+        valueBase.setQueryEnd(query.getQueryEnd());
+        valueBase.setGranularity(query.getGranularity().getType());
+    }
+
     public static void rangeOf(QueryBase query, long delay, boolean compress) {
+        rangeOf(query, delay, compress, null);
+    }
+
+    public static void rangeOf(QueryBase query, long delay, boolean compress, TimeGranularity requestedGranularity) {
         checkQueryTime(query, delay);
         Long startAt = query.getStartAt();
         Long endAt = query.getEndAt();
@@ -47,7 +58,9 @@ public class TimeRangeUtil {
 
         long queryStartAt = startAt;
         long queryEndAt = endAt;
-        if (range < TimeGranularity.HOUR.getSeconds()) {
+        if (requestedGranularity != null) {
+            query.setGranularity(requestedGranularity);
+        } else if (range < TimeGranularity.HOUR.getSeconds()) {
             query.setGranularity(TimeGranularity.SECOND_FIVE);
         } else if (range < TimeGranularity.DAY.getSeconds()) {
             query.setGranularity(TimeGranularity.MINUTE);
