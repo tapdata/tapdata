@@ -91,10 +91,7 @@ public class PdkReleaseRegistrationService {
 
                 if (entryName.endsWith(".md")) {
                     files.add(new ByteArrayMultipartFile("file", entryName, "text/markdown", content));
-                    continue;
-                }
-
-                if (entryName.startsWith("icons/")) {
+                } else if (entryName.startsWith("icons/")) {
                     files.add(new ByteArrayMultipartFile("file", entryName, "image/*", content));
                 }
 

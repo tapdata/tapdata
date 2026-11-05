@@ -18,10 +18,12 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /** Reads the immutable connector release set published by connector-distribution. */
@@ -37,7 +39,7 @@ public class PdkReleaseCatalogService {
     @Value("${pdk.release.repository-url:https://nexus.tapdata.net/repository/maven-releases/}")
     private String repositoryUrl;
 
-    private volatile CacheEntry cacheEntry;
+    private final AtomicReference<CacheEntry> cacheEntry = new AtomicReference<>();
 
     private static final long CACHE_TTL_MILLIS = Duration.ofMinutes(5).toMillis();
 
@@ -46,7 +48,7 @@ public class PdkReleaseCatalogService {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
-    private static class CacheEntry {
+    private static final class CacheEntry {
         final List<Map<String, Object>> releases;
         final long timestamp;
 
@@ -57,7 +59,7 @@ public class PdkReleaseCatalogService {
     }
 
     public List<Map<String, Object>> findLatestReleases() {
-        CacheEntry cached = cacheEntry;
+        CacheEntry cached = cacheEntry.get();
         if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MILLIS) {
             return cached.releases;
         }
@@ -93,8 +95,8 @@ public class PdkReleaseCatalogService {
             for (int i = 0; i < dependencies.getLength(); i++) {
                 Element dependency = (Element) dependencies.item(i);
                 String groupId = text(dependency, "groupId");
-                String artifactId = text(dependency, "artifactId");
-                String version = text(dependency, "version");
+                String artifactId = text(dependency, ARTIFACT_ID_KEY);
+                String version = text(dependency, VERSION_KEY);
                 if (!"io.tapdata".equals(groupId) || artifactId == null || !artifactId.endsWith("-connector")
                         || version == null || !RELEASE_VERSION.matcher(version).matches()) {
                     continue;
@@ -106,11 +108,11 @@ public class PdkReleaseCatalogService {
                 release.put(VERSION_KEY, version);
                 release.put("pdkAPIVersion", pdkApiVersions.get(artifactId));
                 release.put("bomVersion", bomVersion);
-                releases.add(release);
+                releases.add(Collections.unmodifiableMap(release));
             }
             releases.sort(Comparator.comparing(release -> String.valueOf(release.get("pdkId"))));
             List<Map<String, Object>> immutableReleases = List.copyOf(releases);
-            cacheEntry = new CacheEntry(immutableReleases, System.currentTimeMillis());
+            cacheEntry.set(new CacheEntry(immutableReleases, System.currentTimeMillis()));
             return immutableReleases;
         } catch (Exception e) {
             log.warn("Failed to read connector release catalog from Nexus", e);
