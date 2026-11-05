@@ -33,6 +33,7 @@ public class HazelcastCacheService extends AbstractCacheService {
 	}
 
 	@Override
+	// Base registration and refresh hold the same per-cache lifecycle lock as destroy.
 	protected void onCacheRegistered(DataFlowCacheConfig config) {
 		super.onCacheRegistered(config);
 		String cacheName = config.getCacheName();
