@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * 没有用户目录权限时，相对任务当前列表新增的 USER / USER_GROUP 只能取自本人范围（本人所在组及子组、组内成员、本人）。
@@ -12,6 +14,25 @@ import java.util.Set;
  */
 public final class AlarmReceiverScope {
     private AlarmReceiverScope() {
+    }
+
+    /** Compare recipient identities without display snapshots or list order. */
+    public static boolean sameSelection(List<AlarmReceiver> requested, List<AlarmReceiver> inherited) {
+        if (requested == null || inherited == null) {
+            return requested == inherited;
+        }
+        return requested.stream().map(AlarmReceiverScope::selectionKey).collect(Collectors.toSet())
+                .equals(inherited.stream().map(AlarmReceiverScope::selectionKey).collect(Collectors.toSet()));
+    }
+
+    private static String selectionKey(AlarmReceiver receiver) {
+        if (receiver == null || receiver.getType() == null) {
+            return "null";
+        }
+        if (receiver.getType() == AlarmReceiverType.EMAIL) {
+            return "EMAIL:" + (receiver.getEmail() == null ? "" : receiver.getEmail().trim().toLowerCase(Locale.ROOT));
+        }
+        return receiver.getType() + ":" + receiver.getId();
     }
 
     public static boolean hasDirectoryReference(List<AlarmReceiver> receivers) {

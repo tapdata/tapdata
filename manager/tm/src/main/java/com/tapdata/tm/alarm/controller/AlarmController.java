@@ -335,6 +335,7 @@ public class AlarmController extends BaseController {
         }
 
         List<AlarmReceiver> currentReceivers = null;
+        java.util.Set<String> visibleEmails = java.util.Set.of();
         List<AlarmReceiver> previewReceivers = previewRequest.getAlarmReceivers();
         List<String> previewEmails = previewRequest.getEmailReceivers();
         String ownerUserId = user.getUserId();
@@ -354,6 +355,7 @@ public class AlarmController extends BaseController {
                 throw insufficientInspectPermissions(DataPermissionActionEnums.View);
             }
             currentReceivers = inspect.getAlarmReceivers();
+            visibleEmails = PreviewEmailMask.explicitEmails(inspect.getAlarmReceivers(), inspect.getEmailReceivers());
             if (!canAccessInspect(user, inspect, DataPermissionActionEnums.Edit)) {
                 previewReceivers = inspect.getAlarmReceivers();
                 previewEmails = inspect.getEmailReceivers();
@@ -375,16 +377,27 @@ public class AlarmController extends BaseController {
                 }
                 TaskDto flow = checkTask(request, user, flowId, DataPermissionActionEnums.View,
                         () -> taskService.findByTaskId(flowId, "alarmReceivers", "emailReceivers"));
-                currentReceivers = flow == null ? null : flow.getAlarmReceivers();
+                if (flow != null && com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope.sameSelection(
+                        previewReceivers, flow.getAlarmReceivers())) {
+                    currentReceivers = flow.getAlarmReceivers();
+                }
             }
             alarmReceiverAccess.checkNewReferences(user, previewReceivers, currentReceivers);
         }
 
+        boolean fullDirectory = alarmReceiverAccess.canViewUserDirectory(user);
+        if (!fullDirectory) {
+            // A guessed explicit address must not reveal whether it belongs to a selected group
+            // through deduplication or the source list. Existing saved addresses are safe to reuse.
+            if (com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope.hasDirectoryReference(previewReceivers)
+                    && !visibleEmails.containsAll(PreviewEmailMask.explicitEmails(previewReceivers, previewEmails))) {
+                throw insufficientInspectPermissions(DataPermissionActionEnums.View);
+            }
+        }
         AlarmReceiverPreview preview = alarmService.previewInspectReceivers(
                 previewReceivers, previewEmails, ownerUserId);
-        if (preview != null && !alarmReceiverAccess.canViewUserDirectory(user)) {
-            PreviewEmailMask.mask(preview, PreviewEmailMask.explicitEmails(
-                    previewReceivers, previewEmails));
+        if (preview != null && !fullDirectory) {
+            PreviewEmailMask.mask(preview, visibleEmails);
         }
         return success(preview);
     }
@@ -395,10 +408,8 @@ public class AlarmController extends BaseController {
                                                                         @RequestParam(required = false) List<String> taskIds,
                                                                         @RequestParam(required = false) Boolean inspectScope) {
         UserDetail user = getLoginUser();
-        if (Boolean.TRUE.equals(inspectScope) && user == null) {
-            throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
-        }
-        if (Boolean.TRUE.equals(inspectScope) && !canConfigureInspect(user)) {
+        boolean inspect = Boolean.TRUE.equals(inspectScope);
+        if (inspect && !canConfigureInspect(user)) {
             throw insufficientInspectPermissions(DataPermissionActionEnums.Edit);
         }
         java.util.Set<String> ids = new java.util.LinkedHashSet<>();
@@ -413,13 +424,13 @@ public class AlarmController extends BaseController {
             ObjectId objectId = MongoUtils.toObjectId(id);
             if (objectId != null && Boolean.TRUE.equals(
                     checkTask(request, user, objectId,
-                            Boolean.TRUE.equals(inspectScope) ? DataPermissionActionEnums.View : DataPermissionActionEnums.Edit,
+                            DataPermissionActionEnums.Edit,
                             () -> true, () -> false))) {
                 editableTaskIds.add(objectId.toHexString());
             }
         }
         boolean fullDirectory = alarmReceiverAccess.canViewUserDirectory(user);
-        if (editableTaskIds.isEmpty() && (ids.isEmpty() && Boolean.TRUE.equals(inspectScope))) {
+        if (editableTaskIds.isEmpty() && ids.isEmpty() && inspect) {
             // A new arbitrary-table inspect has no task ID yet. Limit its picker to the
             // caller's own directory scope; privileged directory viewers keep full access.
             AlarmReceiverCandidates candidates = alarmService.receiverCandidates(
@@ -432,7 +443,7 @@ public class AlarmController extends BaseController {
             return success(candidates);
         }
         if (editableTaskIds.isEmpty()) {
-            throw Boolean.TRUE.equals(inspectScope) ? insufficientInspectPermissions(DataPermissionActionEnums.Edit)
+            throw inspect ? insufficientInspectPermissions(DataPermissionActionEnums.Edit)
                     : insufficientPermissions(DataPermissionActionEnums.Edit);
         }
         // 没有用户管理权限时只给本人所在组（含子组）的成员和组，外加这些任务已引用的接收人；邮箱一律不返回

@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
@@ -56,7 +57,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.function.Supplier;
 
@@ -169,7 +169,7 @@ public class InspectController extends BaseController {
                         () -> null);
                 // Only an unchanged selection from a task the caller may view can be inherited.
                 // A subset or modified selection is a new Inspect reference and needs its own scope check.
-                if (linkedTask != null && Objects.equals(inspect.getAlarmReceivers(), linkedTask.getAlarmReceivers())) {
+                if (linkedTask != null && AlarmReceiverScope.sameSelection(inspect.getAlarmReceivers(), linkedTask.getAlarmReceivers())) {
                     existingReceivers = linkedTask.getAlarmReceivers();
                 }
             }
@@ -198,9 +198,8 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.Edit),
                 () -> {
                     if (inspect.getAlarmReceivers() != null) {
-                        List<InspectDto> current = inspectService.findAllByIds(Lists.newArrayList(inspect.getId().toHexString()));
-                        List<AlarmReceiver> currentReceivers =
-                                CollectionUtils.isEmpty(current) ? null : current.get(0).getAlarmReceivers();
+                        InspectDto current = inspectService.findById(inspect.getId(), Field.includes("alarmReceivers"));
+                        List<AlarmReceiver> currentReceivers = current == null ? null : current.getAlarmReceivers();
                         alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), currentReceivers);
                     }
                     return inspectService.updateById(inspect.getId(), inspect, user);
