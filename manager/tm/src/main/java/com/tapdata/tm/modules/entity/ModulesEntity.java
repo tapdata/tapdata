@@ -105,4 +105,6 @@ public class ModulesEntity extends BaseEntity implements IDataPermissionEntity {
     ApiAlarmConfig apiAlarmConfig;
 
     private String publishStatus;
+
+    private String auditPublishOperationId;
 }

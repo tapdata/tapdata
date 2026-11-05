@@ -133,6 +133,10 @@ public class ModulesDto extends BaseDto implements IDataPermissionDto {
 
     private String publishStatus;
 
+    /** Internal correlation for the currently published configuration. */
+    @JsonIgnore
+    private String auditPublishOperationId;
+
     public void withPathSettingIfNeed() {
         if (null == pathSetting) {
             pathSetting = PathSetting.DEFAULT_PATH_SETTING;

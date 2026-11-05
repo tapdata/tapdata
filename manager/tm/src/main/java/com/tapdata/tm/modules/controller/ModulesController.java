@@ -156,7 +156,7 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "生成  modules")
   @PatchMapping("generate")
-  @Audited(value = AuditAction.API_PUBLISH, objectId = "#module.id", objectName = "#module.name")
+  @Audited(value = AuditAction.API_UPDATE, objectId = "#module.id", objectName = "#module.name")
   public ResponseMessage<ModulesDto> generate(HttpServletRequest request, @Validated @RequestBody ModulesDto module) {
     UserDetail userDetail = getLoginUser();
     return success(dataPermissionCheckOfId(request, userDetail, module.getId(), DataPermissionActionEnums.Publish,

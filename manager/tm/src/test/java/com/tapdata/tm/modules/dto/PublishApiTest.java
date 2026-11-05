@@ -9,10 +9,22 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PublishApiTest {
+
+    @Test
+    void operationIdIsProvidedToApiServerButCannotBeSuppliedByAClient() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ModulesDto input = mapper.readValue("{\"auditPublishOperationId\":\"forged\"}", ModulesDto.class);
+        assertEquals(null, input.getAuditPublishOperationId());
+        input.setAuditPublishOperationId("publish-op");
+        assertFalse(mapper.valueToTree(input).has("auditPublishOperationId"));
+        assertEquals("publish-op", mapper.valueToTree(PublishApi.from(input))
+                .get("auditPublishOperationId").asText());
+    }
 
     @Test
     void simplifiedPathKeepsFullCustomQueryFlagAlongsideCustomWhere() {
