@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
 
 /** Reads the immutable connector release set published by connector-distribution. */
@@ -170,12 +171,16 @@ public class PdkReleaseCatalogService {
     }
 
     public byte[] downloadJar(Map<String, Object> release) {
+        return downloadJar(release, ignored -> { });
+    }
+
+    public byte[] downloadJar(Map<String, Object> release, IntConsumer downloadProgress) {
         try {
             String repository = repositoryUrl.endsWith("/") ? repositoryUrl : repositoryUrl + "/";
             String artifactId = String.valueOf(release.get(ARTIFACT_ID_KEY));
             String version = String.valueOf(release.get(VERSION_KEY));
             String base = repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
-            byte[] jarBytes = fetchBytes(base);
+            byte[] jarBytes = fetchBytes(base, downloadProgress);
             String expectedSha256 = fetch(repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar.sha256").trim();
             String actualSha256 = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(jarBytes));
             if (!actualSha256.equalsIgnoreCase(expectedSha256.split("\\s")[0])) {
@@ -193,16 +198,35 @@ public class PdkReleaseCatalogService {
     }
 
     private byte[] fetchBytes(String url) throws Exception {
+        return fetchBytes(url, ignored -> { });
+    }
+
+    private byte[] fetchBytes(String url, IntConsumer downloadProgress) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
                 .header("Accept", "application/xml, text/xml, application/octet-stream, text/plain")
                 .GET()
                 .build();
-        HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        HttpResponse<java.io.InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() != 200) {
+            response.body().close();
             throw new IllegalStateException("Nexus returned HTTP " + response.statusCode());
         }
-        return response.body();
+        long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+        try (java.io.InputStream input = response.body(); java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            long total = 0;
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+                total += read;
+                if (contentLength > 0) {
+                    downloadProgress.accept((int) Math.min(100, total * 100 / contentLength));
+                }
+            }
+            if (contentLength <= 0) downloadProgress.accept(100);
+            return output.toByteArray();
+        }
     }
 
     private Document parse(String xml) throws Exception {

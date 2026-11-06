@@ -159,10 +159,14 @@ public class PdkControllerTest {
 
         @Test
         void registerReleasePassesOptions() {
-            pdkController.registerRelease(Map.of("artifactId", "mysql-connector", "pdkId", "mysql",
-                    "stopTasks", true, "ignoreInFlightResources", false));
+            Map<String, Object> job = Map.of("jobId", "job-1", "status", "queued", "progress", 1);
+            when(registrationService.startRegistration("mysql-connector", "mysql", true, false, user))
+                    .thenReturn(job);
 
-            verify(registrationService).downloadAndRegister("mysql-connector", "mysql", true, false, user);
+            assertEquals(job, pdkController.registerRelease(Map.of("artifactId", "mysql-connector", "pdkId", "mysql",
+                    "stopTasks", true, "ignoreInFlightResources", false)).getData());
+
+            verify(registrationService).startRegistration("mysql-connector", "mysql", true, false, user);
         }
 
         @Test
@@ -171,7 +175,7 @@ public class PdkControllerTest {
             Map<String, Object> request = Map.of("artifactId", "mysql-connector", "pdkId", "mysql");
 
             assertThrows(BizException.class, () -> pdkController.registerRelease(request));
-            verify(registrationService, never()).downloadAndRegister(anyString(), anyString(), anyBoolean(), anyBoolean(), any());
+            verify(registrationService, never()).startRegistration(anyString(), anyString(), anyBoolean(), anyBoolean(), any());
         }
 
         @Test

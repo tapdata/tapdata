@@ -65,15 +65,20 @@ public class PdkController extends BaseController {
     }
 
     @PostMapping("register-release")
-    public ResponseMessage<Void> registerRelease(@RequestBody java.util.Map<String, Object> request) {
+    public ResponseMessage<java.util.Map<String, Object>> registerRelease(@RequestBody java.util.Map<String, Object> request) {
         requireEnterprise(getLoginUser());
         String artifactId = String.valueOf(request.get("artifactId"));
         String pdkId = String.valueOf(request.get("pdkId"));
         boolean stopTasks = Boolean.TRUE.equals(request.get("stopTasks"));
         boolean ignoreInFlightResources = Boolean.TRUE.equals(request.get("ignoreInFlightResources"));
-        pdkReleaseRegistrationService.downloadAndRegister(
-                artifactId, pdkId, stopTasks, ignoreInFlightResources, getLoginUser());
-        return success();
+        return success(pdkReleaseRegistrationService.startRegistration(
+                artifactId, pdkId, stopTasks, ignoreInFlightResources, getLoginUser()));
+    }
+
+    @GetMapping("registration-jobs/{jobId}")
+    public ResponseMessage<java.util.Map<String, Object>> registrationJob(@PathVariable("jobId") String jobId) {
+        requireEnterprise(getLoginUser());
+        return success(pdkReleaseRegistrationService.getRegistrationJob(jobId, getLoginUser()));
     }
 
     private void requireEnterprise(com.tapdata.tm.config.security.UserDetail user) {
