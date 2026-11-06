@@ -845,6 +845,43 @@ public class AbstractCacheServiceTest {
         }
     }
 
+    @Test
+    void destroyEvictsStoreSoSameCacheNameCreatesANewInstance() {
+        AtomicInteger constructions = new AtomicInteger();
+        AtomicInteger destructions = new AtomicInteger();
+        TestCacheService cacheService = new TestCacheService(
+                mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>()) {
+            @Override
+            public ICacheStore getCacheStore(String cacheName) {
+                return getCacheStoreMap().computeIfAbsent(cacheName, ignored -> {
+                    constructions.incrementAndGet();
+                    return new ICacheStore() {
+                        @Override
+                        public void cacheRow(String name, String key, List<Map<String, Object>> rows) {
+                        }
+
+                        @Override
+                        public void removeByKey(String name, String cacheKey, String pkKey) {
+                        }
+
+                        @Override
+                        public void destroy() {
+                            destructions.incrementAndGet();
+                        }
+                    };
+                });
+            }
+        };
+
+        ICacheStore original = cacheService.getCacheStore("shared-cache");
+        cacheService.destroy("shared-cache");
+        ICacheStore recreated = cacheService.getCacheStore("shared-cache");
+
+        assertNotSame(original, recreated);
+        assertEquals(2, constructions.get());
+        assertEquals(1, destructions.get());
+    }
+
     /**
      * 回源连接器桩：记录关闭次数；可选在 getRows 中阻塞，模拟一次在途的回源查询
      */
