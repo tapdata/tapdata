@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.InputStream;
@@ -111,17 +110,11 @@ public class PdkReleaseRegistrationService {
     }
 
     private static Path createPrivateTempJar() throws IOException {
-        if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
-            return Files.createTempFile("pdk-registration-", ".jar",
-                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        if (!FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            throw new IOException("Secure temporary connector files require POSIX file permissions");
         }
-        File file = Files.createTempFile("pdk-registration-", ".jar").toFile();
-        boolean restricted = file.setReadable(true, true) && file.setWritable(true, true);
-        if (!restricted) {
-            Files.deleteIfExists(file.toPath());
-            throw new IOException("Unable to restrict permissions of temporary connector file");
-        }
-        return file.toPath();
+        return Files.createTempFile("pdk-registration-", ".jar",
+                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
     }
 
     private void addResource(TapNodeInfo nodeInfo, String path, String contentType,
