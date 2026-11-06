@@ -365,9 +365,8 @@ _main() {
     print_message "All Done, Please Visit http://localhost:$tm_port" "green" true
 
     # 5. hold the container
-    if [[ -f /.dockerenv ]]; then
-        sleep infinity
-    fi
+    # This is the image entrypoint under Docker and containerd alike.
+    exec sleep infinity
 }
 
 _main "$@"
