@@ -10,11 +10,8 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -27,14 +24,12 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import io.tapdata.services.util.ConnectionNodeUtil;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MapUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -88,30 +83,19 @@ public class DiscoverSchemaService {
 			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
 					() -> {
 						finalConnectionNode.getConnector().discoverSchema(finalConnectionNode.getConnectionContext(), tables, batchSize,
-								tapTables -> {
-									if (CollectionUtils.isEmpty(tapTables)) {
-										return;
-									}
+								tapTables -> LoadSchemaRunner.consumeTapTable(ts -> {
 									Update update = new Update();
-									TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-									for (TapTable pdkTable : tapTables) {
-										LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
-										if (MapUtils.isNotEmpty(nameFieldMap)) {
-											nameFieldMap.forEach((fieldName, tapField) -> {
-												if (null == tapField.getTapType()) {
-													tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
-												}
-											});
-										}
+									if (CollectionUtils.isNotEmpty(tapTables)) {
+										tapTables.forEach(t -> t.setLastUpdate(lastUpdate));
+										update.set("schema.tables", tapTables);
 									}
-									update.set("schema.tables", tapTables);
 									update.set(ConnectorConstant.LOAD_FIELDS, ConnectorConstant.LOAD_FIELD_STATUS_FINISHED)
 											.set(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, schemaVersion)
 											.set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
 											.set(DataSourceConnectionDto.FIELD_EVER_LOAD_SCHEMA, true);
 									Query query = new Query(Criteria.where("_id").is(connectionId));
 									clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION + "/module");
-								});
+								}, dataTypesMap, tapTables));
 					}, TAG);
 			Map<String, Object> where = new HashMap<>();
 			where.put("source._id", connectionId);
