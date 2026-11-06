@@ -57,8 +57,8 @@ public class MapdbCacheService extends AbstractCacheService {
 	}
 
 	@Override
-	public void registerCache(DataFlowCacheConfig cacheConfig) {
-		super.registerCache(cacheConfig);
+	protected void onCacheRegistered(DataFlowCacheConfig cacheConfig) {
+		super.onCacheRegistered(cacheConfig);
 		String cacheName = cacheConfig.getCacheName();
 		this.dbMap.put(cacheName, getDB(cacheName));
 	}

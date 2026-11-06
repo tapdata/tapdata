@@ -11,7 +11,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;
-import org.voovan.tools.collection.CacheMap;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -24,11 +26,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 
 public abstract class AbstractCacheService implements ICacheService {
 	protected final Logger logger = LogManager.getLogger(AbstractCacheService.class);
 
-	protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
+	// No timer or supplier runs on Guava's cache: refresh is driven only by an expired read.
+	private final Cache<String, CacheConfigEntry> cacheConfigMap = CacheBuilder.newBuilder().maximumSize(100).build();
+	private final Map<String, ConfigLoad> cacheConfigLoads = new ConcurrentHashMap<>();
+	private final Cache<String, DataFlowCacheConfig> cacheInitializations = CacheBuilder.newBuilder().build();
+	static final long CACHE_CONFIG_EXPIRE_MS = TimeUnit.SECONDS.toMillis(600);
+	static final long CACHE_CONFIG_MISS_RETRY_MS = TimeUnit.SECONDS.toMillis(30);
 
 	/**
 	 * getter 满 {@link #CACHE_GETTER_EXPIRE_MS} 后在下一次访问时重建以加载最新配置，替换下来的旧 getter 释放回源连接器。
@@ -78,29 +87,27 @@ public abstract class AbstractCacheService implements ICacheService {
 		this.cacheStoreMap = new ConcurrentHashMap<>();
 		this.lastLogTSMap = new ConcurrentHashMap<>();
 		this.cacheStatusLockMap = new ConcurrentHashMap<>();
-		this.cacheConfigMap = new CacheMap<>();
-		// 配置过期后用 supplier 向 TM 重新查询并原地刷新，不移除（autoRemove=false），getConfig 不会返回 null
-		this.cacheConfigMap.maxSize(100).interval(60).expire(600).supplier(cacheName -> {
-			String encodeCacheName;
-			try {
-				encodeCacheName = URLEncoder.encode(cacheName, "UTF-8");
-			} catch (UnsupportedEncodingException e) {
-				throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName).dynamicDescriptionParameters(cacheName);
-			}
-			// 如果不存在，则向tm查询
-			TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + encodeCacheName, TaskDto.class);
-			DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
-			logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
-			if (logger.isDebugEnabled()) {
-				logger.debug("query cache config is [{}]", cacheConfig);
-			}
-			if (cacheConfig != null) {
-				this.cacheStatusMap.remove(cacheName);
-				registerCache(cacheConfig);
-			}
-			return cacheConfig;
-		}, false).create();
+	}
 
+	private TaskDto loadCacheTaskFromTm(String cacheName) {
+		try {
+			String encodedName = URLEncoder.encode(cacheName, "UTF-8");
+			return clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + encodedName, TaskDto.class);
+		} catch (UnsupportedEncodingException e) {
+			throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName).dynamicDescriptionParameters(cacheName);
+		}
+	}
+
+	protected DataFlowCacheConfig loadConfigFromTm(String cacheName) {
+		TaskDto task = loadCacheTaskFromTm(cacheName);
+		if (task == null) {
+			return null; // Only an absent task is a definitive miss.
+		}
+		DataFlowCacheConfig config = CacheUtil.getCacheConfigOrThrow(task, clientMongoOperator);
+		if (config == null) {
+			throw new IllegalStateException("Incomplete cache task configuration: " + cacheName);
+		}
+		return config;
 	}
 
 	private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
@@ -169,9 +176,39 @@ public abstract class AbstractCacheService implements ICacheService {
 	@Override
 	public void registerCache(DataFlowCacheConfig cacheConfig) {
 		String cacheName = cacheConfig.getCacheName();
-		this.cacheConfigMap.put(cacheName, cacheConfig);
+		synchronized (cacheLifecycleLock(cacheName)) {
+			cacheConfigMap.put(cacheName, new CacheConfigEntry(cacheConfig, currentTimeMillis()));
+			onCacheRegistered(cacheConfig);
+		}
+	}
+
+	private Object cacheLifecycleLock(String cacheName) {
+		return cacheDestroyLockMap.computeIfAbsent(cacheName, key -> new Object());
+	}
+
+	private boolean configIsFresh(CacheConfigEntry entry) {
+		long ttl = entry.config == null ? CACHE_CONFIG_MISS_RETRY_MS : CACHE_CONFIG_EXPIRE_MS;
+		return currentTimeMillis() - entry.lastAttempt < ttl;
+	}
+
+	private boolean hasRecentConfigMiss(String cacheName) {
+		CacheConfigEntry entry = cacheConfigMap.getIfPresent(cacheName);
+		return entry != null && entry.config == null && configIsFresh(entry);
+	}
+
+	private void rememberConfigMiss(String cacheName) {
+		synchronized (cacheLifecycleLock(cacheName)) {
+			CacheConfigEntry current = cacheConfigMap.getIfPresent(cacheName);
+			if (current == null || current.config == null) {
+				cacheConfigMap.put(cacheName, new CacheConfigEntry(null, currentTimeMillis()));
+			}
+		}
+	}
+
+	/** Side effects run after publication, without holding the cache segment lock. */
+	protected void onCacheRegistered(DataFlowCacheConfig cacheConfig) {
 		this.lastLogTSMap.put(cacheConfig.getCacheName(), 0L);
-		this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
+		this.cacheStatusMap.put(cacheConfig.getCacheName(), DataFlow.STATUS_RUNNING);
 	}
 
 	/**
@@ -185,7 +222,7 @@ public abstract class AbstractCacheService implements ICacheService {
 	 */
 	@Override
 	public void destroy(String cacheName) {
-		synchronized (this.cacheDestroyLockMap.computeIfAbsent(cacheName, k -> new Object())) {
+		synchronized (cacheLifecycleLock(cacheName)) {
 			try {
 				ICacheStore cacheStore = this.getCacheStore(cacheName);
 				if (cacheStore != null) {
@@ -193,7 +230,8 @@ public abstract class AbstractCacheService implements ICacheService {
 					this.cacheStoreMap.remove(cacheName, cacheStore);
 				}
 				this.cacheStatusMap.remove(cacheName);
-				this.cacheConfigMap.remove(cacheName);
+				this.cacheConfigLoads.remove(cacheName);
+				this.cacheConfigMap.invalidate(cacheName);
 				CacheGetterEntry entry;
 				synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
 					entry = this.cacheGetterMap.remove(cacheName);
@@ -229,7 +267,104 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	@Override
 	public DataFlowCacheConfig getConfig(String cacheName) {
-		return cacheConfigMap.get(cacheName);
+		CacheConfigEntry cached = cacheConfigMap.getIfPresent(cacheName);
+		if (cached != null && configIsFresh(cached)) {
+			return cached.config;
+		}
+		ConfigLoad candidate = new ConfigLoad(cacheName);
+		ConfigLoad existing = cacheConfigLoads.putIfAbsent(cacheName, candidate);
+		if (existing != null && cached != null) {
+			// Stale readers never wait for an active refresh, including its startup window.
+			// A terminated creator cannot start a NEW task, so this caller may take over.
+			if (!existing.creator.isAlive()) {
+				existing.result.run();
+			}
+			if (existing.result.isDone()) {
+				cacheConfigLoads.remove(cacheName, existing);
+			}
+			CacheConfigEntry current = cacheConfigMap.getIfPresent(cacheName);
+			return current == null ? null : current.config;
+		}
+		if (existing != null && existing.owner == Thread.currentThread()) {
+			return null;
+		}
+		ConfigLoad load = existing == null ? candidate : existing;
+		try {
+			// FutureTask.run is idempotent: a follower can start an abandoned NEW task.
+			load.result.run();
+			return load.result.get();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException e) {
+			synchronized (cacheLifecycleLock(cacheName)) {
+				if (cacheConfigLoads.get(cacheName) == load && cacheConfigMap.getIfPresent(cacheName) == null) {
+					cacheConfigMap.put(cacheName, new CacheConfigEntry(null, currentTimeMillis()));
+				}
+			}
+			logger.warn("Load cache config [{}] failed; retaining the current config", cacheName, e.getCause());
+		} finally {
+			if (load.result.isDone()) {
+				cacheConfigLoads.remove(cacheName, load);
+			}
+		}
+		CacheConfigEntry current = cacheConfigMap.getIfPresent(cacheName);
+		return current == null ? null : current.config;
+	}
+
+	private DataFlowCacheConfig refreshConfig(String cacheName, ConfigLoad load) {
+		CacheConfigEntry before = cacheConfigMap.getIfPresent(cacheName);
+		if (before != null && configIsFresh(before)) {
+			return before.config;
+		}
+		if (before != null) {
+			// Back off for one TTL even when TM is unavailable; keep serving the old config.
+			before.lastAttempt = currentTimeMillis();
+		}
+		// No map lock is held across this synchronous TM request.
+		DataFlowCacheConfig loaded = loadConfigFromTm(cacheName);
+		synchronized (cacheLifecycleLock(cacheName)) {
+			CacheConfigEntry current = cacheConfigMap.getIfPresent(cacheName);
+			if ((current != null && current != before) || cacheConfigLoads.get(cacheName) != load) {
+				return current == null ? null : current.config;
+			}
+			// Publishing and side effects share destroy's per-cache lock, never Guava's segment lock.
+			cacheConfigMap.put(cacheName, new CacheConfigEntry(loaded, currentTimeMillis()));
+			if (loaded != null) {
+				try {
+					onCacheRegistered(loaded);
+				} catch (Exception e) {
+					logger.warn("Cache config [{}] stored but registration side effects failed", cacheName, e);
+				}
+			}
+			return loaded;
+		}
+	}
+
+	private final class ConfigLoad {
+		private final FutureTask<DataFlowCacheConfig> result;
+		private volatile Thread owner;
+		private final Thread creator = Thread.currentThread();
+
+		private ConfigLoad(String cacheName) {
+			result = new FutureTask<>(() -> {
+				owner = Thread.currentThread();
+				try {
+					return refreshConfig(cacheName, this);
+				} finally {
+					owner = null;
+				}
+			});
+		}
+	}
+
+	private static final class CacheConfigEntry {
+		private final DataFlowCacheConfig config;
+		private volatile long lastAttempt;
+
+		private CacheConfigEntry(DataFlowCacheConfig config, long loadedAt) {
+			this.config = config;
+			this.lastAttempt = loadedAt;
+		}
 	}
 
 
@@ -260,16 +395,37 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	private void waitCacheNodeCompletedInitialIfNeed(String cacheName) throws InterruptedException {
 
-		if (this.cacheConfigMap.get(cacheName) == null) {
-			// 如果不存在，则向tm查询
-			TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
-			DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
-			if (cacheConfig == null) {
+		if (getConfig(cacheName) == null) {
+			if (hasRecentConfigMiss(cacheName)) {
 				throw new RuntimeException("cache not exist: " + cacheName);
 			}
-			logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
-			registerCache(cacheConfig);
-			this.cacheStatusMap.put(cacheName, taskDto.getStatus());
+			DataFlowCacheConfig recovered = null;
+			try {
+				recovered = cacheInitializations.get(cacheName, () -> {
+					DataFlowCacheConfig current = getConfig(cacheName);
+					if (current != null) {
+						return current;
+					}
+					if (hasRecentConfigMiss(cacheName)) {
+						throw new RuntimeException("cache not exist: " + cacheName);
+					}
+					TaskDto task = loadCacheTaskFromTm(cacheName);
+					DataFlowCacheConfig config = task == null ? null : CacheUtil.getCacheConfigOrThrow(task, clientMongoOperator);
+					if (config == null) {
+						throw new IllegalStateException("cache not exist: " + cacheName);
+					}
+					registerCache(config);
+					cacheStatusMap.put(cacheName, task.getStatus());
+					return config;
+				});
+			} catch (ExecutionException | UncheckedExecutionException e) {
+				rememberConfigMiss(cacheName);
+				throw new RuntimeException("cache not exist: " + cacheName, e.getCause());
+			} finally {
+				if (recovered != null) {
+					cacheInitializations.asMap().remove(cacheName, recovered);
+				}
+			}
 		}
 
 		//todo IMDG is not supported, locking is not necessary

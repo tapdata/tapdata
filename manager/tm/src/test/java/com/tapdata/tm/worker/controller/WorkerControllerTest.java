@@ -11,6 +11,7 @@ import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.InOrder;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 class WorkerControllerTest {
@@ -57,6 +60,40 @@ class WorkerControllerTest {
             when(workerService.unbindByProcessId(processId)).thenReturn(true);
             ResponseMessage<Boolean> actual = workerController.unbindByProcessId(processId);
             assertEquals(true,actual.getData());
+        }
+    }
+
+    @Nested
+    class TestApiServerUpsertOrder {
+        @Test
+        void statusUpdateHappensAfterWorkerUpsert() {
+            workerService = mock(WorkerService.class);
+            workerController = spy(new WorkerController(workerService, mock(UserLogService.class), mock(SettingsService.class)));
+
+            LoginUserResolver loginUserResolver = mock(LoginUserResolver.class);
+            UserDetail userDetail = mock(UserDetail.class);
+            ReflectionTestUtils.setField(workerController, "loginUserResolver", loginUserResolver);
+            when(loginUserResolver.resolve(any(HttpServletRequest.class), nullable(String.class))).thenReturn(userDetail);
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+
+            WorkerDto worker = new WorkerDto();
+            worker.setProcessId("api-server-1");
+            worker.setWorkerType("api-server");
+            ApiServerStatus workerStatus = new ApiServerStatus();
+            workerStatus.setStatus("UP");
+            workerStatus.setUpdateCpuMem(true);
+            worker.setWorkerStatus(workerStatus);
+            WorkerDto upserted = new WorkerDto();
+            when(workerService.upsertByWhere(any(), same(worker), same(userDetail))).thenReturn(upserted);
+
+            workerController.upsertByWhere("{\"process_id\":\"api-server-1\",\"worker_type\":\"api-server\"}", worker);
+
+            InOrder order = inOrder(workerService);
+            order.verify(workerService).upsertByWhere(any(), same(worker), same(userDetail));
+            order.verify(workerService).updateWorkerStatus(any(), same(userDetail));
+            assertNull(worker.getWorkerStatus());
+            assertEquals(false, worker.getDeleted());
+            RequestContextHolder.resetRequestAttributes();
         }
     }
 

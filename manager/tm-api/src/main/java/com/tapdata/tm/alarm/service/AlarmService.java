@@ -16,6 +16,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmImpactView;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverCandidates;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverPreview;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmDetail;
 import com.tapdata.tm.commons.task.dto.alarm.BatchAlarmResult;
@@ -107,6 +108,12 @@ public interface AlarmService {
 
     default AlarmReceiverPreview previewReceivers(String taskId, String userId) {
         return previewReceivers(taskId);
+    }
+
+    default AlarmReceiverPreview previewInspectReceivers(List<AlarmReceiver> receivers,
+                                                         List<String> emailReceivers,
+                                                         String ownerUserId) {
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     default AlarmReceiverCandidates receiverCandidates() {
