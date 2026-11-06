@@ -357,6 +357,33 @@ public class UserLogServiceImplTest {
         }
 
         @Test
+        @org.junit.jupiter.api.DisplayName("历史审计查询：脱敏参数、URL和兜底文案，不修改原实体")
+        void should_mask_historical_audit() {
+            UserLogs log = new UserLogs();
+            log.setId(new ObjectId());
+            log.setUsername("operator");
+            log.setModular("mcp");
+            log.setOperation("unknown-operation");
+            log.setParameter1("MCP POST /mcp?accessCode=synthetic-code");
+            log.setParameter2("token=synthetic-token");
+            log.setParameter3("{\"password\":\"synthetic password\"}");
+            log.setUrl("/mcp?access%43ode=synthetic-encoded");
+            log.setDesc("Bearer synthetic-bearer");
+            when(repository.findAll(filter)).thenReturn(List.of(log));
+            when(repository.count(filter.getWhere())).thenReturn(1L);
+
+            UserLogDto safe = userLogService.find(filter, userDetail, true).getItems().get(0);
+
+            assertEquals("MCP POST /mcp?accessCode=***", safe.getParameter1());
+            assertEquals("token=***", safe.getParameter2());
+            assertEquals("{\"password\":\"***\"}", safe.getParameter3());
+            assertEquals("/mcp?access%43ode=***", safe.getUrl());
+            assertEquals("Bearer ***", safe.getDesc());
+            assertTrue(!safe.getI18nMessage().contains("synthetic-code"));
+            assertTrue(log.getParameter1().contains("synthetic-code"));
+        }
+
+        @Test
         void testOwnDataQueriesCurrentUserScope() {
             when(repository.findAll(filter, userDetail)).thenReturn(new ArrayList<>());
             when(repository.count(filter.getWhere(), userDetail)).thenReturn(0L);
