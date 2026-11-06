@@ -66,7 +66,9 @@ public class V4_24_9_WorkerApiServerUnique extends AbsPatch {
                 .filter(group -> group.size() > 1)
                 .forEach(group -> removeDuplicates(mongoTemplate, group));
 
-        Document activeWorkerKey = new Document(PROCESS_ID_FIELD, 1).append(WORKER_TYPE_FIELD, 1);
+        // Keep the legacy tapdata-manager index on (process_id, worker_type)
+        // while avoiding MongoDB's same-key-pattern option conflict.
+        Document activeWorkerKey = new Document(WORKER_TYPE_FIELD, 1).append(PROCESS_ID_FIELD, 1);
         Document activeWorkerFilter = new Document(WORKER_TYPE_FIELD, WORKER_TYPE)
                 .append(DELETED_FIELD, false)
                 .append(PROCESS_ID_FIELD, new Document("$gt", ""));
