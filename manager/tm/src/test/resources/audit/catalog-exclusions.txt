@@ -6,6 +6,7 @@ com.tapdata.tm.Settings.controller.SettingsController#save  # 通用回写接口
 com.tapdata.tm.alarm.controller.AlarmController#addMsg  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.alarm.controller.AlarmController#findListByTask  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.alarm.controller.AlarmController#ingestTaskAlert  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.alarm.controller.AlarmController#inspectReceiverPreview  # 只读预览校验任务告警接收人，进行权限检查和脱敏，不保存配置或发送告警
 com.tapdata.tm.alarm.controller.AlarmController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
 com.tapdata.tm.apiCalls.controller.ApiCallController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
 com.tapdata.tm.apiServer.controller.ApiServerController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口

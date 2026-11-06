@@ -91,8 +91,7 @@ function switch_node_version() {
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
     export NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node
   fi
-  nvm use $version
-  if [[ $? -ne 0 ]]; then
+  if ! nvm use $version; then
     nvm install $version
     nvm use $version
   fi
@@ -105,8 +104,17 @@ for COMPONENT in ${COMPONENTS[@]}; do
   elif [[ $COMPONENT == "connectors" ]]; then
     cd $CONNECTOR_DIR && build_java_component
   elif [[ $COMPONENT == "frontend" ]]; then
-    switch_node_version 20
-    cd $FRONTEND_DIR && DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m $FRONTEND_BUILD_MODE
+    # Keep errexit active inside the subshell; do not put it in an ||/if test.
+    (
+      set -eo pipefail
+      switch_node_version 20
+      cd "$FRONTEND_DIR"
+      DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m "$FRONTEND_BUILD_MODE"
+    )
+    frontend_status=$?
+    if [[ $frontend_status -ne 0 ]]; then
+      exit "$frontend_status"
+    fi
   fi
 done
 

@@ -11,4 +11,6 @@ public class DataPermissionEnumsName {
     public static final String V2_AUDIT_LOG = "v2_audit_log";
     public static final String V2_AUDIT_LOG_LIST = "v2_audit_log_list";
     public static final String V2_AUDIT_LOG_EXPORT = "v2_audit_log_export";
+    public static final String V2_DATA_CHECK_CREATE = "v2_data_check_create";
+    public static final String V2_DATA_CHECK_EDIT = "v2_data_check_edit";
 }
