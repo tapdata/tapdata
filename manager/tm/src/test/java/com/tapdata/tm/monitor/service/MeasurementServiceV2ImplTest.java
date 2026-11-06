@@ -152,6 +152,23 @@ class MeasurementServiceV2ImplTest {
     }
 
     @Test
+    void selectedNodeWithoutSamplesInAPopulatedMinuteBucketReportsMissingInsteadOfFailing() throws Exception {
+        long startAt = 0L;
+        long endAt = 60L * 60L * 1000L;
+        List<MeasurementEntity> rows = List.of(
+                taskMetricsEntity("task-a", "node-a", Granularity.GRANULARITY_MINUTE,
+                        List.of(metricSample(0L, 30D))));
+        MeasurementServiceV2Impl service = measurementServiceWithRows(rows, new ArrayList<>());
+
+        TaskMetricsTrendVo result = service.aggregateTaskMetricsByTaskIdsV2(
+                List.of("task-a"), startAt, endAt, "node-b");
+
+        assertEquals(60, result.getOutputQps().size());
+        assertTrue(result.getOutputQps().stream().allMatch(Objects::isNull));
+        assertEquals("no_data", result.getStatus());
+    }
+
+    @Test
     void selectedNodeAndAllUseTheSameComputableMinuteDenominator() throws Exception {
         String taskId = "task-common-minute-denominator";
         MeasurementEntity legacyUnattributedZero = taskMetricsEntity(taskId, null,
