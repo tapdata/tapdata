@@ -14,6 +14,7 @@ import com.tapdata.tm.userLog.constant.UserLogType;
 import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.dto.User;
 import com.tapdata.tm.userLog.entity.UserLogs;
+import com.tapdata.tm.utils.SensitiveDataMasker;
 import com.tapdata.tm.userLog.repository.UserLogRepository;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
@@ -164,9 +165,10 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             userLogs.setSourceId(sourceId);
             userLogs.setType(type.getValue());
 
-            userLogs.setParameter1(parameter1);
-            userLogs.setParameter2(parameter2);
-            userLogs.setParameter3(parameter3);
+            // 写入边界同样脱敏，避免任何调用方把凭证明文落库
+            userLogs.setParameter1(SensitiveDataMasker.mask(parameter1));
+            userLogs.setParameter2(SensitiveDataMasker.mask(parameter2));
+            userLogs.setParameter3(SensitiveDataMasker.mask(parameter3));
 
             User user = new User();
             BeanUtil.copyProperties(userDetail, user);
@@ -247,6 +249,14 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         long total = allData ? userLogRepository.count(filter.getWhere()) : userLogRepository.count(filter.getWhere(), userDetail);
 
         List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
+        // 历史数据可能已落库明文凭证，读取边界统一脱敏后再格式化文案
+        items.forEach(item -> {
+            item.setParameter1(SensitiveDataMasker.mask(item.getParameter1()));
+            item.setParameter2(SensitiveDataMasker.mask(item.getParameter2()));
+            item.setParameter3(SensitiveDataMasker.mask(item.getParameter3()));
+            item.setDesc(SensitiveDataMasker.mask(item.getDesc()));
+            item.setUrl(SensitiveDataMasker.mask(item.getUrl()));
+        });
         Locale locale = MessageUtil.getLocale();
         items.forEach(item -> item.setI18nMessage(renderI18nMessage(item, locale)));
 
