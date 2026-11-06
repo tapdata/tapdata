@@ -255,57 +255,61 @@ public class CacheUtil {
 
 	public static DataFlowCacheConfig getCacheConfig(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
 		try {
-			DAG dag = taskDto.getDag();
-			if (dag == null || dag.getNodes() == null) {
-				return null;
-			}
-			List<Node> nodes = dag.getNodes();
-			CacheNode cacheNode = null;
-			TableNode tableNode = null;
-			for (Node node : nodes) {
-				if (node instanceof CacheNode) {
-					cacheNode = (CacheNode) node;
-				} else if (node.isDataNode()) {
-					tableNode = (TableNode) node;
-				}
-			}
-			if (cacheNode == null || tableNode == null) {
-				return null;
-			}
-
-			String connectionId = tableNode.getConnectionId();
-			final Connections sourceConnections = clientMongoOperator.findOne(
-					new Query(where("_id").is(connectionId)),
-					ConnectorConstant.CONNECTION_COLLECTION,
-					Connections.class
-			);
-			sourceConnections.decodeDatabasePassword();
-			sourceConnections.initCustomTimeZone();
-
-			DataFlowCacheConfig dataFlowCacheConfig = new DataFlowCacheConfig(
-					cacheNode.getCacheKeys(),
-					cacheNode.getCacheName(),
-					"all",
-					cacheNode.getMaxRows(),
-					cacheNode.getMaxMemory() == null ? 500L : cacheNode.getMaxMemory(),
-					cacheNode.getTtl(),
-					new HashSet<>(cacheNode.getFields()),
-					sourceConnections,
-					tableNode,
-					tableNode.getTableName(),
-					HazelcastUtil.node2CommonStage(tableNode),
-				resolvePrimaryKeys(tableNode)
-			);
-			dataFlowCacheConfig.setExternalStorageId(cacheNode.getExternalStorageId());
-			dataFlowCacheConfig.setCacheNode(cacheNode);
-			return dataFlowCacheConfig;
+			return getCacheConfigOrThrow(taskDto, clientMongoOperator);
 		} catch (Exception e) {
 			logger.warn("get cache config error", e);
 			return null;
 		}
-
-
 	}
+
+	/** Preserves lookup/parsing failures for callers that must retain a stale config. */
+	public static DataFlowCacheConfig getCacheConfigOrThrow(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
+		DAG dag = taskDto.getDag();
+		if (dag == null || dag.getNodes() == null) {
+			return null;
+		}
+		List<Node> nodes = dag.getNodes();
+		CacheNode cacheNode = null;
+		TableNode tableNode = null;
+		for (Node node : nodes) {
+			if (node instanceof CacheNode) {
+				cacheNode = (CacheNode) node;
+			} else if (node.isDataNode()) {
+				tableNode = (TableNode) node;
+			}
+		}
+		if (cacheNode == null || tableNode == null) {
+			return null;
+		}
+
+		String connectionId = tableNode.getConnectionId();
+		final Connections sourceConnections = clientMongoOperator.findOne(
+				new Query(where("_id").is(connectionId)),
+				ConnectorConstant.CONNECTION_COLLECTION,
+				Connections.class
+		);
+		sourceConnections.decodeDatabasePassword();
+		sourceConnections.initCustomTimeZone();
+
+		DataFlowCacheConfig dataFlowCacheConfig = new DataFlowCacheConfig(
+				cacheNode.getCacheKeys(),
+				cacheNode.getCacheName(),
+				"all",
+				cacheNode.getMaxRows(),
+				cacheNode.getMaxMemory() == null ? 500L : cacheNode.getMaxMemory(),
+				cacheNode.getTtl(),
+				new HashSet<>(cacheNode.getFields()),
+				sourceConnections,
+				tableNode,
+				tableNode.getTableName(),
+				HazelcastUtil.node2CommonStage(tableNode),
+			resolvePrimaryKeys(tableNode)
+		);
+		dataFlowCacheConfig.setExternalStorageId(cacheNode.getExternalStorageId());
+		dataFlowCacheConfig.setCacheNode(cacheNode);
+		return dataFlowCacheConfig;
+	}
+
 
 	public static void removeRecord(ConstructIMap<Map<String, Map<String, Object>>> dataMap, String beforeCacheKey, String beforePk) throws Throwable {
 		if (dataMap.exists(beforeCacheKey)) {

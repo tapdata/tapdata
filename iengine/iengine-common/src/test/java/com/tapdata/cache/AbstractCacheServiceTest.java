@@ -1,6 +1,11 @@
 package com.tapdata.cache;
 
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.cache.memory.MemoryCacheService;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.dataflow.DataFlow;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import org.springframework.data.mongodb.core.query.Query;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.error.ShareCacheExCode_20;
@@ -11,6 +16,7 @@ import org.mockito.MockedStatic;
 
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.net.URLEncoder;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,6 +30,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.google.common.cache.Cache;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,12 +47,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 public class AbstractCacheServiceTest {
     class TestCacheService extends AbstractCacheService{
         final AtomicLong now = new AtomicLong(1_000_000L);
+        Function<String, DataFlowCacheConfig> configLoader;
+
+        @Override
+        protected DataFlowCacheConfig loadConfigFromTm(String cacheName) {
+            if (configLoader == null) {
+                return super.loadConfigFromTm(cacheName);
+            }
+            DataFlowCacheConfig config = configLoader.apply(cacheName);
+            if (config != null && config.getCacheName() == null) {
+                config.setCacheName(cacheName);
+            }
+            return config;
+        }
 
         public TestCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
             super(clientMongoOperator, cacheStatusMap);
@@ -79,7 +110,7 @@ public class AbstractCacheServiceTest {
         Map<String, String> cacheStatusMap = new HashMap<>();
         HttpClientMongoOperator httpClientMongoOperator = mock(HttpClientMongoOperator.class);
         TestCacheService testCacheService = new TestCacheService(httpClientMongoOperator, cacheStatusMap);
-        Function<String, DataFlowCacheConfig> supplier = testCacheService.cacheConfigMap.getSupplier();
+        Function<String, DataFlowCacheConfig> supplier = testCacheService::loadConfigFromTm;
         try (MockedStatic<URLEncoder> urlEncoderMockedStatic = mockStatic(URLEncoder.class);) {
             urlEncoderMockedStatic.when(() -> {
                 URLEncoder.encode("t1", "UTF-8");
@@ -88,6 +119,676 @@ public class AbstractCacheServiceTest {
                 supplier.apply("t1");
             });
             assertEquals(ShareCacheExCode_20.ENCODE_CACHE_NAME,tapCodeException.getCode());
+        }
+    }
+
+    @DisplayName("a blocked TM lookup for one cache does not block another cache")
+    @Test
+    void configLookupIsNotSerializedAcrossCacheNames() throws Exception {
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig secondConfig = new DataFlowCacheConfig();
+        cacheService.configLoader = name -> {
+            if ("first".equals(name)) {
+                firstEntered.countDown();
+                try {
+                    if (!releaseFirst.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("first lookup was not released");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }
+            return "second".equals(name) ? secondConfig : new DataFlowCacheConfig();
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<DataFlowCacheConfig> first = executor.submit(() -> cacheService.getConfig("first"));
+            assertTrue(firstEntered.await(2, TimeUnit.SECONDS));
+            Future<DataFlowCacheConfig> second = executor.submit(() -> cacheService.getConfig("second"));
+            assertEquals(secondConfig, second.get(2, TimeUnit.SECONDS));
+            releaseFirst.countDown();
+            assertTrue(first.get(2, TimeUnit.SECONDS) != null);
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @DisplayName("concurrent requests for one missing cache load its config once")
+    @Test
+    void configLookupIsSerializedPerCacheName() throws Exception {
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicInteger loads = new AtomicInteger();
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        cacheService.configLoader = name -> {
+            loads.incrementAndGet();
+            firstEntered.countDown();
+            try {
+                if (!releaseFirst.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("lookup was not released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return config;
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<DataFlowCacheConfig> first = executor.submit(() -> cacheService.getConfig("same"));
+            assertTrue(firstEntered.await(2, TimeUnit.SECONDS));
+            CountDownLatch secondEntered = new CountDownLatch(1);
+            AtomicReference<Thread> secondThread = new AtomicReference<>();
+            Future<DataFlowCacheConfig> second = executor.submit(() -> {
+                secondThread.set(Thread.currentThread());
+                secondEntered.countDown();
+                return cacheService.getConfig("same");
+            });
+            assertTrue(secondEntered.await(2, TimeUnit.SECONDS));
+            assertTrue(waitFor(() -> secondThread.get().getState() == Thread.State.WAITING),
+                    "the second caller must reach FutureTask.get while the first query is held");
+            assertThrows(TimeoutException.class, () -> second.get(200, TimeUnit.MILLISECONDS));
+            assertEquals(1, loads.get(), "the second caller must wait for the in-flight load");
+            releaseFirst.countDown();
+            assertEquals(config, first.get(2, TimeUnit.SECONDS));
+            assertEquals(config, second.get(2, TimeUnit.SECONDS));
+            assertEquals(1, loads.get());
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @DisplayName("expired cache config is refreshed through its supplier")
+    @Test
+    void expiredConfigStillRefreshes() throws InterruptedException {
+        TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig stale = new DataFlowCacheConfig();
+        DataFlowCacheConfig refreshed = new DataFlowCacheConfig();
+        AtomicInteger loads = new AtomicInteger();
+        cacheService.configLoader = name -> {
+            loads.incrementAndGet();
+            return refreshed;
+        };
+        stale.setCacheName("expired");
+        cacheService.registerCache(stale);
+        cacheService.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+
+        assertEquals(refreshed, cacheService.getConfig("expired"));
+        assertEquals(1, loads.get());
+    }
+
+    private static int activeConfigLoads(AbstractCacheService service) throws Exception {
+        Field field = AbstractCacheService.class.getDeclaredField("cacheConfigLoads");
+        field.setAccessible(true);
+        return ((Map<?, ?>) field.get(service)).size();
+    }
+
+    @Test
+    void refreshFailureRetainsUsableConfig() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig stale = new DataFlowCacheConfig();
+        stale.setCacheName("stale");
+        service.registerCache(stale);
+        AtomicInteger requests = new AtomicInteger();
+        service.configLoader = name -> {
+            requests.incrementAndGet();
+            throw new IllegalStateException("TM unavailable");
+        };
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        assertEquals(0, requests.get(), "expiry alone must not query TM");
+        assertSame(stale, service.getConfig("stale"));
+        assertEquals(DataFlow.STATUS_RUNNING, service.cacheStatusMap.get("stale"));
+        assertEquals(1, requests.get());
+        assertEquals(0, activeConfigLoads(service));
+    }
+
+    @Test
+    void tmRequestFailureAfterExpiryReturnsStaleConfig() throws Exception {
+        HttpClientMongoOperator client = mock(HttpClientMongoOperator.class);
+        TestCacheService service = new TestCacheService(client, new ConcurrentHashMap<>());
+        DataFlowCacheConfig stale = new DataFlowCacheConfig();
+        String name = "订单 缓存/a";
+        stale.setCacheName(name);
+        service.registerCache(stale);
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        String path = ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + URLEncoder.encode(name, "UTF-8");
+        when(client.findOne(any(Query.class), eq(path), eq(TaskDto.class)))
+                .thenThrow(new IllegalStateException("TM unavailable"));
+
+        assertSame(stale, service.getConfig(name));
+        verify(client).findOne(any(Query.class), eq(path), eq(TaskDto.class));
+        assertEquals(0, activeConfigLoads(service));
+    }
+
+    @Test
+    void failedRefreshIsThrottledForOneTtl() {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        registerConfig(service, "backoff");
+        DataFlowCacheConfig stale = service.getConfig("backoff");
+        AtomicInteger requests = new AtomicInteger();
+        service.configLoader = name -> {
+            requests.incrementAndGet();
+            throw new IllegalStateException("TM down");
+        };
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        for (int i = 0; i < 20; i++) {
+            assertSame(stale, service.getConfig("backoff"));
+        }
+        assertEquals(1, requests.get());
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        assertSame(stale, service.getConfig("backoff"));
+        assertEquals(2, requests.get());
+    }
+
+    @Test
+    void connectionLookupFailureIsNotTreatedAsDeletedConfig() {
+        HttpClientMongoOperator client = mock(HttpClientMongoOperator.class);
+        TestCacheService service = new TestCacheService(client, new ConcurrentHashMap<>());
+        registerConfig(service, "connection-failure");
+        DataFlowCacheConfig stale = service.getConfig("connection-failure");
+        TaskDto task = mock(TaskDto.class);
+        DAG dag = mock(DAG.class);
+        CacheNode cache = mock(CacheNode.class);
+        TableNode table = mock(TableNode.class);
+        when(task.getDag()).thenReturn(dag);
+        when(dag.getNodes()).thenReturn(java.util.Arrays.asList(cache, table));
+        when(table.isDataNode()).thenReturn(true);
+        when(table.getConnectionId()).thenReturn("connection");
+        when(client.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION + "/byCacheName/connection-failure"), eq(TaskDto.class))).thenReturn(task);
+        when(client.findOne(any(Query.class), eq(ConnectorConstant.CONNECTION_COLLECTION), eq(com.tapdata.entity.Connections.class)))
+                .thenThrow(new IllegalStateException("connection REST lookup failed"));
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        assertSame(stale, service.getConfig("connection-failure"));
+        assertSame(stale, service.getConfig("connection-failure"));
+        verify(client).findOne(any(Query.class), eq(ConnectorConstant.CONNECTION_COLLECTION), eq(com.tapdata.entity.Connections.class));
+    }
+
+    @Test
+    void registrationSideEffectFailureLeavesPublishedConfig() {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>()) {
+            @Override
+            protected void onCacheRegistered(DataFlowCacheConfig config) {
+                throw new IllegalStateException("cluster unavailable");
+            }
+        };
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        config.setCacheName("published");
+        assertThrows(IllegalStateException.class, () -> service.registerCache(config));
+        assertSame(config, service.getConfig("published"));
+    }
+
+    @Test
+    void registrationSideEffectsDoNotHoldCacheSegmentLock() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>()) {
+            @Override
+            protected void onCacheRegistered(DataFlowCacheConfig config) {
+                if ("blocked".equals(config.getCacheName())) {
+                    entered.countDown();
+                    awaitConfigQuery(release);
+                }
+                super.onCacheRegistered(config);
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> registerConfig(service, "blocked"));
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            executor.submit(() -> {
+                for (int i = 0; i < 20; i++) {
+                    registerConfig(service, "other-" + i);
+                }
+            }).get(2, TimeUnit.SECONDS);
+            assertTrue(service.getConfig("blocked") != null);
+            release.countDown();
+            first.get(2, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void capacityEvictionDoesNotDiscardSuccessfulRefresh() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        registerConfig(service, "evicted");
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        DataFlowCacheConfig refreshed = new DataFlowCacheConfig();
+        service.configLoader = name -> {
+            entered.countDown();
+            awaitConfigQuery(release);
+            return refreshed;
+        };
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<DataFlowCacheConfig> pending = executor.submit(() -> service.getConfig("evicted"));
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            for (int i = 0; i < 1000; i++) {
+                registerConfig(service, "capacity-" + i);
+            }
+            Field field = AbstractCacheService.class.getDeclaredField("cacheConfigMap");
+            field.setAccessible(true);
+            assertNull(((Cache<?, ?>) field.get(service)).getIfPresent("evicted"));
+            release.countDown();
+            assertSame(refreshed, pending.get(2, TimeUnit.SECONDS));
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void reentrantMissingLookupDoesNotWaitForItself() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        service.configLoader = name -> {
+            assertNull(service.getConfig(name));
+            return config;
+        };
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            assertSame(config, executor.submit(() -> service.getConfig("reentrant")).get(2, TimeUnit.SECONDS));
+            assertEquals(0, activeConfigLoads(service));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void followerStartsAnAbandonedNewLoad() throws Exception {
+        assertFollowerStartsAbandonedLoad(false);
+        assertFollowerStartsAbandonedLoad(true);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertFollowerStartsAbandonedLoad(boolean hasStaleConfig) throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        if (hasStaleConfig) {
+            registerConfig(service, "abandoned");
+            service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        }
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        service.configLoader = name -> config;
+        Class<?> type = Class.forName(AbstractCacheService.class.getName() + "$ConfigLoad");
+        java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor(AbstractCacheService.class, String.class);
+        constructor.setAccessible(true);
+        Field field = AbstractCacheService.class.getDeclaredField("cacheConfigLoads");
+        field.setAccessible(true);
+        AtomicReference<Throwable> setupFailure = new AtomicReference<>();
+        Thread abandonedCreator = new Thread(() -> {
+            try {
+                ((Map<String, Object>) field.get(service)).put("abandoned", constructor.newInstance(service, "abandoned"));
+            } catch (Throwable e) {
+                setupFailure.set(e);
+            }
+        });
+        abandonedCreator.start();
+        abandonedCreator.join(2000);
+        assertTrue(!abandonedCreator.isAlive());
+        assertNull(setupFailure.get());
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            assertSame(config, executor.submit(() -> service.getConfig("abandoned")).get(2, TimeUnit.SECONDS));
+            assertEquals(0, activeConfigLoads(service));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void coldMissAndFailureQueryTmOncePerRetryWindow() throws Exception {
+        Method initialize = AbstractCacheService.class.getDeclaredMethod("waitCacheNodeCompletedInitialIfNeed", String.class);
+        initialize.setAccessible(true);
+        for (boolean memory : new boolean[]{false, true}) {
+            for (boolean failing : new boolean[]{false, true}) {
+                HttpClientMongoOperator client = mock(HttpClientMongoOperator.class);
+                AtomicLong clock = new AtomicLong(1_000_000);
+                AbstractCacheService service;
+                if (memory) {
+                    service = new MemoryCacheService(client) {
+                        @Override
+                        protected long currentTimeMillis() {
+                            return clock.get();
+                        }
+                    };
+                } else {
+                    service = new TestCacheService(client, new ConcurrentHashMap<>()) {
+                        @Override
+                        protected long currentTimeMillis() {
+                            return clock.get();
+                        }
+                    };
+                }
+                String path = ConnectorConstant.TASK_COLLECTION + "/byCacheName/cold";
+                if (failing) {
+                    when(client.findOne(any(Query.class), eq(path), eq(TaskDto.class)))
+                            .thenThrow(new IllegalStateException("TM unavailable"));
+                }
+                for (int i = 0; i < 20; i++) {
+                    java.lang.reflect.InvocationTargetException error = assertThrows(java.lang.reflect.InvocationTargetException.class,
+                            () -> initialize.invoke(service, "cold"));
+                    assertEquals(RuntimeException.class, error.getCause().getClass());
+                    assertEquals("cache not exist: cold", error.getCause().getMessage());
+                }
+                verify(client, times(1)).findOne(any(Query.class), eq(path), eq(TaskDto.class));
+                clock.addAndGet(AbstractCacheService.CACHE_CONFIG_MISS_RETRY_MS);
+                assertThrows(java.lang.reflect.InvocationTargetException.class, () -> initialize.invoke(service, "cold"));
+                verify(client, times(2)).findOne(any(Query.class), eq(path), eq(TaskDto.class));
+            }
+        }
+    }
+
+    @Test
+    void destroyCannotBeFollowedByRefreshRegistrationSideEffects() throws Exception {
+        CountDownLatch hookEntered = new CountDownLatch(1);
+        CountDownLatch releaseHook = new CountDownLatch(1);
+        DataFlowCacheConfig refreshed = new DataFlowCacheConfig();
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>()) {
+            @Override
+            protected void onCacheRegistered(DataFlowCacheConfig config) {
+                if (config == refreshed) {
+                    hookEntered.countDown();
+                    awaitConfigQuery(releaseHook);
+                }
+                super.onCacheRegistered(config);
+            }
+        };
+        registerConfig(service, "lifecycle");
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        service.configLoader = name -> refreshed;
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> refresh = executor.submit(() -> service.getConfig("lifecycle"));
+            assertTrue(hookEntered.await(2, TimeUnit.SECONDS));
+            CountDownLatch destroyEntered = new CountDownLatch(1);
+            Future<?> destroy = executor.submit(() -> {
+                destroyEntered.countDown();
+                service.destroy("lifecycle");
+            });
+            assertTrue(destroyEntered.await(2, TimeUnit.SECONDS));
+            assertThrows(TimeoutException.class, () -> destroy.get(200, TimeUnit.MILLISECONDS));
+            releaseHook.countDown();
+            refresh.get(2, TimeUnit.SECONDS);
+            destroy.get(2, TimeUnit.SECONDS);
+            assertTrue(!service.cacheStatusMap.containsKey("lifecycle"));
+            Field field = AbstractCacheService.class.getDeclaredField("cacheConfigMap");
+            field.setAccessible(true);
+            assertNull(((Cache<?, ?>) field.get(service)).getIfPresent("lifecycle"));
+        } finally {
+            releaseHook.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void sameCacheRegistrationHooksAreSerialized() throws Exception {
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>()) {
+            @Override
+            protected void onCacheRegistered(DataFlowCacheConfig config) {
+                if (calls.incrementAndGet() == 1) {
+                    firstEntered.countDown();
+                    awaitConfigQuery(releaseFirst);
+                }
+                super.onCacheRegistered(config);
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> registerConfig(service, "same-hook"));
+            assertTrue(firstEntered.await(2, TimeUnit.SECONDS));
+            Future<?> second = executor.submit(() -> registerConfig(service, "same-hook"));
+            assertThrows(TimeoutException.class, () -> second.get(200, TimeUnit.MILLISECONDS));
+            assertEquals(1, calls.get());
+            releaseFirst.countDown();
+            first.get(2, TimeUnit.SECONDS);
+            second.get(2, TimeUnit.SECONDS);
+            assertEquals(2, calls.get());
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void staleReaderDoesNotWaitForRefreshStartup() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        registerConfig(service, "starting");
+        DataFlowCacheConfig stale = service.getConfig("starting");
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        AtomicInteger loads = new AtomicInteger();
+        service.configLoader = name -> {
+            loads.incrementAndGet();
+            return new DataFlowCacheConfig();
+        };
+        Class<?> type = Class.forName(AbstractCacheService.class.getName() + "$ConfigLoad");
+        java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor(AbstractCacheService.class, String.class);
+        constructor.setAccessible(true);
+        Field field = AbstractCacheService.class.getDeclaredField("cacheConfigLoads");
+        field.setAccessible(true);
+        Map<String, Object> loadsMap = (Map<String, Object>) field.get(service);
+        loadsMap.put("starting", constructor.newInstance(service, "starting"));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            assertSame(stale, executor.submit(() -> service.getConfig("starting")).get(2, TimeUnit.SECONDS));
+            assertEquals(0, loads.get(), "the live creator still owns startup; a stale reader must not run or await it");
+        } finally {
+            loadsMap.clear();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void definitiveMissingConfigCanBeRemovedAndLoadedAgain() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        registerConfig(service, "missing");
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        service.configLoader = name -> null;
+        assertNull(service.getConfig("missing"));
+        assertEquals(0, activeConfigLoads(service));
+        DataFlowCacheConfig recovered = new DataFlowCacheConfig();
+        service.configLoader = name -> recovered;
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_MISS_RETRY_MS);
+        assertSame(recovered, service.getConfig("missing"));
+        assertEquals(0, activeConfigLoads(service));
+    }
+
+    @Test
+    void registrationWinsOverSuccessfulMissingAndFailedInFlightQueries() throws Exception {
+        for (int outcome = 0; outcome < 3; outcome++) {
+            int result = outcome;
+            TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            service.configLoader = name -> {
+                entered.countDown();
+                awaitConfigQuery(release);
+                if (result == 2) {
+                    throw new IllegalStateException("TM unavailable");
+                }
+                return result == 0 ? new DataFlowCacheConfig() : null;
+            };
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            try {
+                Future<DataFlowCacheConfig> pending = executor.submit(() -> service.getConfig("registered"));
+                assertTrue(entered.await(2, TimeUnit.SECONDS));
+                DataFlowCacheConfig registered = new DataFlowCacheConfig();
+                registered.setCacheName("registered");
+                service.registerCache(registered);
+                assertSame(registered, executor.submit(() -> service.getConfig("registered")).get(2, TimeUnit.SECONDS),
+                        "a fresh hit must not wait for the in-flight TM query");
+                release.countDown();
+                assertSame(registered, pending.get(2, TimeUnit.SECONDS));
+                assertSame(registered, service.getConfig("registered"));
+                assertEquals(0, activeConfigLoads(service));
+            } finally {
+                release.countDown();
+                executor.shutdownNow();
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+            }
+        }
+    }
+
+    private static void awaitConfigQuery(CountDownLatch release) {
+        try {
+            if (!release.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("query was not released");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void concurrentRefreshReadersCanUseStaleConfig() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        DataFlowCacheConfig stale = new DataFlowCacheConfig();
+        stale.setCacheName("refresh");
+        service.registerCache(stale);
+        service.now.addAndGet(AbstractCacheService.CACHE_CONFIG_EXPIRE_MS);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger requests = new AtomicInteger();
+        DataFlowCacheConfig refreshed = new DataFlowCacheConfig();
+        service.configLoader = name -> {
+            requests.incrementAndGet();
+            entered.countDown();
+            awaitConfigQuery(release);
+            return refreshed;
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<DataFlowCacheConfig> refreshing = executor.submit(() -> service.getConfig("refresh"));
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            assertSame(stale, executor.submit(() -> service.getConfig("refresh")).get(2, TimeUnit.SECONDS));
+            assertEquals(1, requests.get());
+            release.countDown();
+            assertSame(refreshed, refreshing.get(2, TimeUnit.SECONDS));
+            assertEquals(0, activeConfigLoads(service));
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void destroyedConfigIsNotResurrectedByInFlightQuery() throws Exception {
+        TestCacheService service = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        service.configLoader = name -> {
+            entered.countDown();
+            awaitConfigQuery(release);
+            return new DataFlowCacheConfig();
+        };
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<DataFlowCacheConfig> pending = executor.submit(() -> service.getConfig("destroyed"));
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            service.destroy("destroyed");
+            release.countDown();
+            assertNull(pending.get(2, TimeUnit.SECONDS));
+            assertEquals(0, activeConfigLoads(service));
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void concurrentMemoryInitializationRegistersOnlyOnce() throws Exception {
+        HttpClientMongoOperator client = mock(HttpClientMongoOperator.class);
+        TaskDto task = mock(TaskDto.class);
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        config.setCacheName("memory");
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(task.getStatus()).thenReturn(DataFlow.STATUS_RUNNING);
+        when(client.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION + "/byCacheName/memory"), eq(TaskDto.class)))
+                .thenAnswer(invocation -> {
+                    entered.countDown();
+                    awaitConfigQuery(release);
+                    return task;
+                });
+        AtomicInteger registrations = new AtomicInteger();
+        MemoryCacheService service = new MemoryCacheService(client) {
+            @Override
+            public synchronized void registerCache(DataFlowCacheConfig recovered) {
+                if (cacheConfig.putIfAbsent(recovered.getCacheName(), recovered) != null) {
+                    throw new IllegalStateException("duplicate registration");
+                }
+                registrations.incrementAndGet();
+            }
+        };
+        Method initialize = AbstractCacheService.class.getDeclaredMethod("waitCacheNodeCompletedInitialIfNeed", String.class);
+        initialize.setAccessible(true);
+        Callable<Void> reader = () -> {
+            try (MockedStatic<CacheUtil> utility = mockStatic(CacheUtil.class)) {
+                utility.when(() -> CacheUtil.getCacheConfigOrThrow(task, client)).thenReturn(config);
+                initialize.invoke(service, "memory");
+                return null;
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Void> first = executor.submit(reader);
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            CountDownLatch secondEntered = new CountDownLatch(1);
+            Future<Void> second = executor.submit(() -> {
+                secondEntered.countDown();
+                return reader.call();
+            });
+            assertTrue(secondEntered.await(2, TimeUnit.SECONDS));
+            assertThrows(TimeoutException.class, () -> second.get(200, TimeUnit.MILLISECONDS));
+            release.countDown();
+            first.get(2, TimeUnit.SECONDS);
+            second.get(2, TimeUnit.SECONDS);
+            assertEquals(1, registrations.get());
+            assertSame(config, service.getConfig("memory"));
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void memoryInitializationRecoversNamesThroughEncodedTmQuery() throws Exception {
+        for (String name : new String[]{"订单 缓存", "a/b"}) {
+            HttpClientMongoOperator client = mock(HttpClientMongoOperator.class);
+            TaskDto task = mock(TaskDto.class);
+            DataFlowCacheConfig config = new DataFlowCacheConfig();
+            config.setCacheName(name);
+            when(task.getStatus()).thenReturn(DataFlow.STATUS_RUNNING);
+            when(client.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + URLEncoder.encode(name, "UTF-8")), eq(TaskDto.class))).thenReturn(task);
+            MemoryCacheService service = new MemoryCacheService(client) {
+                @Override
+                public synchronized void registerCache(DataFlowCacheConfig recovered) {
+                    cacheConfig.put(recovered.getCacheName(), recovered);
+                }
+            };
+            try (MockedStatic<CacheUtil> utility = mockStatic(CacheUtil.class)) {
+                utility.when(() -> CacheUtil.getCacheConfigOrThrow(task, client)).thenReturn(config);
+                Method initialize = AbstractCacheService.class.getDeclaredMethod("waitCacheNodeCompletedInitialIfNeed", String.class);
+                initialize.setAccessible(true);
+                initialize.invoke(service, name);
+                assertSame(config, service.getConfig(name));
+                verify(client).findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + URLEncoder.encode(name, "UTF-8")), eq(TaskDto.class));
+            }
         }
     }
 
@@ -294,7 +995,9 @@ public class AbstractCacheServiceTest {
     // ---- PR #3561 审查返工 ----
 
     private static void registerConfig(AbstractCacheService cacheService, String cacheName) {
-        cacheService.cacheConfigMap.put(cacheName, new DataFlowCacheConfig());
+        DataFlowCacheConfig config = new DataFlowCacheConfig();
+        config.setCacheName(cacheName);
+        cacheService.registerCache(config);
     }
 
     @DisplayName("TAP-13150 review: concurrent expiry builds one replacement and never orphans a getter")
