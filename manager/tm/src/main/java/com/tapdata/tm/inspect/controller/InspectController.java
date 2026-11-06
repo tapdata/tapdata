@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
@@ -54,6 +55,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -157,7 +159,8 @@ public class InspectController extends BaseController {
         }
 
         UserDetail user = getLoginUser();
-        if (inspect.getAlarmReceivers() != null) {
+        if (inspect.getAlarmReceivers() != null ||
+                (StringUtils.isNotBlank(inspect.getFlowId()) && !Boolean.TRUE.equals(inspect.getUseSystemDefaultReceivers()))) {
             List<AlarmReceiver> existingReceivers = null;
             if (StringUtils.isNotBlank(inspect.getFlowId())) {
                 ObjectId linkedId = MongoUtils.toObjectId(inspect.getFlowId());
@@ -167,13 +170,25 @@ public class InspectController extends BaseController {
                         dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
                         () -> taskService.findByTaskId(linkedId, "alarmReceivers", "emailReceivers"),
                         () -> null);
+                if (linkedTask != null && inspect.getAlarmReceivers() == null) {
+                    List<AlarmReceiver> inherited = linkedTask.getAlarmReceivers();
+                    if (inherited == null && linkedTask.getEmailReceivers() != null) {
+                        inherited = linkedTask.getEmailReceivers().stream()
+                                .filter(StringUtils::isNotBlank)
+                                .map(email -> new AlarmReceiver(AlarmReceiverType.EMAIL, null, email))
+                                .toList();
+                    }
+                    inspect.setAlarmReceivers(inherited == null ? null : new ArrayList<>(inherited));
+                }
                 // Only an unchanged selection from a task the caller may view can be inherited.
                 // A subset or modified selection is a new Inspect reference and needs its own scope check.
                 if (linkedTask != null && AlarmReceiverScope.sameSelection(inspect.getAlarmReceivers(), linkedTask.getAlarmReceivers())) {
                     existingReceivers = linkedTask.getAlarmReceivers();
                 }
             }
-            alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), existingReceivers);
+            if (inspect.getAlarmReceivers() != null) {
+                alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), existingReceivers);
+            }
         }
 
         Date date=new Date();
