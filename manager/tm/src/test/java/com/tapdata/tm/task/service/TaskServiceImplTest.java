@@ -8188,7 +8188,6 @@ class TaskServiceImplTest {
         }
     }
 
-
     @Nested
     class ImportedAlarmReceiverAuditTest {
         @Test

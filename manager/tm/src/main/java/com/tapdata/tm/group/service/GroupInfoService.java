@@ -46,12 +46,19 @@ import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ServingIndexImportResult;
+import com.tapdata.tm.module.dto.ServingIndexLandingReport;
+import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
+import com.tapdata.tm.module.dto.ServingIndexPendingPlans;
+import com.tapdata.tm.module.dto.ServingIndexPlanDiffs;
+import com.tapdata.tm.module.dto.ServingIndexPreviewResult;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.modules.vo.ModulesListVo;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.servingindex.ServingIndexLandingService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
 import com.tapdata.tm.task.utils.TaskDeletionState;
@@ -60,6 +67,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -68,6 +76,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -99,6 +108,23 @@ import com.tapdata.tm.role.dto.RoleDto;
 @Slf4j
 @Setter(onMethod_ = { @Autowired })
 public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity, ObjectId, GroupInfoRepository> {
+
+    /**
+     * Git 导出的超时（分钟），与 GitBaseService 用同一个配置项。
+     * 超过这个时长还停在 exporting 的记录一律视为已死，不再阻塞后续导出。
+     * 字段带默认值，是为了让 new 出来的实例（单测）也走 60 分钟而不是 0。
+     *
+     * <p><b>{@code @Setter(AccessLevel.NONE)} 不能去掉。</b>本类带类级
+     * {@code @Setter(onMethod_ = { @Autowired })}，Lombok 会给每个实例字段生成一个标了
+     * {@code @Autowired} 的 setter。对这个 int 字段就是 {@code setExportTimeoutMinutes(int)}，
+     * 而 Spring 造不出 int 类型的 Bean —— TM 会在启动时直接失败，不是降级。
+     * 那个 setter 由 Lombok 在编译期生成，源码里看不见，所以只能靠
+     * GroupInfoServiceExportTimeoutTest#noAutowiredSetterTakesASimpleType 守着。
+     * 往本类加任何 {@code @Value} 的简单类型字段，都要照此办理。</p>
+     */
+    @Value("${tm.group.git.export-timeout-minutes:60}")
+    @Setter(AccessLevel.NONE)
+    private int exportTimeoutMinutes = 60;
 
     /**
      * 用于导出文件的 Jackson ObjectMapper：
@@ -187,6 +213,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private com.tapdata.tm.user.service.UserService userService;
     private UserRepository userRepository;
     private com.tapdata.tm.role.service.RoleService roleService;
+    /** TAP-12057 · P3-1：API 导入落地服务型索引（Module 的 servingIndexes → 目标库建索引）。 */
+    private ServingIndexLandingService servingIndexLandingService;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
@@ -770,6 +798,157 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return new GroupImportResult(recordId.toHexString(), diff);
     }
 
+    // ====================== Serving index leg (TAP-12057 · P4-1) ======================
+    //
+    // 索引腿在部署矩阵里排在 apis 之后、独立成腿（方案 §3.5）：建索引是整条流水线里唯一昂贵且在
+    // 已有数据的集合上带风险的操作，必须在计划表里显式可见、可单独审阅。
+    //
+    // 与 apis 腿的两点差别是刻意的：
+    //   1. **不看 Module diff**。apis 腿只对有变更的 Module 落地（见 executeImportApisStandaloneAsync
+    //      里的 toImport 过滤），于是「API 一个字没改、但目标库索引被人删了」永远补不回来。
+    //      索引腿的输入是包里的声明 + conMap，与 Module 有没有 diff 无关。
+    //   2. **不写 Module**。声明落库归 apis 腿；这一腿只把索引建到用户库（ADR-0002 两库红线）。
+
+    public ServingIndexPreviewResult previewIndexes(MultipartFile file, UserDetail user) throws IOException {
+        return previewIndexes(parseImportPayloads(file), user);
+    }
+
+    ServingIndexPreviewResult previewIndexes(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+        Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
+        Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
+        List<ModulesDto> modules = collectPackagedModules(payloads, resourceMapsByType, metadataByType);
+        if (modules.isEmpty()) {
+            log.info("serving index preview: package carries no API, nothing to plan");
+            return ServingIndexPlanDiffs.preview(new ServingIndexLandingReport());
+        }
+        Map<String, DataSourceConnectionDto> conMap =
+                buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
+
+        // 首次部署到全新环境时，连接由排在索引腿之后的 connections 腿建立，此刻还查不到（ADR-0032）：
+        // 「包里带了、目标环境暂无」是正常中间态，不能与「包里根本没带」一样报红——那会让整条流水线
+        // 在部署任何东西之前自锁。前者按包内声明出乐观计划（读不到目标库，无从知道哪些已存在；落地时
+        // 会前置 QueryIndexes 自写比对并跳过），后者仍交给 dry-run 照常报 CONNECTION_UNRESOLVED。
+        ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+                modules, conMap, packagedConnections(resourceMapsByType));
+        log.info("serving index preview: apis = {}, conMap = {}, dry-run = {}, planned-by-declaration = {}",
+                modules.size(), conMap.size(), split.getResolved().size(), split.getPendingRows().size());
+
+        ServingIndexLandingReport report = split.getResolved().isEmpty()
+                ? new ServingIndexLandingReport()
+                : servingIndexLandingService.preview(split.getResolved(), conMap, user);
+        ServingIndexPreviewResult result = ServingIndexPlanDiffs.preview(report, databaseTypesByTargetId(conMap));
+        result.getAdd().addAll(split.getPendingRows());
+        result.getCommands().addAll(split.getPendingCommands());
+        return result;
+    }
+
+    /**
+     * {@code 目标连接 id → database_type}——给计划表配手工执行语句用（只有 MongoDB 出语句）。
+     *
+     * <p>键取<b>目标</b>连接的 id：报告里 target 的 connectionId 是解析之后的那个，
+     * 与 conMap 的键（导出侧 id）不是一回事。</p>
+     */
+    private Map<String, String> databaseTypesByTargetId(Map<String, DataSourceConnectionDto> conMap) {
+        Map<String, String> types = new LinkedHashMap<>();
+        for (DataSourceConnectionDto connection : conMap.values()) {
+            if (connection != null && connection.getId() != null) {
+                types.put(connection.getId().toHexString(), connection.getDatabase_type());
+            }
+        }
+        return types;
+    }
+
+    /** 包里带来的连接（{@code 导出侧 id → 连接}）——用来分辨「待落地」与「包里根本没带」。 */
+    @SuppressWarnings("unchecked")
+    private Map<String, DataSourceConnectionDto> packagedConnections(
+            Map<ResourceType, Map<String, ?>> resourceMapsByType) {
+        return (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
+    }
+
+    public ServingIndexImportResult importIndexes(MultipartFile file, UserDetail user) throws IOException {
+        return importIndexes(parseImportPayloads(file), user);
+    }
+
+    ServingIndexImportResult importIndexes(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+        Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
+        Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
+        List<ModulesDto> modules = collectPackagedModules(payloads, resourceMapsByType, metadataByType);
+        if (modules.isEmpty()) {
+            log.info("serving index import: package carries no API, nothing to land");
+            return ServingIndexPlanDiffs.imported(new ServingIndexLandingWorkList());
+        }
+        Map<String, DataSourceConnectionDto> conMap =
+                buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
+        log.info("serving index import: apis = {}, conMap = {}", modules.size(), conMap.size());
+        return ServingIndexPlanDiffs.imported(servingIndexLandingService.landAfterImport(modules, conMap, user));
+    }
+
+    /** 解析出包里的 Module（声明就在它们身上），同时把 resourceMap/metadata 填给调用方后续复用。 */
+    @SuppressWarnings("unchecked")
+    private List<ModulesDto> collectPackagedModules(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<ResourceType, Map<String, ?>> resourceMapsByType,
+            Map<ResourceType, List<MetadataInstancesDto>> metadataByType) {
+        ResourceHandler moduleHandler = resourceHandlerRegistry.getHandler(ResourceType.MODULE);
+        if (moduleHandler != null) {
+            String filename = ResourceType.getResourceName(ResourceType.MODULE.name());
+            List<TaskUpAndLoadDto> payload = payloads.getOrDefault(filename, Collections.emptyList());
+            Map<String, Object> resourceMap = new LinkedHashMap<>();
+            List<MetadataInstancesDto> metadata = new ArrayList<>();
+            moduleHandler.collectPayload(payload, resourceMap, metadata);
+            resourceMapsByType.put(ResourceType.MODULE, resourceMap);
+            metadataByType.put(ResourceType.MODULE, metadata);
+        }
+        Map<String, ModulesDto> modules = (Map<String, ModulesDto>) resourceMapsByType
+                .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
+        return new ArrayList<>(modules.values());
+    }
+
+    /**
+     * 建立 {@code 导出侧连接 id → 目标环境连接} 的 conMap（<b>按 id 匹配，不按连接名</b>——
+     * 同名连接互相覆盖是既有教训，见 {@code DataSourceServiceImpl.batchImport} 的注释）。
+     *
+     * <p>apis 腿与索引腿<b>共用这一份</b>：两条腿若各解析各的，同一个包在同一环境里可能落到不同的库，
+     * 而「索引建到别人的库」不报错、只表现为全表扫描（<b>ADR-0002</b> 两库红线）。</p>
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, DataSourceConnectionDto> buildConMapFromPayload(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<ResourceType, Map<String, ?>> resourceMapsByType,
+            Map<ResourceType, List<MetadataInstancesDto>> metadataByType, UserDetail user) {
+        // CONNECTION 没有专用 handler，通过任意已注册 handler 的 collectPayloadRelatedResources 解析连接数据
+        resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
+                h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
+
+        // 用 payload 中连接的 _id 查询 DB 里已存在的连接，建立 旧ID -> 连接DTO 的映射
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+        Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
+        if (payloadConnections.isEmpty()) {
+            return conMap;
+        }
+        List<ObjectId> connectionIds = payloadConnections.keySet().stream()
+                .filter(StringUtils::isNotBlank)
+                .map(ObjectId::new)
+                .collect(Collectors.toList());
+        Map<String, DataSourceConnectionDto> existingById = connectionIds.isEmpty()
+                ? Collections.emptyMap()
+                : dataSourceService.findAllDto(
+                        new Query(Criteria.where("_id").in(connectionIds).and("is_deleted").ne(true)), user)
+                    .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
+        for (String oldId : payloadConnections.keySet()) {
+            DataSourceConnectionDto existing = existingById.get(oldId);
+            if (existing != null) {
+                conMap.put(oldId, existing);
+                log.info("conMap built (api): id={}, name={}", oldId, existing.getName());
+            } else {
+                log.warn("conMap build (api): connection id={} not found in DB", oldId);
+            }
+        }
+        log.info("conMap built from payload connections (api), payload size={}, matched={}",
+                payloadConnections.size(), conMap.size());
+        return conMap;
+    }
+
     /**
      * 同步导入 GroupInfo：从文件（tar 或 json）中解析 GroupInfo.json，
      * 按资源类型+名称在 DB 中查找当前资源 ID，然后以 name 为 key upsert 各分组。
@@ -892,7 +1071,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
             // 这条路的 details 本来是空的，保留清单就是它唯一的内容（D7 不许只落日志）。
             List<GroupInfoRecordDetail> details = new ArrayList<>();
-            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
+            Map<String, String> keptDatabaseAndSchema = new LinkedHashMap<>();
+            reportPreservedSecrets(details,
+                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseAndSchema),
+                    connections);
+            reportKeptDatabaseAndSchema(details, keptDatabaseAndSchema, connections);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
@@ -1018,19 +1201,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // 收集文件中所有 modules
             Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
             Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
-            ResourceHandler moduleHandler = resourceHandlerRegistry.getHandler(ResourceType.MODULE);
-            if (moduleHandler != null) {
-                String filename = ResourceType.getResourceName(ResourceType.MODULE.name());
-                List<TaskUpAndLoadDto> payload = payloads.getOrDefault(filename, Collections.emptyList());
-                Map<String, Object> resourceMap = new LinkedHashMap<>();
-                List<MetadataInstancesDto> metadata = new ArrayList<>();
-                moduleHandler.collectPayload(payload, resourceMap, metadata);
-                resourceMapsByType.put(ResourceType.MODULE, resourceMap);
-                metadataByType.put(ResourceType.MODULE, metadata);
-            }
-            Map<String, ModulesDto> allModules = (Map<String, ModulesDto>) resourceMapsByType
-                    .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
-            if (MapUtils.isEmpty(allModules)) {
+            List<ModulesDto> allModules = collectPackagedModules(payloads, resourceMapsByType, metadataByType);
+            if (allModules.isEmpty()) {
                 log.info("Async import apis completed, no modules found, recordId={}", recordId);
                 updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
                 return;
@@ -1048,38 +1220,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             log.info("Async import apis: add={}, update={}, total changed={}, recordId={}",
                     diff.getAdd().size(), diff.getUpdate().size(), changedNames.size(), recordId);
 
-            // CONNECTION 没有专用 handler，通过任意已注册 handler 的 collectPayloadRelatedResources 解析连接数据
-            resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
-                    h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
-
-            // 用 payload 中连接的 _id 查询 DB 里已存在的连接，建立 旧ID -> 连接DTO 的映射
-            Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
-            Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
-                    .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
-            if (!payloadConnections.isEmpty()) {
-                List<ObjectId> connectionIds = payloadConnections.keySet().stream()
-                        .filter(StringUtils::isNotBlank)
-                        .map(ObjectId::new)
-                        .collect(Collectors.toList());
-                Map<String, DataSourceConnectionDto> existingById = connectionIds.isEmpty()
-                        ? Collections.emptyMap()
-                        : dataSourceService.findAllDto(
-                                new Query(Criteria.where("_id").in(connectionIds).and("is_deleted").ne(true)), user)
-                            .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
-                for (String oldId : payloadConnections.keySet()) {
-                    DataSourceConnectionDto existing = existingById.get(oldId);
-                    if (existing != null) {
-                        conMap.put(oldId, existing);
-                        log.info("conMap built (api): id={}, name={}", oldId, existing.getName());
-                    } else {
-                        log.warn("conMap build (api): connection id={} not found in DB", oldId);
-                    }
-                }
-                log.info("conMap built from payload connections (api), payload size={}, matched={}", payloadConnections.size(), conMap.size());
-            }
+            Map<String, DataSourceConnectionDto> conMap =
+                    buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
 
             // 只导入有变更的 modules
-            List<ModulesDto> toImport = allModules.values().stream()
+            List<ModulesDto> toImport = allModules.stream()
                     .filter(m -> changedNames.contains(m.getName()))
                     .collect(Collectors.toList());
 
@@ -1091,6 +1236,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
+                // TAP-12057：这条腿**不建索引**。索引在部署矩阵里是排在 apis 之后的独立一腿
+                // （/import/indexes，ADR-0030），由它在自己的审批闸后建。P3-1 当初把落地接在这里，
+                // 是因为那时还没有独立腿；两条路并存的后果是本腿异步抢先建掉，审批人被叫住时索引
+                // 早已存在，而且由哪条腿建取决于时序（2026-08-04 P4-4 实测撞出）。
+                // 整包导入腿 executeImportAsync 保留落地——那条流程没有独立索引腿。
             }
 
             log.info("Async import apis completed, recordId={}, imported={}", recordId, toImport.size());
@@ -1447,7 +1597,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 ? Collections.emptyMap()
                 : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
                     .stream().collect(Collectors.toMap(
-                        DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
+                        DataSourceDefinitionDto::getPdkHash, d -> d,
+                        GroupInfoService::preferHigherPdkApiBuild));
 
         // Inject vault secrets into file connections before comparison
         Map<String, String> vaultSecrets = parseVaultSecrets(payloads);
@@ -1461,6 +1612,35 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     log.warn("Vault inject failed for connection '{}' during diff, skipping: {}",
                             fileConn.getName(), e.getMessage());
                 }
+            }
+        }
+
+        // 预览必须跑与真实导入**同一套**保留逻辑，否则它报的是一件不会发生的变更。
+        // 导入侧 preserveExistingSecrets 做两件事，这里逐件对齐：
+        //   ① restoreMissingSecretsFromExisting —— 受 packageSecretsMasked 管辖（保真包里
+        //      空缺就是用户的真实配置），且**不受 vaultSecrets 是否为空影响**，与
+        //      importGroupInfo 那条路径的注释同源：最危险的正是「没带 vault」。
+        //   ② restoreDatabaseAndSchemaWhenDsnOmitsThem —— 不受包类型管辖（[ADR-0036] D10 第二行）。
+        // 不复用 preserveExistingSecrets 本体：它按连接逐条 findById，而这里 existingById
+        // 已经批量load好了，再查一遍就是把刚去掉的 N+1 又加回来。
+        boolean restoreMissingOnDiff = packageSecretsMasked(payloads);
+        for (Map.Entry<String, DataSourceConnectionDto> preserveEntry : fileConnsById.entrySet()) {
+            DataSourceConnectionDto fileConn = preserveEntry.getValue();
+            DataSourceConnectionDto existingConn = existingById.get(preserveEntry.getKey());
+            if (existingConn == null) {
+                continue;   // 目标还没有这条连接 ⇒ 没有可保留的既有值，预览就是 add
+            }
+            try {
+                String pdkHash = fileConn.getPdkHash();
+                DataSourceDefinitionDto def = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
+                if (restoreMissingOnDiff) {
+                    ResourceHandler.restoreMissingSecretsFromExisting(fileConn, existingConn, def);
+                }
+                ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(fileConn, existingConn, def, vaultSecrets);
+            } catch (Exception e) {
+                // 与上面的注入循环同样的姿势：预览不该因为一条连接算不出来就整份失败
+                log.warn("Preserve-on-diff failed for connection '{}', showing the raw package value: {}",
+                        fileConn.getName(), e.getMessage());
             }
         }
 
@@ -1982,11 +2162,44 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return json != null ? json : "";
     }
 
-    /** API 对比时排除的顶层字段：环境相关、运行时状态字段 */
-    private static final Set<String> MODULE_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "id", "createTime", "datasource",
-            "createUser", "lastUpdBy", "status", "isDeleted"
-    ));
+    /**
+     * API 对比时排除的顶层字段：环境派生 / 运行时状态，<b>两侧对称剔除</b>（本方法对文件侧与 DB 侧
+     * 各跑一次）。逐条「它为什么不是用户可编辑内容」的理由见 [ADR-0037] D2，实测依据见
+     * {@code research/2026-08-module-diff-noise.md}。
+     *
+     * <p><b>复用既有两份常量而不是抄字符串</b>：它们将来增补运行时字段时本表要跟着走，抄一份就等于
+     * 埋下「新字段不被排除、噪声悄悄回来」的下一次同类 bug。</p>
+     *
+     * <p>⚠ {@code connectionId} / {@code connection} <b>刻意不在表内</b>：{@code datasource} 已被排除，
+     * 若把这两个也排除，「用户把 API 改指到另一个连接」就一条证据都不剩。{@code connectionName} /
+     * {@code connectionType} 可以排除，正因为改连接必然连带改 {@code connectionId}。</p>
+     */
+    private static final Set<String> MODULE_EXCLUDED_FIELDS;
+
+    static {
+        Set<String> excluded = new HashSet<>();
+        // id / customId / createTime / last_updated / lastUpdBy / createUser / permissionActions
+        excluded.addAll(BASE_DTO_VOLATILE_FIELDS);
+        // last_updated / lastUpdate / last_user_name —— 导出侧剔这三个、DB 侧不剔，本行让两侧对齐。
+        // 边际贡献只有后两个（last_updated 已由上一行覆盖），而 ModulesDto 今天产不出它们 ——
+        // 留着是为了导出侧这份清单将来增补时 DB 侧自动跟上，不是为了修今天的某一条噪声。
+        excluded.addAll(COMMON_VOLATILE_FIELDS);
+        excluded.addAll(Arrays.asList(
+                "datasource", "status", "isDeleted",
+                // 属主 / 账号 / 凭据。user_id 落进 JSON 的是父类 BaseDto.userId（@JsonProperty("user_id")）；
+                // email 是小写（Jackson 取 Lombok 的 getEmail()），写成 "Email" 排不掉
+                "user_id", "user", "access_token", "email",
+                // 目标环境的发布状态（status 已排除，它是漏网的同类）
+                "publishStatus",
+                // 运行统计：目标一有流量就变，且包里带的是源环境的值
+                "visitCount", "latency", "responseTime", "reqBytes", "resRows", "failRate",
+                // 导入时由 ModulesService.updateConnectionIds 整体用目标连接的名字与类型覆写
+                "connectionName", "connectionType"));
+        MODULE_EXCLUDED_FIELDS = Collections.unmodifiableSet(excluded);
+    }
+
+    /** 一个 {@code Field} 参与比对的全部键：名与别名（[ADR-0037] D3）。其余约 70 个属性一律不比。 */
+    private static final Set<String> FIELD_COMPARED_KEYS = Set.of("field_name", "field_alias");
 
     private static final Set<String> CONFIG_ENV_EXCLUDED_FIELDS = Collections.emptySet();
 
@@ -1995,6 +2208,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         // 解析文件中的 Module，以 _id 为 key 去重
         Map<String, Map<String, Object>> fileModulesById = new LinkedHashMap<>();
+        // 归一化图从 [ADR-0037] 起是刻意有损的（connectionName 等已被排除），展示值另存一份原始 DTO
+        Map<String, ModulesDto> fileDtoById = new LinkedHashMap<>();
         for (TaskUpAndLoadDto item : payloads.getOrDefault("Module.json", Collections.emptyList())) {
             if (!GroupConstants.COLLECTION_MODULES.equals(item.getCollectionName())) continue;
             Map<String, Object> normalized = normalizeModuleForComparison(item.getJson());
@@ -2005,6 +2220,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 continue;
             }
             fileModulesById.putIfAbsent(parsedDto.getId().toHexString(), normalized);
+            fileDtoById.putIfAbsent(parsedDto.getId().toHexString(), parsedDto);
         }
         if (fileModulesById.isEmpty()) return diff;
 
@@ -2023,9 +2239,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             ModulesDto existingModule = existingById.get(key);
             if (existingModule == null) {
                 ResourceDiffItem item = new ResourceDiffItem(name, null);
-                item.setApiPath((String) fileNormalized.get("path"));
-                item.setApiConnectionName((String) fileNormalized.get("connectionName"));
-                item.setApiTableName((String) fileNormalized.get("tableName"));
+                // 展示值取自原始 DTO：归一化图已排除 connectionName，从它读会静默拿到 null（[ADR-0037] D5）
+                ModulesDto fileDto = fileDtoById.get(key);
+                if (fileDto != null) {
+                    item.setApiPath(fileDto.getPath());
+                    item.setApiConnectionName(fileDto.getConnectionName());
+                    item.setApiTableName(fileDto.getTableName());
+                }
                 diff.getAdd().add(item);
             } else {
                 Map<String, Object> existingNormalized = normalizeModuleForComparison(JsonUtil.toJsonUseJackson(existingModule));
@@ -2047,11 +2267,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             if (map == null) return null;
             // 移除顶层排除字段
             MODULE_EXCLUDED_FIELDS.forEach(map::remove);
-            // 移除 fields 数组中每个元素的 id
-            Object fieldsObj = map.get("fields");
-            if (fieldsObj instanceof List) {
-                for (Object fieldItem : (List<?>) fieldsObj) {
-                    if (fieldItem instanceof Map) ((Map<String, Object>) fieldItem).remove("id");
+            // 四处 Field 数组各自归约成 {field_name, field_alias}（[ADR-0037] D3）。归约之后
+            // ARRAY_KEY_CONFIG 里那四条 keyed 路径自然产出「增 / 删 / 改别名」三种事件，无需新增比对逻辑。
+            reduceFieldsToNameAndAlias(map.get("fields"));
+            Object pathsObj = map.get("paths");
+            if (pathsObj instanceof List) {
+                for (Object pathItem : (List<?>) pathsObj) {
+                    if (!(pathItem instanceof Map)) continue;
+                    Map<String, Object> pathMap = (Map<String, Object>) pathItem;
+                    reduceFieldsToNameAndAlias(pathMap.get("fields"));
+                    reduceFieldsToNameAndAlias(pathMap.get("availableQueryField"));
+                    reduceFieldsToNameAndAlias(pathMap.get("requiredQueryField"));
                 }
             }
             // 移除 listtags 数组中每个元素的 id
@@ -2065,6 +2291,21 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         } catch (Exception e) {
             log.warn("Failed to normalize ModulesDto for comparison", e);
             return null;
+        }
+    }
+
+    /**
+     * 把一个 {@code Field} 数组里的每个元素归约成只剩 {@link #FIELD_COMPARED_KEYS}（名与别名）。
+     * 就地改，两侧各跑一次。别名为空的字段归约后只剩一个键，两侧不会互报差异 ——
+     * {@code jsonEqual} 把空串与 null 视为相等，{@code COMPARISON_MAPPER} 又忽略 null。
+     */
+    @SuppressWarnings("unchecked")
+    private static void reduceFieldsToNameAndAlias(Object fieldsObj) {
+        if (!(fieldsObj instanceof List)) return;
+        for (Object fieldItem : (List<?>) fieldsObj) {
+            if (fieldItem instanceof Map) {
+                ((Map<String, Object>) fieldItem).keySet().retainAll(FIELD_COMPARED_KEYS);
+            }
         }
     }
 
@@ -2507,7 +2748,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）；
             // 保留清单挂到 details 里已有的连接行上，随下一次 updateImportProgress 落库（D7）
-            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
+            Map<String, String> keptDatabaseAndSchema = new LinkedHashMap<>();
+            reportPreservedSecrets(details,
+                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseAndSchema),
+                    connections);
+            reportKeptDatabaseAndSchema(details, keptDatabaseAndSchema, connections);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2572,11 +2817,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
             if (MapUtils.isNotEmpty(modules)) {
                 refreshModuleLastUpdate(modules.values());
-                moduleImportResult = modulesService.batchImport(new ArrayList<>(modules.values()), user, importMode, conMap, null);
+                List<ModulesDto> importedModules = new ArrayList<>(modules.values());
+                moduleImportResult = modulesService.batchImport(importedModules, user, importMode, conMap, null);
                 refreshMetadataLastUpdate(metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()));
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
+                // TAP-12057 · P3-1：整包导入腿（CICD 部署走这条），与 executeImportApisStandaloneAsync 同一时序
+                servingIndexLandingService.landAfterImport(importedModules, conMap, user);
             } else {
                 moduleImportResult = null;
             }
@@ -2746,21 +2994,38 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      */
     Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
             Map<String, DataSourceConnectionDto> connections, UserDetail user) {
+        return preserveExistingSecrets(payloads, connections, user, null, null);
+    }
+
+    /**
+     * @param vaultSecrets      格式 3 的库名保留要重新判定「DSN 有没有写库名」，得看得见 vault
+     * @param keptDatabaseAndSchema 出参：连接 id → 被保留下来的字段描述（库名 / schema / 两者），
+     *                          交给 {@link #reportKeptDatabaseAndSchema}
+     */
+    Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<String, DataSourceConnectionDto> connections, UserDetail user,
+            Map<String, String> vaultSecrets, Map<String, String> keptDatabaseAndSchema) {
         Map<String, List<String>> preserved = new LinkedHashMap<>();
         if (connections == null || connections.isEmpty()) {
             return preserved;
         }
-        if (!packageSecretsMasked(payloads)) {
-            // 保真包：包里的空缺就是用户的真实配置，照写。拿目标旧值回填会让用户永远删不掉一个
-            // 配置项，而且同样是「以为更新了其实没有」——D7 要防的正是这个。
-            return preserved;
-        }
+        // 保真包：包里的空缺就是用户的真实配置，照写。拿目标旧值回填会让用户永远删不掉一个
+        // 配置项，而且同样是「以为更新了其实没有」——D7 要防的正是这个。
+        //
+        // ⚠ 它**只**关掉「缺值回填」这一半。格式 3 的库名保留不归它管：那不是缺值——包里
+        // 那个库名是实打实的**源环境**值（database_name 不在 SENSITIVE_API_KEYS 里，导出
+        // 根本不抹它），而 DSN 分支只在操作者真的配了 {CONN}_DSN 时才走，那时格式 3 的
+        // 语义压过打包模式（[ADR-0036] D10 第二行）。
+        boolean restoreMissing = packageSecretsMasked(payloads);
         for (DataSourceConnectionDto conn : connections.values()) {
             if (conn == null || conn.getId() == null) {
                 continue;   // 新连接，目标环境没有可保留的既有值
             }
-            // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处
-            String[] projection = Stream.concat(Stream.of("config"),
+            // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处。
+            // database_name / database_owner 额外带上：它们不是镜像密钥字段，但格式 3 的库名与
+            // schema 保留要读目标那份。⚠ 漏掉任一个，对应的保留会静默失效——顶层取到 null，
+            // 而 config 那份在 schema BFS 落空时也没有落点，两头都空却不报错。
+            String[] projection = Stream.concat(Stream.of("config", "database_name", "database_owner"),
                     ResourceHandler.MIRRORED_SECRET_FIELDS.stream()).toArray(String[]::new);
             DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), projection);
             if (existing == null) {
@@ -2768,7 +3033,16 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             DataSourceDefinitionDto definition =
                     dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
-            List<String> paths = ResourceHandler.restoreMissingSecretsFromExisting(conn, existing, definition);
+
+            String kept = ResourceHandler.restoreDatabaseAndSchemaWhenDsnOmitsThem(
+                    conn, existing, definition, vaultSecrets);
+            if (kept != null && keptDatabaseAndSchema != null) {
+                keptDatabaseAndSchema.put(conn.getId().toHexString(), kept);
+            }
+
+            List<String> paths = restoreMissing
+                    ? ResourceHandler.restoreMissingSecretsFromExisting(conn, existing, definition)
+                    : Collections.emptyList();
             if (paths.isEmpty()) {
                 continue;
             }
@@ -2840,6 +3114,68 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /** 库名 / schema 保留的报告文案——**刻意不复用** {@link #preservedSecretsMessage}：那句说的是
+     * 「包里缺了敏感字段」，而库名和 schema 既不敏感也不缺，包里带着的是源环境那个值。用错句子比不报更坏。
+     *
+     * <p>{@code kept} 是调用方拼好的描述（{@code database name 'orders'}、{@code schema 'app'}，
+     * 或两者逗号相连），句子本身对两种字段都要成立——所以主语不写死成「database name」。 */
+    static String keptDatabaseOrSchemaMessage(String kept) {
+        return "Kept the target environment's existing " + kept
+                + ", because the DSN did not carry that value; the one shipped in the package was not used.";
+    }
+
+    /**
+     * 把格式 3 的库名保留写进导入报告（[ADR-0034] D7「绝不静默」）。
+     *
+     * 与 {@link #reportPreservedSecrets} 同形：报告里已有该连接的行就挂消息，没有就补一行。
+     * 分成两个方法而不是合并，是因为两者的**原因**不同——一个是脱敏留下的洞，一个是
+     * DSN 没写库名——合并就只能给出一句对其中一半不成立的话。
+     */
+    void reportKeptDatabaseAndSchema(List<GroupInfoRecordDetail> details,
+            Map<String, String> keptByConnectionId,
+            Map<String, DataSourceConnectionDto> connections) {
+        if (details == null || MapUtils.isEmpty(keptByConnectionId)) {
+            return;
+        }
+        Set<String> attached = new HashSet<>();
+        for (GroupInfoRecordDetail detail : details) {
+            if (detail == null || CollectionUtils.isEmpty(detail.getRecordDetails())) {
+                continue;
+            }
+            for (GroupInfoRecordDetail.RecordDetail row : detail.getRecordDetails()) {
+                if (row == null || ResourceType.CONNECTION != row.getResourceType()) {
+                    continue;
+                }
+                String kept = keptByConnectionId.get(row.getResourceId());
+                if (StringUtils.isBlank(kept)) {
+                    continue;
+                }
+                String message = keptDatabaseOrSchemaMessage(kept);
+                row.setMessage(StringUtils.isBlank(row.getMessage()) ? message : row.getMessage() + " | " + message);
+                attached.add(row.getResourceId());
+            }
+        }
+        List<GroupInfoRecordDetail.RecordDetail> added = new ArrayList<>();
+        for (Map.Entry<String, String> entry : keptByConnectionId.entrySet()) {
+            if (attached.contains(entry.getKey())) {
+                continue;
+            }
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceType(ResourceType.CONNECTION);
+            row.setResourceId(entry.getKey());
+            row.setResourceName(resolveConnectionName(connections, entry.getKey()));
+            row.setAction(GroupInfoRecordDetail.RecordAction.IMPORTED);
+            row.setMessage(keptDatabaseOrSchemaMessage(entry.getValue()));
+            added.add(row);
+        }
+        if (!added.isEmpty()) {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            detail.setMessage("Some connections kept the target environment's database name or schema");
+            detail.getRecordDetails().addAll(added);
+            details.add(detail);
+        }
+    }
+
     /** 按 id 取连接名——报告行给人看的是名字，不是 ObjectId。 */
     private static String resolveConnectionName(Map<String, DataSourceConnectionDto> connections, String connectionId) {
         if (connections == null) {
@@ -2858,15 +3194,60 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      */
     private void injectVaultSecrets(Map<String, DataSourceConnectionDto> connections,
             Map<String, String> vaultSecrets, UserDetail user) {
+        // 批量查 definition，与本文件 diff 路径（:1559-1566）同一写法：原来是每条连接一次
+        // findByPdkHash，一次导入 N 条连接就是 N 次往返。
+        // ⚠ pdkHash == null 的连接必须**过滤出查询集合、但仍然照常注入**：逐条版把 null
+        // 直接传进 findByPdkHash（拿回 null），批量版若不过滤会把 null 塞进 IN 查询。
+        // 两者对外行为必须逐字相同——definition 为 null、走无 schema 的 fallback 分支。
+        Set<String> pdkHashes = new HashSet<>();
+        connections.values().forEach(c -> {
+            if (c.getPdkHash() != null) pdkHashes.add(c.getPdkHash());
+        });
+        // ⚠ 合并函数不能是 (a, b) -> a：被替换掉的 findByPdkHash 是
+        // `Sort.by("pdkAPIBuildNumber").descending()` + findOne，即**确定性地取 build number
+        // 最高的那份**，而 findByPdkHashList 是无序 findAll。同一个 pdkHash 确实会有多份文档
+        // （PkdSourceService 的 upsert 键含 pdkAPIBuildNumber，集合上那条
+        // pdkHash_1_pdkAPIBuildNumber_1 索引就是为它建的）；取错一份 ⇒ BFS 落在旧 schema 上，
+        // 而旧 schema 缺 database_uri 会让 MongoDB 连接的 hasDatabaseUri 变 false、格式 3 误走
+        // JDBC 分支，静默把连接写坏。故显式挑 build number 更高的那份。
+        Map<String, DataSourceDefinitionDto> defByPdkHash = pdkHashes.isEmpty()
+                ? Collections.emptyMap()
+                : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
+                    .stream().collect(Collectors.toMap(
+                        DataSourceDefinitionDto::getPdkHash, d -> d,
+                        GroupInfoService::preferHigherPdkApiBuild));
+
+        // schema BFS 按 pdkHash 记忆化：它是 definition 的纯函数，同型连接结果完全相同。
+        // 用的是上面那把 key、这一个循环。
+        Map<String, Map<String, String>> bfsByPdkHash = new HashMap<>();
         connections.values().forEach(conn -> {
-            DataSourceDefinitionDto definition =
-                    dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
+            String pdkHash = conn.getPdkHash();
+            DataSourceDefinitionDto definition = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
             if (definition == null) {
                 log.warn("Vault inject: definition not found for connection '{}', pdkHash={}, skipping schema BFS",
                         conn.getName(), conn.getPdkHash());
             }
-            ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition);
+            Map<String, String> memoizedBfs = definition == null ? null
+                    : bfsByPdkHash.computeIfAbsent(pdkHash,
+                        h -> ResourceHandler.buildConfigPathToApiKeyMap(definition));
+            ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition, memoizedBfs);
         });
+    }
+
+    /**
+     * 同一个 pdkHash 的多份 definition 里挑一份——**保留 pdkAPIBuildNumber 更高的那份**，
+     * 复现被批量化替换掉的 {@code findByPdkHash} 的选择规则（按该字段降序取第一条）。
+     *
+     * <p>字段缺失时优先取有值的那一份：老 criteria 的 {@code lte(...)} 在 Mongo 里
+     * 根本不匹配缺字段的文档，所以「有 build number」本身就比「没有」更接近老行为。
+     */
+    private static DataSourceDefinitionDto preferHigherPdkApiBuild(DataSourceDefinitionDto a,
+            DataSourceDefinitionDto b) {
+        Integer buildA = a.getPdkAPIBuildNumber();
+        Integer buildB = b.getPdkAPIBuildNumber();
+        if (buildB == null) return a;
+        if (buildA == null) return b;
+        return buildB > buildA ? b : a;
     }
 
     protected List<GroupInfoDto> loadGroupInfosByIds(List<String> groupIds, UserDetail user) {
@@ -2898,18 +3279,52 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 				.and("details.groupId").in(groupIds));
 
 		List<GroupInfoRecordDto> exportingRecords = groupInfoRecordService.findAllDto(query, user);
+		if (CollectionUtils.isEmpty(exportingRecords)) {
+			return;
+		}
 
-		if (CollectionUtils.isNotEmpty(exportingRecords)) {
-			// Extract group IDs that are currently being exported
-			Set<String> exportingGroupNames = exportingRecords.stream()
-					.flatMap(record -> record.getDetails().stream())
-					.map(GroupInfoRecordDetail::getGroupName)
-					.collect(Collectors.toSet());
-
-			if (!exportingGroupNames.isEmpty()) {
-				throw new BizException("GroupInfo.Export.InProgress", String.join(", ", exportingGroupNames));
+		// 只有还在超时窗口内的记录才算「正在导出」。
+		// 超窗的记录一律判死：进程被 kill、TM 节点重启、网络永久挂起，都会让记录停在 exporting
+		// 而 performExport 的 catch 永远执行不到 —— 不设窗口，这个分组就被永久锁死。
+		// 用记录自身的 operationTime 判断，无需跨 TM 节点协调（记录在共享 Mongo 里）。
+		long staleBefore = System.currentTimeMillis() - exportTimeoutMillis();
+		Set<String> exportingGroupNames = new HashSet<>();
+		for (GroupInfoRecordDto record : exportingRecords) {
+			Date operationTime = record.getOperationTime();
+			if (operationTime != null && operationTime.getTime() > staleBefore) {
+				collectGroupNames(record, exportingGroupNames);
+			} else {
+				// 把僵尸记录翻成 failed，否则它在导出历史里永远显示「导出中」。
+				// 多节点并发翻同一条是幂等的，不需要加锁。
+				log.warn("Export record {} stuck in exporting since {}, marking as failed after {} minutes",
+						record.getId(), operationTime, exportTimeoutMinutes());
+				updateRecordStatus(record.getId(), GroupInfoRecordDto.STATUS_FAILED,
+						"Export timed out after " + exportTimeoutMinutes() + " minutes",
+						record.getDetails(), user);
 			}
 		}
+
+		if (!exportingGroupNames.isEmpty()) {
+			throw new BizException("GroupInfo.Export.InProgress", String.join(", ", exportingGroupNames));
+		}
+	}
+
+	private static void collectGroupNames(GroupInfoRecordDto record, Set<String> into) {
+		if (CollectionUtils.isEmpty(record.getDetails())) {
+			return;
+		}
+		record.getDetails().stream()
+				.map(GroupInfoRecordDetail::getGroupName)
+				.filter(Objects::nonNull)
+				.forEach(into::add);
+	}
+
+	protected int exportTimeoutMinutes() {
+		return Math.max(1, exportTimeoutMinutes);
+	}
+
+	private long exportTimeoutMillis() {
+		return exportTimeoutMinutes() * 60L * 1000L;
 	}
 
     protected void applyResetTaskList(List<GroupInfoDto> groupInfos, Map<String, List<String>> groupResetTask) {
@@ -3016,6 +3431,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             GroupInfoDto groupInfoCopy = BeanUtil.deepClone(groupInfo, GroupInfoDto.class);
 
             if (groupInfoCopy != null) {
+                // BeanUtil.deepClone 走 fastjson 序列化，无法正确还原 ObjectId 类型的 BaseDto.id，
+                // 反序列化时会 new ObjectId() 生成一个全新的 _id，导致每次导出的 GroupInfo.json 里
+                // 分组 _id 都不同、且与 DB 不一致（ResourceItem.id 是 String，不受影响）。
+                // 这里显式用源对象的 _id 覆盖回去，保证导出严格保留分组 _id、实现跨环境强一致。
+                groupInfoCopy.setId(groupInfo.getId());
                 groupInfoCopy.setCreateUser(null);
                 groupInfoCopy.setCustomId(null);
                 groupInfoCopy.setLastUpdBy(null);
