@@ -22,14 +22,18 @@ class InspectAlarmReceiverContractTest {
                 new AlarmReceiver(AlarmReceiverType.USER_GROUP, "group-id", null),
                 new AlarmReceiver(AlarmReceiverType.EMAIL, null, "ops@example.com")));
         source.setEmailReceivers(List.of("ops@example.com"));
+        source.setUseSystemDefaultReceivers(true);
 
         byte[] response = objectMapper.writeValueAsBytes(source);
         InspectDto roundTrip = objectMapper.readValue(response, InspectDto.class);
 
         assertEquals(source.getAlarmReceivers(), roundTrip.getAlarmReceivers());
         assertFalse(objectMapper.readTree(response).has("emailReceivers"));
+        assertFalse(objectMapper.readTree(response).has("useSystemDefaultReceivers"));
         InspectDto input = objectMapper.readValue("{\"emailReceivers\":[\"ops@example.com\"]}", InspectDto.class);
         assertEquals(List.of("ops@example.com"), input.getEmailReceivers());
+        InspectDto reset = objectMapper.readValue("{\"useSystemDefaultReceivers\":true}", InspectDto.class);
+        assertEquals(Boolean.TRUE, reset.getUseSystemDefaultReceivers());
     }
 
     @Test
