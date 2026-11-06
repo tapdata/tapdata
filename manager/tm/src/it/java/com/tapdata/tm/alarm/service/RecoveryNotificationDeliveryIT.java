@@ -18,6 +18,7 @@ import com.tapdata.tm.notification.delivery.service.NotificationDeliveryServiceI
 import com.tapdata.tm.user.service.UserService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -25,6 +26,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -50,10 +52,13 @@ class RecoveryNotificationDeliveryIT {
         Class<?> implementation;
         try {
             implementation = Class.forName("com.tapdata.tm.alarm.service.impl.AlarmServiceImpl");
-        } catch (ClassNotFoundException missingEnterprise) {
-            org.junit.jupiter.api.Assumptions.assumeTrue(false, "企业仓恢复投递IT需要 enterprise profile");
+        } catch (ClassNotFoundException missingImplementation) {
+            Assumptions.assumeTrue(false, "恢复投递IT需要可用的告警服务实现");
             return;
         }
+        // 默认构建加载 OSS 实现，扫描与投递字段只由企业实仓提供；此时如实跳过，不记通过。
+        Assumptions.assumeTrue(isEnterpriseImplementation(implementation),
+                "恢复投递IT需要 enterprise profile");
         MongoTemplate mongo = mock(MongoTemplate.class);
         UserService users = mock(UserService.class);
         MessageService messages = mock(MessageService.class);
@@ -121,5 +126,14 @@ class RecoveryNotificationDeliveryIT {
         assertEquals(1, persisted.size());
         assertEquals(online.getId().toHexString(), persisted.get(0).getAlarmEventId());
         assertTrue(((Date) cursor.getValue()).after(online.getLastNotifyTime()));
+    }
+
+    private static boolean isEnterpriseImplementation(Class<?> implementation) {
+        CodeSource source = implementation.getProtectionDomain().getCodeSource();
+        if (source == null || source.getLocation() == null) {
+            return false;
+        }
+        String location = source.getLocation().toString();
+        return location.contains("tm-enterprise") || location.contains("tapdata-enterprise");
     }
 }
