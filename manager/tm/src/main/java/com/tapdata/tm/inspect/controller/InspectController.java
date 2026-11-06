@@ -10,6 +10,9 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
@@ -70,6 +73,7 @@ import java.util.function.Supplier;
 public class InspectController extends BaseController {
     private final InspectResultService inspectResultService;
     private InspectService inspectService;
+    private AlarmReceiverAccess alarmReceiverAccess;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
     private MetadataDefinitionService metadataDefinitionService;
@@ -152,9 +156,29 @@ public class InspectController extends BaseController {
             throw new BizException("Inspect.Name.Exist");
         }
 
+        UserDetail user = getLoginUser();
+        if (inspect.getAlarmReceivers() != null) {
+            List<AlarmReceiver> existingReceivers = null;
+            if (StringUtils.isNotBlank(inspect.getFlowId())) {
+                ObjectId linkedId = MongoUtils.toObjectId(inspect.getFlowId());
+                TaskDto linkedTask = linkedId == null ? null : DataPermissionHelper.checkOfQuery(
+                        user, DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.View,
+                        taskService.dataPermissionFindById(linkedId, new Field()),
+                        dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
+                        () -> taskService.findByTaskId(linkedId, "alarmReceivers", "emailReceivers"),
+                        () -> null);
+                // Only an unchanged selection from a task the caller may view can be inherited.
+                // A subset or modified selection is a new Inspect reference and needs its own scope check.
+                if (linkedTask != null && AlarmReceiverScope.sameSelection(inspect.getAlarmReceivers(), linkedTask.getAlarmReceivers())) {
+                    existingReceivers = linkedTask.getAlarmReceivers();
+                }
+            }
+            alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), existingReceivers);
+        }
+
         Date date=new Date();
         inspect.setPing_time(date.getTime());
-        return success(inspectService.save(inspect, getLoginUser()));
+        return success(inspectService.save(inspect, user));
     }
 
 
@@ -166,12 +190,20 @@ public class InspectController extends BaseController {
      */
     @PatchMapping()
     public ResponseMessage<InspectDto> updateById(HttpServletRequest request, @RequestBody InspectDto inspect) {
+        UserDetail user = getLoginUser();
         InspectDto resultTask = dataPermissionCheckOfId(request,
-                getLoginUser(),
+                user,
                 inspect.getId(),
                 DataPermissionActionEnums.Edit,
                 Lists.newArrayList(DataPermissionActionEnums.Edit),
-                () -> inspectService.updateById(inspect.getId(), inspect, getLoginUser())
+                () -> {
+                    if (inspect.getAlarmReceivers() != null) {
+                        InspectDto current = inspectService.findById(inspect.getId(), Field.includes("alarmReceivers"));
+                        List<AlarmReceiver> currentReceivers = current == null ? null : current.getAlarmReceivers();
+                        alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), currentReceivers);
+                    }
+                    return inspectService.updateById(inspect.getId(), inspect, user);
+                }
         );
         return success(resultTask);
     }
