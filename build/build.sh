@@ -81,7 +81,11 @@ build_java_component() {
 }
 
 function switch_node_version() {
-  version=$1
+  local version=$1
+  # Preserve the verified Actions runtime before nvm can change PATH.
+  if [[ "$(node --version 2>/dev/null)" == v${version}.* ]]; then
+    return 0
+  fi
   export NVM_DIR="$HOME/.nvm"
   [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
   if ! command -v nvm > /dev/null 2>&1; then
@@ -93,8 +97,8 @@ function switch_node_version() {
   fi
   nvm use $version
   if [[ $? -ne 0 ]]; then
-    nvm install $version
-    nvm use $version
+    nvm install "$version" || return 1
+    nvm use "$version" || return 1
   fi
 }
 
@@ -105,7 +109,11 @@ for COMPONENT in ${COMPONENTS[@]}; do
   elif [[ $COMPONENT == "connectors" ]]; then
     cd $CONNECTOR_DIR && build_java_component
   elif [[ $COMPONENT == "frontend" ]]; then
-    switch_node_version 20
+    switch_node_version 20 || exit 1
+    if [[ "$(node --version 2>/dev/null)" != v20.* ]]; then
+      echo "Frontend build requires Node.js 20" >&2
+      exit 1
+    fi
     cd $FRONTEND_DIR && DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m $FRONTEND_BUILD_MODE
   fi
 done
