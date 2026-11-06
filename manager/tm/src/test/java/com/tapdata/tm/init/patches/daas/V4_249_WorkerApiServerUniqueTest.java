@@ -88,7 +88,7 @@ class V4_249_WorkerApiServerUniqueTest {
         when(mongoCollection.find(any(Bson.class))).thenReturn(workers);
         when(workers.into(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        V4_25_2_WorkerApiServerUnique patch = new V4_25_2_WorkerApiServerUnique(null, null);
+        V4_24_9_WorkerApiServerUnique patch = new V4_24_9_WorkerApiServerUnique(null, null);
         try (MockedStatic<SpringContextHelper> mockedHelper = mockStatic(SpringContextHelper.class)) {
             mockedHelper.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(mongoTemplate);
 
@@ -100,7 +100,7 @@ class V4_249_WorkerApiServerUniqueTest {
                         .equals(List.of("worker_type", "process_id"))
                         && Integer.valueOf(1).equals(key.get("worker_type"))
                         && Integer.valueOf(1).equals(key.get("process_id"))),
-                argThat((IndexOptions options) -> V4_25_2_WorkerApiServerUnique.INDEX_NAME.equals(options.getName())
+                argThat((IndexOptions options) -> V4_24_9_WorkerApiServerUnique.INDEX_NAME.equals(options.getName())
                         && options.isUnique()
                         && new Document("worker_type", "api-server")
                         .append("deleted", false)
