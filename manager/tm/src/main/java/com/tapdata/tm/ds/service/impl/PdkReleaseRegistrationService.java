@@ -191,14 +191,14 @@ public class PdkReleaseRegistrationService {
     }
 
     private void updateJob(RegistrationJob job, String status, int progress, String error, String errorCode) {
-        synchronized (job) {
+        synchronized (job.lock) {
             job.update(status, progress, error, errorCode);
             persistJob(job);
         }
     }
 
     private void heartbeatJob(RegistrationJob job) {
-        synchronized (job) {
+        synchronized (job.lock) {
             if (!job.isTerminal()) {
                 job.touch();
                 persistJob(job);
@@ -214,6 +214,7 @@ public class PdkReleaseRegistrationService {
         private final String id;
         private final String pdkId;
         private final String ownerId;
+        private final Object lock = new Object();
         private volatile String status = "queued";
         private volatile int progress = 1;
         private volatile String error;
