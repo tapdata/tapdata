@@ -5,11 +5,15 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
+import jakarta.annotation.PreDestroy;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.registration.RegistrationArchive;
 import io.tapdata.pdk.registration.RegistrationMetadata;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +30,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Setter(onMethod_ = {@Autowired})
@@ -33,6 +43,85 @@ public class PdkReleaseRegistrationService {
     private PdkReleaseCatalogService releaseCatalogService;
     private PkdSourceService pkdSourceService;
     private SettingsService settingsService;
+    private MongoTemplate mongoTemplate;
+    private static final String REGISTRATION_JOB_COLLECTION = "pdkRegistrationJobs";
+    private final ExecutorService registrationExecutor;
+    private final ScheduledExecutorService registrationHeartbeatExecutor =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "pdk-release-registration-heartbeat");
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    public PdkReleaseRegistrationService() {
+        this(Executors.newFixedThreadPool(2, runnable -> {
+            Thread thread = new Thread(runnable, "pdk-release-registration");
+            thread.setDaemon(true);
+            return thread;
+        }));
+    }
+
+    PdkReleaseRegistrationService(ExecutorService registrationExecutor) {
+        this.registrationExecutor = registrationExecutor;
+    }
+
+    public Map<String, Object> startRegistration(String artifactId, String expectedPdkId, boolean stopTasks,
+                                                boolean ignoreInFlightResources, UserDetail user) {
+        requireEnterprise(user);
+        Map<String, Object> release = releaseCatalogService.findRelease(artifactId);
+        if (!expectedPdkId.equals(release.get("pdkId"))) {
+            throw new BizException("Connector release does not match the requested PDK id");
+        }
+        if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
+            throw new BizException("Connector resources changed. Review affected tasks before registering.");
+        }
+        purgeExpiredJobs();
+        String jobId = UUID.randomUUID().toString();
+        RegistrationJob job = new RegistrationJob(jobId, expectedPdkId, user.getUserId());
+        persistJob(job);
+        ScheduledFuture<?> heartbeat = registrationHeartbeatExecutor.scheduleAtFixedRate(
+                () -> heartbeatJob(job), 30, 30, TimeUnit.SECONDS);
+        try {
+            registrationExecutor.execute(() -> {
+                try {
+                    downloadAndRegister(artifactId, expectedPdkId, stopTasks, ignoreInFlightResources, user,
+                            job);
+                    updateJob(job, "completed", 100, null);
+                } catch (Exception e) {
+                    String message = e.getMessage() == null ? "Connector registration failed" : e.getMessage();
+                    String errorCode = e instanceof RegistrationImpactChangedException
+                            ? RegistrationImpactChangedException.ERROR_CODE : null;
+                    updateJob(job, "failed", job.progress, message, errorCode);
+                } finally {
+                    heartbeat.cancel(false);
+                }
+            });
+        } catch (RuntimeException e) {
+            heartbeat.cancel(false);
+            updateJob(job, "failed", job.progress, "Connector registration could not be queued");
+            throw e;
+        }
+        return job.toMap();
+    }
+
+    public Map<String, Object> getRegistrationJob(String jobId, UserDetail user) {
+        org.bson.Document stored = mongoTemplate.findById(jobId, org.bson.Document.class,
+                REGISTRATION_JOB_COLLECTION);
+        if (stored == null || !user.getUserId().equals(stored.getString("ownerId"))) {
+            throw new BizException("Connector registration job was not found");
+        }
+        RegistrationJob job = new RegistrationJob(stored);
+        if (!job.isTerminal() && job.updatedAt < System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(3)) {
+            updateJob(job, "failed", job.progress, "Connector registration was interrupted");
+        }
+        return job.toMap();
+    }
+
+    @PreDestroy
+    public void shutdownRegistrationExecutor() {
+        registrationExecutor.shutdown();
+        registrationHeartbeatExecutor.shutdownNow();
+    }
 
     public Map<String, Object> registrationImpact(String pdkId, UserDetail user) {
         requireEnterprise(user);
@@ -41,15 +130,24 @@ public class PdkReleaseRegistrationService {
 
     public void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
                                     boolean ignoreInFlightResources, UserDetail user) {
+        downloadAndRegister(artifactId, expectedPdkId, stopTasks, ignoreInFlightResources, user, null);
+    }
+
+    private void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
+                                     boolean ignoreInFlightResources, UserDetail user, RegistrationJob job) {
         requireEnterprise(user);
+        updateJobIfTracked(job, "preparing", 5, null);
         Map<String, Object> release = releaseCatalogService.findRelease(artifactId);
         if (!expectedPdkId.equals(release.get("pdkId"))) {
             throw new BizException("Connector release does not match the requested PDK id");
         }
-        byte[] jarBytes = releaseCatalogService.downloadJar(release);
+        updateJobIfTracked(job, "downloading", 10, null);
+        byte[] jarBytes = releaseCatalogService.downloadJar(release,
+                percent -> updateProgressIfTracked(job, 10 + percent * 6 / 10));
 
         String version = String.valueOf(release.get("version"));
         String fileName = artifactId + "-" + version + ".jar";
+        updateJobIfTracked(job, "preparing", 72, null);
         List<MultipartFile> files = new ArrayList<>();
         List<PdkSourceDto> sources = readSources(jarBytes, fileName, expectedPdkId, files);
         if (sources.isEmpty()) {
@@ -58,10 +156,133 @@ public class PdkReleaseRegistrationService {
 
         // Inspect current resources after download, immediately before registration.
         if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
-            throw new BizException("Connector resources changed. Review affected tasks before registering.");
+            if (job == null) {
+                throw new BizException("Connector resources changed. Review affected tasks before registering.");
+            }
+            throw new RegistrationImpactChangedException(
+                    "Connector resources changed. Review affected tasks before registering.");
         }
 
+        updateJobIfTracked(job, "registering", 80, null);
         pkdSourceService.uploadReleasedPdk(files.toArray(new MultipartFile[0]), sources, user, !stopTasks);
+    }
+
+    private void updateJobIfTracked(RegistrationJob job, String status, int progress, String error) {
+        if (job != null) updateJob(job, status, progress, error);
+    }
+
+    private void updateProgressIfTracked(RegistrationJob job, int progress) {
+        if (job != null) updateProgress(job, progress);
+    }
+
+    private void purgeExpiredJobs() {
+        long cutoff = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1);
+        mongoTemplate.remove(Query.query(new Criteria().andOperator(
+                Criteria.where("updatedAt").lt(cutoff),
+                Criteria.where("status").in("completed", "failed"))), REGISTRATION_JOB_COLLECTION);
+    }
+
+    private void updateProgress(RegistrationJob job, int progress) {
+        if (progress - job.progress >= 1) updateJob(job, "downloading", progress, null);
+    }
+
+    private void updateJob(RegistrationJob job, String status, int progress, String error) {
+        updateJob(job, status, progress, error, null);
+    }
+
+    private void updateJob(RegistrationJob job, String status, int progress, String error, String errorCode) {
+        synchronized (job) {
+            job.update(status, progress, error, errorCode);
+            persistJob(job);
+        }
+    }
+
+    private void heartbeatJob(RegistrationJob job) {
+        synchronized (job) {
+            if (!job.isTerminal()) {
+                job.touch();
+                persistJob(job);
+            }
+        }
+    }
+
+    private void persistJob(RegistrationJob job) {
+        mongoTemplate.save(job.toDocument(), REGISTRATION_JOB_COLLECTION);
+    }
+
+    private static final class RegistrationJob {
+        private final String id;
+        private final String pdkId;
+        private final String ownerId;
+        private volatile String status = "queued";
+        private volatile int progress = 1;
+        private volatile String error;
+        private volatile String errorCode;
+        private volatile long updatedAt = System.currentTimeMillis();
+
+        private RegistrationJob(org.bson.Document document) {
+            this.id = document.getString("_id");
+            this.pdkId = document.getString("pdkId");
+            this.ownerId = document.getString("ownerId");
+            this.status = document.getString("status");
+            this.progress = document.getInteger("progress", 1);
+            this.error = document.getString("error");
+            this.errorCode = document.getString("errorCode");
+            this.updatedAt = document.getLong("updatedAt");
+        }
+
+        private RegistrationJob(String id, String pdkId, String ownerId) {
+            this.id = id;
+            this.pdkId = pdkId;
+            this.ownerId = ownerId;
+        }
+
+        private boolean isTerminal() {
+            return "completed".equals(status) || "failed".equals(status);
+        }
+
+        private void update(String status, int progress, String error, String errorCode) {
+            this.status = status;
+            this.progress = progress;
+            this.error = error;
+            this.errorCode = errorCode;
+            this.updatedAt = System.currentTimeMillis();
+        }
+
+        private void touch() {
+            this.updatedAt = System.currentTimeMillis();
+        }
+
+        private org.bson.Document toDocument() {
+            org.bson.Document document = new org.bson.Document("_id", id)
+                    .append("pdkId", pdkId)
+                    .append("ownerId", ownerId)
+                    .append("status", status)
+                    .append("progress", progress)
+                    .append("updatedAt", updatedAt);
+            if (error != null) document.append("error", error);
+            if (errorCode != null) document.append("errorCode", errorCode);
+            return document;
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("jobId", id);
+            result.put("pdkId", pdkId);
+            result.put("status", status);
+            result.put("progress", progress);
+            result.put("error", error);
+            result.put("errorCode", errorCode);
+            return result;
+        }
+    }
+
+    private static final class RegistrationImpactChangedException extends RuntimeException {
+        private static final String ERROR_CODE = "RESOURCE_IMPACT_CHANGED";
+
+        private RegistrationImpactChangedException(String message) {
+            super(message);
+        }
     }
 
     private void requireEnterprise(UserDetail user) {
