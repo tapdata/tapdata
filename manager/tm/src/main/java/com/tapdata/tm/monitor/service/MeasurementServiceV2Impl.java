@@ -2160,7 +2160,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 }
                 if (bucket.sampleCount > 0) {
                     Double qps = selectedNode ? nodeBucketContribution(bucket, physicalNodeId)
-                            : bucket.outputQpsSum / bucket.sampleCount;
+                            : Double.valueOf(bucket.outputQpsSum / bucket.sampleCount);
                     if (qps != null) {
                         outputQpsByBucket.merge(bucketEntry.getKey(), qps, Double::sum);
                     }
