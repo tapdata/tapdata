@@ -1,5 +1,8 @@
 package com.tapdata.tm.task.service;
 
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditFinalizer;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
@@ -906,6 +909,9 @@ public class TaskServiceImpl extends TaskService{
         }
         return warnings;
     }
+    @Autowired(required = false)
+    private AuditFinalizer auditFinalizer;
+
 
     @Autowired
     @Lazy
@@ -1363,7 +1369,13 @@ public class TaskServiceImpl extends TaskService{
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
-        userLogService.addUserLog(modular, Operation.DELETE, user, id.toString(), taskDto.getName());
+        if (auditFinalizer != null) {
+            boolean liveCache = TaskDto.SYNC_TYPE_MEM_CACHE.equals(taskDto.getSyncType());
+            auditFinalizer.finishOrRecord(liveCache ? "live_cache" : "task", id.toHexString(), taskDto.getName(),
+                    liveCache ? AuditAction.LIVE_CACHE_DELETE : AuditAction.TASK_DELETE, user);
+        } else {
+            userLogService.addUserLog(modular, Operation.DELETE, user, id.toString(), taskDto.getName());
+        }
 
         try {
             metadataInstancesService.deleteTaskMetadata(id.toHexString(), user);

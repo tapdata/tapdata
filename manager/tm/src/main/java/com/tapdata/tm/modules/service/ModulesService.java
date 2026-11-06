@@ -1,5 +1,10 @@
 package com.tapdata.tm.modules.service;
 
+import com.tapdata.tm.audit.AuditOperationFinisher;
+import com.tapdata.tm.audit.AuditOutcome;
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditRequestContext;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
@@ -110,6 +115,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -155,6 +161,7 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	private AuditOperationFinisher auditOperationFinisher;
 	public static final String USER_ID = "user_id";
 	public static final String MODULES_BASE_PATH_AND_VERSION_EXISTED = "Modules.BasePathAndVersion.Existed";
 	private static final String URI = "uri";
@@ -414,7 +421,44 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
         removeStatusInfo(modulesDto);
+		AuditRequestContext auditContext = AuditRequestContext.current();
+		boolean publish = ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus())
+				&& ModuleStatusEnum.PENDING.getValue().equals(dto.getStatus());
+		boolean unpublish = ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus())
+				&& ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus());
+		if ((publish || unpublish) && auditContext != null && auditContext.inAuditedScope()
+				&& StringUtils.isNotBlank(auditContext.getOperationId())) {
+			return savePublishedConfiguration(modulesDto, userDetail, auditContext.getOperationId(), publish);
+		}
 		return super.upsertByWhere(where, modulesDto, userDetail);
+	}
+
+	private ModulesDto savePublishedConfiguration(ModulesDto modulesDto, UserDetail userDetail, String operationId, boolean publish) {
+		modulesDto.setAuditPublishOperationId(publish ? operationId : null);
+		beforeSave(modulesDto, userDetail);
+		Query query = Query.query(Criteria.where("_id").is(modulesDto.getId())
+				.and("status").is(publish ? ModuleStatusEnum.PENDING.getValue() : ModuleStatusEnum.ACTIVE.getValue()));
+		repository.applyUserDetail(query, userDetail);
+		Update update = repository.buildUpdateSet(convertToEntity(ModulesEntity.class, modulesDto), userDetail);
+		if (!publish) update.unset("auditPublishOperationId");
+		repository.beforeUpsert(update, userDetail);
+		ModulesEntity previous = mongoOperations.findAndModify(query, update,
+				FindAndModifyOptions.options().returnNew(false), ModulesEntity.class);
+		if (previous == null) {
+			throw new BizException("API status changed; refresh before publishing");
+		}
+		String oldOperationId = previous.getAuditPublishOperationId();
+		if (auditOperationFinisher != null && StringUtils.isNotBlank(oldOperationId)
+				&& !oldOperationId.equals(operationId)) {
+			try {
+				auditOperationFinisher.finishOperation("api", modulesDto.getId().toHexString(), modulesDto.getName(),
+						AuditAction.API_PUBLISH, oldOperationId, AuditOutcome.FAILED,
+						"Superseded by a later API configuration; final state was not confirmed");
+			} catch (RuntimeException error) {
+				log.warn("Failed to finish superseded API publish audit, id={}", modulesDto.getId(), error);
+			}
+		}
+		return findOne(Query.query(Criteria.where("_id").is(modulesDto.getId())), userDetail);
 	}
 
 	protected void checkModule(ModulesDto dto) {
@@ -654,6 +698,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			if (connectionId == null) {
 				log.warn("Api {}({}) has no resolvable connection, skip publishing it",
 						api.getName(), api.getId());
+				if (api.getId() != null && StringUtils.isNotBlank(api.getAuditPublishOperationId())) {
+					updatePublishMsg(Map.of(api.getId().toHexString(), "Data source not found"),
+							api.getAuditPublishOperationId());
+				}
 				continue;
 			}
 			api.setConnection(connectionId);
@@ -771,10 +819,36 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public void updatePublishMsg(Map<String, String> apiStatus) {
+		updatePublishMsg(apiStatus, null);
+	}
+
+	public void updatePublishMsg(Map<String, String> apiStatus, String operationId) {
 		if (org.springframework.util.CollectionUtils.isEmpty(apiStatus)) {
 			return;
 		}
-		bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
+		if (StringUtils.isBlank(operationId)) {
+			bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
+		} else {
+			apiStatus.forEach((id, msg) -> {
+				Query query = Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))
+						.and("auditPublishOperationId").is(operationId)
+						.and("status").is(ModuleStatusEnum.ACTIVE.getValue()));
+				var result = mongoOperations.updateFirst(query, buildDefaultUpdate(msg), ModulesEntity.class);
+				if (auditOperationFinisher != null) {
+					boolean current = result.getMatchedCount() != 0;
+					auditOperationFinisher.finishOperation("api", id, null, AuditAction.API_PUBLISH, operationId,
+							current && org.apache.commons.lang3.StringUtils.isBlank(msg) ? AuditOutcome.SUCCESS : AuditOutcome.FAILED,
+							current ? msg : "Superseded by a later API configuration; final state was not confirmed");
+				}
+			});
+			return;
+		}
+		if (auditOperationFinisher != null) {
+			// API Server 回报发布结果：空消息为发布成功，否则为失败原因
+			apiStatus.forEach((id, msg) -> auditOperationFinisher.finishOperation("api", id, null,
+					com.tapdata.tm.audit.AuditAction.API_PUBLISH, operationId,
+					org.apache.commons.lang3.StringUtils.isBlank(msg) ? AuditOutcome.SUCCESS : AuditOutcome.FAILED, msg));
+		}
 	}
 
 	protected void bulkUpsert(Map<String, String> entities,

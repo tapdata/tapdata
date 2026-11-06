@@ -1,5 +1,9 @@
 package com.tapdata.tm.task.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -44,6 +48,7 @@ public class LdpController extends BaseController {
      */
     @Operation(summary = "Create a new task of the fdm")
     @PostMapping("fdm/task")
+    @Audited(value = AuditAction.TASK_CREATE, objectId = "#result?.id", objectName = "#task.name")
     public ResponseMessage<TaskDto> createFdmTask(@RequestBody TaskDto task,
                                                   @RequestParam(value = "start", required = false, defaultValue = "true") Boolean start) {
         return success(ldpService.createFdmTask(task, start, getLoginUser()));
@@ -58,6 +63,7 @@ public class LdpController extends BaseController {
      */
     @Operation(summary = "Create a new task of the fdm")
     @PostMapping("mdm/task")
+    @Audited(value = AuditAction.TASK_CREATE, objectId = "#result?.id", objectName = "#task.name")
     public ResponseMessage<TaskDto> createMdmTask(@RequestBody TaskDto task, @RequestParam(value = "tagId", required = false) String tagId,
                                                   @RequestParam(value = "confirmTable", required = false, defaultValue = "false") Boolean confirmTable,
                                                   @RequestParam(value = "start", required = false, defaultValue = "true") Boolean start) {
@@ -104,6 +110,7 @@ public class LdpController extends BaseController {
 
     @Operation(summary = "fdm task batch start")
     @PostMapping("fdm/batch/start")
+    @Audited(value = AuditAction.TASK_START, objectId = "#fdmBatchStartDto.taskIds")
     public ResponseMessage<List<MutiResponseMessage>> fdmBatchStart(@RequestBody FdmBatchStartDto fdmBatchStartDto,
                                                                     HttpServletRequest request,
                                                                     HttpServletResponse response) {
@@ -115,6 +122,7 @@ public class LdpController extends BaseController {
 
 
     @DeleteMapping("mdm/table/{id}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#id", summary = "'delete mdm table'")
     public ResponseMessage<Void> deleteMdmTable(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         ldpService.deleteMdmTable(id, userDetail);

@@ -134,6 +134,10 @@ public class ModulesDto extends BaseDto implements IDataPermissionDto {
 
     private String publishStatus;
 
+    /** Internal correlation for the currently published configuration. */
+    @JsonIgnore
+    private String auditPublishOperationId;
+
     /**
      * 平台收录的服务型索引声明（TAP-12057 · P2-1，见 ADR-0001）。作为人工编写的产物随 Module 走，
      * 进导出包 {@code API/{id}_Module.json} 与 CICD diff。写入前经 {@link ServingIndexNormalizer}

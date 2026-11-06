@@ -1,5 +1,9 @@
 package com.tapdata.tm.userGroup.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -56,6 +60,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.USER_GROUP_CREATE, objectId = "#result?.id", objectName = "#userGroup.name")
     public ResponseMessage<UserGroupDto> save(@RequestBody UserGroupDto userGroup) {
         if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
             userGroup.setId(null);
@@ -72,6 +77,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
+    @Audited(value = AuditAction.USER_GROUP_UPDATE, objectId = "#userGroup.id", objectName = "#userGroup.name")
     public ResponseMessage<UserGroupDto> update(@RequestBody UserGroupDto userGroup) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit,
@@ -111,6 +117,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
+    @Audited(value = AuditAction.USER_GROUP_UPDATE, objectId = "#userGroup.id", objectName = "#userGroup.name")
     public ResponseMessage<UserGroupDto> put(@RequestBody UserGroupDto userGroup) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit,
@@ -141,6 +148,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.USER_GROUP_UPDATE, objectId = "#id")
     public ResponseMessage<UserGroupDto> updateById(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit, () -> {
@@ -172,6 +180,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
+    @Audited(value = AuditAction.USER_GROUP_UPDATE, objectId = "#id")
     public ResponseMessage<UserGroupDto> replceById(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
@@ -185,6 +194,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
+    @Audited(value = AuditAction.USER_GROUP_UPDATE, objectId = "#id")
     public ResponseMessage<UserGroupDto> replaceById2(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
@@ -214,6 +224,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.USER_GROUP_DELETE, objectId = "#id")
     public ResponseMessage<Boolean> delete(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete,
@@ -295,6 +306,7 @@ public class UserGroupController extends BaseController {
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
+    @Audited(value = AuditAction.USER_GROUP_UPDATE, objectId = "T(com.tapdata.tm.audit.AuditSpel).idFromWhere(#whereJson)")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody UserGroupDto userGroup) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit, () -> {

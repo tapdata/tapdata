@@ -1,5 +1,8 @@
 package com.tapdata.tm.ws.handler;
 
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.WebSocketAudit;
+
 import com.mongodb.ConnectionString;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
@@ -39,6 +42,9 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @WebSocketMessageHandler(type = MessageType.TEST_EXTERNAL_STORAGE)
 public class TestExternalStorageHandler implements WebSocketHandler {
 
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private WebSocketAudit webSocketAudit;
+
 	private final MessageQueueService messageQueueService;
 	private final DataSourceService dataSourceService;
 	private final DataSourceDefinitionService dataSourceDefinitionService;
@@ -70,6 +76,9 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 
 		MessageInfo messageInfo = context.getMessageInfo();
 		Map<String, Object> externalStorageConfig = messageInfo.getData();
+		if (webSocketAudit != null) {
+			webSocketAudit.testRequested(AuditAction.EXTERNAL_STORAGE_TEST, userDetail, externalStorageConfig);
+		}
 
 		try {
 			sendMessage(context.getSender(), context.getSessionId(), userDetail, externalStorageConfig);

@@ -1,5 +1,9 @@
 package com.tapdata.tm.ds.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -38,6 +42,7 @@ public class DataSourceDefinitionController extends BaseController {
      */
     @PostMapping
     @Operation(summary = "添加数据源定义")
+    @Audited(value = AuditAction.CONNECTOR_INSTALL, objectId = "#result?.id", objectName = "#definition.name")
     public ResponseMessage<DataSourceDefinitionDto> add(@RequestBody DataSourceDefinitionDto definition) {
         return success(dataSourceDefinitionService.save(definition, getLoginUser()));
     }
@@ -49,6 +54,7 @@ public class DataSourceDefinitionController extends BaseController {
      */
     @PatchMapping
     @Operation(summary = "修改数据源定义信息")
+    @Audited(value = AuditAction.CONNECTOR_UPDATE, objectId = "#definitionUpdateDto.id", objectName = "#definitionUpdateDto.name")
     public ResponseMessage<DataSourceDefinitionDto> update(@RequestBody DataSourceDefinitionUpdateDto definitionUpdateDto) {
         return success(dataSourceDefinitionService.update(getLoginUser(), definitionUpdateDto));
     }
@@ -60,6 +66,7 @@ public class DataSourceDefinitionController extends BaseController {
      */
     @Operation(summary = "根据id删除数据源定义")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.CONNECTOR_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         dataSourceDefinitionService.delete(getLoginUser(), id);
         return success();
