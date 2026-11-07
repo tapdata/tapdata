@@ -187,8 +187,9 @@ public class AlarmEventQueryService {
         long alarming = count(scope, Criteria.where("status").is(AlarmStatusEnum.ING.name()));
         long severe = count(scope, Criteria.where("status").is(AlarmStatusEnum.ING.name()), Criteria.where("level").in(names(SEVERE)));
         long todayNew = count(scope, Criteria.where("firstOccurrenceTime").gte(today));
+        // ENGINE_ONLINE 是通知事件，其对应的 ENGINE_OFFLINE 已计入恢复次数。
         long todayRecovered = count(scope, Criteria.where("status").is(AlarmStatusEnum.RECOVER.name()),
-                Criteria.where("recoveryTime").gte(today));
+                Criteria.where("recoveryTime").gte(today), Criteria.where("metric").ne("ENGINE_ONLINE"));
         return new AlarmEventStatsVo(alarming, severe, todayNew, todayRecovered);
     }
 
