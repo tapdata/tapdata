@@ -37,6 +37,7 @@ public class PdkReleaseCatalogService {
     private static final Pattern RELEASE_VERSION = Pattern.compile("\\d+(?:\\.\\d+)*");
     private static final String ARTIFACT_ID_KEY = "artifactId";
     private static final String VERSION_KEY = "version";
+    private static final long MAX_ARTIFACT_BYTES = 1L << 30;
 
     @Value("${pdk.release.repository-url:https://nexus.tapdata.net/repository/maven-releases/}")
     private String repositoryUrl;
@@ -159,13 +160,17 @@ public class PdkReleaseCatalogService {
         // release catalog is joined with the locally registered connector list.
         return switch (artifactId) {
             case "aliyun-mongodb-connector" -> "aliyun-db-mongodb";
+            case "aliyun-rds-mssql-connector" -> "aliyun-rds-sqlserver";
             case "aws-clickhouse-connector" -> "aws-clickhouse";
             case "huawei-cloud-gaussdb-connector" -> "huawei-gauss-db";
             case "kafka-avro-connector" -> "kafka_avro";
             case "kafka-enhanced-connector" -> "kafka_enhanced";
             case "mongodb-lower-connector" -> "mongodb3";
+            case "mssql-connector" -> "sqlserver";
             case "oceanbase-mysql-connector" -> "oceanbase";
+            case "oceanbase-oracle-connector" -> "oceanbase_oracle";
             case "opengauss-connector" -> "open-gauss";
+            case "tencent-db-mssql-connector" -> "tencent-db-sqlserver";
             default -> artifactId.substring(0, artifactId.length() - "-connector".length());
         };
     }
@@ -180,7 +185,7 @@ public class PdkReleaseCatalogService {
             String artifactId = String.valueOf(release.get(ARTIFACT_ID_KEY));
             String version = String.valueOf(release.get(VERSION_KEY));
             String base = repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
-            byte[] jarBytes = fetchBytes(base, downloadProgress);
+            byte[] jarBytes = fetchBytes(base, downloadProgress, MAX_ARTIFACT_BYTES);
             String expectedSha256 = fetch(repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar.sha256").trim();
             String actualSha256 = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(jarBytes));
             if (!actualSha256.equalsIgnoreCase(expectedSha256.split("\\s")[0])) {
@@ -202,6 +207,10 @@ public class PdkReleaseCatalogService {
     }
 
     private byte[] fetchBytes(String url, IntConsumer downloadProgress) throws Exception {
+        return fetchBytes(url, downloadProgress, Long.MAX_VALUE);
+    }
+
+    private byte[] fetchBytes(String url, IntConsumer downloadProgress, long maxBytes) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
                 .header("Accept", "application/xml, text/xml, application/octet-stream, text/plain")
@@ -213,11 +222,18 @@ public class PdkReleaseCatalogService {
             throw new IllegalStateException("Nexus returned HTTP " + response.statusCode());
         }
         long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+        if (contentLength > maxBytes) {
+            response.body().close();
+            throw new IllegalStateException("Connector artifact exceeds the 1 GiB download limit");
+        }
         try (java.io.InputStream input = response.body(); java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
             long total = 0;
             int read;
             while ((read = input.read(buffer)) != -1) {
+                if (total > maxBytes - read) {
+                    throw new IllegalStateException("Connector artifact exceeds the 1 GiB download limit");
+                }
                 output.write(buffer, 0, read);
                 total += read;
                 if (contentLength > 0) {
