@@ -1,5 +1,9 @@
 package com.tapdata.tm.skiperrortable.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
@@ -75,6 +79,7 @@ public class TaskSkipErrorTableController extends BaseController {
 
     @Operation(summary = "FE 回调接口，用于上报跳过的错误表信息")
     @PostMapping("/{taskId}/skip-error-table")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'skip error table'")
     public ResponseMessage<TaskSkipErrorTableDto> addSkipTable(HttpServletRequest request
             , @PathVariable(name = "taskId") String taskId
             , @RequestBody TaskSkipErrorTableDto dto
@@ -89,6 +94,7 @@ public class TaskSkipErrorTableController extends BaseController {
 
     @Operation(summary = "FE 回调接口，错误表恢复")
     @PostMapping("/{taskId}/skip-error-table-recovered")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'recover skipped error table'")
     public ResponseMessage<Boolean> deleteByTableNames(HttpServletRequest request
             , @PathVariable(name = "taskId") String taskId
             , @RequestBody SkipErrorTableRecoveredVo vo
@@ -136,6 +142,7 @@ public class TaskSkipErrorTableController extends BaseController {
 
     @Operation(summary = "恢复错误表同步")
     @PutMapping("/{taskId}/skip-error-table-recovering")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'recovering skipped error table'")
     public ResponseMessage<Boolean> changeTable2Recovering(HttpServletRequest request
             , @PathVariable(name = "taskId") String taskId
             , @RequestParam(name = "sourceTables", required = false) List<String> sourceTables

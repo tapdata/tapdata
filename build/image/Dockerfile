@@ -3,7 +3,7 @@ FROM ${BASE_IMAGE}
 
 ARG TARGETARCH
 
-ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
+ENV JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF8 --add-opens=java.base/java.util=ALL-UNNAMED"
 
 # 设置 DEBIAN_FRONTEND 为 noninteractive 以避免交互式提示
 ENV DEBIAN_FRONTEND=noninteractive

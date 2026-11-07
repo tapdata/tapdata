@@ -1,5 +1,9 @@
 package com.tapdata.tm.worker.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.alibaba.fastjson.JSONObject;
 import com.google.gson.reflect.TypeToken;
 import com.mongodb.client.result.UpdateResult;
@@ -265,6 +269,7 @@ public class WorkerController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.AGENT_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         workerService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
         return success();
@@ -328,6 +333,7 @@ public class WorkerController extends BaseController {
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
+    @Audited(value = AuditAction.AGENT_DELETE, action = "T(com.tapdata.tm.audit.AuditSpel).workerUpdateAction(#reqBody)", objectId = "T(com.tapdata.tm.audit.AuditSpel).idFromWhere(#whereJson)")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
 
         UserDetail userDetail = getLoginUser();
@@ -453,6 +459,7 @@ public class WorkerController extends BaseController {
 
     @Operation(summary = "创建实例接口")
     @PostMapping("/createWorker")
+    @Audited(value = AuditAction.AGENT_CREATE, objectId = "#result?.id")
     public ResponseMessage<WorkerDto> createWorker(@RequestBody WorkerDto workerDto) {
         return success(workerService.createWorker(workerDto, getLoginUser()));
     }
@@ -495,6 +502,7 @@ public class WorkerController extends BaseController {
     }
 
     @PostMapping("/share/create")
+    @Audited(value = AuditAction.AGENT_CREATE, summary = "'share agent'")
     public ResponseMessage<Void> createShareWorker(@RequestBody WorkerExpireDto workerExpireDto) {
         workerService.createShareWorker(workerExpireDto, getLoginUser());
         return success();
@@ -507,6 +515,7 @@ public class WorkerController extends BaseController {
 
     @PostMapping("/share/delete")
     @Operation(summary = "删除共享实例")
+    @Audited(value = AuditAction.AGENT_DELETE, summary = "'share agent'")
     public ResponseMessage<Void> deleteShareWorker() {
         workerService.deleteShareWorker(getLoginUser());
         return success();
@@ -516,6 +525,7 @@ public class WorkerController extends BaseController {
         return success(workerService.queryAllBindWorker());
     }
     @PostMapping("/unbindByProcessId")
+    @Audited(value = AuditAction.AGENT_UNBIND, objectName = "#processId")
     public ResponseMessage<Boolean> unbindByProcessId(@RequestParam String processId) {
         return success(workerService.unbindByProcessId(processId));
     }

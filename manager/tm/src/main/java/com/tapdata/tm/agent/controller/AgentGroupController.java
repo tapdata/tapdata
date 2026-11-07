@@ -1,5 +1,9 @@
 package com.tapdata.tm.agent.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
@@ -74,6 +78,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/create-group")
+    @Audited(AuditAction.AGENT_GROUP_UPDATE)
     public ResponseMessage<AgentGroupDto> createAgentGroup(@RequestBody GroupDto groupDto) {
         if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
             return success(agentGroupService.createGroup(groupDto, getLoginUser()));
@@ -90,6 +95,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/add-agent")
+    @Audited(AuditAction.AGENT_GROUP_UPDATE)
     public ResponseMessage<AgentGroupDto> addAgentToGroup(@RequestBody AgentWithGroupBaseDto agentDto) {
         return success(agentGroupService.addAgentToGroup(agentDto, getLoginUser()));
     }
@@ -101,6 +107,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/batch-modify")
+    @Audited(AuditAction.AGENT_GROUP_UPDATE)
     public ResponseMessage<List<AgentGroupDto>> batch(@RequestBody AgentToGroupDto agentDto) {
         return success(agentGroupService.batchOperator(agentDto, getLoginUser()));
     }
@@ -113,6 +120,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/remove-agent")
+    @Audited(AuditAction.AGENT_GROUP_UPDATE)
     public ResponseMessage<AgentGroupDto> removeAgentFromGroup(@RequestBody AgentRemoveFromGroupDto removeDto) {
         return success(agentGroupService.removeAgentFromGroup(removeDto, getLoginUser()));
     }
@@ -125,6 +133,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @DeleteMapping("{groupId}")
+    @Audited(value = AuditAction.AGENT_GROUP_DELETE, objectId = "#groupId")
     public ResponseMessage<GroupUsedDto> deleteGroup(@PathVariable("groupId") String groupId) {
         return success(agentGroupService.deleteGroup(groupId, getLoginUser()));
     }
@@ -154,6 +163,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update-group")
+    @Audited(AuditAction.AGENT_GROUP_UPDATE)
     public ResponseMessage<AgentGroupDto> updateByWhere(@RequestBody GroupDto dto) {
         return success(agentGroupService.updateBaseInfo(dto, getLoginUser()));
     }

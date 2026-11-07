@@ -1,5 +1,9 @@
 package com.tapdata.tm.application.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.google.common.collect.Sets;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
@@ -84,6 +88,7 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.API_CLIENT_CREATE, objectId = "#result?.id", objectName = "#applicationDto.name")
     public ResponseMessage<ApplicationDto> save(@RequestBody ApplicationDto applicationDto) {
         if (null != applicationDto && StringUtils.isNotBlank(applicationDto.getClientId())) {
             long count = applicationService.countOfClientId(applicationDto.getClientId(), null);
@@ -167,6 +172,7 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping
+    @Audited(value = AuditAction.API_CLIENT_UPDATE, objectId = "#metadataDefinition.id", objectName = "#metadataDefinition.name")
     public ResponseMessage<ApplicationDto> updateById(HttpServletRequest request, @RequestBody ApplicationDto metadataDefinition) {
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfId(request, userDetail, metadataDefinition.getId().toHexString(), DataPermissionActionEnums.Edit,
@@ -180,6 +186,23 @@ public class ApplicationController extends BaseController {
      * @param fieldsJson
      * @return
      */
+
+    /**
+     * 显示或复制 API 客户端密钥：需要该客户端的查看权限，读取本身产生审计事件（需求 8.3）。
+     */
+    @Operation(summary = "Reveal client secret of an API client")
+    @PostMapping("{id}/secret/reveal")
+    @Audited(value = AuditAction.API_CLIENT_VIEW_SECRET, objectId = "#id")
+    public ResponseMessage<String> revealSecret(HttpServletRequest request, @PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        ApplicationDto application = dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.View,
+                () -> applicationService.findById(MongoUtils.toObjectId(id), new Field(), userDetail));
+        if (application == null) {
+            throw new BizException("NotFound");
+        }
+        return success(application.getClientSecret());
+    }
+
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
     public ResponseMessage<ApplicationDto> findById(HttpServletRequest request, @PathVariable("id") String id,
@@ -199,6 +222,7 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.API_CLIENT_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(HttpServletRequest request,@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.Delete, () -> {

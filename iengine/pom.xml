@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.6</version>
+        <version>4.0.8</version>
         <relativePath/>
     </parent>
 
@@ -28,7 +28,7 @@
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.jackson>2.21.2</version.jackson>
+        <version.jackson>2.21.6</version.jackson>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -38,15 +38,18 @@
         <version.hana.driver>2.3.58</version.hana.driver>
         <version.mysql.binlog>0.28.0</version.mysql.binlog>
         <version.mongo.server>3.2.12</version.mongo.server>
-        <!-- align with Spring Boot 4 BOM-managed mongodb-driver-core (5.6.5); a mismatched sync/core
-             caused NoClassDefFoundError com/mongodb/internal/operation/SyncOperations at runtime -->
-        <version.mongo.driver>5.6.5</version.mongo.driver>
+        <!-- Overrides the mongodb-driver-bom that the Spring Boot BOM imports, so every mongodb
+             artifact (bson, bson-record-codec, driver-core, driver-sync) moves together; a
+             mismatched sync/core caused NoClassDefFoundError
+             com/mongodb/internal/operation/SyncOperations at runtime.
+             Keep in sync with manager/pom.xml. -->
+        <mongodb.version>5.11.0</mongodb.version>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
         <!-- Spring Boot 4.0.x manages Spring Framework 7.0.x; keep this aligned with the BOM -->
-        <version.spring>7.0.7</version.spring>
+        <version.spring>7.0.9</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -84,7 +87,7 @@
         <debug.argline/>
 
         <!-- Java implementation of cryptographic algorithms -->
-        <org.bouncycastle.version>1.84</org.bouncycastle.version>
+        <org.bouncycastle.version>1.85</org.bouncycastle.version>
 
         <!-- json lib -->
         <org.json.version>20250107</org.json.version>
@@ -136,7 +139,10 @@
         <graalvm.py.version>2.7.4</graalvm.py.version>
 
         <jna.version>5.10.0</jna.version>
-        <log4j.version>2.25.4</log4j.version>
+        <!-- 客户侧 Sonatype 对 2.25.5 报 sonatype-2026-006746，升到 2.x 最高版 2.26.1。
+             log4j2.version 覆盖 Boot BOM（管 log4j-to-slf4j 等未在下方显式声明的模块）。 -->
+        <log4j.version>2.26.1</log4j.version>
+        <log4j2.version>2.26.1</log4j2.version>
 
         <hutool.version>5.8.40</hutool.version>
 
@@ -182,9 +188,19 @@
         <async-tools-module.version>2.11-SNAPSHOT</async-tools-module.version>
         <script-engine-module.version>2.11-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
-        <httpclient5.version>5.4.4</httpclient5.version>
-        <!-- netty.version / tomcat.version intentionally inherited from Spring Boot 4.0.x BOM
-             (netty 4.2.x, tomcat 11.0.x for Jakarta EE 11 / Servlet 6.1) -->
+        <!-- httpclient5 / tomcat / netty pinned FORWARD of the Spring Boot 4.0.x BOM: the BOM
+             values (httpclient5 5.5.2, tomcat 11.0.24, netty 4.2.17.Final)都带未修问题。
+             Jakarta EE 11 / Servlet 6.1 baseline unchanged. Keep in sync with manager/pom.xml. -->
+        <httpclient5.version>5.6.4</httpclient5.version>
+        <httpcore5.version>5.4.3</httpcore5.version>
+        <tomcat.version>11.0.25</tomcat.version>
+        <!-- netty 4.2.18.Final 是安全发布，修掉 28 条未分配 CVE 号的公告（http2/http3 头校验与
+             请求走私、QUIC 主机名校验、mqtt/redis/smtp/stomp 资源无界、OCSP 证书校验等），
+             即客户侧 Sonatype 报的 sonatype-2026-008011~008031 那一批。 -->
+        <netty.version>4.2.18.Final</netty.version>
+        <!-- Jackson 3 pinned FORWARD of the Boot 4.0.8 BOM (3.1.5): CVE-2026-68497 /
+             CVE-2026-83557. Jackson 2 is governed by <version.jackson> above. -->
+        <jackson-bom.version>3.1.6</jackson-bom.version>
     </properties>
 
     <modules>
@@ -316,11 +332,13 @@
                 <version>1.0.2</version>
             </dependency>
 
-            <!-- MongoDB Java driver -->
+            <!-- zstd-jni: tapdata-storage-module 传入 1.5.2-5（深度 2，压过 kafka-clients 的
+                 1.5.6-4），其内置 libzstd 1.5.2 带 CVE-2022-4899（需 zstd 1.5.4+ 才修），
+                 客户侧 Sonatype 报 Security-High。统一钉到当前最高版。 -->
             <dependency>
-                <groupId>org.mongodb</groupId>
-                <artifactId>mongodb-driver-sync</artifactId>
-                <version>${version.mongo.driver}</version>
+                <groupId>com.github.luben</groupId>
+                <artifactId>zstd-jni</artifactId>
+                <version>1.5.7-16</version>
             </dependency>
 
             <!-- Logging -->
@@ -491,6 +509,18 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
                 <version>${org.bouncycastle.version}</version>
+            </dependency>
+
+            <!-- 引擎自身不声明 fastjson，它由 tapdata-pdk-runner 传递进来（13 条路径全汇于此）。
+                 pdk-runner 仍锁 1.2.83（带 CVE-2026-16723，默认配置即可 RCE），此处接管到 1.2.84。
+                 1.2.84 与 1.2.83 二进制兼容（DefaultJSONParser.input / .lexer 仍是 public final），
+                 pdk-runner 的字节码无需重编。
+                 ⚠ 同 manager/tm/pom.xml：绝不可换成 fastjson 2.x 兼容包，那两个字段在 2.x 是
+                 private，会在解析 TapTable/TapField 的 TapType 时抛 IllegalAccessError。 -->
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>1.2.84</version>
             </dependency>
 
             <dependency>

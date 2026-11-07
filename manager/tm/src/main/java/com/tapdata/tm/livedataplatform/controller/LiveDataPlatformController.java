@@ -1,5 +1,9 @@
 package com.tapdata.tm.livedataplatform.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -29,6 +33,7 @@ public class LiveDataPlatformController extends BaseController {
 
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "'live data platform'")
     public ResponseMessage<LiveDataPlatformDto> save(@RequestBody LiveDataPlatformDto liveDataPlatformDto) {
         liveDataPlatformDto.setId(null);
         return success(liveDataPlatformService.save(liveDataPlatformDto, getLoginUser()));
@@ -41,6 +46,7 @@ public class LiveDataPlatformController extends BaseController {
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "'live data platform'")
     public ResponseMessage<LiveDataPlatformDto> update(@RequestBody LiveDataPlatformDto liveDataPlatformDto) {
         String mode = liveDataPlatformDto.getMode();
         if(StringUtils.isEmpty(mode) ||

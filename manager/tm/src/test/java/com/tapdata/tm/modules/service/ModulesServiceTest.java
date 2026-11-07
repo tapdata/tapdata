@@ -29,6 +29,8 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ServingIndex;
+import com.tapdata.tm.module.dto.ServingIndexField;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.module.dto.PathSetting;
@@ -52,6 +54,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -288,6 +291,56 @@ class ModulesServiceTest {
 			modulesService.save(modulesDto, userDetail);
 			verify(modulesRepository).save(any(), any());
 		}
+
+		@Test
+		@DisplayName("servingIndexes 必须落到持久化实体：DTO→Entity 属性拷贝不得丢字段（P2-1 存储链路）")
+		void test_servingIndexes_survivesDtoToEntityCopy() throws Exception {
+			// BaseService.convertToEntity 用 BeanUtils.copyProperties(dto, entity) 按属性名拷贝：
+			// ModulesEntity 少一个同名属性 → 静默丢弃，现象是「保存成功但索引没了」（2026-07-31 实机验证所见）。
+			java.beans.PropertyDescriptor pd =
+					org.springframework.beans.BeanUtils.getPropertyDescriptor(ModulesEntity.class, "servingIndexes");
+			assertNotNull(pd, "ModulesEntity 缺 servingIndexes 属性，DTO 上的索引不会被持久化");
+
+			ModulesDto dto = new ModulesDto();
+			dto.setServingIndexes(new ArrayList<>(Collections.singletonList(
+					new ServingIndex("ix_a", true,
+							new ArrayList<>(Collections.singletonList(new ServingIndexField("a", true)))))));
+			ModulesEntity entity = new ModulesEntity();
+			org.springframework.beans.BeanUtils.copyProperties(dto, entity);
+
+			Object copied = pd.getReadMethod().invoke(entity);
+			assertNotNull(copied, "拷贝后实体上的 servingIndexes 不应为 null");
+			assertEquals(1, ((List<?>) copied).size());
+		}
+
+		@Test
+		@DisplayName("save 归一化 servingIndexes：乱序入参保存后确定性有序 + 方向显式（P2-1，防索引静默丢失/漂移）")
+		void test_save_normalizesServingIndexes() {
+			modulesDto = new ModulesDto();
+			modulesDto.setName("api-with-index");
+			modulesDto.setServingIndexes(new ArrayList<>(Arrays.asList(
+					new ServingIndex("ix_b", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("b", null)))),
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("a", false)))))));
+
+			doReturn(false).when(modulesService).nameExists(null, "api-with-index");
+			when(modulesRepository.save(any(), any())).thenReturn(mock(ModulesEntity.class));
+
+			modulesService.save(modulesDto, userDetail);
+
+			// 断言落在**持久化边界**（交给 repository 的实体），而不是入参 DTO：BaseService.save 在
+			// repository.save 之后会 BeanUtils.copyProperties(entity, dto) 回拷，本用例的 repository 是
+			// 全 null 的 mock 实体，回拷会把 DTO 上的值抹掉。要的是「存进去的那份是归一化的」。
+			ArgumentCaptor<ModulesEntity> saved = ArgumentCaptor.forClass(ModulesEntity.class);
+			verify(modulesRepository).save(saved.capture(), any());
+			List<ServingIndex> out = saved.getValue().getServingIndexes();
+			assertNotNull(out, "servingIndexes 必须随实体落库（ModulesEntity 需有同名属性）");
+			assertEquals(2, out.size());
+			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
+			assertEquals("a", out.get(0).getFields().get(0).getField());
+			assertEquals(Boolean.FALSE, out.get(0).getFields().get(0).getAsc());
+			assertEquals("b", out.get(1).getFields().get(0).getField());
+			assertEquals(Boolean.TRUE, out.get(1).getFields().get(0).getAsc());
+		}
 	}
 
 	@Nested
@@ -325,6 +378,121 @@ class ModulesServiceTest {
 
 			assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
 			assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
+		}
+
+		@Test
+		@DisplayName("updateModuleById 归一化 servingIndexes：编辑保存路径同样确定性有序 + 方向显式（P2-1，防编辑保存索引静默丢失）")
+		void test_updateModuleById_normalizesServingIndexes() {
+			ObjectId moduleId = new ObjectId();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(moduleId);
+			modulesDto.setName("api-edit");
+			// checkoutInputParamIsValid 要求的非空字段（paths 留空以跳过参数校验循环）
+			modulesDto.setDataSource("ds1");
+			modulesDto.setTableName("orders");
+			modulesDto.setApiType("defaultApi");
+			modulesDto.setConnectionId("conn1");
+			modulesDto.setConnectionType("source");
+			modulesDto.setConnectionName("mongo-a");
+			modulesDto.setServingIndexes(new ArrayList<>(Arrays.asList(
+					new ServingIndex("ix_b", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("b", null)))),
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("a", false)))))));
+
+			ModulesDto existedDto = new ModulesDto();
+			existedDto.setId(moduleId);
+			existedDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+
+			doReturn(existedDto).when(modulesService).findOne(any(Query.class), eq(userDetail));
+			doReturn(false).when(modulesService).nameExists(any(), any());
+			doReturn(0L).when(modulesService).count(any(Query.class));
+			when(modulesRepository.filterToQuery(any())).thenReturn(new Query());
+			when(modulesRepository.findOne(any(com.tapdata.tm.base.dto.Where.class), eq(userDetail)))
+					.thenReturn(Optional.of(mock(ModulesEntity.class)));
+
+			modulesService.updateModuleById(modulesDto, userDetail);
+
+			List<ServingIndex> out = modulesDto.getServingIndexes();
+			assertEquals(2, out.size());
+			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
+			assertEquals("a", out.get(0).getFields().get(0).getField());
+			assertEquals(Boolean.FALSE, out.get(0).getFields().get(0).getAsc());
+			assertEquals("b", out.get(1).getFields().get(0).getField());
+			assertEquals(Boolean.TRUE, out.get(1).getFields().get(0).getAsc());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method updateServingIndexes test（TAP-12057 · 索引 tab 与编辑态解绑，勾选即存）")
+	class UpdateServingIndexesTest {
+		private UserDetail userDetail;
+
+		@BeforeEach
+		void beforeEach() {
+			userDetail = mock(UserDetail.class);
+		}
+
+		@Test
+		@DisplayName("只 $set servingIndexes 一个字段——绝不连带改 status（否则收录索引会把已发布 API 撤下发布）")
+		void test_onlySetsServingIndexes() {
+			String moduleId = new ObjectId().toHexString();
+
+			modulesService.updateServingIndexes(moduleId, new ArrayList<>(Collections.singletonList(
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(
+							new ServingIndexField("a", true)))))), userDetail);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(modulesRepository, times(1)).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(userDetail));
+
+			Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+			assertEquals(Collections.singleton("servingIndexes"), set.keySet(),
+					"窄端点只允许写 servingIndexes：多写任何一个字段都可能悄悄改动 API 定义");
+			assertEquals(moduleId, queryCaptor.getValue().getQueryObject().get("_id").toString());
+		}
+
+		@Test
+		@DisplayName("写入前归一化：确定性排序 + 方向显式（与编辑保存路径同口径，ADR-0001 / P2-1）")
+		void test_normalizesBeforeWrite() {
+			modulesService.updateServingIndexes(new ObjectId().toHexString(), new ArrayList<>(Arrays.asList(
+					new ServingIndex("ix_b", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("b", null)))),
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("a", false)))))),
+					userDetail);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			verify(modulesRepository, times(1)).updateFirst(any(Query.class), updateCaptor.capture(), eq(userDetail));
+
+			@SuppressWarnings("unchecked")
+			List<ServingIndex> written = (List<ServingIndex>) ((Document) updateCaptor.getValue()
+					.getUpdateObject().get("$set")).get("servingIndexes");
+			assertEquals(2, written.size());
+			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
+			assertEquals("a", written.get(0).getFields().get(0).getField());
+			assertEquals(Boolean.FALSE, written.get(0).getFields().get(0).getAsc());
+			assertEquals("b", written.get(1).getFields().get(0).getField());
+			assertEquals(Boolean.TRUE, written.get(1).getFields().get(0).getAsc());
+		}
+
+		@Test
+		@DisplayName("清空收录：空列表照写，不能被当成「没传」而跳过（否则最后一条索引取消勾选存不下去）")
+		void test_emptyListIsWritten() {
+			modulesService.updateServingIndexes(new ObjectId().toHexString(), new ArrayList<>(), userDetail);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			verify(modulesRepository, times(1)).updateFirst(any(Query.class), updateCaptor.capture(), eq(userDetail));
+
+			@SuppressWarnings("unchecked")
+			List<ServingIndex> written = (List<ServingIndex>) ((Document) updateCaptor.getValue()
+					.getUpdateObject().get("$set")).get("servingIndexes");
+			assertNotNull(written);
+			assertTrue(written.isEmpty());
+		}
+
+		@Test
+		@DisplayName("id 为空 → BizException，不落任何写")
+		void test_blankIdRejected() {
+			assertThrows(BizException.class,
+					() -> modulesService.updateServingIndexes("  ", new ArrayList<>(), userDetail));
+			verify(modulesRepository, never()).updateFirst(any(Query.class), any(Update.class), any());
 		}
 	}
 

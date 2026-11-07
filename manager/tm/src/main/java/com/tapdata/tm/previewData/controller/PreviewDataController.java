@@ -1,5 +1,9 @@
 package com.tapdata.tm.previewData.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.previewData.param.PreviewParam;
 import com.tapdata.tm.previewData.service.PreviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,6 +67,7 @@ public class PreviewDataController {
      */
     @Operation(summary = "创建一个数据库连接，然后将数据返回给前端以便预览")
     @PostMapping
+    @Audited(value = AuditAction.DATA_PREVIEW, objectId = "#previewParam.id")
     public Map preview(@RequestBody PreviewParam previewParam) {
         return previewService.preview(previewParam);
     }

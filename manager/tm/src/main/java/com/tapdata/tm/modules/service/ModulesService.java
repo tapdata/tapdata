@@ -1,5 +1,10 @@
 package com.tapdata.tm.modules.service;
 
+import com.tapdata.tm.audit.AuditOperationFinisher;
+import com.tapdata.tm.audit.AuditOutcome;
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditRequestContext;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
@@ -51,6 +56,8 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.module.dto.ServingIndex;
+import com.tapdata.tm.module.dto.ServingIndexNormalizer;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
@@ -108,6 +115,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -153,6 +161,7 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	private AuditOperationFinisher auditOperationFinisher;
 	public static final String USER_ID = "user_id";
 	public static final String MODULES_BASE_PATH_AND_VERSION_EXISTED = "Modules.BasePathAndVersion.Existed";
 	private static final String URI = "uri";
@@ -163,6 +172,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApplicationService applicationService;
 	private DataSourceService dataSourceService;
 	private MetadataInstancesService metadataInstancesService;
+	/** TAP-12057 · P3-1：API 列表页导入这条腿也要落地服务型索引。 */
+	private com.tapdata.tm.servingindex.ServingIndexLandingService servingIndexLandingService;
 	private FileService fileService;
 	private ApiCallService apiCallService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
@@ -348,6 +359,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (StringUtils.isBlank(modulesDto.getStatus())) {
 			modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
 		}
+		// TAP-12057 · P2-1：写入前确定性归一化 servingIndexes（排序 + 方向规范），避免 Module 全量 diff 抖动（ADR-0001）。
+		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
         removeStatusInfo(modulesDto);
 		return super.save(modulesDto, userDetail);
@@ -404,9 +417,48 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			checkItem = modulesDto;
 		}
 		checkModule(checkItem);
+		// TAP-12057 · P2-1：更新链路同样归一化 servingIndexes（ADR-0001）。
+		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
         removeStatusInfo(modulesDto);
+		AuditRequestContext auditContext = AuditRequestContext.current();
+		boolean publish = ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus())
+				&& ModuleStatusEnum.PENDING.getValue().equals(dto.getStatus());
+		boolean unpublish = ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus())
+				&& ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus());
+		if ((publish || unpublish) && auditContext != null && auditContext.inAuditedScope()
+				&& StringUtils.isNotBlank(auditContext.getOperationId())) {
+			return savePublishedConfiguration(modulesDto, userDetail, auditContext.getOperationId(), publish);
+		}
 		return super.upsertByWhere(where, modulesDto, userDetail);
+	}
+
+	private ModulesDto savePublishedConfiguration(ModulesDto modulesDto, UserDetail userDetail, String operationId, boolean publish) {
+		modulesDto.setAuditPublishOperationId(publish ? operationId : null);
+		beforeSave(modulesDto, userDetail);
+		Query query = Query.query(Criteria.where("_id").is(modulesDto.getId())
+				.and("status").is(publish ? ModuleStatusEnum.PENDING.getValue() : ModuleStatusEnum.ACTIVE.getValue()));
+		repository.applyUserDetail(query, userDetail);
+		Update update = repository.buildUpdateSet(convertToEntity(ModulesEntity.class, modulesDto), userDetail);
+		if (!publish) update.unset("auditPublishOperationId");
+		repository.beforeUpsert(update, userDetail);
+		ModulesEntity previous = mongoOperations.findAndModify(query, update,
+				FindAndModifyOptions.options().returnNew(false), ModulesEntity.class);
+		if (previous == null) {
+			throw new BizException("API status changed; refresh before publishing");
+		}
+		String oldOperationId = previous.getAuditPublishOperationId();
+		if (auditOperationFinisher != null && StringUtils.isNotBlank(oldOperationId)
+				&& !oldOperationId.equals(operationId)) {
+			try {
+				auditOperationFinisher.finishOperation("api", modulesDto.getId().toHexString(), modulesDto.getName(),
+						AuditAction.API_PUBLISH, oldOperationId, AuditOutcome.FAILED,
+						"Superseded by a later API configuration; final state was not confirmed");
+			} catch (RuntimeException error) {
+				log.warn("Failed to finish superseded API publish audit, id={}", modulesDto.getId(), error);
+			}
+		}
+		return findOne(Query.query(Criteria.where("_id").is(modulesDto.getId())), userDetail);
 	}
 
 	protected void checkModule(ModulesDto dto) {
@@ -646,6 +698,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			if (connectionId == null) {
 				log.warn("Api {}({}) has no resolvable connection, skip publishing it",
 						api.getName(), api.getId());
+				if (api.getId() != null && StringUtils.isNotBlank(api.getAuditPublishOperationId())) {
+					updatePublishMsg(Map.of(api.getId().toHexString(), "Data source not found"),
+							api.getAuditPublishOperationId());
+				}
 				continue;
 			}
 			api.setConnection(connectionId);
@@ -763,10 +819,36 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public void updatePublishMsg(Map<String, String> apiStatus) {
+		updatePublishMsg(apiStatus, null);
+	}
+
+	public void updatePublishMsg(Map<String, String> apiStatus, String operationId) {
 		if (org.springframework.util.CollectionUtils.isEmpty(apiStatus)) {
 			return;
 		}
-		bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
+		if (StringUtils.isBlank(operationId)) {
+			bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
+		} else {
+			apiStatus.forEach((id, msg) -> {
+				Query query = Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))
+						.and("auditPublishOperationId").is(operationId)
+						.and("status").is(ModuleStatusEnum.ACTIVE.getValue()));
+				var result = mongoOperations.updateFirst(query, buildDefaultUpdate(msg), ModulesEntity.class);
+				if (auditOperationFinisher != null) {
+					boolean current = result.getMatchedCount() != 0;
+					auditOperationFinisher.finishOperation("api", id, null, AuditAction.API_PUBLISH, operationId,
+							current && org.apache.commons.lang3.StringUtils.isBlank(msg) ? AuditOutcome.SUCCESS : AuditOutcome.FAILED,
+							current ? msg : "Superseded by a later API configuration; final state was not confirmed");
+				}
+			});
+			return;
+		}
+		if (auditOperationFinisher != null) {
+			// API Server 回报发布结果：空消息为发布成功，否则为失败原因
+			apiStatus.forEach((id, msg) -> auditOperationFinisher.finishOperation("api", id, null,
+					com.tapdata.tm.audit.AuditAction.API_PUBLISH, operationId,
+					org.apache.commons.lang3.StringUtils.isBlank(msg) ? AuditOutcome.SUCCESS : AuditOutcome.FAILED, msg));
+		}
 	}
 
 	protected void bulkUpsert(Map<String, String> entities,
@@ -1905,6 +1987,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			}
 			try {
 				batchImport(modulesDtos, user, importMode, conMap, metaMap);
+				// TAP-12057 · P3-1：声明已落库、conMap 已建立，此刻才谈得上把索引建到目标库（ADR-0002）
+				servingIndexLandingService.landAfterImport(modulesDtos, conMap, user);
 			} catch (Exception e) {
 				log.error("Modules.batchImport error", e);
 			}
@@ -2156,6 +2240,28 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Update update = new Update().set("paths.$[].fields.$[id1].description", discoveryFieldDto.getBusinessDesc())
 				.filterArray("id1.id", discoveryFieldDto.getId());
 		update(query, update, userDetail);
+	}
+
+	/**
+	 * 只更新一个 Module 的 {@code servingIndexes}（TAP-12057 · 索引 tab 与编辑态解绑）。
+	 *
+	 * <p><b>为什么要一条窄写路径</b>：索引 tab 的「勾选即存」不能借道 {@link #updateModuleById}——那条路会把
+	 * 前端整张表单回写，而前端进编辑态时会把 {@code status} 翻成 {@code pending}，于是「收录一条索引」的副作用
+	 * 是把已发布的 API 撤下发布；它还会跑 {@code checkModule}（basePath/名称查重），让一次与 API 定义无关的勾选
+	 * 可能被别的 API 的路径冲突挡下。本方法只 {@code $set} 这一个字段，其余一概不碰。</p>
+	 *
+	 * <p>写入前照样过 {@link ServingIndexNormalizer}（ADR-0001 / P2-1）：确定性排序 + 方向显式，
+	 * 与编辑保存路径同口径，否则同一份索引经两条路径写出两种 JSON、CICD 全量 diff 误报变更。</p>
+	 *
+	 * <p>空列表是合法输入（取消最后一条勾选），照写不误——不能当成「没传」跳过。</p>
+	 */
+	public void updateServingIndexes(String id, List<ServingIndex> servingIndexes, UserDetail userDetail) {
+		if (StringUtils.isBlank(id)) {
+			throw new BizException("IllegalArgument", "Id");
+		}
+		List<ServingIndex> normalized = ServingIndexNormalizer.normalize(servingIndexes);
+		updateById(MongoUtils.toObjectId(id), new Update().set("servingIndexes",
+				normalized == null ? new ArrayList<ServingIndex>() : normalized), userDetail);
 	}
 
 	public void updateIntParameter(String id, Param param, UserDetail userDetail) {

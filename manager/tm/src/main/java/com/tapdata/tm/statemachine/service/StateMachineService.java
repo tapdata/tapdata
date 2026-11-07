@@ -6,6 +6,8 @@
  */
 package com.tapdata.tm.statemachine.service;
 
+import com.tapdata.tm.audit.AuditFinalizer;
+
 import cn.hutool.core.date.StopWatch;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -52,6 +54,8 @@ public class StateMachineService {
 	private UserService userService;
 	@Autowired
 	private MonitoringLogsService monitoringLogsService;
+	@Autowired(required = false)
+	private AuditFinalizer auditFinalizer;
 
 	public StateMachineResult test(String id, String event, String status){
 		DataFlowState state = DataFlowState.getState(status);
@@ -130,6 +134,11 @@ public class StateMachineService {
 		CompletableFuture.runAsync(() -> {
 			monitoringLogsService.taskStateMachineLog(dto, userDetail, event, stateMachineResult, stopWatch.getTotalTimeMillis());
 
+			if (stateMachineResult.isOk() && auditFinalizer != null) {
+				String id = dto.getId() == null ? null : dto.getId().toHexString();
+				auditFinalizer.onTaskStatus("task", id, dto.getName(), stateMachineResult.getAfter());
+				auditFinalizer.onTaskStatus("live_cache", id, dto.getName(), stateMachineResult.getAfter());
+			}
 			FunctionUtils.isTureOrFalse(stateMachineResult.isOk()).trueOrFalseHandle(
 					() -> taskService.updateTaskRecordStatus(dto, stateMachineResult.getAfter(), userDetail),
 					() -> {

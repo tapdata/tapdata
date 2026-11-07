@@ -19,6 +19,7 @@ class MongoUriUtilTest {
         @Test
         void testNormal1() {
             Map<String, Object> config = new HashMap<>();
+            // TAP-12220: MongoDB 标准模式的连接配置没有独立的 port 字段，host 自带端口
             config.put("host", "localhost:80");
             config.put("additionalString", "id=i");
             String string = MongoUriUtil.uriByParam(config);

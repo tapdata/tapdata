@@ -6,22 +6,18 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.schema.*;
-import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.entity.Worker;
@@ -41,13 +37,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -971,17 +965,17 @@ class TaskNodeServiceImplTest {
             when(connDto.getCapabilities()).thenReturn(caps);
             when(dataSourceService.findOne(any())).thenReturn(connDto);
 
-            // Use the varargs constructor so errorCode is preserved verbatim. The single-arg
-            // BizException(String) constructor downgrades errorCode to "SystemError" whenever the
-            // message key can't be resolved (which is the case in unit tests, where the resolved
-            // resource bundle falls back to the base messages.properties that has no MockData keys).
-            BizException bizException = new BizException("MockData.SampleDataError", "boom");
+            // Build the RPC failure via the (String, Object...) constructor so the error code is
+            // preserved verbatim. The single-arg BizException(String) constructor downgrades the
+            // code to "SystemError" whenever no message resource exists for the key, which is
+            // locale/classpath dependent and is not the behavior this test is exercising.
+            BizException rpcError = new BizException("MockData.SampleDataError", "rpc failed");
             when(taskService.callEngineRpc(anyString(), any(), anyString(), anyString(), anyString(), anyString(), any()))
-                    .thenThrow(bizException);
+                    .thenThrow(rpcError);
 
             BizException ex = Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
-            // A BizException from the RPC must be rethrown as-is (same object), not wrapped.
-            Assertions.assertSame(bizException, ex);
+            // The original BizException must be rethrown as-is, not wrapped into a new one.
+            Assertions.assertSame(rpcError, ex);
             Assertions.assertEquals("MockData.SampleDataError", ex.getErrorCode());
         }
 
