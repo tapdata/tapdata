@@ -25,6 +25,8 @@ public class Inspect extends BaseEntity implements Serializable {
 	private String flowId;
 	private String name;
 	private String status;
+	private String auditRunOperationId;
+	private String auditStopOperationId;
 	private String mode;
 
 	/** Supported values: row_count, field, jointField, cdcCount, junitTest, hash, custom_query. */
