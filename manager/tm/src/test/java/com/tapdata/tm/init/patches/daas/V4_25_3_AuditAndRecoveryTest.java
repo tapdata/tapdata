@@ -1,11 +1,13 @@
 package com.tapdata.tm.init.patches.daas;
 
+import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -37,16 +39,41 @@ class V4_25_3_AuditAndRecoveryTest {
         List<Document> batch = new ArrayList<>(List.of(sensitive, safe));
         when(mongo.find(any(Query.class), eq(Document.class), eq("UserLogs")))
                 .thenReturn(batch, Collections.emptyList());
-        UpdateResult result = mock(UpdateResult.class);
-        when(result.getMatchedCount()).thenReturn(1L);
-        when(result.getModifiedCount()).thenReturn(1L);
-        when(mongo.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(result);
+        BulkOperations bulk = mock(BulkOperations.class);
+        BulkWriteResult result = mock(BulkWriteResult.class);
+        when(result.getMatchedCount()).thenReturn(1);
+        when(result.getModifiedCount()).thenReturn(1);
+        when(mongo.bulkOps(BulkOperations.BulkMode.UNORDERED, "UserLogs")).thenReturn(bulk);
+        when(bulk.execute()).thenReturn(result);
         MongoCollection<Document> alarms = alarmCollection();
         when(mongo.getCollection("AlarmInfo")).thenReturn(alarms);
 
         V4_25_3_AuditAndRecovery.migrate(mongo);
 
-        verify(mongo, times(1)).updateFirst(any(Query.class), any(Update.class), eq("UserLogs"));
+        verify(bulk, times(1)).updateOne(any(Query.class), any(Update.class));
+    }
+
+    @Test
+    @DisplayName("历史补丁：并发节点先完成清洗时重新读取，不中断启动")
+    void should_accept_concurrent_sanitization() {
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        ObjectId id = new ObjectId();
+        Document before = new Document("_id", id).append("modular", "accessCode").append("parameter1", "synthetic-code");
+        Document after = new Document("_id", id).append("modular", "accessCode").append("parameter1", "***");
+        when(mongo.find(any(Query.class), eq(Document.class), eq("UserLogs")))
+                .thenReturn(List.of(before), List.of(after), Collections.emptyList());
+        BulkOperations bulk = mock(BulkOperations.class);
+        BulkWriteResult result = mock(BulkWriteResult.class);
+        when(mongo.bulkOps(BulkOperations.BulkMode.UNORDERED, "UserLogs")).thenReturn(bulk);
+        when(bulk.execute()).thenReturn(result);
+        MongoCollection<Document> alarms = alarmCollection();
+        when(mongo.getCollection("AlarmInfo")).thenReturn(alarms);
+
+        V4_25_3_AuditAndRecovery.migrate(mongo);
+
+        org.mockito.ArgumentCaptor<Update> update = org.mockito.ArgumentCaptor.forClass(Update.class);
+        verify(bulk).updateOne(any(Query.class), update.capture());
+        assertEquals("***", ((Document) update.getValue().getUpdateObject().get("$set")).get("parameter1"));
     }
 
     @Test

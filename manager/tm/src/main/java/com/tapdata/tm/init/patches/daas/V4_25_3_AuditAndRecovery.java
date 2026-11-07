@@ -12,11 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -42,38 +44,55 @@ public class V4_25_3_AuditAndRecovery extends AbsPatch {
         while (true) {
             Query query = lastId == null ? new Query() : Query.query(Criteria.where("_id").gt(lastId));
             query.with(Sort.by("_id")).limit(BATCH_SIZE);
-            query.fields().include("_id");
+            query.fields().include("_id").include("modular");
             FIELDS.forEach(field -> query.fields().include(field));
             List<Document> documents = mongo.find(query, Document.class, "UserLogs");
             if (documents.isEmpty()) {
                 break;
             }
-            for (Document document : documents) {
-                lastId = document.getObjectId("_id");
-                Update update = new Update();
-                Criteria unchanged = Criteria.where("_id").is(lastId);
-                boolean changed = false;
-                for (String field : FIELDS) {
-                    Object value = document.get(field);
-                    if (!(value instanceof String)) {
-                        continue;
+            lastId = documents.get(documents.size() - 1).getObjectId("_id");
+            List<ObjectId> ids = new ArrayList<>();
+            documents.forEach(document -> ids.add(document.getObjectId("_id")));
+            // 并发节点可能先完成同一批清洗；冲突时重新读取新值，避免覆盖并发写入。
+            for (int attempt = 0; ; attempt++) {
+                BulkOperations bulk = mongo.bulkOps(BulkOperations.BulkMode.UNORDERED, "UserLogs");
+                int updates = 0;
+                for (Document document : documents) {
+                    Update update = new Update();
+                    Criteria unchanged = Criteria.where("_id").is(document.getObjectId("_id"));
+                    boolean changed = false;
+                    for (String field : FIELDS) {
+                        Object value = document.get(field);
+                        if (!(value instanceof String)) {
+                            continue;
+                        }
+                        String safe = SensitiveDataMasker.maskAuditField(document.getString("modular"), field, (String) value);
+                        if (!Objects.equals(value, safe)) {
+                            update.set(field, safe);
+                            unchanged.and(field).is(value);
+                            changed = true;
+                        }
                     }
-                    String safe = SensitiveDataMasker.mask((String) value);
-                    if (!Objects.equals(value, safe)) {
-                        update.set(field, safe);
-                        // 乐观并发保护，避免用扫描时的旧值覆盖并发修改。
-                        unchanged.and(field).is(value);
-                        changed = true;
+                    if (changed) {
+                        bulk.updateOne(Query.query(unchanged), update);
+                        updates++;
                     }
                 }
-                if (changed) {
-                    com.mongodb.client.result.UpdateResult result = mongo.updateFirst(
-                            Query.query(unchanged), update, "UserLogs");
-                    if (result.getMatchedCount() == 0) {
-                        throw new IllegalStateException("Audit record changed during sanitization; retry patch");
-                    }
-                    masked += result.getModifiedCount();
+                if (updates == 0) {
+                    break;
                 }
+                com.mongodb.bulk.BulkWriteResult result = bulk.execute();
+                masked += result.getModifiedCount();
+                if (result.getMatchedCount() == updates) {
+                    break;
+                }
+                if (attempt >= 4) {
+                    throw new IllegalStateException("Audit records repeatedly changed during sanitization");
+                }
+                Query retry = Query.query(Criteria.where("_id").in(ids));
+                retry.fields().include("_id").include("modular");
+                FIELDS.forEach(field -> retry.fields().include(field));
+                documents = mongo.find(retry, Document.class, "UserLogs");
             }
         }
         // 只修复明确错误的引擎上线事件；不触碰已关闭事件，也不刷新lastNotifyTime。

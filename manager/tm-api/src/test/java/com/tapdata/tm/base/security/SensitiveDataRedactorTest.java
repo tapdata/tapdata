@@ -48,6 +48,14 @@ class SensitiveDataRedactorTest {
 	}
 
 	@Test
+	void redactsSensitiveHeaderNamesAndEncodedUrlParameters() {
+		assertEquals("[REDACTED]", SensitiveDataRedactor.redactHeaderValue("accessCode", "synthetic-code"));
+		assertEquals("https://tm/path?access%43ode=[REDACTED]&x=1#token=[REDACTED]",
+				SensitiveDataRedactor.redactHeaderValue("Referer",
+						"https://tm/path?access%43ode=synthetic-code&x=1#token=synthetic-token"));
+	}
+
+	@Test
 	void redactsAccessTokenQueryIncludingEncodedAndCaseVariants() {
 		assertEquals("name=test&access_token=[REDACTED]",
 				SensitiveDataRedactor.redactQuery("name=test&access_token=token%2Bvalue"));

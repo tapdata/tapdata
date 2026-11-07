@@ -301,6 +301,15 @@ public class UserLogServiceImplTest {
         }
 
         @Test
+        void should_mask_bare_access_code_on_write() {
+            realUserLogService.addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail, (String) null,
+                    "synthetic-code", null, (String) null);
+            ArgumentCaptor<UserLogs> captor = ArgumentCaptor.forClass(UserLogs.class);
+            verify(userLogRepository).insert(captor.capture(), eq(userDetail));
+            assertEquals("***", captor.getValue().getParameter1());
+        }
+
+        @Test
         void testAddUserLogWithNullSourceId() {
             String p1 = "param1";
             String p2 = null;
@@ -354,6 +363,21 @@ public class UserLogServiceImplTest {
             assertEquals("bob", page.getItems().get(0).getUsername());
             verify(repository, never()).findAll(any(Filter.class), any(UserDetail.class));
             verify(repository, never()).count(any(Where.class), any(UserDetail.class));
+        }
+
+        @Test
+        void should_mask_bare_historical_access_code_on_read() {
+            UserLogs log = new UserLogs();
+            log.setId(new ObjectId());
+            log.setModular(Modular.ACCESS_CODE.getValue());
+            log.setOperation(Operation.UPDATE.getValue());
+            log.setParameter1("synthetic-code");
+            when(repository.findAll(filter)).thenReturn(List.of(log));
+            when(repository.count(filter.getWhere())).thenReturn(1L);
+
+            UserLogDto safe = userLogService.find(filter, userDetail, true).getItems().get(0);
+
+            assertEquals("***", safe.getParameter1());
         }
 
         @Test

@@ -166,7 +166,7 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             userLogs.setType(type.getValue());
 
             // 写入边界同样脱敏，避免任何调用方把凭证明文落库
-            userLogs.setParameter1(SensitiveDataMasker.mask(parameter1));
+            userLogs.setParameter1(SensitiveDataMasker.maskAuditField(modular.getValue(), "parameter1", parameter1));
             userLogs.setParameter2(SensitiveDataMasker.mask(parameter2));
             userLogs.setParameter3(SensitiveDataMasker.mask(parameter3));
 
@@ -251,7 +251,7 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
         // 历史数据可能已落库明文凭证，读取边界统一脱敏后再格式化文案
         items.forEach(item -> {
-            item.setParameter1(SensitiveDataMasker.mask(item.getParameter1()));
+            item.setParameter1(SensitiveDataMasker.maskAuditField(item.getModular(), "parameter1", item.getParameter1()));
             item.setParameter2(SensitiveDataMasker.mask(item.getParameter2()));
             item.setParameter3(SensitiveDataMasker.mask(item.getParameter3()));
             item.setDesc(SensitiveDataMasker.mask(item.getDesc()));

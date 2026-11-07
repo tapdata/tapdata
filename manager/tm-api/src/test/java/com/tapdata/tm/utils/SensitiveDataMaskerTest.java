@@ -27,6 +27,17 @@ class SensitiveDataMaskerTest {
     }
 
     @Test
+    void should_mask_bare_access_codes_and_complicated_credentials() {
+        assertEquals("***", SensitiveDataMasker.maskAuditField("accessCode", "parameter1", "synthetic-code"));
+        assertEquals("synthetic-code", SensitiveDataMasker.maskAuditField("task", "parameter1", "synthetic-code"));
+        assertEquals("mongodb://:***@host:27017/db", SensitiveDataMasker.mask("mongodb://:synthetic@host:27017/db"));
+        assertEquals("https://user:***@host", SensitiveDataMasker.mask("https://user:p@ssw0rd@host"));
+        assertEquals("token=***", SensitiveDataMasker.mask("token=abc;more"));
+        assertEquals("/mcp?accessCode=***#frag", SensitiveDataMasker.mask("/mcp?accessCode=abc#frag"));
+        assertEquals("accessCode=[REDACTED]&page=1", com.tapdata.tm.base.security.SensitiveDataRedactor.redactQuery("accessCode=synthetic&page=1"));
+    }
+
+    @Test
     @DisplayName("审计脱敏：重复运行幂等且普通文本保持原样")
     void should_preserve_safe_audit() {
         String text = "Created connection orders";

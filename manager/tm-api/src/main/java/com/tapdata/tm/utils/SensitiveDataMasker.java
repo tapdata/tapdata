@@ -1,5 +1,6 @@
 package com.tapdata.tm.utils;
 
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -10,13 +11,25 @@ public final class SensitiveDataMasker {
     private static final Pattern QUOTED_VALUE = Pattern.compile(
             "(?i)([\"']?\\b" + KEYS + "\\b[\"']?\\s*[:=]\\s*)([\"'])((?:\\\\.|(?!\\2).)*?)\\2", Pattern.DOTALL);
     private static final Pattern PAIR = Pattern.compile(
-            "(?i)(\\b" + KEYS + "\\b\\s*[:=]\\s*)([^&\\s,;}\\]\"']+)");
+            "(?i)(\\b" + KEYS + "\\b\\s*[:=]\\s*)([^&#\\s}\\]\"']+)");
     // URL 查询值统一隐藏，兼容编码后的参数名，避免仅依赖参数名黑名单。
     private static final Pattern QUERY_VALUE = Pattern.compile("([?&][^=&#\\s\"'<>]+(?:=|%3[dD]))([^&#\\s\"'<>]*)");
     private static final Pattern BEARER = Pattern.compile("(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]+");
-    private static final Pattern USER_INFO = Pattern.compile("(?i)(://[^/@\\s:]+:)[^/@\\s]+(@)");
+    private static final Pattern USER_INFO = Pattern.compile("(?i)(://[^/@\\s:]*:)[^/\\s]*(@)");
 
     private SensitiveDataMasker() {
+    }
+
+    public static boolean isSensitiveKey(String key) {
+        return key != null && key.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "")
+                .matches("accesscode|accesstoken|apikey|secret|secretkey|password|passwd|pwd|token|credentials?|signature|privatekey|sessionid|ticket");
+    }
+
+    public static String maskAuditField(String modular, String field, String text) {
+        if ("accessCode".equals(modular) && "parameter1".equals(field) && text != null && !text.isEmpty()) {
+            return "***";
+        }
+        return mask(text);
     }
 
     public static String mask(String text) {
