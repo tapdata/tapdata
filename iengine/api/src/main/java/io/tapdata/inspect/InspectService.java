@@ -17,6 +17,9 @@ public interface InspectService {
 
     void init(ClientMongoOperator clientMongoOperator, SettingService settingService);
     void updateStatus(String id, InspectStatus status, String msg);
+    default void updateStatus(Inspect inspect, InspectStatus status, String msg, String completion) {
+        updateStatus(inspect.getId(), status, msg);
+    }
     void upsertInspectResult(InspectResult inspectResult, boolean excludeInspect);
     void upsertInspectResult(InspectResult inspectResult);
     InspectResult getLastDifferenceInspectResult(String inspectId, String firstCheckId);
@@ -26,6 +29,9 @@ public interface InspectService {
     void insertInspectDetails(List<InspectDetail> details);
     void onInspectStopped(Inspect inspect);
     void doInspectStop(String inspectId);
+    default void doInspectStop(Inspect inspect) {
+        doInspectStop(inspect.getId());
+    }
     void inspectHeartBeat(String id);
     Inspect getInspectById(String id);
 

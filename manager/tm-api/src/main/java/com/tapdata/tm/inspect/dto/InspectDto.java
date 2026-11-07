@@ -74,6 +74,11 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
 	 *
 	 */
 	private String status;
+	/** Originating user operation for the current engine execution. */
+	private String auditRunOperationId;
+	/** Correlation fields supplied by an engine status report. */
+	private String auditStopOperationId;
+	private String auditCompletion;
 	/**
 	 *
 	 */
