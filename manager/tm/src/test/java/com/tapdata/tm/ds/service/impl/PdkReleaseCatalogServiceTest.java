@@ -223,6 +223,17 @@ class PdkReleaseCatalogServiceTest {
     }
 
     @Test
+    void toPdkIdPreservesLegacyIdsForMssqlArtifacts() {
+        assertEquals("sqlserver", ReflectionTestUtils.invokeMethod(service, "toPdkId", "mssql-connector"));
+        assertEquals("aliyun-rds-sqlserver",
+                ReflectionTestUtils.invokeMethod(service, "toPdkId", "aliyun-rds-mssql-connector"));
+        assertEquals("tencent-db-sqlserver",
+                ReflectionTestUtils.invokeMethod(service, "toPdkId", "tencent-db-mssql-connector"));
+        assertEquals("oceanbase_oracle",
+                ReflectionTestUtils.invokeMethod(service, "toPdkId", "oceanbase-oracle-connector"));
+    }
+
+    @Test
     void downloadJarVerifiesSha256() throws Exception {
         byte[] jar = "jar-content".getBytes(StandardCharsets.UTF_8);
         String sha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(jar));
