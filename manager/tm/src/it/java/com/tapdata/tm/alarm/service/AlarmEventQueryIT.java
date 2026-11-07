@@ -414,7 +414,8 @@ class AlarmEventQueryIT {
 
         assertThat(stats).isEqualTo(new AlarmEventStatsVo(7, 2, 4, 1));
         assertThat(queries.get(1)).contains("\"status\": \"ING\"").contains("EMERGENCY");
-        assertThat(queries.get(3)).contains("\"status\": \"RECOVER\"");
+        assertThat(queries.get(3)).contains("\"status\": \"RECOVER\"")
+                .contains("\"metric\": {\"$ne\": \"ENGINE_ONLINE\"}");
     }
 
     @Test
