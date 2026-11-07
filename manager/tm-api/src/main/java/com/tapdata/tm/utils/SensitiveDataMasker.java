@@ -1,5 +1,7 @@
 package com.tapdata.tm.utils;
 
+import com.tapdata.tm.userLog.constant.Modular;
+
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,7 +28,8 @@ public final class SensitiveDataMasker {
     }
 
     public static String maskAuditField(String modular, String field, String text) {
-        if ("accessCode".equals(modular) && "parameter1".equals(field) && text != null && !text.isEmpty()) {
+        if (Modular.ACCESS_CODE.getValue().equals(modular) && "parameter1".equals(field)
+                && text != null && !text.isEmpty()) {
             return "***";
         }
         return mask(text);
