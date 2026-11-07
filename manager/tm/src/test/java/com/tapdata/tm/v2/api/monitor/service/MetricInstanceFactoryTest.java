@@ -112,6 +112,34 @@ class MetricInstanceFactoryTest {
             assertFalse(factory.needUpdate());
             verify(consumer, never()).accept(any());
         }
+
+        @Test
+        void serverScopedMetricsUsePhysicalNodeWhileClusterTotalsRemainShared() {
+            Document first = apiCall("node-a");
+            Document second = apiCall("node-b");
+
+            factory.accept(first);
+            factory.accept(second);
+
+            @SuppressWarnings("unchecked")
+            Map<String, MetricInstanceAcceptor> instanceMap =
+                    (Map<String, MetricInstanceAcceptor>) ReflectionTestUtils.getField(factory, "instanceMap");
+            assertTrue(instanceMap.containsKey("*:server-1:node-a_2"));
+            assertTrue(instanceMap.containsKey("*:server-1:node-b_2"));
+            assertTrue(instanceMap.containsKey("/find:api-1:*_1"));
+            assertTrue(instanceMap.containsKey("*:*_3"));
+        }
+
+        private Document apiCall(String physicalNodeId) {
+            return new Document("req_path", "/find")
+                    .append("allPathId", "api-1")
+                    .append("api_gateway_uuid", "server-1")
+                    .append("physicalNodeId", physicalNodeId)
+                    .append("req_time", 1_700_000_000_000L)
+                    .append("latency", 5L)
+                    .append("req_bytes", 128L)
+                    .append("succeed", true);
+        }
     }
 
     @Nested
@@ -149,6 +177,15 @@ class MetricInstanceFactoryTest {
                         queryObject.get("timeGranularity").equals(1) &&
                         queryObject.get("timeStart").equals(60000L);
             }));
+        }
+
+        @Test
+        void testLastOneUsesPhysicalNodeIdForServerMetrics() {
+            when(findOne.apply(any(Query.class))).thenReturn(null);
+
+            factory.lastOne("api1", "server1", "node-a", MetricTypes.API_SERVER, TimeGranularity.MINUTE, null);
+
+            verify(findOne).apply(argThat(query -> "node-a".equals(query.getQueryObject().get("physicalNodeId"))));
         }
 
         @Test

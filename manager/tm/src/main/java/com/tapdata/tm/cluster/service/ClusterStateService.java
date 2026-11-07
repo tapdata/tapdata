@@ -429,16 +429,16 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
      * @return accessNodeInfo list
      */
     public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail) {
-        //需要过滤有效的work数据
         List<AccessNodeInfo> result = Lists.newArrayList();
         boolean isCloud = settingsService.isCloud();
-        List<Worker> workerList = workerService.findAllAgent(userDetail);
+        List<Worker> workerList = Optional.ofNullable(workerService.findAllAgent(userDetail)).orElseGet(ArrayList::new);
         if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
         List<String> processIdList = workerList.stream().map(Worker::getProcessId).collect(Collectors.toList());
         List<ClusterStateDto> clusterStateDtos = findAll(Query.query(Criteria.where("systemInfo.process_id").in(processIdList)));
-        Map<String, ClusterStateDto> processIdClusterStateMap = clusterStateDtos.stream().collect(Collectors.toMap(clusterStateDto -> clusterStateDto.getSystemInfo().getProcess_id(), Function.identity(), (e1, e2) -> e1));
+        Map<String, ClusterStateDto> processIdClusterStateMap = clusterStateDtos.stream()
+                .collect(Collectors.toMap(state -> state.getSystemInfo().getProcess_id(), Function.identity(), (e1, e2) -> e1));
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 
@@ -469,7 +469,6 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             }
             result.add(accessNodeInfo);
         });
-
         return agentGroupService.filterGroupList(result, userDetail);
     }
 

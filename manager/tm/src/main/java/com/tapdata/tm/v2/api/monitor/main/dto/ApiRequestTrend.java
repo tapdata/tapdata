@@ -12,6 +12,10 @@ import java.util.List;
 public class ApiRequestTrend extends ValueBase {
     private List<Long> ts = new ArrayList<>();
     private List<Double> values = new ArrayList<>();
+    private String status;
+    private String traceability;
+    private String coverage;
+    private boolean hasUnattributedData;
 
     public static ApiRequestTrend create(TimeGranularity granularity) {
         ApiRequestTrend trend = new ApiRequestTrend();

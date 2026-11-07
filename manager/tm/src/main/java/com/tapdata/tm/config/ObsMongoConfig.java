@@ -38,6 +38,7 @@ public class ObsMongoConfig implements AsyncConfigurer {
 
     static final String IDX_GRNTY_TYPE_TASK_ID_DATE = "idx_grnty_type_taskId_date";
     static final String IDX_TASK_ID_GRNTY_TYPE_DATE = "idx_taskId_grnty_type_date";
+    static final String IDX_TASK_DASHBOARD_DIRTY = "idx_task_dashboard_dirty";
 
     @Value("${spring.data.mongodb.obs.uri}")
     private String obsUri;
@@ -104,7 +105,7 @@ public class ObsMongoConfig implements AsyncConfigurer {
                     new BsonDocument("tags.type", new BsonInt32(1))));
 
             agentMeasurementV2.createIndex(new BsonDocument("date", new BsonInt32(-1)),
-                    new IndexOptions().expireAfter(7L, TimeUnit.DAYS));
+                    new IndexOptions().expireAfter(8L, TimeUnit.DAYS));
         }
     }
 
@@ -136,6 +137,11 @@ public class ObsMongoConfig implements AsyncConfigurer {
                         .append("grnty", 1)
                         .append("tags.type", 1)
                         .append("date", -1));
+        ensureIndexSafely(agentMeasurementV2, existingIndexes, IDX_TASK_DASHBOARD_DIRTY,
+                new Document("grnty", 1)
+                        .append(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY, 1)
+                        .append("tags.taskId", 1)
+                        .append("date", 1));
     }
 
     private void ensureIndexSafely(MongoCollection<Document> collection, List<Document> existingIndexes,
