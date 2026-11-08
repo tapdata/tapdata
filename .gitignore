@@ -147,3 +147,4 @@ run-resources
 /apiserver-jars/
 
 /docs/proxy-process/
+**/zos-jcc-file
