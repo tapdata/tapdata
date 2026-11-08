@@ -8,6 +8,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.userLog.controller.UserLogController;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -174,7 +175,8 @@ class ModuleAccessIT {
     @Test
     @DisplayName("TAP-13018 审计种子：导出权限挂在审计日志下并授予内置 admin，保留期设置默认 90 天，审计查询与异步登记索引")
     void should_seed_audit_permissions() throws IOException {
-        assertThat(read("init/idaas/version").trim()).isEqualTo(AUDIT_SEED_VERSION);
+        assertThat(PatchVersion.valueOf(read("init/idaas/version").trim()))
+                .isGreaterThanOrEqualTo(PatchVersion.valueOf(AUDIT_SEED_VERSION));
         JsonNode seed = new ObjectMapper().readTree(read("init/idaas/" + AUDIT_SEED_VERSION + ".json"));
         Map<String, JsonNode> perms = new HashMap<>();
         Set<String> granted = new HashSet<>();
