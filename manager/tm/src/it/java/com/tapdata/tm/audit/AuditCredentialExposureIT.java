@@ -52,6 +52,7 @@ class AuditCredentialExposureIT {
         UserService users = mock(UserService.class);
         when(users.getUserDetail(id)).thenReturn(user);
         when(users.findById(new ObjectId(id))).thenReturn(user);
+        when(users.refreshAccessCode(login)).thenReturn("new-test-access-code");
         UserController userController = spy(new UserController());
         ReflectionTestUtils.setField(userController, "userService", users);
         doReturn(login).when(userController).getLoginUser();
@@ -62,6 +63,9 @@ class AuditCredentialExposureIT {
         String reveal = usersHttp.perform(post("/api/users/access-code/reveal"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(reveal).contains("test-access-code");
+        String refreshed = usersHttp.perform(post("/api/users/refreshAccessCode"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(refreshed).doesNotContain("new-test-access-code");
         assertThat(UserController.class.getMethod("revealAccessCode").getAnnotation(Audited.class).value())
                 .isEqualTo(AuditAction.USER_VIEW_ACCESS_CODE);
 
