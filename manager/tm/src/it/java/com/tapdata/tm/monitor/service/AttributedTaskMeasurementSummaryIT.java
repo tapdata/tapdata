@@ -111,6 +111,20 @@ class AttributedTaskMeasurementSummaryIT {
             assertEquals(21_725D / 200D, trend.getOutputQps().get(0), 0.000001D);
             assertEquals(43_450D / 200D, trend.getOutputSizeQps().get(0), 0.000001D);
 
+            // A late sample arriving after the hourly rollup must be reflected by the next hourly read.
+            service.addAgentMeasurement(List.of(sample(tags, sampleStart + 30_000L, 1_000D)));
+            MeasurementEntity lateMinute = findMinute(mongoTemplate, taskId, physicalNodeId, priorMinuteStart);
+            assertNotNull(lateMinute);
+            assertTrue(Boolean.TRUE.equals(lateMinute.getDashboardRollupDirty()));
+            assertEquals(200, lateMinute.getSamples().size());
+            assertTrue(lateMinute.getDashboardOutputQpsSum() > 21_725D, "late sample must be counted in the minute summary");
+            TaskMetricsTrendVo lateTrend = service.aggregateTaskMetricsByTaskIdsV2(List.of(taskId),
+                    hourStart, hourStart + 2L * 3_600_000L, physicalNodeId);
+            assertEquals(lateMinute.getDashboardOutputQpsSum() / lateMinute.getDashboardOutputQpsCount(),
+                    lateTrend.getOutputQps().get(0), 0.000001D);
+            assertEquals(lateMinute.getDashboardOutputSizeQpsSum() / lateMinute.getDashboardOutputSizeQpsCount(),
+                    lateTrend.getOutputSizeQps().get(0), 0.000001D);
+
             assertConcurrentFirstUpsertIsUnique(service, mongoTemplate, priorMinuteStart, sampleStart, writersTerminated);
         } catch (Exception | Error e) {
             failure = e;
