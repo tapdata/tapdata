@@ -401,4 +401,104 @@ public class MigrateFieldRenameProcessorNodeTest {
             assertEquals("p_test_column_t", operatorParam.getNameChange().getAfter());
         }
     }
+
+    @Nested
+    @DisplayName("TAP-13224 foreign key without reference column")
+    class NullReferenceKeyTest {
+
+        private TapConstraint foreignKeyWithoutReferenceKey() {
+            TapConstraint constraint = new TapConstraint("fk_batch", TapConstraint.ConstraintType.FOREIGN_KEY);
+            constraint.setReferencesTableName("batch");
+            List<TapConstraintMapping> mappings = new ArrayList<>();
+            mappings.add(new TapConstraintMapping().foreignKey("batch_id"));
+            constraint.setMappingFields(mappings);
+            return constraint;
+        }
+
+        private Field field(String name) {
+            Field field = new Field();
+            field.setFieldName(name);
+            field.setOriginalFieldName(name);
+            field.setPreviousFieldName(name);
+            return field;
+        }
+
+        @Test
+        @DisplayName("mergeSchema upper-cases fields when a foreign key has no reference column")
+        void mergeSchemaWithNullReferenceKey() {
+            MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
+            node.setFieldsMapping(new LinkedList<>());
+            Operation operation = new Operation();
+            operation.setCapitalized("toUpperCase");
+            node.setFieldsOperation(operation);
+
+            Schema schema = new Schema();
+            schema.setName("child");
+            schema.setOriginalName("child");
+            List<Field> fields = new ArrayList<>();
+            fields.add(field("id"));
+            fields.add(field("batch_id"));
+            schema.setFields(fields);
+            List<TapConstraint> constraints = new ArrayList<>();
+            constraints.add(foreignKeyWithoutReferenceKey());
+            schema.setConstraints(constraints);
+            List<List<Schema>> inputSchemas = new ArrayList<>();
+            List<Schema> input = new ArrayList<>();
+            input.add(schema);
+            inputSchemas.add(input);
+
+            List<Schema> result = assertDoesNotThrow(() -> node.mergeSchema(inputSchemas, null, null));
+
+            Schema merged = result.get(0);
+            assertEquals(Stream.of("ID", "BATCH_ID").collect(Collectors.toList()),
+                    merged.getFields().stream().map(Field::getFieldName).collect(Collectors.toList()));
+            TapConstraintMapping mapping = merged.getConstraints().get(0).getMappingFields().get(0);
+            assertEquals("BATCH_ID", mapping.getForeignKey());
+            assertNull(mapping.getReferenceKey());
+        }
+
+        @Test
+        @DisplayName("ApplyConfig.apply ignores a null field name")
+        void applyIgnoresNullFieldName() {
+            MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
+            Operation operation = new Operation();
+            operation.setPrefix("p_");
+            operation.setCapitalized("toUpperCase");
+            node.setFieldsOperation(operation);
+            MigrateFieldRenameProcessorNode.ApplyConfig applyConfig = new MigrateFieldRenameProcessorNode.ApplyConfig(node);
+            MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>> operator = mock(MigrateFieldRenameProcessorNode.IOperator.class);
+
+            assertTrue(assertDoesNotThrow(() -> applyConfig.apply("batch", null, new ArrayList<>(), operator)));
+            verifyNoInteractions(operator);
+        }
+
+        @Test
+        @DisplayName("foreign key operators skip mappings with null keys")
+        void operatorsSkipNullKeys() {
+            MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
+            TapConstraint withoutForeignKey = new TapConstraint("fk_null", TapConstraint.ConstraintType.FOREIGN_KEY);
+            List<TapConstraintMapping> nullMappings = new ArrayList<>();
+            nullMappings.add(new TapConstraintMapping());
+            withoutForeignKey.setMappingFields(nullMappings);
+            TapConstraint normal = new TapConstraint("fk_ok", TapConstraint.ConstraintType.FOREIGN_KEY);
+            List<TapConstraintMapping> mappings = new ArrayList<>();
+            mappings.add(new TapConstraintMapping().foreignKey("fid").referenceKey("rid"));
+            normal.setMappingFields(mappings);
+            List<TapConstraint> constraints = new ArrayList<>();
+            constraints.add(withoutForeignKey);
+            constraints.add(normal);
+
+            assertDoesNotThrow(() -> {
+                node.createForeignKeyConstraintIOperator().renameField(constraints, "fid", "FID");
+                node.createReferenceForeignKeyConstraintIOperator().renameField(constraints, "rid", "RID");
+            });
+            assertEquals("FID", normal.getMappingFields().get(0).getForeignKey());
+            assertEquals("RID", normal.getMappingFields().get(0).getReferenceKey());
+
+            assertDoesNotThrow(() -> node.createReferenceForeignKeyConstraintIOperator().deleteField(constraints, "RID"));
+            assertDoesNotThrow(() -> node.createForeignKeyConstraintIOperator().deleteField(constraints, "missing"));
+            assertEquals(1, constraints.size());
+            assertSame(withoutForeignKey, constraints.get(0));
+        }
+    }
 }
