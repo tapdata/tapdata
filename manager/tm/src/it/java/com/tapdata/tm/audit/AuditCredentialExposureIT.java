@@ -82,7 +82,7 @@ class AuditCredentialExposureIT {
             MockMvc applicationsHttp = MockMvcBuilders.standaloneSetup(applicationController).build();
             String listing = applicationsHttp.perform(get("/api/Applications"))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-            assertThat(listing).contains("test-client", "clientSecretConfigured")
+            assertThat(listing).contains("test-client", "\"clientSecretConfigured\":true")
                     .doesNotContain("test-client-secret", "\"clientSecret\":");
             String clientReveal = applicationsHttp.perform(post("/api/Applications/{id}/secret/reveal", id))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -134,6 +134,10 @@ class AuditCredentialExposureIT {
             context.refresh();
             assertThat(context.getBean(UserController.class).revealAccessCode().getData()).isEqualTo("test-private-value");
             assertThat(fixture.only(AuditAction.USER_VIEW_ACCESS_CODE).getOutcome()).isEqualTo("SUCCESS");
+            assertThat(context.getBean(UserController.class).revealUserAccessCode(id).getData())
+                    .isEqualTo("test-private-value");
+            assertThat(fixture.events(AuditAction.USER_VIEW_ACCESS_CODE)).hasSize(2)
+                    .anySatisfy(event -> assertThat(event.getObjectId()).isEqualTo(id));
             assertThat(context.getBean(ApplicationController.class).revealSecret(null, id).getData())
                     .isEqualTo("test-client-private-value");
             assertThat(fixture.only(AuditAction.API_CLIENT_VIEW_SECRET).getOutcome()).isEqualTo("SUCCESS");
