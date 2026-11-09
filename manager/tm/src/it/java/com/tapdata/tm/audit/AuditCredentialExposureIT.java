@@ -113,17 +113,32 @@ class AuditCredentialExposureIT {
         UserController target = spy(new UserController());
         ReflectionTestUtils.setField(target, "userService", users);
         doReturn(login).when(target).getLoginUser();
+        ApplicationDto client = new ApplicationDto();
+        client.setClientSecret("test-client-private-value");
+        ApplicationService applications = mock(ApplicationService.class);
+        when(applications.findById(eq(new ObjectId(id)), any(Field.class), same(login))).thenReturn(client);
+        ApplicationController appTarget = spy(new ApplicationController());
+        ReflectionTestUtils.setField(appTarget, "applicationService", applications);
+        doReturn(login).when(appTarget).getLoginUser();
         AuditItFixture fixture = new AuditItFixture();
         AuditWebContext.begin("", "127.0.0.1", null, login);
-        try (GenericApplicationContext context = new GenericApplicationContext()) {
+        try (GenericApplicationContext context = new GenericApplicationContext();
+             MockedStatic<DataPermissionHelper> permissions = mockStatic(DataPermissionHelper.class)) {
+            permissions.when(() -> DataPermissionHelper.checkOfQuery(any(), any(), any(), any(), any(), any(), any()))
+                    .thenAnswer(call -> ((Supplier<?>) call.getArgument(5)).get());
             context.registerBean(AnnotationAwareAspectJAutoProxyCreator.class);
             context.registerBean(AuditAspect.class,
                     () -> new AuditAspect(fixture.auditEventService, fixture.objectResolver, fixture.registry));
             context.registerBean(UserController.class, () -> target);
+            context.registerBean(ApplicationController.class, () -> appTarget);
             context.refresh();
             assertThat(context.getBean(UserController.class).revealAccessCode().getData()).isEqualTo("test-private-value");
             assertThat(fixture.only(AuditAction.USER_VIEW_ACCESS_CODE).getOutcome()).isEqualTo("SUCCESS");
-            assertThat(new ObjectMapper().writeValueAsString(fixture.events)).doesNotContain("test-private-value");
+            assertThat(context.getBean(ApplicationController.class).revealSecret(null, id).getData())
+                    .isEqualTo("test-client-private-value");
+            assertThat(fixture.only(AuditAction.API_CLIENT_VIEW_SECRET).getOutcome()).isEqualTo("SUCCESS");
+            assertThat(new ObjectMapper().writeValueAsString(fixture.events))
+                    .doesNotContain("test-private-value", "test-client-private-value");
         }
     }
 
