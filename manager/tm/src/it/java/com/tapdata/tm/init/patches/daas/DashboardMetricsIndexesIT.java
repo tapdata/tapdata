@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DashboardMetricsIndexesIT {
 
     @Test
-    @DisplayName("extends measurement TTL to eight days, preserves longer retention, and creates the API node index idempotently")
+    @DisplayName("preserves measurement TTL and creates dashboard indexes idempotently")
     void shouldUpgradeDashboardIndexesAgainstMongo() throws Exception {
         String mongoUri = System.getenv("TAPDATA_TEST_MONGO_URI");
         Assumptions.assumeTrue(mongoUri != null && !mongoUri.isBlank(),
@@ -65,13 +65,13 @@ class DashboardMetricsIndexesIT {
             V4_25_3_DashboardMetricsIndexes patch = new V4_25_3_DashboardMetricsIndexes(
                     new PatchType(AppType.DAAS, PatchTypeEnums.Script), new PatchVersion(4, 25, 3));
             patch.run();
-            assertMeasurementTtl(obsTemplate, TimeUnit.DAYS.toSeconds(8));
+            assertMeasurementTtl(obsTemplate, TimeUnit.DAYS.toSeconds(7));
             assertEquals(1L, obsTemplate.getCollection(MeasurementEntity.COLLECTION_NAME).countDocuments());
             assertMeasurementLateRollupIndex(obsTemplate);
             assertApiNodeIndex(defaultTemplate);
 
             patch.run();
-            assertMeasurementTtl(obsTemplate, TimeUnit.DAYS.toSeconds(8));
+            assertMeasurementTtl(obsTemplate, TimeUnit.DAYS.toSeconds(7));
             assertEquals(1, countApiNodeIndexes(defaultTemplate));
 
             obsTemplate.getDb().runCommand(new Document("collMod", MeasurementEntity.COLLECTION_NAME)
