@@ -642,7 +642,8 @@ public class UserController extends BaseController {
     @PostMapping("refreshAccessCode")
     @Audited(AuditAction.USER_RESET_ACCESS_CODE)
     public ResponseMessage<String> refreshAccessCode() {
-        return success(userService.refreshAccessCode(getLoginUser()));
+        userService.refreshAccessCode(getLoginUser());
+        return success();
     }
 
     @GetMapping("{userId}/alarmImpact")
