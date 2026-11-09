@@ -3,6 +3,8 @@ package com.tapdata.tm.config;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,6 +95,8 @@ class ObsMongoConfigTest {
         verify(collection).dropIndexes();
         verify(collection, times(3)).createIndex(any(Bson.class));
         verify(collection, times(4)).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection).createIndex(eq(new BsonDocument("date", new BsonInt32(-1))),
+                argThat(options -> Long.valueOf(7L).equals(options.getExpireAfter(TimeUnit.DAYS))));
     }
 
     @Test

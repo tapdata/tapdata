@@ -105,7 +105,7 @@ public class ObsMongoConfig implements AsyncConfigurer {
                     new BsonDocument("tags.type", new BsonInt32(1))));
 
             agentMeasurementV2.createIndex(new BsonDocument("date", new BsonInt32(-1)),
-                    new IndexOptions().expireAfter(8L, TimeUnit.DAYS));
+                    new IndexOptions().expireAfter(7L, TimeUnit.DAYS));
         }
     }
 
