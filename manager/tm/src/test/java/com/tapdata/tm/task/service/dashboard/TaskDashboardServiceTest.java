@@ -39,6 +39,7 @@ import java.time.ZoneOffset;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -189,6 +190,26 @@ class TaskDashboardServiceTest {
         assertEquals("node-uuid-654321", nodes.get(1).getPhysicalNodeId());
         assertEquals(true, nodes.get(1).isApiServerDeployed());
         assertEquals(false, nodes.get(1).isEngineDeployed());
+    }
+
+    @Test
+    void selectedNodeQueryKeepsAccessScopeAndFiltersBothNodeIdentityFields() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(clusterStateService.findAccessNodeInfo(user)).thenReturn(
+                List.of(new AccessNodeInfo("visible-process", "host", "ip", "running")));
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of());
+
+        ReflectionTestUtils.invokeMethod(taskDashboardService, "dashboardNodes", user, "selected-node");
+
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(clusterStateService).findAll(query.capture());
+        String criteria = query.getValue().getQueryObject().toJson();
+        assertTrue(criteria.contains("visible-process"));
+        assertTrue(criteria.contains("systemInfo.process_id"));
+        assertTrue(criteria.contains("systemInfo.uuid"));
+        assertTrue(criteria.contains("selected-node"));
+        verify(clusterStateService).findAccessNodeInfo(user);
     }
 
     @Test

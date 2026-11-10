@@ -109,8 +109,23 @@ public class TaskSampleHandler extends AbstractHandler {
 
     @Override
     public Map<String, Number> retrieve() {
-        return TaskSampleRetriever.getInstance().retrieveTaskCounterRecoveryWithRetry(
-                task.getStartTime().getTime(), recoveryTags(), samples());
+        try {
+            return TaskSampleRetriever.getInstance().retrieveTaskCounterRecoveryWithRetry(
+                    task.getStartTime().getTime(), recoveryTags(), samples());
+        } catch (RuntimeException e) {
+            // Keep instrumentation available and restore the previous default-value
+            // behavior when counter history cannot be recovered.
+            TapLogger.error(TAG, "Failed to recover task counters after retries; initialize samplers with defaults: " + e.getMessage());
+            return defaultRecoveryValues();
+        }
+    }
+
+    private Map<String, Number> defaultRecoveryValues() {
+        Map<String, Number> values = new HashMap<>();
+        for (String sample : samples()) {
+            values.put(sample, 0);
+        }
+        return values;
     }
 
     static Map<String, String> createTaskTags(Map<String, String> baseTags, String engineId, String physicalNodeId) {

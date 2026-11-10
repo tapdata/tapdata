@@ -1330,6 +1330,28 @@ class MeasurementServiceV2ImplTest {
             verify(taskService).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 111L);
         }
         @Test
+        @DisplayName("future attributed sample is clamped to the receive time instead of being dropped")
+        void futureAttributedSampleIsClamped() {
+            Map<String, String> attributedTags = new HashMap<>();
+            attributedTags.put("type", "task");
+            attributedTags.put("taskId", "665d2b9b889245e73373cf49");
+            attributedTags.put("physicalNodeId", "node-a");
+            when(sampleRequest.getTags()).thenReturn(attributedTags);
+            Sample sample = new Sample();
+            sample.setDate(new Date(System.currentTimeMillis() + 600_000L));
+            sample.setVs(Map.of("outputQps", 5));
+            when(sampleRequest.getSample()).thenReturn(sample);
+            when(mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME))
+                    .thenReturn(mock(com.mongodb.client.MongoCollection.class));
+            doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
+            Date before = new Date();
+            measurementServiceV2.addAgentMeasurement(samples);
+
+            assertFalse(sample.getDate().after(new Date()), "future sample must be clamped");
+            assertFalse(sample.getDate().before(new Date(before.getTime() - 2_000L)), "sample must keep near-current time");
+        }
+
+        @Test
         @DisplayName("test addBulkAgentMeasurement method when replicateLag is null")
         void test2(){
             Sample sample = new Sample();

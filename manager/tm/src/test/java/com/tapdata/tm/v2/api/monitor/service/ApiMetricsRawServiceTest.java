@@ -56,6 +56,33 @@ class ApiMetricsRawServiceTest {
     }
 
     @Nested
+    class HasAttributableDataTest {
+        @Test
+        void treatsNullPhysicalNodeIdAsUnattributable() {
+            MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+            ApiMetricsRawService actual = new ApiMetricsRawService();
+            ReflectionTestUtils.setField(actual, "mongoTemplate", mongoTemplate);
+            when(mongoTemplate.count(any(Query.class), eq(ApiMetricsRaw.class))).thenReturn(0L);
+            org.mockito.ArgumentCaptor<Query> captor = org.mockito.ArgumentCaptor.forClass(Query.class);
+            when(mongoTemplate.count(captor.capture(), eq(ApiCallEntity.class),
+                    org.mockito.ArgumentMatchers.anyString())).thenReturn(1L);
+
+            Assertions.assertTrue(actual.hasAttributableData(1000L, 2000L));
+
+            Document query = captor.getValue().getQueryObject();
+            List<Document> clauses = query.getList("$and", Document.class);
+            Document nodeClause = clauses.stream()
+                    .filter(clause -> clause.containsKey("physicalNodeId"))
+                    .findFirst()
+                    .orElseThrow();
+            Document nodeCriteria = (Document) nodeClause.get("physicalNodeId");
+            Assertions.assertTrue(nodeCriteria.containsKey("$nin"));
+            Assertions.assertFalse(nodeCriteria.containsKey("$ne"));
+            Assertions.assertEquals(java.util.Arrays.asList(null, ""), nodeCriteria.get("$nin"));
+        }
+    }
+
+    @Nested
     class DashboardRequestCountsTest {
         private ClientSession snapshotSession;
 

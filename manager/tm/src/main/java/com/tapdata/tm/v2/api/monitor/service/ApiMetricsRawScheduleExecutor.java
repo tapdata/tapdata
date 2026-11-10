@@ -45,6 +45,7 @@ import java.util.stream.Stream;
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawScheduleExecutor {
     static final int BATCH_READ_SIZE = 2000;
+    static final int RAW_SAMPLE_CAP = 50_000;
 
     MongoTemplate mongoTemplate;
 
@@ -183,11 +184,10 @@ public class ApiMetricsRawScheduleExecutor {
         try {
             BulkOperations bulkOps = operations.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
             for (ApiMetricsRaw entity : entities) {
-                if (entity.getDelay().size() > 50_000
-                        || entity.getDbCost().size() > 50_000) {
-                    throw new IllegalStateException("API metric record exceeds the Raw storage cap: delay="
-                            + entity.getDelay().size() + ", dbCost=" + entity.getDbCost().size());
-                }
+                // Truncate oversized histogram arrays instead of failing the whole
+                // transaction: a single poisoned record must not stop all API metrics.
+                entity.setDelay(truncateSamples(entity.getDelay()));
+                entity.setDbCost(truncateSamples(entity.getDbCost()));
                 entity.setTtlKey(new Date(entity.getTimeStart() * 1000L));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
@@ -198,6 +198,14 @@ public class ApiMetricsRawScheduleExecutor {
             log.error("bulkUpsert ApiMetricsRaw error", e);
             throw e;
         }
+    }
+
+    private static List<Map<String, Number>> truncateSamples(List<Map<String, Number>> samples) {
+        if (samples == null || samples.size() <= RAW_SAMPLE_CAP) {
+            return samples;
+        }
+        log.warn("API metric histogram exceeds the Raw storage cap; truncating {} entries to {}", samples.size(), RAW_SAMPLE_CAP);
+        return new ArrayList<>(samples.subList(0, RAW_SAMPLE_CAP));
     }
 
     protected Query buildDefaultQuery(ApiMetricsRaw entity) {

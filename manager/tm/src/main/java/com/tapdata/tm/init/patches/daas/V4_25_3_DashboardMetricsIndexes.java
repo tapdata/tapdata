@@ -17,12 +17,15 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Adds the dashboard measurement and API node trend indexes.
  */
 @PatchAnnotation(appType = AppType.DAAS, version = "4.25-3")
 public class V4_25_3_DashboardMetricsIndexes extends AbsPatch {
+    private static final Logger log = LoggerFactory.getLogger(V4_25_3_DashboardMetricsIndexes.class);
     static final String API_METRICS_NODE_TREND_INDEX = "api_metrics_node_trend";
     static final String MEASUREMENT_LATE_ROLLUP_INDEX = "idx_task_dashboard_dirty";
 
@@ -32,14 +35,31 @@ public class V4_25_3_DashboardMetricsIndexes extends AbsPatch {
 
     @Override
     public void run() {
-        MongoTemplate defaultTemplate = SpringContextHelper.getBean(MongoTemplate.class);
-        ensureApiMetricsNodeTrendIndex(defaultTemplate);
+        try {
+            MongoTemplate defaultTemplate = SpringContextHelper.getBean(MongoTemplate.class);
+            ensureApiMetricsNodeTrendIndex(defaultTemplate);
+        } catch (RuntimeException e) {
+            log.warn("Unable to initialize API metrics node trend index", e);
+        }
 
-        @SuppressWarnings("unchecked")
-        CompletableFuture<MongoTemplate> obsTemplateFuture = SpringContextHelper.applicationContext
-                .getBean("obsMongoTemplate", CompletableFuture.class);
-        MongoCollection<Document> measurement = obsTemplateFuture.join().getCollection(MeasurementEntity.COLLECTION_NAME);
-        ensureLateTaskRollupIndex(measurement, measurement.listIndexes().into(new ArrayList<>()));
+        try {
+            @SuppressWarnings("unchecked")
+            CompletableFuture<MongoTemplate> obsTemplateFuture = SpringContextHelper.applicationContext
+                    .getBean("obsMongoTemplate", CompletableFuture.class);
+            initializeMeasurementIndexAsync(obsTemplateFuture);
+        } catch (RuntimeException e) {
+            log.warn("Unable to schedule dashboard measurement index initialization", e);
+        }
+    }
+
+    static CompletableFuture<Void> initializeMeasurementIndexAsync(CompletableFuture<MongoTemplate> templateFuture) {
+        return templateFuture.thenAcceptAsync(template -> {
+            MongoCollection<Document> measurement = template.getCollection(MeasurementEntity.COLLECTION_NAME);
+            ensureLateTaskRollupIndex(measurement, measurement.listIndexes().into(new ArrayList<>()));
+        }).exceptionally(error -> {
+            log.warn("Unable to initialize dashboard measurement index", error);
+            return null;
+        });
     }
 
     static void ensureApiMetricsNodeTrendIndex(MongoTemplate mongoTemplate) {
@@ -60,9 +80,14 @@ public class V4_25_3_DashboardMetricsIndexes extends AbsPatch {
                 .findFirst()
                 .orElse(null);
         if (conflictingName != null) {
-            throw new IllegalStateException("Index name " + API_METRICS_NODE_TREND_INDEX + " exists with a different key pattern");
+            log.warn("Skip index {} because the name exists with a different key pattern", API_METRICS_NODE_TREND_INDEX);
+            return;
         }
-        collection.createIndex(expectedKeys, new IndexOptions().name(API_METRICS_NODE_TREND_INDEX).background(true));
+        try {
+            collection.createIndex(expectedKeys, new IndexOptions().name(API_METRICS_NODE_TREND_INDEX).background(true));
+        } catch (RuntimeException e) {
+            log.warn("Skip index {} because it could not be created: {}", API_METRICS_NODE_TREND_INDEX, e.getMessage());
+        }
     }
 
     static void ensureLateTaskRollupIndex(MongoCollection<Document> collection, List<Document> indexes) {
@@ -78,8 +103,13 @@ public class V4_25_3_DashboardMetricsIndexes extends AbsPatch {
                 .findFirst()
                 .orElse(null);
         if (conflictingName != null) {
-            throw new IllegalStateException("Index name " + MEASUREMENT_LATE_ROLLUP_INDEX + " exists with a different key pattern");
+            log.warn("Skip index {} because the name exists with a different key pattern", MEASUREMENT_LATE_ROLLUP_INDEX);
+            return;
         }
-        collection.createIndex(expectedKeys, new IndexOptions().name(MEASUREMENT_LATE_ROLLUP_INDEX).background(true));
+        try {
+            collection.createIndex(expectedKeys, new IndexOptions().name(MEASUREMENT_LATE_ROLLUP_INDEX).background(true));
+        } catch (RuntimeException e) {
+            log.warn("Skip index {} because it could not be created: {}", MEASUREMENT_LATE_ROLLUP_INDEX, e.getMessage());
+        }
     }
 }

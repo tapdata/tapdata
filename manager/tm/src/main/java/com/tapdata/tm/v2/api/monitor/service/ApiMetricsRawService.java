@@ -150,7 +150,7 @@ public class ApiMetricsRawService {
         Criteria callCriteria = new Criteria().andOperator(
                 Criteria.where(ApiCallField.DELETE.field()).is(false),
                 Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).exists(true).ne(null),
-                Criteria.where(ApiCallField.PHYSICAL_NODE_ID.field()).exists(true).ne(null).ne(""),
+                Criteria.where(ApiCallField.PHYSICAL_NODE_ID.field()).exists(true).nin(Arrays.asList(null, "")),
                 Criteria.where(ApiCallField.REQ_TIME.field()).gte(startAt * 1000L).lt(endAt * 1000L));
         return operations.count(Query.query(callCriteria), ApiCallEntity.class, apiCallCollection) > 0;
     }

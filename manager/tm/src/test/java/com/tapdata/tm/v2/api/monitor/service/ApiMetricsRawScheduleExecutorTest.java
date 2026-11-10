@@ -98,6 +98,27 @@ class ApiMetricsRawScheduleExecutorTest {
             verify(executor, times(0)).bulkUpsert(apiMetricsRawList);
         }
         @Test
+        void testSaveApiMetricsRawTruncatesOversizedHistogramsInsteadOfFailing() {
+            ApiMetricsRaw raw = createApiMetricsRaw();
+            List<java.util.Map<String, Number>> oversized = new ArrayList<>();
+            for (int i = 0; i < ApiMetricsRawScheduleExecutor.RAW_SAMPLE_CAP + 10; i++) {
+                oversized.add(java.util.Map.of("k", i));
+            }
+            raw.setDelay(oversized);
+            raw.setDbCost(new ArrayList<>(oversized));
+            BulkOperations bulkOps = mock(BulkOperations.class);
+            when(mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class)).thenReturn(bulkOps);
+            when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(bulkOps.execute()).thenReturn(null);
+
+            executor.saveApiMetricsRaw(List.of(raw));
+
+            assertEquals(ApiMetricsRawScheduleExecutor.RAW_SAMPLE_CAP, raw.getDelay().size());
+            assertEquals(ApiMetricsRawScheduleExecutor.RAW_SAMPLE_CAP, raw.getDbCost().size());
+            verify(bulkOps).execute();
+        }
+
+        @Test
         void testSaveApiMetricsRawException() {
             List<ApiMetricsRaw> apiMetricsRawList = new ArrayList<>();
             apiMetricsRawList.add(createApiMetricsRaw());
@@ -232,7 +253,7 @@ class ApiMetricsRawScheduleExecutorTest {
     }
 
     @Test
-    void oversizedRawMetricFailsInsteadOfBeingSkipped() {
+    void oversizedRawMetricIsTruncatedAndStillWritten() {
         ApiMetricsRaw oversized = createApiMetricsRaw();
         oversized.setDelay(new ArrayList<>(java.util.Collections.nCopies(50_001, new HashMap<>())));
         MongoOperations operations = mock(MongoOperations.class);
@@ -240,10 +261,10 @@ class ApiMetricsRawScheduleExecutorTest {
         when(operations.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class)).thenReturn(bulkOperations);
         ApiMetricsRawScheduleExecutor actual = new ApiMetricsRawScheduleExecutor();
 
-        Assertions.assertThrows(IllegalStateException.class,
-                () -> actual.bulkUpsert(operations, List.of(oversized), actual::buildDefaultQuery, actual::buildDefaultUpdate));
+        actual.bulkUpsert(operations, List.of(oversized), actual::buildDefaultQuery, actual::buildDefaultUpdate);
 
-        verify(bulkOperations, never()).execute();
+        assertEquals(ApiMetricsRawScheduleExecutor.RAW_SAMPLE_CAP, oversized.getDelay().size());
+        verify(bulkOperations).execute();
     }
 
     // Helper method to create ApiMetricsRaw instance

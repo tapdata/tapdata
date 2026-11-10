@@ -88,4 +88,24 @@ class TaskSampleHandlerTest {
         verify(operator).postOne(anyMap(), eq(recoveryResource),
                 eq(TaskSampleRetriever.SampleResponse.class));
     }
+
+    @Test
+    void fallsBackToDefaultSamplersWhenRecoveryFails() {
+        previousOperator = ReflectionTestUtils.getField(taskSampleRetriever, "operator");
+        operatorReplaced = true;
+        HttpClientMongoOperator operator = mock(HttpClientMongoOperator.class);
+        ReflectionTestUtils.setField(taskSampleRetriever, "operator", operator);
+        when(operator.postOne(anyMap(), org.mockito.ArgumentMatchers.anyString(),
+                eq(TaskSampleRetriever.SampleResponse.class))).thenThrow(new RuntimeException("recovery down"));
+        TaskDto task = mock(TaskDto.class);
+        when(task.getId()).thenReturn(new ObjectId("0123456789abcdef01234567"));
+        when(task.getTaskRecordId()).thenReturn("record-1");
+        when(task.getStartTime()).thenReturn(new Date(60_000L));
+        TaskSampleHandler handler = new TaskSampleHandler(task);
+
+        Map<String, Number> values = handler.retrieve();
+
+        assertFalse(values.isEmpty());
+        assertTrue(values.values().stream().allMatch(value -> value != null && value.longValue() == 0L));
+    }
 }

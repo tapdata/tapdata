@@ -583,13 +583,17 @@ public class TaskDashboardService {
     }
 
     private TaskDashboardVo.NodeOption findAuthorizedNode(UserDetail user, String physicalNodeId) {
-        return dashboardNodes(user).stream()
+        return dashboardNodes(user, physicalNodeId).stream()
                 .filter(node -> physicalNodeId.equals(node.getPhysicalNodeId()))
                 .findFirst()
                 .orElseThrow(() -> new BizException("server.not.exists"));
     }
 
     public List<TaskDashboardVo.NodeOption> dashboardNodes(UserDetail user) {
+        return dashboardNodes(user, null);
+    }
+
+    private List<TaskDashboardVo.NodeOption> dashboardNodes(UserDetail user, String physicalNodeId) {
         Map<String, String> processStatuses = new HashMap<>();
         List<AccessNodeInfo> accessNodes = clusterStateService.findAccessNodeInfo(user);
         if (CollectionUtils.isEmpty(accessNodes)) {
@@ -600,7 +604,13 @@ public class TaskDashboardService {
             return new ArrayList<>();
         }
 
-        Query query = Query.query(Criteria.where("systemInfo.process_id").in(processStatuses.keySet()));
+        Criteria accessCriteria = Criteria.where("systemInfo.process_id").in(processStatuses.keySet());
+        if (StringUtils.isNotBlank(physicalNodeId)) {
+            accessCriteria = new Criteria().andOperator(accessCriteria, new Criteria().orOperator(
+                    Criteria.where("uuid").is(physicalNodeId),
+                    Criteria.where("systemInfo.uuid").is(physicalNodeId)));
+        }
+        Query query = Query.query(accessCriteria);
         query.fields().include("uuid", "agentName", "systemInfo", "engine", "apiServer");
         List<ClusterStateDto> states = clusterStateService.findAll(query);
         Map<String, TaskDashboardVo.NodeOption> optionsByNodeId = new HashMap<>();

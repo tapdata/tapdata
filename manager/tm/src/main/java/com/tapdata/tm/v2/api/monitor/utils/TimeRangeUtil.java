@@ -32,14 +32,7 @@ public class TimeRangeUtil {
     }
 
     public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress) {
-        rangeOf(query, delay, compress);
-        valueBase.setQueryFrom(query.getQueryStart());
-        valueBase.setQueryEnd(query.getQueryEnd());
-        valueBase.setGranularity(query.getGranularity().getType());
-    }
-
-    public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress, TimeGranularity granularity) {
-        rangeOf(query, delay, compress, granularity);
+        rangeOf(query, delay, compress, null);
         valueBase.setQueryFrom(query.getQueryStart());
         valueBase.setQueryEnd(query.getQueryEnd());
         valueBase.setGranularity(query.getGranularity().getType());
@@ -49,7 +42,7 @@ public class TimeRangeUtil {
         rangeOf(query, delay, compress, null);
     }
 
-    public static void rangeOf(QueryBase query, long delay, boolean compress, TimeGranularity requestedGranularity) {
+    private static void rangeOf(QueryBase query, long delay, boolean compress, TimeGranularity requestedGranularity) {
         checkQueryTime(query, delay);
         Long startAt = query.getStartAt();
         Long endAt = query.getEndAt();

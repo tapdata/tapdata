@@ -187,11 +187,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 continue;
             }
             if (attributedTaskSample && sample.getDate().after(date)) {
-                log.warn("Skip task metric sample with physical node {} because its collection time is in the future", tags.get(FIELD_TAGS_PHYSICAL_NODE_ID));
-                continue;
+                log.warn("Clamp task metric sample with physical node {} because its collection time is in the future", tags.get(FIELD_TAGS_PHYSICAL_NODE_ID));
             }
 
-            Date sampleDate = attributedTaskSample ? sample.getDate() : receivedSecond;
+            Date sampleDate = attributedTaskSample
+                    ? (sample.getDate().after(date) ? receivedSecond : sample.getDate())
+                    : receivedSecond;
             Date documentDate = attributedTaskSample ? TimeUtil.cleanTimeAfterMinute(sampleDate) : receivedMinute;
             if (!SAMPLE_TYPE_TABLE.equals(tags.get(FIELD_TAGS_TYPE))) {
                 criteria.and(MetricCons.F_DATE).is(documentDate);
