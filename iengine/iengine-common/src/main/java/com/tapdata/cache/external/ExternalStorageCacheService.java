@@ -14,11 +14,28 @@ import java.util.concurrent.locks.Lock;
 public class ExternalStorageCacheService extends AbstractCacheService {
 
 	private final HazelcastInstance hazelcastInstance;
+	private final java.util.Map<String, String> cacheGenerationMap;
 
 
 	public ExternalStorageCacheService(HazelcastInstance hazelcastInstance, ClientMongoOperator clientMongoOperator) {
 		super(clientMongoOperator, new ConcurrentHashMap<>());
 		this.hazelcastInstance = hazelcastInstance;
+		this.cacheGenerationMap = hazelcastInstance.getMap(CacheUtil.CACHE_NAME_PREFIX + "generation");
+	}
+
+	@Override
+	protected String sharedCacheGeneration(String cacheName) {
+		return cacheGenerationMap.get(cacheName);
+	}
+
+	@Override
+	protected void publishSharedCacheGeneration(String cacheName, String generation) {
+		cacheGenerationMap.put(cacheName, generation);
+	}
+
+	@Override
+	protected boolean usesDistributedCacheGeneration() {
+		return true;
 	}
 
 	@Override
@@ -38,18 +55,22 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 	}
 
 	@Override
+	protected ICacheGetter getCacheGetterInstance(String cacheName,
+			com.tapdata.entity.dataflow.DataFlowCacheConfig cacheConfig, ICacheStore cacheStore) {
+		return new ExternalStorageCacheGetter(cacheStore, cacheConfig, clientMongoOperator, hazelcastInstance);
+	}
+
+	@Override
 	protected ICacheStats getCacheStats(String cacheName) {
 		return null;
 	}
 
 	@Override
 	protected ICacheStore getCacheStore(String cacheName) {
-		return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> {
-			com.tapdata.entity.dataflow.DataFlowCacheConfig cacheConfig = getConfig(cacheName);
-			if (cacheConfig == null) {
-				throw new IllegalStateException("Cache configuration is unavailable: " + cacheName);
-			}
-			return new ExternalStorageCacheStore(cacheConfig, hazelcastInstance);
-		});
+		return getOrCreateCacheStore(cacheName, this::createCacheStore, true);
+	}
+
+	protected ICacheStore createCacheStore(com.tapdata.entity.dataflow.DataFlowCacheConfig config) {
+		return new ExternalStorageCacheStore(config, hazelcastInstance);
 	}
 }
