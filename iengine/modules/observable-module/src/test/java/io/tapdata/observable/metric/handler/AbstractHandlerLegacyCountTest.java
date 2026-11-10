@@ -1,6 +1,8 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.metrics.MetricCons;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import org.junit.jupiter.api.Test;
@@ -49,5 +51,39 @@ class AbstractHandlerLegacyCountTest {
         doCallRealMethod().when(handler).getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
 
         assertEquals(BigInteger.ZERO, handler.getCounterSampler(values, SNAPSHOT_ROW_TOTAL).value());
+    }
+
+    @Test
+    void restoresJsonIntegerMinusOneAsZero() {
+        AbstractHandler handler = mock(AbstractHandler.class);
+        ReflectionTestUtils.setField(handler, "collector", new SampleCollector());
+        Map<String, Number> values = Map.of(SNAPSHOT_ROW_TOTAL, -1);
+        doCallRealMethod().when(handler).getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
+
+        assertEquals(BigInteger.ZERO, handler.getCounterSampler(values, SNAPSHOT_ROW_TOTAL).value());
+    }
+
+    @Test
+    void restoresMinusOneWithTheJsonNumberTypeUsedByMetricRetrieval() throws Exception {
+        Map<String, Number> values = new ObjectMapper().readValue(
+                "{\"snapshotRowTotal\":-1}", new TypeReference<Map<String, Number>>() {});
+        assertEquals(Integer.class, values.get(SNAPSHOT_ROW_TOTAL).getClass());
+
+        AbstractHandler handler = mock(AbstractHandler.class);
+        ReflectionTestUtils.setField(handler, "collector", new SampleCollector());
+        doCallRealMethod().when(handler).getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
+
+        assertEquals(BigInteger.ZERO, handler.getCounterSampler(values, SNAPSHOT_ROW_TOTAL).value());
+    }
+
+    @Test
+    void clearsCachedLegacyValueWhenHistoryIsUnavailable() {
+        SampleCollector collector = new SampleCollector();
+        collector.getCounterSampler(SNAPSHOT_ROW_TOTAL, -1);
+        AbstractHandler handler = mock(AbstractHandler.class);
+        ReflectionTestUtils.setField(handler, "collector", collector);
+        doCallRealMethod().when(handler).getCounterSampler(Map.of(), SNAPSHOT_ROW_TOTAL);
+
+        assertEquals(BigInteger.ZERO, handler.getCounterSampler(Map.of(), SNAPSHOT_ROW_TOTAL).value());
     }
 }
