@@ -91,7 +91,7 @@ class RawServerStateServiceTest {
             dto.setServiceId("service1");
             dto.setTimestamp(new Date(System.currentTimeMillis() - 60000)); // 1 minute ago
             dto.setDataSource("dataSource1");
-            dto.setReportedData(new RawServerInfo(123L, 1000L, 50.0, 60.0, "running", "OK"));
+            dto.setReportedData(new RawServerInfo(123L, 1000L, 50.0, 60.0, "running", "OK", "oracle-reader"));
             
             List<RawServerStateDto> results = new ArrayList<>();
             results.add(dto);

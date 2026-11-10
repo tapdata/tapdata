@@ -2,12 +2,15 @@ package com.tapdata.tm.proxyprocess.service.impl;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.proxyprocess.constant.AgentProcessStatus;
+import com.tapdata.tm.proxyprocess.constant.AgentProcessType;
 import com.tapdata.tm.proxyprocess.dto.AgentProcessDto;
+import com.tapdata.tm.proxyprocess.dto.OracleLogParserAgentProcessDto;
 import com.tapdata.tm.proxyprocess.dto.AgentProcessQueryDto;
 import com.tapdata.tm.proxyprocess.dto.AgentProcessRegisterDto;
 import com.tapdata.tm.proxyprocess.dto.AgentProcessRegisterResponseDto;
 import com.tapdata.tm.proxyprocess.dto.AgentProcessStatusDto;
 import com.tapdata.tm.proxyprocess.entity.AgentProcessEntity;
+import com.tapdata.tm.proxyprocess.entity.OracleLogParserAgentProcessEntity;
 import com.tapdata.tm.proxyprocess.repository.AgentProcessRepository;
 import com.tapdata.tm.proxyprocess.service.AgentProcessService;
 import org.apache.commons.lang3.StringUtils;
@@ -113,11 +116,18 @@ public class AgentProcessServiceImpl implements AgentProcessService {
         if (entity == null) {
             return null;
         }
-        AgentProcessDto dto = new AgentProcessDto();
+        AgentProcessDto dto = entity instanceof OracleLogParserAgentProcessEntity
+                ? new OracleLogParserAgentProcessDto()
+                : new AgentProcessDto();
         dto.setProxyProcessId(entity.getProxyProcessId());
         dto.setAgentName(entity.getAgentName());
         dto.setAgentType(entity.getAgentType());
         dto.setAgentId(entity.getAgentId());
+        if (dto instanceof OracleLogParserAgentProcessDto oracleDto
+                && entity instanceof OracleLogParserAgentProcessEntity oracleEntity) {
+            oracleDto.setSourceServiceId(oracleEntity.getSourceServiceId());
+            oracleDto.setSourceState(oracleEntity.getSourceState());
+        }
         dto.setAdvertiseIp(entity.getAdvertiseIp());
         dto.setAdvertisePort(entity.getAdvertisePort());
         dto.setStartTime(toDate(entity.getStartTime()));
@@ -145,7 +155,11 @@ public class AgentProcessServiceImpl implements AgentProcessService {
             query.addCriteria(Criteria.where("agentType").is(queryDto.getAgentType()));
         }
         List<AgentProcessDto> all = new ArrayList<>();
-        repository.findAll(query).forEach(entity -> all.add(toDto(entity)));
+        List<AgentProcessEntity> entities = AgentProcessType.ORACLE_LOG_PARSER.getValue()
+                .equals(queryDto.getAgentType())
+                ? repository.findOracleLogParserProjections(query)
+                : repository.findAll(query);
+        entities.forEach(entity -> all.add(toDto(entity)));
         if (StringUtils.isNotBlank(queryDto.getProxyProcessId())) {
             all.removeIf(item -> !StringUtils.equals(queryDto.getProxyProcessId(), item.getProxyProcessId()));
         }
@@ -170,6 +184,11 @@ public class AgentProcessServiceImpl implements AgentProcessService {
         int from = Math.min((page - 1) * pageSize, all.size());
         int to = Math.min(from + pageSize, all.size());
         return new Page<>(all.size(), all.subList(from, to));
+    }
+
+    @Override
+    public List<String> listAgentTypes() {
+        return repository.findAgentTypes();
     }
 
     @Override

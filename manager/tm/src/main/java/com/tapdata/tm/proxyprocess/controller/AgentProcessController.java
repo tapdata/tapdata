@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/agent-process")
 @Tag(name = "Agent Process", description = "代理进程注册、状态和管理接口")
@@ -53,6 +55,12 @@ public class AgentProcessController extends BaseController {
     @Operation(summary = "查询代理进程列表")
     public ResponseMessage<Page<AgentProcessDto>> list(@ModelAttribute AgentProcessQueryDto query) {
         return success(agentProcessService.list(query));
+    }
+
+    @GetMapping("/types")
+    @Operation(summary = "查询代理进程类型列表")
+    public ResponseMessage<List<String>> listAgentTypes() {
+        return success(agentProcessService.listAgentTypes());
     }
 
     @DeleteMapping("/{proxyProcessId}")

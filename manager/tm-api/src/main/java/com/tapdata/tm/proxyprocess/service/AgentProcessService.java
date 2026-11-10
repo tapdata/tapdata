@@ -8,6 +8,8 @@ import com.tapdata.tm.proxyprocess.entity.AgentProcessEntity;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.proxyprocess.dto.AgentProcessQueryDto;
 
+import java.util.List;
+
 public interface AgentProcessService {
     AgentProcessRegisterResponseDto register(AgentProcessRegisterDto request);
 
@@ -18,6 +20,8 @@ public interface AgentProcessService {
     AgentProcessDto toDto(AgentProcessEntity entity);
 
     Page<AgentProcessDto> list(AgentProcessQueryDto query);
+
+    List<String> listAgentTypes();
 
     void delete(String proxyProcessId);
 }
