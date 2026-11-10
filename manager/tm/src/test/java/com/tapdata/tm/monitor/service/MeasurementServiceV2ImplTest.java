@@ -75,7 +75,11 @@ class MeasurementServiceV2ImplTest {
         assertEquals(new Decimal128(new BigDecimal(legacyValue)), converted.get("snapshotRowTotal"));
         assertEquals(42L, converted.get("inputTotal"));
         assertTrue(new Document("vs", converted).toJson().contains(legacyValue.toString()));
+
+        Map<String, Number> ordinaryValues = Map.of("inputQps", 12L);
+        assertSame(ordinaryValues, ReflectionTestUtils.invokeMethod(measurementServiceV2, "bsonMetricValues", ordinaryValues));
     }
+
     MeasurementServiceV2Impl measurementServiceV2;
     MongoTemplate mongoOperations;
     @BeforeEach
