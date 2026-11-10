@@ -5,14 +5,56 @@ import com.tapdata.tm.monitor.constant.Granularity;
 import com.tdunning.math.stats.MergingDigest;
 import com.tdunning.math.stats.TDigest;
 import io.tapdata.common.sample.request.Sample;
+import org.bson.types.Decimal128;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class MeasurementEntityTest {
+
+    @Test
+    public void averageValues_preservesUnsignedLongMaximumFromDecimal128() {
+        BigInteger expected = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+        MeasurementEntity entity = new MeasurementEntity();
+        entity.setGranularity(Granularity.GRANULARITY_HOUR);
+        List<Sample> samples = new ArrayList<>();
+        Sample oldLongSample = new Sample();
+        oldLongSample.setDate(new Date(1_000L));
+        oldLongSample.setVs(Map.of(MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL, 10L));
+        samples.add(oldLongSample);
+        Sample decimal128Sample = new Sample();
+        decimal128Sample.setDate(new Date(2_000L));
+        decimal128Sample.setVs(Map.of(MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL,
+                new Decimal128(new java.math.BigDecimal(expected))));
+        samples.add(decimal128Sample);
+        entity.setSamples(samples);
+        entity.setDigest(null);
+
+        assertEquals(expected.add(BigInteger.TEN).divide(BigInteger.TWO),
+                entity.averageValues().get(MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL));
+    }
+
+    @Test
+    public void averageValuesPreservesFractionalDecimal128Precision() {
+        MeasurementEntity entity = new MeasurementEntity();
+        List<Sample> samples = new ArrayList<>();
+        for (String value : List.of("0.1", "0.2")) {
+            Sample sample = new Sample();
+            sample.setDate(new Date());
+            sample.setVs(Map.of("fractionalMetric", new Decimal128(new BigDecimal(value))));
+            samples.add(sample);
+        }
+        entity.setSamples(samples);
+
+        BigDecimal average = (BigDecimal) entity.averageValues().get("fractionalMetric");
+
+        assertEquals(0, average.compareTo(new BigDecimal("0.15")));
+    }
 
     /**
      * 测试场景1: granularity 为 GRANULARITY_MINUTE 时
