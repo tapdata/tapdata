@@ -89,8 +89,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			for (Field field : fields) {
 				apply.apply(tableName, field.getPreviousFieldName(), field, fieldIOperator);
 				handleForeignKeyConstraints(schema, field, apply, tableName, foreignKeyConstraintIOperator);
-				handleReferenceForeignKeyConstraints(schema, apply, referenceForeignKeyConstraintIOperator);
 			}
+			// Reference keys belong to other tables, handle them once per schema (not once per field)
+			handleReferenceForeignKeyConstraints(schema, apply, referenceForeignKeyConstraintIOperator);
 			operator.endOf(schema);
 		}
 
@@ -99,20 +100,28 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
 	protected void handleReferenceForeignKeyConstraints(Schema schema, ApplyConfig apply, IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator) {
 		List<TapConstraint> constraints = schema.getConstraints();
-		if (CollectionUtils.isNotEmpty(constraints)) {
-			CopyOnWriteArrayList<TapConstraint> tapConstraints = new CopyOnWriteArrayList<>(constraints);
-			for (TapConstraint constraint : tapConstraints) {
-				String referencesTableName = constraint.getReferencesTableName();
-				List<TapConstraintMapping> mappingFields = constraint.getMappingFields();
-				if (null == mappingFields) continue;
-				for (TapConstraintMapping mappingField : mappingFields) {
-					String referenceKey = mappingField.getReferenceKey();
-					// TAP-13224: reference column may be unknown (e.g. no privilege on referenced table)
-					if (null == referenceKey) continue;
-					apply.apply(referencesTableName, referenceKey, constraints, referenceForeignKeyConstraintIOperator);
+		if (CollectionUtils.isEmpty(constraints)) return;
+		for (TapConstraint constraint : new ArrayList<>(constraints)) {
+			List<TapConstraintMapping> mappingFields = constraint.getMappingFields();
+			if (null == mappingFields) continue;
+			if (TapConstraint.ConstraintType.FOREIGN_KEY.equals(constraint.getType())
+					&& mappingFields.stream().anyMatch(mappingField -> null == mappingField.getReferenceKey())) {
+				// TAP-13224: reference column is unknown (e.g. no privilege on referenced table), the foreign key can not be rebuilt at target
+				log.debug("Drop foreign key {} of table {}: reference column is unknown", constraint.getName(), schema.getOriginalName());
+				constraints.remove(constraint);
+				continue;
+			}
+			String referencesTableName = constraint.getReferencesTableName();
+			// Operate on this constraint only, so a rename is applied once and does not leak into other constraints
+			List<TapConstraint> current = new ArrayList<>(Collections.singletonList(constraint));
+			List<String> referenceKeys = mappingFields.stream().map(TapConstraintMapping::getReferenceKey).collect(Collectors.toList());
+			for (String referenceKey : referenceKeys) {
+				apply.apply(referencesTableName, referenceKey, current, referenceForeignKeyConstraintIOperator);
+				if (current.isEmpty()) {
+					constraints.remove(constraint);
+					break;
 				}
 			}
-			schema.setConstraints(new ArrayList<>(tapConstraints));
 		}
 	}
 
@@ -131,6 +140,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				param.forEach(tapConstraint -> {
 					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
 						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						if (null == mappingFields) return;
 						mappingFields.forEach(mappingField -> {
 							if (fromName.equals(mappingField.getForeignKey())) {
 								mappingField.foreignKey(toName);
@@ -146,6 +156,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				param.forEach(tapConstraint -> {
 					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
 						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						if (null == mappingFields) return;
 						if (null != mappingFields.stream().filter(mappingField -> originalName.equals(mappingField.getForeignKey())).findFirst().orElse(null)) {
 							if (!needRemove.contains(tapConstraint)) {
 								needRemove.add(tapConstraint);
@@ -168,6 +179,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				param.forEach(tapConstraint -> {
 					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
 						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						if (null == mappingFields) return;
 						if (null != mappingFields.stream().filter(mappingField -> originalName.equals(mappingField.getReferenceKey())).findFirst().orElse(null)) {
 							if (!needRemove.contains(tapConstraint)) {
 								needRemove.add(tapConstraint);
@@ -185,6 +197,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				param.forEach(tapConstraint -> {
 					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
 						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						if (null == mappingFields) return;
 						mappingFields.forEach(mappingField -> {
 							if (fromName.equals(mappingField.getReferenceKey())) {
 								mappingField.referenceKey(toName);
