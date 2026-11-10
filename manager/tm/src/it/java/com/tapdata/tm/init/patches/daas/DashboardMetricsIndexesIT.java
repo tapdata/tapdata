@@ -40,7 +40,7 @@ class DashboardMetricsIndexesIT {
                 "TAPDATA_TEST_MONGO_ALLOW_TEMP_DATABASE=true is required because the test creates and drops a random database");
 
         MongoClient client = MongoClients.create(mongoUri);
-        String databasePrefix = "tap12023_dashboard_indexes_" + UUID.randomUUID().toString().replace("-", "");
+        String databasePrefix = "tap12023_dashboard_indexes_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         MongoTemplate defaultTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(client, databasePrefix + "_default"));
         MongoTemplate obsTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(client, databasePrefix + "_obs"));
         GenericApplicationContext applicationContext = new GenericApplicationContext();
@@ -65,6 +65,10 @@ class DashboardMetricsIndexesIT {
             V4_25_3_DashboardMetricsIndexes patch = new V4_25_3_DashboardMetricsIndexes(
                     new PatchType(AppType.DAAS, PatchTypeEnums.Script), new PatchVersion(4, 25, 3));
             patch.run();
+            awaitIndex(obsTemplate, MeasurementEntity.COLLECTION_NAME,
+                    V4_25_3_DashboardMetricsIndexes.MEASUREMENT_LATE_ROLLUP_INDEX);
+            awaitIndex(defaultTemplate, MongoUtils.getCollectionName(ApiMetricsRaw.class),
+                    V4_25_3_DashboardMetricsIndexes.API_METRICS_NODE_TREND_INDEX);
             assertMeasurementTtl(obsTemplate, TimeUnit.DAYS.toSeconds(7));
             assertEquals(1L, obsTemplate.getCollection(MeasurementEntity.COLLECTION_NAME).countDocuments());
             assertMeasurementLateRollupIndex(obsTemplate);
@@ -117,6 +121,19 @@ class DashboardMetricsIndexesIT {
         if (failure instanceof Error error) {
             throw error;
         }
+    }
+
+    private void awaitIndex(MongoTemplate template, String collection, String indexName) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 15_000L;
+        while (System.currentTimeMillis() < deadline) {
+            boolean present = template.getCollection(collection).listIndexes().into(new java.util.ArrayList<>()).stream()
+                    .anyMatch(index -> indexName.equals(index.getString("name")));
+            if (present) {
+                return;
+            }
+            Thread.sleep(100L);
+        }
+        throw new IllegalStateException("Index " + indexName + " was not created within 15 seconds");
     }
 
     private void assertMeasurementTtl(MongoTemplate template, long expectedSeconds) {
