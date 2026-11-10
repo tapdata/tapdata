@@ -804,7 +804,7 @@ public class AbstractCacheServiceTest {
         TestCacheService cacheService = new TestCacheService(mock(HttpClientMongoOperator.class), new ConcurrentHashMap<>()) {
             @Override
             protected ICacheStore getCacheStore(String cacheName) {
-                return new ICacheStore() {
+                return getCacheStoreMap().computeIfAbsent(cacheName, ignored -> new ICacheStore() {
                     @Override
                     public void cacheRow(String name, String key, List<Map<String, Object>> rows) {
                     }
@@ -826,7 +826,7 @@ public class AbstractCacheServiceTest {
                             otherDestroyed.countDown();
                         }
                     }
-                };
+                });
             }
         };
 
