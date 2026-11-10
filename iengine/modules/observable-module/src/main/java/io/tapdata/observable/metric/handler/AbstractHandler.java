@@ -9,6 +9,8 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
 import lombok.Getter;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +85,28 @@ public abstract class AbstractHandler {
     }
 
     CounterSampler getCounterSampler(Map<String, Number> values, String name) {
-        return collector.getCounterSampler(name, values.getOrDefault(name, 0).longValue());
+        Number restored = values.getOrDefault(name, 0);
+        boolean legacyUnknownRowCount = MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL.equals(name)
+                && isLegacyUnknownRowCount(restored);
+        CounterSampler sampler = collector.getCounterSampler(name,
+                legacyUnknownRowCount ? 0 : restored.longValue());
+        if (legacyUnknownRowCount && isLegacyUnknownRowCount(sampler.value())) {
+            sampler.reset();
+        }
+        return sampler;
+    }
+
+    private boolean isLegacyUnknownRowCount(Number value) {
+        if (value instanceof Long && value.longValue() == -1L) {
+            return true;
+        }
+        BigInteger unsignedLongMax = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+        if (value instanceof BigInteger integer) {
+            return unsignedLongMax.equals(integer);
+        }
+        if (value instanceof BigDecimal decimal) {
+            return new BigDecimal(unsignedLongMax).compareTo(decimal) == 0;
+        }
+        return false;
     }
 }

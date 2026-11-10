@@ -39,6 +39,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.types.Decimal128;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -63,6 +64,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -158,6 +160,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             Map<String, Object> sampleMap = requestSample.get().toMap();
+            sampleMap.put(Sample.FIELD_VALUES, bsonMetricValues(requestSample.get().getVs()));
             Document upd = new Document();
             upd.put("$each", Collections.singletonList(sampleMap));
             upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
@@ -189,6 +192,24 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         bulkOperations.execute();
+    }
+
+    private Map<String, Object> bsonMetricValues(Map<String, Number> values) {
+        if (values == null) {
+            return null;
+        }
+        Map<String, Object> converted = new HashMap<>();
+        values.forEach((name, value) -> {
+            if (value instanceof BigInteger integer) {
+                converted.put(name, integer.bitLength() < Long.SIZE
+                        ? integer.longValue() : new Decimal128(new BigDecimal(integer)));
+            } else if (value instanceof BigDecimal decimal) {
+                converted.put(name, new Decimal128(decimal));
+            } else {
+                converted.put(name, value);
+            }
+        });
+        return converted;
     }
 
     private void reuseShareCdcDelayIfNeed(Map<String, String> tags, Sample sample) {
@@ -1118,7 +1139,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     Sample nextGranularitySample = new Sample();
                     nextGranularitySample.setDate(new Date(time));
                     nextGranularitySample.setVs(entity.averageValues());
-                    samples.add(nextGranularitySample.toMap());
+                    Map<String, Object> aggregateSample = nextGranularitySample.toMap();
+                    aggregateSample.put(Sample.FIELD_VALUES, bsonMetricValues(nextGranularitySample.getVs()));
+                    samples.add(aggregateSample);
                     TDigestEntity nextGranularityDigest = new TDigestEntity();
                     nextGranularityDigest.setDate(new Date(time));
                     nextGranularityDigest.setDigest(entity.getDigestBytes());

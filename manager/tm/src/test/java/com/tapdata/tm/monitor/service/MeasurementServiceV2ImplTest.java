@@ -32,6 +32,8 @@ import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
+import org.bson.Document;
+import org.bson.types.Decimal128;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
@@ -46,6 +48,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -60,6 +63,19 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class MeasurementServiceV2ImplTest {
+    @Test
+    void convertsBigIntegerMetricsWithoutUnsignedWraparound() {
+        BigInteger legacyValue = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+        Map<String, Number> values = Map.of(
+                "snapshotRowTotal", legacyValue,
+                "inputTotal", BigInteger.valueOf(42));
+
+        Map<String, Object> converted = ReflectionTestUtils.invokeMethod(measurementServiceV2, "bsonMetricValues", values);
+
+        assertEquals(new Decimal128(new BigDecimal(legacyValue)), converted.get("snapshotRowTotal"));
+        assertEquals(42L, converted.get("inputTotal"));
+        assertTrue(new Document("vs", converted).toJson().contains(legacyValue.toString()));
+    }
     MeasurementServiceV2Impl measurementServiceV2;
     MongoTemplate mongoOperations;
     @BeforeEach

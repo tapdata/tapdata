@@ -316,6 +316,9 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void handleTableCountAccept(String table, long count) {
+        if (count < 0) {
+            return;
+        }
         snapshotRowTotal.inc(count);
         currentSnapshotTableRowTotalMap.put(table, count);
     }
