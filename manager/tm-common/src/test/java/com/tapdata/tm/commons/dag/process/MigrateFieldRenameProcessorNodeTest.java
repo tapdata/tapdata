@@ -366,6 +366,7 @@ public class MigrateFieldRenameProcessorNodeTest {
             field.setOriginalFieldName("rid");
             migrateFieldRenameProcessorNode.handleReferenceForeignKeyConstraints(schema, applyConfig, referenceForeignKeyConstraintIOperator);
             assertTrue(constraints.isEmpty());
+            assertTrue(schema.getConstraints().isEmpty());
         }
     }
 
@@ -424,7 +425,7 @@ public class MigrateFieldRenameProcessorNodeTest {
         }
 
         @Test
-        @DisplayName("mergeSchema upper-cases fields when a foreign key has no reference column")
+        @DisplayName("mergeSchema upper-cases fields and drops a foreign key that has no reference column")
         void mergeSchemaWithNullReferenceKey() {
             MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
             node.setFieldsMapping(new LinkedList<>());
@@ -452,9 +453,7 @@ public class MigrateFieldRenameProcessorNodeTest {
             Schema merged = result.get(0);
             assertEquals(Stream.of("ID", "BATCH_ID").collect(Collectors.toList()),
                     merged.getFields().stream().map(Field::getFieldName).collect(Collectors.toList()));
-            TapConstraintMapping mapping = merged.getConstraints().get(0).getMappingFields().get(0);
-            assertEquals("BATCH_ID", mapping.getForeignKey());
-            assertNull(mapping.getReferenceKey());
+            assertTrue(merged.getConstraints().isEmpty());
         }
 
         @Test
@@ -499,6 +498,115 @@ public class MigrateFieldRenameProcessorNodeTest {
             assertDoesNotThrow(() -> node.createForeignKeyConstraintIOperator().deleteField(constraints, "missing"));
             assertEquals(1, constraints.size());
             assertSame(withoutForeignKey, constraints.get(0));
+        }
+
+        @Test
+        @DisplayName("foreign key operators skip constraints without mapping fields")
+        void operatorsSkipNullMappingFields() {
+            MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
+            TapConstraint withoutMappings = new TapConstraint("fk_empty", TapConstraint.ConstraintType.FOREIGN_KEY);
+            List<TapConstraint> constraints = new ArrayList<>();
+            constraints.add(withoutMappings);
+
+            assertDoesNotThrow(() -> {
+                node.createForeignKeyConstraintIOperator().renameField(constraints, "fid", "FID");
+                node.createForeignKeyConstraintIOperator().deleteField(constraints, "fid");
+                node.createReferenceForeignKeyConstraintIOperator().renameField(constraints, "rid", "RID");
+                node.createReferenceForeignKeyConstraintIOperator().deleteField(constraints, "rid");
+            });
+            assertEquals(1, constraints.size());
+        }
+    }
+
+    @Nested
+    @DisplayName("mergeSchema reference foreign key handling")
+    class MergeSchemaReferenceKeyTest {
+
+        private Field field(String name) {
+            Field field = new Field();
+            field.setFieldName(name);
+            field.setOriginalFieldName(name);
+            field.setPreviousFieldName(name);
+            return field;
+        }
+
+        private TapConstraint foreignKey(String name, String referencesTable, String foreignKey, String referenceKey) {
+            TapConstraint constraint = new TapConstraint(name, TapConstraint.ConstraintType.FOREIGN_KEY);
+            constraint.setReferencesTableName(referencesTable);
+            List<TapConstraintMapping> mappings = new ArrayList<>();
+            mappings.add(new TapConstraintMapping().foreignKey(foreignKey).referenceKey(referenceKey));
+            constraint.setMappingFields(mappings);
+            return constraint;
+        }
+
+        private Schema childSchema(TapConstraint... constraints) {
+            Schema schema = new Schema();
+            schema.setName("child");
+            schema.setOriginalName("child");
+            List<Field> fields = new ArrayList<>();
+            fields.add(field("id"));
+            fields.add(field("batch_id"));
+            fields.add(field("owner_id"));
+            schema.setFields(fields);
+            List<TapConstraint> list = new ArrayList<>();
+            for (TapConstraint constraint : constraints) list.add(constraint);
+            schema.setConstraints(list);
+            return schema;
+        }
+
+        private List<List<Schema>> input(Schema schema) {
+            List<Schema> input = new ArrayList<>();
+            input.add(schema);
+            List<List<Schema>> inputSchemas = new ArrayList<>();
+            inputSchemas.add(input);
+            return inputSchemas;
+        }
+
+        @Test
+        @DisplayName("prefix is applied to each reference key once, regardless of field count")
+        void prefixAppliedOnce() {
+            MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
+            node.setFieldsMapping(new LinkedList<>());
+            Operation operation = new Operation();
+            operation.setPrefix("sys_");
+            node.setFieldsOperation(operation);
+            Schema schema = childSchema(
+                    foreignKey("fk_batch", "batch", "batch_id", "id"),
+                    foreignKey("fk_owner", "owner", "owner_id", "id"));
+
+            Schema merged = node.mergeSchema(input(schema), null, null).get(0);
+
+            assertEquals(2, merged.getConstraints().size());
+            for (TapConstraint constraint : merged.getConstraints()) {
+                assertEquals("sys_id", constraint.getMappingFields().get(0).getReferenceKey());
+                assertTrue(constraint.getMappingFields().get(0).getForeignKey().startsWith("sys_"));
+                assertFalse(constraint.getMappingFields().get(0).getForeignKey().startsWith("sys_sys_"));
+            }
+        }
+
+        @Test
+        @DisplayName("deleting a referenced field removes the foreign key from the schema")
+        void referenceDeleteKeptInSchema() {
+            MigrateFieldRenameProcessorNode node = new MigrateFieldRenameProcessorNode();
+            LinkedList<TableFieldInfo> mapping = new LinkedList<>();
+            TableFieldInfo batch = new TableFieldInfo();
+            batch.setPreviousTableName("batch");
+            LinkedList<FieldInfo> batchFields = new LinkedList<>();
+            FieldInfo hidden = new FieldInfo();
+            hidden.setSourceFieldName("id");
+            hidden.setIsShow(false);
+            batchFields.add(hidden);
+            batch.setFields(batchFields);
+            mapping.add(batch);
+            node.setFieldsMapping(mapping);
+            TapConstraint fkOwner = foreignKey("fk_owner", "owner", "owner_id", "id");
+            Schema schema = childSchema(foreignKey("fk_batch", "batch", "batch_id", "id"), fkOwner);
+
+            Schema merged = node.mergeSchema(input(schema), null, null).get(0);
+
+            assertEquals(1, merged.getConstraints().size());
+            assertSame(fkOwner, merged.getConstraints().get(0));
+            assertEquals("id", fkOwner.getMappingFields().get(0).getReferenceKey());
         }
     }
 }
