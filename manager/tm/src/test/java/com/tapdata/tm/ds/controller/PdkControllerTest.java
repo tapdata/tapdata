@@ -141,16 +141,16 @@ public class PdkControllerTest {
         @Test
         void registrationImpactValidatesReleaseFirst() {
             Map<String, Object> impact = Map.of("hasInFlightResources", false);
-            when(catalogService.findRelease("mysql-connector")).thenReturn(Map.of("pdkId", "mysql"));
-            when(registrationService.registrationImpact("mysql", user)).thenReturn(impact);
+            when(registrationService.registrationImpact("mysql-connector", "mysql", user)).thenReturn(impact);
 
             assertEquals(impact, pdkController.registrationImpact("mysql", "mysql-connector").getData());
-            verify(catalogService).findRelease("mysql-connector");
+            verify(registrationService).registrationImpact("mysql-connector", "mysql", user);
         }
 
         @Test
         void registrationImpactRejectsMismatchedPdkId() {
-            when(catalogService.findRelease("mysql-connector")).thenReturn(Map.of("pdkId", "mysql"));
+            when(registrationService.registrationImpact("mysql-connector", "postgres", user))
+                    .thenThrow(new BizException("Connector release does not match the requested PDK id"));
 
             assertThrows(BizException.class, () -> pdkController.registrationImpact("postgres", "mysql-connector"));
 
@@ -167,6 +167,23 @@ public class PdkControllerTest {
                     "stopTasks", true, "ignoreInFlightResources", false)).getData());
 
             verify(registrationService).startRegistration("mysql-connector", "mysql", true, false, user);
+        }
+
+        @Test
+        void registerReleaseRejectsMissingNullBlankAndNonStringFields() {
+            for (String field : List.of("artifactId", "pdkId")) {
+                for (Object invalid : java.util.Arrays.asList(null, "", "  ", 123, true, List.of("mysql"))) {
+                    Map<String, Object> request = new java.util.HashMap<>(Map.of("artifactId", "mysql-connector", "pdkId", "mysql"));
+                    request.put(field, invalid);
+                    BizException error = assertThrows(BizException.class, () -> pdkController.registerRelease(request));
+                    assertEquals("IllegalArgument", error.getErrorCode());
+                    org.junit.jupiter.api.Assertions.assertTrue(error.getMessage().contains(field + " must be a non-empty string"));
+                }
+                Map<String, Object> request = new java.util.HashMap<>(Map.of("artifactId", "mysql-connector", "pdkId", "mysql"));
+                request.remove(field);
+                assertThrows(BizException.class, () -> pdkController.registerRelease(request));
+            }
+            verify(registrationService, never()).startRegistration(anyString(), anyString(), anyBoolean(), anyBoolean(), any());
         }
 
         @Test

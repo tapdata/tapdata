@@ -4,6 +4,14 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.time.Duration;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.OutputStream;
@@ -29,6 +37,8 @@ class PdkReleaseCatalogServiceTest {
     private static final String METADATA = "/io/tapdata/connectors-bom/maven-metadata.xml";
     private static final String BOM = "/io/tapdata/connectors-bom/1.2.0/connectors-bom-1.2.0.pom";
 
+    @TempDir
+    Path directory;
     private HttpServer server;
     private final Map<String, byte[]> responses = new HashMap<>();
     private PdkReleaseCatalogService service;
@@ -49,6 +59,7 @@ class PdkReleaseCatalogServiceTest {
         });
         server.start();
         service = new PdkReleaseCatalogService();
+        ReflectionTestUtils.setField(service, "trustedSha256", "unapproved-test-digest");
         ReflectionTestUtils.setField(service, "repositoryUrl",
                 "http://127.0.0.1:" + server.getAddress().getPort());
     }
@@ -240,8 +251,35 @@ class PdkReleaseCatalogServiceTest {
         String path = "/io/tapdata/mysql-connector/1.0.3/mysql-connector-1.0.3.jar";
         responses.put(path, jar);
         respond(path + ".sha256", sha.toUpperCase() + "  mysql-connector-1.0.3.jar\n");
+        ReflectionTestUtils.setField(service, "trustedSha256", "0".repeat(64) + ",\n" + sha.toUpperCase());
 
-        assertArrayEquals(jar, service.downloadJar(Map.of("artifactId", "mysql-connector", "version", "1.0.3")));
+        Path target = directory.resolve("connector.jar");
+        java.util.List<Integer> progress = new java.util.ArrayList<>();
+        service.downloadJar(Map.of("artifactId", "mysql-connector", "version", "1.0.3"), target, progress::add);
+        assertArrayEquals(jar, Files.readAllBytes(target));
+        assertEquals(100, progress.get(progress.size() - 1));
+    }
+
+    @Test
+    void downloadJarFailsClosedWithoutDeploymentApproval() {
+        ReflectionTestUtils.setField(service, "trustedSha256", "");
+        Path target = directory.resolve("unapproved.jar");
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> service.downloadJar(RELEASE, target, ignored -> {}));
+        assertTrue(failure.getMessage().contains("configure pdk.release.trusted-sha256"));
+        assertFalse(Files.exists(target));
+    }
+
+    @Test
+    void matchingNexusChecksumCannotApproveAnUntrustedArtifact() throws Exception {
+        byte[] jar = "unapproved-code".getBytes(StandardCharsets.UTF_8);
+        responses.put(ARTIFACT, jar);
+        respond(ARTIFACT + ".sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(jar)));
+        Path target = directory.resolve("unapproved.jar");
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> service.downloadJar(RELEASE, target, ignored -> {}));
+        assertTrue(failure.getMessage().contains("absent from pdk.release.trusted-sha256"));
+        assertFalse(Files.exists(target));
     }
 
     @Test
@@ -251,6 +289,107 @@ class PdkReleaseCatalogServiceTest {
         respond(path + ".sha256", "0000");
         Map<String, Object> release = Map.of("artifactId", "mysql-connector", "version", "1.0.3");
 
-        assertThrows(IllegalStateException.class, () -> service.downloadJar(release));
+        Path target = directory.resolve("connector.jar");
+        assertThrows(IllegalStateException.class, () -> service.downloadJar(release, target, ignored -> {}));
+        assertFalse(Files.exists(target));
     }
+    private static final String ARTIFACT = "/io/tapdata/mysql-connector/1.0.3/mysql-connector-1.0.3.jar";
+    private static final Map<String, Object> RELEASE = Map.of("artifactId", "mysql-connector", "version", "1.0.3");
+
+    @Test
+    void stalledArtifactBodyTimesOutAndDeletesPartialFile() throws Exception {
+        assertStalledBodyTimesOut(ARTIFACT, true);
+    }
+
+    @Test
+    void stalledMetadataBodyTimesOut() throws Exception {
+        assertStalledBodyTimesOut(METADATA, false);
+    }
+
+    private void assertStalledBodyTimesOut(String path, boolean artifact) throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        server.createContext(path, exchange -> {
+            try {
+                exchange.sendResponseHeaders(200, 100);
+                exchange.getResponseBody().write(1);
+                exchange.getResponseBody().flush();
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        ReflectionTestUtils.setField(service, "readTimeoutMillis", 100);
+        Path target = directory.resolve("partial.jar");
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                if (artifact) {
+                    assertThrows(IllegalStateException.class, () -> service.downloadJar(RELEASE, target, ignored -> {}));
+                    assertFalse(Files.exists(target));
+                } else {
+                    assertThrows(IllegalStateException.class, service::findLatestReleases);
+                }
+            });
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void oversizedContentLengthIsRejectedBeforeReadingArtifactBody() {
+        server.createContext(ARTIFACT, exchange -> {
+            exchange.sendResponseHeaders(200, (1L << 30) + 1);
+            exchange.close();
+        });
+        Path target = directory.resolve("oversized.jar");
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> service.downloadJar(RELEASE, target, ignored -> {}));
+        assertTrue(failure.getCause().getMessage().contains("1 GiB"));
+        assertFalse(Files.exists(target));
+    }
+
+    @Test
+    void chunkedResponseEnforcesStreamingLimitAndAcceptsExactLimit() throws Exception {
+        byte[] body = new byte[33];
+        server.createContext("/chunked", exchange -> {
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream output = exchange.getResponseBody()) { output.write(body); }
+            exchange.close();
+        });
+        String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/chunked";
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        assertThrows(java.lang.reflect.UndeclaredThrowableException.class, () -> ReflectionTestUtils.invokeMethod(service, "fetchTo",
+                url, output, (java.util.function.IntConsumer) ignored -> {}, 32L, Duration.ofSeconds(1)));
+        output.reset();
+        ReflectionTestUtils.invokeMethod(service, "fetchTo",
+                url, output, (java.util.function.IntConsumer) ignored -> {}, 33L, Duration.ofSeconds(1));
+        assertEquals(33, output.size());
+    }
+
+    @Test
+    void slowTrickleCannotBypassOverallDeadline() {
+        server.createContext(ARTIFACT, exchange -> {
+            exchange.sendResponseHeaders(200, 1000);
+            try (OutputStream output = exchange.getResponseBody()) {
+                for (int i = 0; i < 1000; i++) {
+                    output.write(1);
+                    output.flush();
+                    Thread.sleep(20);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException expectedDisconnect) {
+                // Client aborts at the overall deadline even though the socket remains active.
+            } finally {
+                exchange.close();
+            }
+        });
+        ReflectionTestUtils.setField(service, "downloadTimeout", Duration.ofMillis(150));
+        Path target = directory.resolve("trickle.jar");
+        assertTimeoutPreemptively(Duration.ofSeconds(3), () ->
+                assertThrows(IllegalStateException.class, () -> service.downloadJar(RELEASE, target, ignored -> {})));
+        assertFalse(Files.exists(target));
+    }
+
 }

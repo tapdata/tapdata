@@ -45,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.util.*;
@@ -875,7 +876,7 @@ public class PkdSourceServiceTest {
 		}
 
 		@Test
-		void failedDefinitionUpdateDeletesAllNewResourcesAndKeepsOldResources() throws IOException {
+		void uncertainDefinitionUpdateRetainsBothResourceGenerations() throws IOException {
 			PdkSourceDto source = prepareExistingRelease();
 			when(source.getIcon()).thenReturn("icon.png");
 			MultipartFile icon = new org.springframework.mock.web.MockMultipartFile("icon", "icon.png", null, new byte[]{1});
@@ -890,14 +891,20 @@ public class PkdSourceServiceTest {
 			ObjectId docId = new ObjectId();
 			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(jarId, iconId, docId);
 			RuntimeException failure = new IllegalStateException("definition update failed");
-			doThrow(failure).when(dataSourceDefinitionService).upsert(any(), any(), any());
+			AtomicReference<DataSourceDefinitionDto> committed = new AtomicReference<>();
+			doAnswer(invocation -> {
+				committed.set(invocation.getArgument(1)); // Mongo committed, but acknowledgement was lost.
+				throw failure;
+			}).when(dataSourceDefinitionService).upsert(any(), any(), any());
 
 			assertSame(failure, assertThrows(RuntimeException.class, () -> pkdSourceService.uploadReleasedPdk(
 					new MultipartFile[]{mockJarFile(), icon, doc}, Collections.singletonList(source), mock(UserDetail.class), true)));
 
-			verify(fileService).deleteFileById(jarId);
-			verify(fileService).deleteFileById(iconId);
-			verify(fileService).deleteFileById(docId);
+			assertEquals(jarId.toHexString(), committed.get().getJarRid());
+			assertEquals(iconId.toHexString(), committed.get().getIcon());
+			verify(fileService, never()).deleteFileById(jarId);
+			verify(fileService, never()).deleteFileById(iconId);
+			verify(fileService, never()).deleteFileById(docId);
 			verify(fileService, never()).scheduledDeleteFiles(anyList(), anyString(), anyString(), any(), any());
 		}
 
@@ -916,7 +923,7 @@ public class PkdSourceServiceTest {
 
 			assertTrue(existing.isLatest());
 			verify(dataSourceDefinitionService, never()).update(any(Query.class), any(Update.class));
-			verify(fileService).deleteFileById(jarId);
+			verify(fileService, never()).deleteFileById(jarId);
 			verify(fileService, never()).scheduledDeleteFiles(anyList(), anyString(), anyString(), any(), any());
 		}
 
@@ -933,7 +940,7 @@ public class PkdSourceServiceTest {
 					new MultipartFile[]{mockJarFile()}, Collections.singletonList(source), mock(UserDetail.class), true)));
 
 			verify(dataSourceDefinitionService, never()).update(any(Query.class), any(Update.class));
-			verify(fileService).deleteFileById(jarId);
+			verify(fileService, never()).deleteFileById(jarId);
 		}
 
 		@Test

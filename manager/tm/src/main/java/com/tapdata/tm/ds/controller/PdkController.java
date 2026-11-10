@@ -57,22 +57,26 @@ public class PdkController extends BaseController {
             @RequestParam("pdkId") String pdkId,
             @RequestParam("artifactId") String artifactId) {
         requireEnterprise(getLoginUser());
-        java.util.Map<String, Object> release = pdkReleaseCatalogService.findRelease(artifactId);
-        if (!Objects.equals(pdkId, release.get("pdkId"))) {
-            throw new BizException("Connector release does not match the requested PDK id");
-        }
-        return success(pdkReleaseRegistrationService.registrationImpact(pdkId, getLoginUser()));
+        return success(pdkReleaseRegistrationService.registrationImpact(artifactId, pdkId, getLoginUser()));
     }
 
     @PostMapping("register-release")
     public ResponseMessage<java.util.Map<String, Object>> registerRelease(@RequestBody java.util.Map<String, Object> request) {
         requireEnterprise(getLoginUser());
-        String artifactId = String.valueOf(request.get("artifactId"));
-        String pdkId = String.valueOf(request.get("pdkId"));
+        String artifactId = requiredString(request, "artifactId");
+        String pdkId = requiredString(request, "pdkId");
         boolean stopTasks = Boolean.TRUE.equals(request.get("stopTasks"));
         boolean ignoreInFlightResources = Boolean.TRUE.equals(request.get("ignoreInFlightResources"));
         return success(pdkReleaseRegistrationService.startRegistration(
                 artifactId, pdkId, stopTasks, ignoreInFlightResources, getLoginUser()));
+    }
+
+    private String requiredString(java.util.Map<String, Object> request, String field) {
+        Object value = request.get(field);
+        if (!(value instanceof String text) || text.isBlank()) {
+            throw new BizException("IllegalArgument", field + " must be a non-empty string");
+        }
+        return text;
     }
 
     @GetMapping("registration-jobs/{jobId}")

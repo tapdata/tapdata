@@ -10,8 +10,11 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.registration.RegistrationArchive;
 import io.tapdata.pdk.registration.RegistrationMetadata;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,6 +43,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class PdkReleaseRegistrationService {
     private PdkReleaseCatalogService releaseCatalogService;
@@ -46,6 +52,7 @@ public class PdkReleaseRegistrationService {
     private MongoTemplate mongoTemplate;
     private static final String REGISTRATION_JOB_COLLECTION = "pdkRegistrationJobs";
     private final ExecutorService registrationExecutor;
+    private final ConcurrentMap<String, RegistrationJob> activeJobs = new ConcurrentHashMap<>();
     private final ScheduledExecutorService registrationHeartbeatExecutor =
             Executors.newSingleThreadScheduledExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "pdk-release-registration-heartbeat");
@@ -68,10 +75,7 @@ public class PdkReleaseRegistrationService {
     public Map<String, Object> startRegistration(String artifactId, String expectedPdkId, boolean stopTasks,
                                                 boolean ignoreInFlightResources, UserDetail user) {
         requireEnterprise(user);
-        Map<String, Object> release = releaseCatalogService.findRelease(artifactId);
-        if (!expectedPdkId.equals(release.get("pdkId"))) {
-            throw new BizException("Connector release does not match the requested PDK id");
-        }
+        Map<String, Object> release = resolveRelease(artifactId, expectedPdkId);
         if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
             throw new BizException("Connector resources changed. Review affected tasks before registering.");
         }
@@ -79,13 +83,13 @@ public class PdkReleaseRegistrationService {
         String jobId = UUID.randomUUID().toString();
         RegistrationJob job = new RegistrationJob(jobId, expectedPdkId, user.getUserId());
         persistJob(job);
+        activeJobs.put(jobId, job);
         ScheduledFuture<?> heartbeat = registrationHeartbeatExecutor.scheduleAtFixedRate(
                 () -> heartbeatJob(job), 30, 30, TimeUnit.SECONDS);
         try {
             registrationExecutor.execute(() -> {
                 try {
-                    downloadAndRegister(artifactId, expectedPdkId, stopTasks, ignoreInFlightResources, user,
-                            job);
+                    downloadAndRegister(release, expectedPdkId, stopTasks, ignoreInFlightResources, user, job);
                     updateJob(job, "completed", 100, null);
                 } catch (Exception e) {
                     String message = e.getMessage() == null ? "Connector registration failed" : e.getMessage();
@@ -94,10 +98,12 @@ public class PdkReleaseRegistrationService {
                     updateJob(job, "failed", job.progress, message, errorCode);
                 } finally {
                     heartbeat.cancel(false);
+                    activeJobs.remove(jobId, job);
                 }
             });
         } catch (RuntimeException e) {
             heartbeat.cancel(false);
+            activeJobs.remove(jobId, job);
             updateJob(job, "failed", job.progress, "Connector registration could not be queued");
             throw e;
         }
@@ -110,9 +116,22 @@ public class PdkReleaseRegistrationService {
         if (stored == null || !user.getUserId().equals(stored.getString("ownerId"))) {
             throw new BizException("Connector registration job was not found");
         }
+        RegistrationJob active = activeJobs.get(jobId);
+        if (active != null) return active.toMap();
         RegistrationJob job = new RegistrationJob(stored);
         if (!job.isTerminal() && job.updatedAt < System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(3)) {
-            updateJob(job, "failed", job.progress, "Connector registration was interrupted");
+            // A heartbeat or completion from another manager must win over a stale polling snapshot.
+            Query stale = Query.query(Criteria.where("_id").is(jobId)
+                    .and("updatedAt").is(job.updatedAt).and("status").is(job.status));
+            org.bson.Document updated = mongoTemplate.findAndModify(stale,
+                    new Update().set("status", "failed").set("error", "Connector registration was interrupted")
+                            .set("updatedAt", System.currentTimeMillis()),
+                    FindAndModifyOptions.options().returnNew(true), org.bson.Document.class, REGISTRATION_JOB_COLLECTION);
+            if (updated == null) {
+                updated = mongoTemplate.findById(jobId, org.bson.Document.class, REGISTRATION_JOB_COLLECTION);
+                if (updated == null) throw new BizException("Connector registration job was not found");
+            }
+            job = new RegistrationJob(updated);
         }
         return job.toMap();
     }
@@ -128,43 +147,72 @@ public class PdkReleaseRegistrationService {
         return pkdSourceService.registrationImpact(pdkId, "io.tapdata", user);
     }
 
-    public void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
-                                    boolean ignoreInFlightResources, UserDetail user) {
-        downloadAndRegister(artifactId, expectedPdkId, stopTasks, ignoreInFlightResources, user, null);
+    public Map<String, Object> registrationImpact(String artifactId, String pdkId, UserDetail user) {
+        requireEnterprise(user);
+        resolveRelease(artifactId, pdkId);
+        return registrationImpact(pdkId, user);
     }
 
-    private void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
-                                     boolean ignoreInFlightResources, UserDetail user, RegistrationJob job) {
-        requireEnterprise(user);
-        updateJobIfTracked(job, "preparing", 5, null);
+    private Map<String, Object> resolveRelease(String artifactId, String expectedPdkId) {
+        if (artifactId == null || artifactId.isBlank() || expectedPdkId == null || expectedPdkId.isBlank()) {
+            throw new BizException("IllegalArgument", "artifactId and pdkId must be non-empty strings");
+        }
         Map<String, Object> release = releaseCatalogService.findRelease(artifactId);
         if (!expectedPdkId.equals(release.get("pdkId"))) {
             throw new BizException("Connector release does not match the requested PDK id");
         }
-        updateJobIfTracked(job, "downloading", 10, null);
-        byte[] jarBytes = releaseCatalogService.downloadJar(release,
-                percent -> updateProgressIfTracked(job, 10 + percent * 6 / 10));
+        return release;
+    }
 
-        String version = String.valueOf(release.get("version"));
-        String fileName = artifactId + "-" + version + ".jar";
-        updateJobIfTracked(job, "preparing", 72, null);
-        List<MultipartFile> files = new ArrayList<>();
-        List<PdkSourceDto> sources = readSources(jarBytes, fileName, expectedPdkId, files);
-        if (sources.isEmpty()) {
-            throw new BizException("Released connector artifact does not contain its PDK specification");
-        }
+    public void downloadAndRegister(String artifactId, String expectedPdkId, boolean stopTasks,
+                                    boolean ignoreInFlightResources, UserDetail user) {
+        requireEnterprise(user);
+        downloadAndRegister(resolveRelease(artifactId, expectedPdkId), expectedPdkId, stopTasks,
+                ignoreInFlightResources, user, null);
+    }
 
-        // Inspect current resources after download, immediately before registration.
-        if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
-            if (job == null) {
-                throw new BizException("Connector resources changed. Review affected tasks before registering.");
+    private void downloadAndRegister(Map<String, Object> release, String expectedPdkId, boolean stopTasks,
+                                     boolean ignoreInFlightResources, UserDetail user, RegistrationJob job) {
+        updateJobIfTracked(job, "preparing", 5, null);
+        Path localJar = null;
+        try {
+            localJar = createPrivateTempJar();
+            updateJobIfTracked(job, "downloading", 10, null);
+            releaseCatalogService.downloadJar(release, localJar,
+                    percent -> updateProgressIfTracked(job, 10 + percent * 6 / 10));
+            String fileName = release.get("artifactId") + "-" + release.get("version") + ".jar";
+            updateJobIfTracked(job, "preparing", 72, null);
+            // The PDK classloader owns its local jar and may delete it when closed.
+            // Keep the archive open until the file-backed upload has finished.
+            try (RegistrationArchive archive = new RegistrationArchive()) {
+                List<MultipartFile> files = new ArrayList<>();
+                List<PdkSourceDto> sources = readSources(archive, localJar, fileName, expectedPdkId, files);
+                if (sources.isEmpty()) {
+                    throw new BizException("Released connector artifact does not contain its PDK specification");
+                }
+                // Inspect current resources after download, immediately before registration.
+                if (!stopTasks && !ignoreInFlightResources && hasInFlightResources(expectedPdkId, user)) {
+                    if (job == null) {
+                        throw new BizException("Connector resources changed. Review affected tasks before registering.");
+                    }
+                    throw new RegistrationImpactChangedException(
+                            "Connector resources changed. Review affected tasks before registering.");
+                }
+                updateJobIfTracked(job, "registering", 80, null);
+                pkdSourceService.uploadReleasedPdk(files.toArray(new MultipartFile[0]), sources, user, !stopTasks);
             }
-            throw new RegistrationImpactChangedException(
-                    "Connector resources changed. Review affected tasks before registering.");
+        } catch (IOException e) {
+            throw new BizException("Unable to prepare temporary connector artifact", e);
+        } finally {
+            if (localJar != null) {
+                try {
+                    Files.deleteIfExists(localJar);
+                } catch (IOException e) {
+                    log.warn("Unable to delete temporary connector artifact {}", localJar, e);
+                    localJar.toFile().deleteOnExit();
+                }
+            }
         }
-
-        updateJobIfTracked(job, "registering", 80, null);
-        pkdSourceService.uploadReleasedPdk(files.toArray(new MultipartFile[0]), sources, user, !stopTasks);
     }
 
     private void updateJobIfTracked(RegistrationJob job, String status, int progress, String error) {
@@ -198,11 +246,16 @@ public class PdkReleaseRegistrationService {
     }
 
     private void heartbeatJob(RegistrationJob job) {
-        synchronized (job.lock) {
-            if (!job.isTerminal()) {
-                job.touch();
-                persistJob(job);
+        try {
+            synchronized (job.lock) {
+                if (!job.isTerminal()) {
+                    job.touch();
+                    persistJob(job);
+                }
             }
+        } catch (RuntimeException e) {
+            // Scheduled executors suppress all subsequent runs when an invocation throws.
+            log.warn("Failed to persist connector registration heartbeat for job {}", job.id, e);
         }
     }
 
@@ -297,11 +350,9 @@ public class PdkReleaseRegistrationService {
         return Boolean.TRUE.equals(impact.get("hasInFlightResources"));
     }
 
-    private List<PdkSourceDto> readSources(byte[] jarBytes, String fileName, String expectedPdkId, List<MultipartFile> files) {
-        Path localJar = null;
-        try (RegistrationArchive archive = new RegistrationArchive()) {
-            localJar = createPrivateTempJar();
-            Files.write(localJar, jarBytes);
+    private List<PdkSourceDto> readSources(RegistrationArchive archive, Path localJar, String fileName,
+                                          String expectedPdkId, List<MultipartFile> files) {
+        try {
             List<PdkSourceDto> sources = new ArrayList<>();
             Map<String, MultipartFile> resources = new LinkedHashMap<>();
             for (TapNodeInfo nodeInfo : archive.load(localJar.toFile())) {
@@ -316,19 +367,11 @@ public class PdkReleaseRegistrationService {
                         path -> addResource(nodeInfo, path, "text/markdown", resources)), PdkSourceDto.class));
             }
             // The PDK loader may decrypt its local file, as it does before a CLI upload.
-            files.add(new ByteArrayMultipartFile("file", fileName, "application/java-archive", Files.readAllBytes(localJar)));
+            files.add(new PathMultipartFile(localJar, fileName));
             files.addAll(resources.values());
             return sources;
         } catch (Exception e) {
             throw new BizException("Unable to read PDK specification from released connector", e);
-        } finally {
-            if (localJar != null) {
-                try {
-                    Files.deleteIfExists(localJar);
-                } catch (IOException e) {
-                    localJar.toFile().deleteOnExit();
-                }
-            }
         }
     }
 
@@ -349,6 +392,30 @@ public class PdkReleaseRegistrationService {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Valid only for the duration of uploadReleasedPdk; the caller deletes the backing file. */
+    private static final class PathMultipartFile implements MultipartFile {
+        private final Path path;
+        private final String filename;
+
+        private PathMultipartFile(Path path, String filename) {
+            this.path = path;
+            this.filename = filename;
+        }
+
+        @Override public String getName() { return "file"; }
+        @Override public String getOriginalFilename() { return filename; }
+        @Override public String getContentType() { return "application/java-archive"; }
+        @Override public boolean isEmpty() { return getSize() == 0; }
+        @Override public long getSize() {
+            try { return Files.size(path); } catch (IOException e) { throw new UncheckedIOException(e); }
+        }
+        @Override public byte[] getBytes() throws IOException { return Files.readAllBytes(path); }
+        @Override public InputStream getInputStream() throws IOException { return Files.newInputStream(path); }
+        @Override public void transferTo(File dest) throws IOException {
+            Files.copy(path, dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

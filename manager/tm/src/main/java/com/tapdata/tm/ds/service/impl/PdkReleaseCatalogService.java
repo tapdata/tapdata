@@ -11,10 +11,18 @@ import org.w3c.dom.NodeList;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
@@ -42,15 +51,22 @@ public class PdkReleaseCatalogService {
     @Value("${pdk.release.repository-url:https://nexus.tapdata.net/repository/maven-releases/}")
     private String repositoryUrl;
 
+    // Independent deployment approval; never populated from Nexus or a registration request.
+    @Value("${pdk.release.trusted-sha256:}")
+    private String trustedSha256 = "";
+
     private final AtomicReference<CacheEntry> cacheEntry = new AtomicReference<>();
     private final ReentrantLock refreshLock = new ReentrantLock();
 
     private static final long CACHE_TTL_MILLIS = Duration.ofMinutes(5).toMillis();
 
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
+    private static final long MAX_METADATA_BYTES = 4L * 1024 * 1024;
+    private static final long MAX_CHECKSUM_BYTES = 4096;
+    private static final String DOWNLOAD_LIMIT_ERROR = "Connector artifact exceeds the 1 GiB download limit";
+    private final Duration metadataTimeout = Duration.ofSeconds(10);
+    private final Duration downloadTimeout = Duration.ofMinutes(15);
+    @Value("${pdk.release.read-timeout-millis:30000}")
+    private int readTimeoutMillis = 30_000;
 
     private static final class CacheEntry {
         final List<Map<String, Object>> releases;
@@ -175,73 +191,98 @@ public class PdkReleaseCatalogService {
         };
     }
 
-    public byte[] downloadJar(Map<String, Object> release) {
-        return downloadJar(release, ignored -> { });
-    }
-
-    public byte[] downloadJar(Map<String, Object> release, IntConsumer downloadProgress) {
+    /** Streams the artifact to an owner-only temporary file owned by the caller. */
+    public void downloadJar(Map<String, Object> release, Path target, IntConsumer downloadProgress) {
         try {
+            if (trustedSha256.isBlank()) {
+                throw new IllegalStateException("Connector execution is not approved: configure pdk.release.trusted-sha256 from an independently reviewed release");
+            }
             String repository = repositoryUrl.endsWith("/") ? repositoryUrl : repositoryUrl + "/";
             String artifactId = String.valueOf(release.get(ARTIFACT_ID_KEY));
             String version = String.valueOf(release.get(VERSION_KEY));
             String base = repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
-            byte[] jarBytes = fetchBytes(base, downloadProgress, MAX_ARTIFACT_BYTES);
-            String expectedSha256 = fetch(repository + "io/tapdata/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar.sha256").trim();
-            String actualSha256 = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(jarBytes));
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (OutputStream output = new DigestOutputStream(Files.newOutputStream(target), digest)) {
+                fetchTo(base, output, downloadProgress, MAX_ARTIFACT_BYTES, downloadTimeout);
+            }
+            String expectedSha256 = new String(fetchBytes(base + ".sha256", MAX_CHECKSUM_BYTES), StandardCharsets.UTF_8).trim();
+            String actualSha256 = HexFormat.of().formatHex(digest.digest());
             if (!actualSha256.equalsIgnoreCase(expectedSha256.split("\\s")[0])) {
                 throw new IllegalStateException("Connector artifact checksum does not match Nexus SHA-256");
             }
-            return jarBytes;
-        } catch (Exception e) {
-            log.error("Failed to download connector artifact from Nexus", e);
-            throw new IllegalStateException("Failed to download connector artifact from Nexus", e);
-        }
-    }
-
-    private String fetch(String url) throws Exception {
-        return new String(fetchBytes(url), StandardCharsets.UTF_8);
-    }
-
-    private byte[] fetchBytes(String url) throws Exception {
-        return fetchBytes(url, ignored -> { });
-    }
-
-    private byte[] fetchBytes(String url, IntConsumer downloadProgress) throws Exception {
-        return fetchBytes(url, downloadProgress, Long.MAX_VALUE);
-    }
-
-    private byte[] fetchBytes(String url, IntConsumer downloadProgress, long maxBytes) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofSeconds(10))
-                .header("Accept", "application/xml, text/xml, application/octet-stream, text/plain")
-                .GET()
-                .build();
-        HttpResponse<java.io.InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        if (response.statusCode() != 200) {
-            response.body().close();
-            throw new IllegalStateException("Nexus returned HTTP " + response.statusCode());
-        }
-        long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
-        if (contentLength > maxBytes) {
-            response.body().close();
-            throw new IllegalStateException("Connector artifact exceeds the 1 GiB download limit");
-        }
-        try (java.io.InputStream input = response.body(); java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            long total = 0;
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                if (total > maxBytes - read) {
-                    throw new IllegalStateException("Connector artifact exceeds the 1 GiB download limit");
-                }
-                output.write(buffer, 0, read);
-                total += read;
-                if (contentLength > 0) {
-                    downloadProgress.accept((int) Math.min(100, total * 100 / contentLength));
-                }
+            boolean approved = java.util.Arrays.stream(trustedSha256.split("[,\\s]+"))
+                    .anyMatch(actualSha256::equalsIgnoreCase);
+            if (!approved) {
+                throw new IllegalStateException("Connector execution is not approved: artifact SHA-256 is absent from pdk.release.trusted-sha256");
             }
-            if (contentLength <= 0) downloadProgress.accept(100);
+        } catch (Exception e) {
+            // The caller also owns cleanup after successful download and registration.
+            try {
+                Files.deleteIfExists(target);
+            } catch (IOException cleanupFailure) {
+                e.addSuppressed(cleanupFailure);
+            }
+            log.error("Failed to download connector artifact from Nexus", e);
+            throw new IllegalStateException("Failed to download connector artifact from Nexus: " + e.getMessage(), e);
+        }
+    }
+
+    private String fetch(String url) throws IOException {
+        return new String(fetchBytes(url, MAX_METADATA_BYTES), StandardCharsets.UTF_8);
+    }
+
+    private byte[] fetchBytes(String url, long maxBytes) throws IOException {
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            fetchTo(url, output, ignored -> { }, maxBytes, metadataTimeout);
             return output.toByteArray();
+        }
+    }
+
+    /** Socket idle timeout plus an overall deadline bound both headers and body reads. */
+    private void fetchTo(String url, OutputStream output, IntConsumer downloadProgress,
+                         long maxBytes, Duration timeout) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        long deadline = System.nanoTime() + timeout.toNanos();
+        connection.setInstanceFollowRedirects(false);
+        connection.setConnectTimeout((int) Math.min(5000, timeout.toMillis()));
+        connection.setReadTimeout((int) Math.min(Math.max(1, readTimeoutMillis), timeout.toMillis()));
+        connection.setRequestProperty("Accept", "application/xml, text/xml, application/octet-stream, text/plain");
+        try {
+            int status = connection.getResponseCode();
+            if (status != 200) {
+                throw new IOException("Nexus returned HTTP " + status);
+            }
+            long contentLength = connection.getContentLengthLong();
+            checkSize(contentLength, maxBytes);
+            try (InputStream input = connection.getInputStream()) {
+                byte[] buffer = new byte[8192];
+                long total = 0;
+                while (true) {
+                    long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+                    if (remaining <= 0) throw new SocketTimeoutException("Nexus response exceeded its download deadline");
+                    connection.setReadTimeout((int) Math.min(Math.max(1, readTimeoutMillis), remaining));
+                    int read = input.read(buffer);
+                    if (read == -1) break;
+                    total += read;
+                    checkSize(total, maxBytes);
+                    output.write(buffer, 0, read);
+                    if (contentLength > 0) {
+                        downloadProgress.accept((int) Math.min(100, total * 100 / contentLength));
+                    }
+                }
+                if (contentLength >= 0 && contentLength != total) {
+                    throw new IOException("Nexus response ended before the declared Content-Length");
+                }
+                downloadProgress.accept(100);
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private void checkSize(long size, long maxBytes) throws IOException {
+        if (size > maxBytes) {
+            throw new IOException(maxBytes == MAX_ARTIFACT_BYTES ? DOWNLOAD_LIMIT_ERROR : "Nexus metadata exceeds its size limit");
         }
     }
 

@@ -45,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -443,6 +444,7 @@ public class PkdSourceService {
 			List<ObjectId> uploadedFileIds = new ArrayList<>();
 			ObjectId jarObjectId = null;
 			ObjectId iconObjectId = null;
+			boolean definitionWriteAttempted = false;
 			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
 				log.info("jarFile name : {} ,originalFilename : {}",jarFile.getName(),jarFile.getOriginalFilename());
@@ -452,14 +454,18 @@ public class PkdSourceService {
 				fileInfo.put("md5", md5);
 
 				// 1. upload jar file, only update once
-				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
-				uploadedFileIds.add(jarObjectId);
+				try (InputStream input = jarFile.getInputStream()) {
+					jarObjectId = fileService.storeFile(input, jarFile.getOriginalFilename(), null, fileInfo);
+					uploadedFileIds.add(jarObjectId);
+				}
 
 				// 2. upload the associated icon
 				MultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
 				if (icon != null) {
-					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
-					uploadedFileIds.add(iconObjectId);
+					try (InputStream input = icon.getInputStream()) {
+						iconObjectId = fileService.storeFile(input, icon.getOriginalFilename(), null, fileInfo);
+						uploadedFileIds.add(iconObjectId);
+					}
 				}
 				// 3. upload readeMe doc
 				uploadDocs(docMap, pdkSourceDto.getMessages(), fileInfo, oemConfig, uploadedFileIds);
@@ -474,13 +480,17 @@ public class PkdSourceService {
 					definitionDto.setLatest(true);
 				}
 				definitionDto.setId(null);
+				// An acknowledgement timeout does not prove that Mongo rejected the write.
+				definitionWriteAttempted = true;
 				if (Objects.isNull(oldDefinitionDto)) {
 					dataSourceDefinitionService.save(definitionDto, user);
 				} else {
 					dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(oldDefinitionDto.getId())), definitionDto, user);
 				}
 			} catch (IOException | RuntimeException e) {
-				for (ObjectId fileId : uploadedFileIds) {
+				// Once a definition write starts, retain both resource generations on error.
+				// Deleting either can break a definition whose write actually committed.
+				for (ObjectId fileId : definitionWriteAttempted ? Collections.<ObjectId>emptyList() : uploadedFileIds) {
 					try {
 						fileService.deleteFileById(fileId);
 					} catch (RuntimeException cleanupFailure) {

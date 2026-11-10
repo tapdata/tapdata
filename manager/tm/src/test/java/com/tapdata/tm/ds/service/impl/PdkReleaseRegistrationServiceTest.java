@@ -6,6 +6,9 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import io.tapdata.pdk.core.constants.DataSourceQCType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -23,7 +26,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
+import org.springframework.data.mongodb.core.query.Query;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +37,7 @@ import java.util.zip.ZipEntry;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,7 +47,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -58,6 +68,7 @@ class PdkReleaseRegistrationServiceTest {
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
     private Map<String, Object> release;
+    private final List<Path> downloadedFiles = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -77,7 +88,17 @@ class PdkReleaseRegistrationServiceTest {
         release.put("version", "1.0.3");
         release.put("pdkAPIVersion", "2.0.0");
         when(catalogService.findRelease("mysql-connector")).thenReturn(release);
-        when(catalogService.downloadJar(eq(release), any())).thenReturn(INVALID_ARCHIVE);
+        useReleaseJar(INVALID_ARCHIVE);
+        // Snapshot while upload owns the file; its backing temporary file must be deleted afterwards.
+        doAnswer(invocation -> {
+            MultipartFile[] files = invocation.getArgument(0);
+            for (int i = 0; i < files.length; i++) {
+                MultipartFile file = files[i];
+                files[i] = new org.springframework.mock.web.MockMultipartFile(file.getName(),
+                        file.getOriginalFilename(), file.getContentType(), file.getInputStream());
+            }
+            return null;
+        }).when(pkdSourceService).uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
         impact(false);
     }
 
@@ -86,8 +107,19 @@ class PdkReleaseRegistrationServiceTest {
                 .thenReturn(Map.of("hasInFlightResources", hasInFlightResources));
     }
 
+    @AfterEach
+    void tearDown() {
+        service.shutdownRegistrationExecutor();
+        for (Path path : downloadedFiles) assertFalse(Files.exists(path), "Temporary jar was not deleted");
+    }
+
     private void useReleaseJar(byte[] jar) {
-        when(catalogService.downloadJar(eq(release), any())).thenReturn(jar);
+        doAnswer(invocation -> {
+            Path target = invocation.getArgument(1);
+            downloadedFiles.add(target);
+            Files.write(target, jar);
+            return null;
+        }).when(catalogService).downloadJar(eq(release), any(Path.class), any());
     }
 
     private static byte[] zip(Map<String, byte[]> entries) throws Exception {
@@ -256,7 +288,7 @@ class PdkReleaseRegistrationServiceTest {
     void downloadAndRegisterRejectsMismatchedPdkId() {
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "postgres", false, false, user));
-        verify(catalogService, never()).downloadJar(any(), any());
+        verify(catalogService, never()).downloadJar(any(), any(Path.class), any());
     }
 
     @Test
@@ -282,10 +314,13 @@ class PdkReleaseRegistrationServiceTest {
 
     @Test
     void checksResourcesOnceAfterDownload() throws Exception {
-        when(catalogService.downloadJar(eq(release), any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             impact(true);
-            return connectorJar();
-        });
+            Path target = invocation.getArgument(1);
+            downloadedFiles.add(target);
+            Files.write(target, connectorJar());
+            return null;
+        }).when(catalogService).downloadJar(eq(release), any(Path.class), any());
 
         assertThrows(BizException.class,
                 () -> service.downloadAndRegister("mysql-connector", "mysql", false, false, user));
@@ -370,6 +405,7 @@ class PdkReleaseRegistrationServiceTest {
         assertEquals(100, job.get("progress"));
         ArgumentCaptor<org.bson.Document> saved = ArgumentCaptor.forClass(org.bson.Document.class);
         verify(mongoTemplate, atLeastOnce()).save(saved.capture(), eq("pdkRegistrationJobs"));
+        verify(catalogService).findRelease("mysql-connector");
         assertTrue(saved.getAllValues().stream().anyMatch(document -> "queued".equals(document.getString("status"))));
         org.bson.Document finalJob = saved.getValue();
         assertEquals("completed", finalJob.getString("status"));
@@ -391,16 +427,19 @@ class PdkReleaseRegistrationServiceTest {
                 () -> service.startRegistration("mysql-connector", "mysql", false, false, user));
 
         verify(mongoTemplate, never()).save(any(), eq("pdkRegistrationJobs"));
-        verify(catalogService, never()).downloadJar(any(), any());
+        verify(catalogService, never()).downloadJar(any(), any(Path.class), any());
     }
 
     @Test
     void startRegistrationReturnsResourceImpactChangedErrorCode() throws Exception {
         impact(false);
-        when(catalogService.downloadJar(eq(release), any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             impact(true);
-            return connectorJar();
-        });
+            Path target = invocation.getArgument(1);
+            downloadedFiles.add(target);
+            Files.write(target, connectorJar());
+            return null;
+        }).when(catalogService).downloadJar(eq(release), any(Path.class), any());
 
         Map<String, Object> job = service.startRegistration("mysql-connector", "mysql", false, false, user);
 
@@ -427,13 +466,21 @@ class PdkReleaseRegistrationServiceTest {
         when(mongoTemplate.findById("interrupted", org.bson.Document.class, "pdkRegistrationJobs"))
                 .thenReturn(jobDocument("interrupted", "current-user", "registering", 1L));
 
+        when(mongoTemplate.findAndModify(any(Query.class), any(org.springframework.data.mongodb.core.query.Update.class),
+                any(org.springframework.data.mongodb.core.FindAndModifyOptions.class), eq(org.bson.Document.class),
+                eq("pdkRegistrationJobs"))).thenReturn(jobDocument("interrupted", "current-user", "failed", 2L)
+                .append("error", "Connector registration was interrupted"));
         Map<String, Object> job = service.getRegistrationJob("interrupted", user);
 
         assertEquals("failed", job.get("status"));
         assertEquals("Connector registration was interrupted", job.get("error"));
-        ArgumentCaptor<org.bson.Document> saved = ArgumentCaptor.forClass(org.bson.Document.class);
-        verify(mongoTemplate).save(saved.capture(), eq("pdkRegistrationJobs"));
-        assertEquals("failed", saved.getValue().getString("status"));
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).findAndModify(query.capture(), any(org.springframework.data.mongodb.core.query.Update.class),
+                any(org.springframework.data.mongodb.core.FindAndModifyOptions.class), eq(org.bson.Document.class),
+                eq("pdkRegistrationJobs"));
+        assertEquals(1L, query.getValue().getQueryObject().get("updatedAt"));
+        assertEquals("registering", query.getValue().getQueryObject().get("status"));
+        verify(mongoTemplate, never()).save(any(), eq("pdkRegistrationJobs"));
     }
 
     @Test
@@ -446,6 +493,57 @@ class PdkReleaseRegistrationServiceTest {
 
         assertEquals("downloading", job.get("status"));
         verify(mongoTemplate, never()).save(any(), eq("pdkRegistrationJobs"));
+    }
+
+    @Test
+    void heartbeatRetriesAfterPersistenceFailureAndKeepsLocalJobAlive() {
+        service.shutdownRegistrationExecutor();
+        var queued = mock(java.util.concurrent.ExecutorService.class);
+        service = new PdkReleaseRegistrationService(queued);
+        service.setReleaseCatalogService(catalogService);
+        service.setPkdSourceService(pkdSourceService);
+        service.setSettingsService(settingsService);
+        service.setMongoTemplate(mongoTemplate);
+        when(user.getUserId()).thenReturn("current-user");
+        Map<String, Object> started = service.startRegistration("mysql-connector", "mysql", false, false, user);
+        String id = (String) started.get("jobId");
+        Map<?, ?> active = (Map<?, ?>) ReflectionTestUtils.getField(service, "activeJobs");
+        Object job = active.get(id);
+        doThrow(new IllegalStateException("Mongo unavailable")).doReturn(null)
+                .when(mongoTemplate).save(any(org.bson.Document.class), eq("pdkRegistrationJobs"));
+        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(service, "heartbeatJob", job));
+        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(service, "heartbeatJob", job));
+        verify(mongoTemplate, times(3)).save(any(org.bson.Document.class), eq("pdkRegistrationJobs"));
+        when(mongoTemplate.findById(id, org.bson.Document.class, "pdkRegistrationJobs"))
+                .thenReturn(jobDocument(id, "current-user", "queued", 1L));
+        assertEquals("queued", service.getRegistrationJob(id, user).get("status"));
+        verify(mongoTemplate, never()).findAndModify(any(Query.class), any(), any(), any(Class.class), anyString());
+    }
+
+    @Test
+    void interruptionDetectionDoesNotOverwriteConcurrentCompletion() {
+        when(user.getUserId()).thenReturn("current-user");
+        when(mongoTemplate.findById("racing", org.bson.Document.class, "pdkRegistrationJobs"))
+                .thenReturn(jobDocument("racing", "current-user", "registering", 1L),
+                        jobDocument("racing", "current-user", "completed", System.currentTimeMillis()));
+        // CAS returns null because a completion changed status/updatedAt in the meantime.
+        assertEquals("completed", service.getRegistrationJob("racing", user).get("status"));
+        verify(mongoTemplate, never()).save(any(), eq("pdkRegistrationJobs"));
+    }
+
+    @Test
+    void registrationImpactUsesSharedReleaseValidation() {
+        assertThrows(BizException.class, () -> service.registrationImpact("mysql-connector", "postgres", user));
+        verifyNoInteractions(pkdSourceService);
+    }
+
+    @Test
+    void failedUploadStillDeletesTemporaryJar() throws Exception {
+        useReleaseJar(connectorJar());
+        doThrow(new IllegalStateException("upload failed")).when(pkdSourceService)
+                .uploadReleasedPdk(any(), anyList(), any(), anyBoolean());
+        assertThrows(IllegalStateException.class,
+                () -> service.downloadAndRegister("mysql-connector", "mysql", true, false, user));
     }
 
     private static org.bson.Document jobDocument(String id, String owner, String status, long updatedAt) {
