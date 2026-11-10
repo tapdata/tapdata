@@ -8,6 +8,7 @@ import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
 import lombok.Getter;
+import org.bson.types.Decimal128;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -86,27 +87,40 @@ public abstract class AbstractHandler {
 
     CounterSampler getCounterSampler(Map<String, Number> values, String name) {
         Number restored = values.getOrDefault(name, 0);
-        boolean legacyUnknownRowCount = MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL.equals(name)
-                && isLegacyUnknownRowCount(restored);
+        boolean snapshotRowTotalMetric = MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL.equals(name);
+        boolean legacyUnknownRowCount = snapshotRowTotalMetric && isLegacyUnknownRowCount(restored);
         CounterSampler sampler = collector.getCounterSampler(name,
                 legacyUnknownRowCount ? 0 : restored.longValue());
-        if (legacyUnknownRowCount && isLegacyUnknownRowCount(sampler.value())) {
+        if (snapshotRowTotalMetric && isLegacyUnknownRowCount(sampler.value())) {
             sampler.reset();
         }
         return sampler;
     }
 
     private boolean isLegacyUnknownRowCount(Number value) {
-        if (value instanceof Long && value.longValue() == -1L) {
+        BigInteger unsignedLongMax = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+        BigInteger integerValue;
+        if (value instanceof Decimal128 decimal128) {
+            try {
+                integerValue = decimal128.bigDecimalValue().toBigIntegerExact();
+            } catch (ArithmeticException nonInteger) {
+                return false;
+            }
+        } else if (value instanceof BigInteger integer) {
+            integerValue = integer;
+        } else if (value instanceof BigDecimal decimal) {
+            try {
+                integerValue = decimal.toBigIntegerExact();
+            } catch (ArithmeticException nonInteger) {
+                return false;
+            }
+        } else {
+            // JSON integer metrics may be deserialized as Integer, Long, or another narrow Number.
+            if (value == null || value.doubleValue() != -1D) {
+                return false;
+            }
             return true;
         }
-        BigInteger unsignedLongMax = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
-        if (value instanceof BigInteger integer) {
-            return unsignedLongMax.equals(integer);
-        }
-        if (value instanceof BigDecimal decimal) {
-            return new BigDecimal(unsignedLongMax).compareTo(decimal) == 0;
-        }
-        return false;
+        return BigInteger.valueOf(-1L).equals(integerValue) || unsignedLongMax.equals(integerValue);
     }
 }

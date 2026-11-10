@@ -199,22 +199,32 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         bulkOperations.execute();
     }
 
-    private Map<String, Object> bsonMetricValues(Map<String, Number> values) {
+    private Map<String, ?> bsonMetricValues(Map<String, Number> values) {
         if (values == null) {
             return null;
         }
-        Map<String, Object> converted = new HashMap<>();
-        values.forEach((name, value) -> {
-            if (value instanceof BigInteger integer) {
-                converted.put(name, integer.bitLength() < Long.SIZE
-                        ? integer.longValue() : new Decimal128(new BigDecimal(integer)));
-            } else if (value instanceof BigDecimal decimal) {
-                converted.put(name, new Decimal128(decimal));
-            } else {
-                converted.put(name, value);
+        Map<String, Object> converted = null;
+        for (Map.Entry<String, Number> entry : values.entrySet()) {
+            Object normalized = bsonMetricValue(entry.getValue());
+            if (!Objects.equals(normalized, entry.getValue())) {
+                if (converted == null) {
+                    converted = new HashMap<>(values);
+                }
+                converted.put(entry.getKey(), normalized);
             }
-        });
-        return converted;
+        }
+        return converted == null ? values : converted;
+    }
+
+    private Object bsonMetricValue(Number value) {
+        if (value instanceof BigInteger integer) {
+            return integer.bitLength() < Long.SIZE
+                    ? integer.longValue() : new Decimal128(new BigDecimal(integer));
+        }
+        if (value instanceof BigDecimal decimal) {
+            return new Decimal128(decimal);
+        }
+        return value;
     }
 
     private void reuseShareCdcDelayIfNeed(Map<String, String> tags, Sample sample) {
