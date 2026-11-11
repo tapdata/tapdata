@@ -25,6 +25,18 @@ class AuditRedactionIT {
 	}
 
 	@Test
+	@DisplayName("统一审计的自由文本复用审计脱敏规则，隐藏特殊字符凭证")
+	void should_mask_special_character_credentials_in_event_text() {
+		AuditEvent event = AuditEvent.of(AuditAction.DATASOURCE_UPDATE, AuditOutcome.FAILED);
+		event.setReason("mongodb://:secret-empty@host/db https://user:p@secret-tail@host "
+				+ "token=secret-prefix;secret-suffix /mcp?access%43ode=secret-encoded#fragment");
+		fixture.auditEventService.record(event, AuditItFixture.user("u1", "user@example.test", "username_login"));
+
+		assertThat(fixture.events.get(0).getReason())
+				.doesNotContain("secret-empty", "secret-tail", "secret-prefix", "secret-suffix", "secret-encoded");
+	}
+
+	@Test
 	@DisplayName("密码只记已替换；错误中的连接串、凭据参数、私钥与长令牌被移除；切面不保存请求体")
 	void should_never_store_secrets_or_request_bodies() throws Exception {
 		AuditWebContext.begin("", "10.8.0.1", null, AuditItFixture.user("u1", "dba@corp.com", "username_login"));

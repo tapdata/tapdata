@@ -221,14 +221,16 @@ public class TaskAlarmScheduler {
             param.put("agentName", agentName);
             param.put("agentId", agentId);
             param.put("alarmDate", alarmDate);
+            // 引擎恢复事件必须记为已恢复，否则会以“恢复/告警中”的矛盾状态进入列表和概览统计
             AlarmInfo info = AlarmInfo.builder()
-                    .status(AlarmStatusEnum.ING).level(Level.RECOVERY)
+                    .status(AlarmStatusEnum.RECOVER).level(Level.RECOVERY)
                     .component(AlarmComponentEnum.FE).type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
                     .agentId(agentId).name(agentName).summary("ENGINE_ONLINE")
                     .metric(AlarmKeyEnum.ENGINE_ONLINE).build();
             info.setParam(param);
             info.setFirstOccurrenceTime(currentDate);
             info.setLastOccurrenceTime(currentDate);
+            info.setRecoveryTime(currentDate);
             info.setLastNotifyTime(currentDate);
             mongoTemplate.insert(info);
             log.info("Engine online recovered agentId={}, agentName={}", agentId, agentName);

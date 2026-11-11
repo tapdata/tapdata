@@ -122,7 +122,8 @@ public class McpAccessCodeAuthentication {
         if (userId == null) {
             return;
         }
+        // MCP 查询参数携带访问凭证，审计仅记录方法和路径，不记录查询串
         userLogService.addUserLog(Modular.MCP, Operation.READ, userId.toString(), null,
-                "MCP " + request.method() + " " + request.uri());
+                "MCP " + request.method() + " " + request.uri().getRawPath());
     }
 }

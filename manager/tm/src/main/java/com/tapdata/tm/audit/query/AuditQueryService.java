@@ -14,6 +14,7 @@ import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.entity.UserLogs;
 import com.tapdata.tm.userLog.service.UserLogServiceImpl;
 import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.SensitiveDataMasker;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -463,8 +464,11 @@ public class AuditQueryService {
 			vo.setUserId(e.getUserId());
 			vo.setUsername(e.getUsername());
 			vo.setObjectId(e.getSourceId() == null ? null : e.getSourceId().toHexString());
-			vo.setObjectName(e.getParameter1());
+			vo.setObjectName(maskLegacyParameter1(e));
 			UserLogDto dto = BeanUtil.copyProperties(e, UserLogDto.class);
+			dto.setParameter1(maskLegacyParameter1(e));
+			dto.setParameter2(SensitiveDataMasker.mask(e.getParameter2()));
+			dto.setParameter3(SensitiveDataMasker.mask(e.getParameter3()));
 			vo.setLegacyMessage(userLogService.renderLegacyMessage(dto, locale));
 			vo.setLegacyFields(legacyFields(e));
 			return vo;
@@ -477,17 +481,22 @@ public class AuditQueryService {
 		return vo;
 	}
 
-	/** 历史记录字段，供页面按原渲染组件还原描述（含占位符替换）。 */
+	/** 历史记录字段，供页面按原渲染组件还原描述（含占位符替换）；凭证字段读取时统一脱敏。 */
 	static Map<String, String> legacyFields(UserLogs e) {
 		Map<String, String> fields = new LinkedHashMap<>();
+		String parameter1 = maskLegacyParameter1(e);
 		fields.put("modular", e.getModular());
 		fields.put("operation", e.getOperation());
-		fields.put("parameter1", e.getParameter1());
-		fields.put("parameter2", e.getParameter2());
-		fields.put("parameter3", e.getParameter3());
-		fields.put("sourceName", e.getParameter1());
+		fields.put("parameter1", parameter1);
+		fields.put("parameter2", SensitiveDataMasker.mask(e.getParameter2()));
+		fields.put("parameter3", SensitiveDataMasker.mask(e.getParameter3()));
+		fields.put("sourceName", parameter1);
 		fields.put("sourceId", e.getSourceId() == null ? null : e.getSourceId().toHexString());
 		return fields;
+	}
+
+	private static String maskLegacyParameter1(UserLogs e) {
+		return SensitiveDataMasker.maskAuditField(e.getModular(), "parameter1", e.getParameter1());
 	}
 
 	/** 修复前记录的变更没有 label，读取时按「分类.键」回查设置项 key_label，历史记录同样显示可读名称。 */

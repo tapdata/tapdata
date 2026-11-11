@@ -96,6 +96,7 @@ class McpAccessCodeAuthenticationTest {
 
         MockHttpServletRequest request = initializeRequest();
         request.addHeader("Authorization", "Bearer access-code");
+        request.setQueryString("accessCode=synthetic-query-value&token=synthetic-token");
 
         ServerResponse response = handle(request);
 
@@ -104,7 +105,7 @@ class McpAccessCodeAuthenticationTest {
         assertEquals("token-id", sessionAttributes.getAttribute("mcp-session-id", TOKEN));
         assertEquals("user-id", sessionAttributes.getAttribute("mcp-session-id", USER_ID));
         verify(userLogService).addUserLog(Modular.MCP, Operation.CONNECTED, "user-id", null, null);
-        verify(userLogService).addUserLog(eq(Modular.MCP), eq(Operation.READ), eq("user-id"), eq((String) null), any(String.class));
+        verify(userLogService).addUserLog(Modular.MCP, Operation.READ, "user-id", null, "MCP POST /mcp");
     }
 
     @Test

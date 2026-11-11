@@ -7,11 +7,15 @@ import com.tapdata.tm.audit.AuditAction;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
+import com.tapdata.tm.ds.service.impl.PdkReleaseCatalogService;
+import com.tapdata.tm.ds.service.impl.PdkReleaseRegistrationService;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,7 +46,54 @@ import java.util.Objects;
 @Slf4j
 public class PdkController extends BaseController {
     private PkdSourceService pkdSourceService;
+    private PdkReleaseCatalogService pdkReleaseCatalogService;
+    private PdkReleaseRegistrationService pdkReleaseRegistrationService;
+    private SettingsService settingsService;
     private ProductComponent productComponent;
+
+    @GetMapping("releases")
+    public ResponseMessage<List<java.util.Map<String, Object>>> connectorReleases() {
+        return success(pdkReleaseCatalogService.findLatestReleases());
+    }
+
+    @GetMapping("registration-impact")
+    public ResponseMessage<java.util.Map<String, Object>> registrationImpact(
+            @RequestParam("pdkId") String pdkId,
+            @RequestParam("artifactId") String artifactId) {
+        requireEnterprise(getLoginUser());
+        return success(pdkReleaseRegistrationService.registrationImpact(artifactId, pdkId, getLoginUser()));
+    }
+
+    @PostMapping("register-release")
+    public ResponseMessage<java.util.Map<String, Object>> registerRelease(@RequestBody java.util.Map<String, Object> request) {
+        requireEnterprise(getLoginUser());
+        String artifactId = requiredString(request, "artifactId");
+        String pdkId = requiredString(request, "pdkId");
+        boolean stopTasks = Boolean.TRUE.equals(request.get("stopTasks"));
+        boolean ignoreInFlightResources = Boolean.TRUE.equals(request.get("ignoreInFlightResources"));
+        return success(pdkReleaseRegistrationService.startRegistration(
+                artifactId, pdkId, stopTasks, ignoreInFlightResources, getLoginUser()));
+    }
+
+    private String requiredString(java.util.Map<String, Object> request, String field) {
+        Object value = request.get(field);
+        if (!(value instanceof String text) || text.isBlank()) {
+            throw new BizException("IllegalArgument", field + " must be a non-empty string");
+        }
+        return text;
+    }
+
+    @GetMapping("registration-jobs/{jobId}")
+    public ResponseMessage<java.util.Map<String, Object>> registrationJob(@PathVariable("jobId") String jobId) {
+        requireEnterprise(getLoginUser());
+        return success(pdkReleaseRegistrationService.getRegistrationJob(jobId, getLoginUser()));
+    }
+
+    private void requireEnterprise(com.tapdata.tm.config.security.UserDetail user) {
+        if (settingsService.isCloud() || user == null || user.isFreeAuth()) {
+            throw new BizException("Connector download and registration is available only in the enterprise edition");
+        }
+    }
 
     @PostMapping(path = "upload/source", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Audited(value = AuditAction.CONNECTOR_INSTALL, objectId = "#root.auditIds(#sourceJsons)",

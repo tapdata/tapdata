@@ -3,6 +3,7 @@ package com.tapdata.tm.base.security;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.tapdata.tm.utils.SensitiveDataMasker;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -11,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Pure redaction helpers for logs and audit. Never logs or returns the original secret.
@@ -19,6 +22,7 @@ public final class SensitiveDataRedactor {
 
 	public static final String REDACTED = "[REDACTED]";
 	private static final ObjectMapper MAPPER = new ObjectMapper();
+	private static final Pattern URL_PARAMETER = Pattern.compile("([?&#])([^?&#=\\s<>]+)=([^&#\\s<>]*)");
 	private static final Set<String> SENSITIVE_HEADERS = Set.of(
 			"authorization",
 			"access_token",
@@ -48,11 +52,20 @@ public final class SensitiveDataRedactor {
 		if (value == null) {
 			return null;
 		}
-		if (name != null && SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+		if (name != null && (SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))
+				|| SensitiveDataMasker.isSensitiveKey(name))) {
 			return REDACTED;
 		}
-		// Referer / Location / Link / Origin can embed ?access_token= (TAP-11883 D-06).
-		return redactAccessTokenInText(value);
+		Matcher matcher = URL_PARAMETER.matcher(value);
+		StringBuffer result = new StringBuffer();
+		while (matcher.find()) {
+			String key = matcher.group(2);
+			String replacement = SensitiveDataMasker.isSensitiveKey(urlDecode(key))
+					? matcher.group(1) + key + "=" + REDACTED : matcher.group();
+			matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+		}
+		matcher.appendTail(result);
+		return result.toString();
 	}
 
 	/**
@@ -150,7 +163,7 @@ public final class SensitiveDataRedactor {
 			int eq = pair.indexOf('=');
 			String rawKey = eq >= 0 ? pair.substring(0, eq) : pair;
 			String decodedKey = urlDecode(rawKey);
-			if (isAccessTokenKey(decodedKey) || isAccessTokenKey(rawKey)) {
+			if (SensitiveDataMasker.isSensitiveKey(decodedKey) || SensitiveDataMasker.isSensitiveKey(rawKey)) {
 				sb.append(rawKey).append('=').append(REDACTED);
 			} else {
 				sb.append(pair);

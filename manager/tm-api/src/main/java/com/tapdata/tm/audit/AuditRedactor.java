@@ -1,6 +1,7 @@
 package com.tapdata.tm.audit;
 
 import com.tapdata.tm.base.security.SensitiveDataRedactor;
+import com.tapdata.tm.utils.SensitiveDataMasker;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -76,7 +77,8 @@ public final class AuditRedactor {
 		if (value == null) {
 			return null;
 		}
-		String result = PEM_BLOCK.matcher(value).replaceAll(MASK);
+		String result = SensitiveDataMasker.mask(value);
+		result = PEM_BLOCK.matcher(result).replaceAll(MASK);
 		result = URI_WITH_USERINFO.matcher(result).replaceAll("$1" + MASK + "@");
 		result = JDBC_URL.matcher(result).replaceAll("jdbc:" + MASK);
 		result = KEY_VALUE_SECRET.matcher(result).replaceAll("$1" + MASK);
