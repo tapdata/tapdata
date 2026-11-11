@@ -37,6 +37,7 @@ import org.mockito.InOrder;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -44,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.util.*;
@@ -828,6 +830,195 @@ public class PkdSourceServiceTest {
 			verify(taskService, never()).start(taskId, user);
 		}
 
+		@Test
+		void manualUploadStillRejectsExistingRelease() {
+			PdkSourceDto source = mockPdkSourceDto();
+			when(source.getVersion()).thenReturn("1.0.3");
+			when(dataSourceDefinitionService.findOne(any(Query.class)))
+					.thenReturn(new DataSourceDefinitionDto());
+
+			BizException exception = assertThrows(BizException.class, () -> pkdSourceService.uploadPdk(
+					new MultipartFile[]{mockJarFile()}, Collections.singletonList(source), true,
+					mock(UserDetail.class), true));
+
+			assertTrue(exception.getMessage().contains("Only SNAPSHOT"));
+			verifyNoInteractions(fileService);
+			verify(dataSourceDefinitionService, never()).upsert(any(), any(), any());
+		}
+
+		@Test
+		void nexusReleaseOverwritesExistingVersionWithoutStoppingTasks() throws IOException {
+			assertNexusReleaseOverwritesExistingVersion(true);
+			verifyNoInteractions(taskService, inspectService);
+		}
+
+		@Test
+		void nexusReleaseOverwritesExistingVersionWithTaskStopFlow() throws IOException {
+			assertNexusReleaseOverwritesExistingVersion(false);
+		}
+
+		@Test
+		void failedIconUploadKeepsOldResourcesAndDeletesNewJar() throws IOException {
+			PdkSourceDto source = prepareExistingRelease();
+			when(source.getIcon()).thenReturn("icon.png");
+			MultipartFile icon = mock(MultipartFile.class);
+			when(icon.getOriginalFilename()).thenReturn("icon.png");
+			when(icon.getInputStream()).thenThrow(new IOException("icon upload failed"));
+			ObjectId jarId = new ObjectId();
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(jarId);
+
+			assertThrows(BizException.class, () -> pkdSourceService.uploadReleasedPdk(
+					new MultipartFile[]{mockJarFile(), icon}, Collections.singletonList(source), mock(UserDetail.class), true));
+
+			verify(fileService).deleteFileById(jarId);
+			verify(fileService, never()).scheduledDeleteFiles(anyList(), anyString(), anyString(), any(), any());
+			verify(dataSourceDefinitionService, never()).upsert(any(), any(), any());
+		}
+
+		@Test
+		void uncertainDefinitionUpdateRetainsBothResourceGenerations() throws IOException {
+			PdkSourceDto source = prepareExistingRelease();
+			when(source.getIcon()).thenReturn("icon.png");
+			MultipartFile icon = new org.springframework.mock.web.MockMultipartFile("icon", "icon.png", null, new byte[]{1});
+			MultipartFile doc = new org.springframework.mock.web.MockMultipartFile("doc", "readme.md", null, new byte[]{1});
+			LinkedHashMap<String, Object> messages = new LinkedHashMap<>();
+			Map<String, Object> docs = new LinkedHashMap<>();
+			docs.put("doc", "readme.md");
+			messages.put("en", docs);
+			when(source.getMessages()).thenReturn(messages);
+			ObjectId jarId = new ObjectId();
+			ObjectId iconId = new ObjectId();
+			ObjectId docId = new ObjectId();
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(jarId, iconId, docId);
+			RuntimeException failure = new IllegalStateException("definition update failed");
+			AtomicReference<DataSourceDefinitionDto> committed = new AtomicReference<>();
+			doAnswer(invocation -> {
+				committed.set(invocation.getArgument(1)); // Mongo committed, but acknowledgement was lost.
+				throw failure;
+			}).when(dataSourceDefinitionService).upsert(any(), any(), any());
+
+			assertSame(failure, assertThrows(RuntimeException.class, () -> pkdSourceService.uploadReleasedPdk(
+					new MultipartFile[]{mockJarFile(), icon, doc}, Collections.singletonList(source), mock(UserDetail.class), true)));
+
+			assertEquals(jarId.toHexString(), committed.get().getJarRid());
+			assertEquals(iconId.toHexString(), committed.get().getIcon());
+			verify(fileService, never()).deleteFileById(jarId);
+			verify(fileService, never()).deleteFileById(iconId);
+			verify(fileService, never()).deleteFileById(docId);
+			verify(fileService, never()).scheduledDeleteFiles(anyList(), anyString(), anyString(), any(), any());
+		}
+
+		@Test
+		void failedReleaseOverwritePreservesExistingLatest() throws IOException {
+			PdkSourceDto source = prepareExistingRelease();
+			DataSourceDefinitionDto existing = dataSourceDefinitionService.findOne(new Query());
+			existing.setLatest(true);
+			ObjectId jarId = new ObjectId();
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(jarId);
+			RuntimeException failure = new IllegalStateException("definition update failed");
+			doThrow(failure).when(dataSourceDefinitionService).upsert(any(), any(), any());
+
+			assertSame(failure, assertThrows(RuntimeException.class, () -> pkdSourceService.uploadReleasedPdk(
+					new MultipartFile[]{mockJarFile()}, Collections.singletonList(source), mock(UserDetail.class), true)));
+
+			assertTrue(existing.isLatest());
+			verify(dataSourceDefinitionService, never()).update(any(Query.class), any(Update.class));
+			verify(fileService, never()).deleteFileById(jarId);
+			verify(fileService, never()).scheduledDeleteFiles(anyList(), anyString(), anyString(), any(), any());
+		}
+
+		@Test
+		void failedNewReleaseSaveDoesNotClearPreviousLatest() throws IOException {
+			PdkSourceDto source = mockPdkSourceDto();
+			when(source.getVersion()).thenReturn("1.0.4");
+			ObjectId jarId = new ObjectId();
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(jarId);
+			RuntimeException failure = new IllegalStateException("definition save failed");
+			doThrow(failure).when(dataSourceDefinitionService).save(any(DataSourceDefinitionDto.class), any(UserDetail.class));
+
+			assertSame(failure, assertThrows(RuntimeException.class, () -> pkdSourceService.uploadReleasedPdk(
+					new MultipartFile[]{mockJarFile()}, Collections.singletonList(source), mock(UserDetail.class), true)));
+
+			verify(dataSourceDefinitionService, never()).update(any(Query.class), any(Update.class));
+			verify(fileService, never()).deleteFileById(jarId);
+		}
+
+		@Test
+		void failedLatestUpdateDoesNotDeleteCommittedResources() throws IOException {
+			PdkSourceDto source = prepareExistingRelease();
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+			RuntimeException failure = new IllegalStateException("latest update failed");
+			doThrow(failure).when(dataSourceDefinitionService).update(any(Query.class), any(Update.class));
+
+			assertSame(failure, assertThrows(RuntimeException.class, () -> pkdSourceService.uploadReleasedPdk(
+					new MultipartFile[]{mockJarFile()}, Collections.singletonList(source), mock(UserDetail.class), true)));
+
+			InOrder order = inOrder(dataSourceDefinitionService);
+			order.verify(dataSourceDefinitionService).upsert(any(), any(), any());
+			order.verify(dataSourceDefinitionService).update(any(Query.class), any(Update.class));
+			verify(fileService, never()).deleteFileById(any());
+		}
+
+		@Test
+		void failedOldResourceDeletionDoesNotDeleteCommittedResources() throws IOException {
+			PdkSourceDto source = prepareExistingRelease();
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+			doThrow(new IllegalStateException("cleanup unavailable")).when(fileService)
+					.scheduledDeleteFiles(anyList(), anyString(), anyString(), any(), any());
+
+			assertDoesNotThrow(() -> pkdSourceService.uploadReleasedPdk(new MultipartFile[]{mockJarFile()},
+					Collections.singletonList(source), mock(UserDetail.class), true));
+
+			verify(dataSourceDefinitionService).upsert(any(), any(), any());
+			verify(fileService, never()).deleteFileById(any());
+		}
+
+		private PdkSourceDto prepareExistingRelease() {
+			PdkSourceDto source = mockPdkSourceDto();
+			when(source.getVersion()).thenReturn("1.0.3");
+			DataSourceDefinitionDto existing = new DataSourceDefinitionDto();
+			existing.setId(new ObjectId());
+			existing.setJarRid(new ObjectId().toHexString());
+			existing.setIcon(new ObjectId().toHexString());
+			when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(existing);
+			when(fileService.find(any(Query.class))).thenReturn(mock(GridFSFindIterable.class));
+			return source;
+		}
+
+		private void assertNexusReleaseOverwritesExistingVersion(boolean uploadOnlyRegistration) throws IOException {
+			PdkSourceDto source = mockPdkSourceDto();
+			when(source.getVersion()).thenReturn("1.0.3");
+			DataSourceDefinitionDto existing = new DataSourceDefinitionDto();
+			existing.setId(new ObjectId());
+			existing.setJarRid(new ObjectId().toHexString());
+			when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(existing);
+			when(fileService.find(any(Query.class))).thenReturn(mock(GridFSFindIterable.class));
+			when(fileService.storeFile(any(), anyString(), isNull(), anyMap())).thenReturn(new ObjectId());
+			UserDetail user = mock(UserDetail.class);
+
+			pkdSourceService.uploadReleasedPdk(new MultipartFile[]{mockJarFile()},
+					Collections.singletonList(source), user, uploadOnlyRegistration);
+
+			ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+			ArgumentCaptor<DataSourceDefinitionDto> definition = ArgumentCaptor.forClass(DataSourceDefinitionDto.class);
+			verify(dataSourceDefinitionService).upsert(query.capture(), definition.capture(), eq(user));
+            org.mockito.InOrder order = inOrder(dataSourceDefinitionService, fileService);
+            order.verify(fileService).storeFile(any(), anyString(), isNull(), anyMap());
+            order.verify(dataSourceDefinitionService).upsert(any(), any(), eq(user));
+            ArgumentCaptor<Query> latestQuery = ArgumentCaptor.forClass(Query.class);
+            order.verify(dataSourceDefinitionService).update(latestQuery.capture(), any(Update.class));
+            assertEquals(new Document("$ne", definition.getValue().getJarRid()), latestQuery.getValue().getQueryObject().get("jarRid"));
+            ArgumentCaptor<List<ObjectId>> deletedIds = ArgumentCaptor.forClass(List.class);
+            order.verify(fileService).scheduledDeleteFiles(deletedIds.capture(), anyString(), anyString(), eq(existing.getId()), eq(user));
+            assertTrue(deletedIds.getValue().contains(new ObjectId(existing.getJarRid())));
+            assertFalse(deletedIds.getValue().contains(new ObjectId(definition.getValue().getJarRid())));
+			assertEquals(existing.getId(), query.getValue().getQueryObject().get("_id"));
+			assertEquals("mysql", definition.getValue().getPdkId());
+			assertEquals("1.0.3", definition.getValue().getVersion());
+			assertTrue(definition.getValue().isLatest());
+			verify(dataSourceDefinitionService, never()).save(any(DataSourceDefinitionDto.class), any(UserDetail.class));
+		}
+
 		private PdkSourceDto mockPdkSourceDto() {
 			PdkSourceDto pdkSourceDto = mock(PdkSourceDto.class);
 			when(pdkSourceDto.getId()).thenReturn("mysql");
@@ -1169,5 +1360,50 @@ public class PkdSourceServiceTest {
 
 
 
+    }
+
+    @Nested
+    class RegistrationImpactTest {
+        @Test
+        void reportsRunningTasksAndInspects() {
+            UserDetail user = mock(UserDetail.class);
+            DataSourceConnectionDto connection = new DataSourceConnectionDto();
+            connection.setId(new ObjectId());
+            TaskDto task = new TaskDto();
+            task.setId(new ObjectId());
+            task.setName("sync-task");
+            task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            InspectDto inspect = new InspectDto();
+            inspect.setId(new ObjectId());
+            inspect.setName("inspect-task");
+            when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>(List.of(connection)));
+            when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>(List.of(task)));
+            when(inspectService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>(List.of(inspect)));
+
+            Map<String, Object> impact = pkdSourceService.registrationImpact("mysql", "io.tapdata", user);
+
+            assertEquals(Boolean.TRUE, impact.get("hasInFlightResources"));
+            List<?> tasks = (List<?>) impact.get("tasks");
+            Map<?, ?> taskMap = (Map<?, ?>) tasks.get(0);
+            assertEquals(task.getId().toHexString(), taskMap.get("id"));
+            assertEquals("sync-task", taskMap.get("name"));
+            assertEquals(TaskDto.SYNC_TYPE_SYNC, taskMap.get("syncType"));
+            Map<?, ?> inspectMap = (Map<?, ?>) ((List<?>) impact.get("inspects")).get(0);
+            assertEquals(inspect.getId().toHexString(), inspectMap.get("id"));
+            assertEquals("inspect-task", inspectMap.get("name"));
+        }
+
+        @Test
+        void reportsNoResourcesWhenConnectorIsUnused() {
+            UserDetail user = mock(UserDetail.class);
+            when(dataSourceService.findAllDto(any(Query.class), eq(user))).thenReturn(Collections.emptyList());
+
+            Map<String, Object> impact = pkdSourceService.registrationImpact("mysql", "io.tapdata", user);
+
+            assertEquals(Boolean.FALSE, impact.get("hasInFlightResources"));
+            assertTrue(((List<?>) impact.get("tasks")).isEmpty());
+            assertTrue(((List<?>) impact.get("inspects")).isEmpty());
+            verify(taskService, never()).findAllDto(any(Query.class), eq(user));
+        }
     }
 }
