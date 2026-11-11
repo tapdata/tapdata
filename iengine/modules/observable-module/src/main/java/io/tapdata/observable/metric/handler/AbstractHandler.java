@@ -8,7 +8,10 @@ import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
 import lombok.Getter;
+import org.bson.types.Decimal128;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +86,41 @@ public abstract class AbstractHandler {
     }
 
     CounterSampler getCounterSampler(Map<String, Number> values, String name) {
-        return collector.getCounterSampler(name, values.getOrDefault(name, 0).longValue());
+        Number restored = values.getOrDefault(name, 0);
+        boolean snapshotRowTotalMetric = MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL.equals(name);
+        boolean legacyUnknownRowCount = snapshotRowTotalMetric && isLegacyUnknownRowCount(restored);
+        CounterSampler sampler = collector.getCounterSampler(name,
+                legacyUnknownRowCount ? 0 : restored.longValue());
+        if (snapshotRowTotalMetric && isLegacyUnknownRowCount(sampler.value())) {
+            sampler.reset();
+        }
+        return sampler;
+    }
+
+    private boolean isLegacyUnknownRowCount(Number value) {
+        BigInteger unsignedLongMax = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+        BigInteger integerValue;
+        if (value instanceof Decimal128 decimal128) {
+            try {
+                integerValue = decimal128.bigDecimalValue().toBigIntegerExact();
+            } catch (ArithmeticException nonInteger) {
+                return false;
+            }
+        } else if (value instanceof BigInteger integer) {
+            integerValue = integer;
+        } else if (value instanceof BigDecimal decimal) {
+            try {
+                integerValue = decimal.toBigIntegerExact();
+            } catch (ArithmeticException nonInteger) {
+                return false;
+            }
+        } else {
+            // JSON integer metrics may be deserialized as Integer, Long, or another narrow Number.
+            if (value == null || value.doubleValue() != -1D) {
+                return false;
+            }
+            return true;
+        }
+        return BigInteger.valueOf(-1L).equals(integerValue) || unsignedLongMax.equals(integerValue);
     }
 }

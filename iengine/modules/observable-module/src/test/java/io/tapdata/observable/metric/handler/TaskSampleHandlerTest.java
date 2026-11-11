@@ -17,6 +17,9 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class TaskSampleHandlerTest {
 
@@ -32,6 +35,8 @@ public class TaskSampleHandlerTest {
         handler.handleTableCountAccept(table, -1L);
         handler.handleTableCountAccept(table, 10L);
         assertEquals(10L, currentSnapshotTableRowTotalMap.get(table));
+        verify(snapshotRowTotal, times(1)).inc(10L);
+        verify(snapshotRowTotal, never()).inc(-1L);
     }
 
     @Nested
