@@ -532,7 +532,7 @@ class MeasurementServiceV2ImplTest {
     }
 
     @Test
-    void dirtyMinutesAcrossHourBoundaryUseBoundedHourlyQueries() throws Exception {
+    void dirtyMinutesAcrossHourBoundaryUseBoundedWindowQueries() throws Exception {
         String taskId = "task-dirty-hour-boundary";
         long oneHour = 3_600_000L;
         MeasurementEntity hourly = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
@@ -556,12 +556,67 @@ class MeasurementServiceV2ImplTest {
         List<Query> dirtyQueries = queries.stream()
                 .filter(query -> query.getQueryObject().containsKey(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY))
                 .collect(Collectors.toList());
-        assertEquals(2, dirtyQueries.size());
+        assertEquals(1, dirtyQueries.size());
         for (Query query : dirtyQueries) {
             Document dateRange = (Document) query.getQueryObject().get(MetricCons.F_DATE);
             long lower = ((Date) dateRange.get("$gte")).getTime();
             long upper = ((Date) dateRange.get("$lt")).getTime();
-            assertEquals(oneHour, upper - lower);
+            assertTrue(upper - lower <= MeasurementServiceV2Impl.HOURLY_TREND_WINDOW_MILLIS);
+        }
+    }
+
+    @Test
+    void sevenDayHourlyTrendUsesFourteenBoundedQueries() throws Exception {
+        long sevenDays = 7L * 24L * 3_600_000L;
+        List<Query> queries = new ArrayList<>();
+        MeasurementServiceV2Impl service = measurementServiceWithRows(List.of(), new ArrayList<>(), queries);
+
+        service.aggregateTaskMetricsByTaskIdsV2(List.of("task-seven-days"), 0L, sevenDays, "node-a");
+
+        assertEquals(14, queries.size());
+        assertEquals(7, queries.stream().filter(query ->
+                query.getQueryObject().containsKey(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY)).count());
+    }
+
+    @Test
+    void widerHourlyWindowsMatchOneHourWindowsAcrossDirtyAndConflictingMinutes() throws Exception {
+        long hour = 3_600_000L;
+        long boundary = 24L * hour;
+        String taskId = "task-window-comparison";
+        MeasurementEntity before = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(boundary - 60_000L, 10D)));
+        before.setDate(new Date(boundary - hour));
+        MeasurementEntity after = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(boundary, 20D), metricSample(boundary + 60_000L, 30D),
+                        metricSample(boundary + hour - 60_000L, 40D)));
+        after.setDate(new Date(boundary));
+        MeasurementEntity conflict = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(boundary + 60_000L, 31D)));
+        conflict.setDate(new Date(boundary));
+        MeasurementEntity next = taskMetricsEntity(taskId, "node-a", Granularity.GRANULARITY_HOUR,
+                List.of(metricSample(boundary + hour, 50D)));
+        next.setDate(new Date(boundary + hour));
+        List<MeasurementEntity> rows = List.of(before, after, conflict, next,
+                dirtyMinuteEntity(taskId, "node-a", boundary - 60_000L, 600D, 12L),
+                dirtyMinuteEntity(taskId, "node-a", boundary, 840D, 12L),
+                dirtyMinuteEntity(taskId, "node-a", boundary + hour, 1_080D, 12L));
+
+        for (long startAt : List.of(0L, 30L * 60_000L)) {
+            long endAt = 26L * hour + (startAt == 0L ? 0L : 30L * 60_000L);
+            MeasurementServiceV2Impl oneHourService = spy(measurementServiceWithRows(rows, new ArrayList<>()));
+            doReturn(hour).when(oneHourService).hourlyTrendWindowMillis();
+            MeasurementServiceV2Impl wideService = measurementServiceWithRows(rows, new ArrayList<>());
+
+            TaskMetricsTrendVo oneHourResult = oneHourService.aggregateTaskMetricsByTaskIdsV2(
+                    List.of(taskId), startAt, endAt, "node-a");
+            TaskMetricsTrendVo wideResult = wideService.aggregateTaskMetricsByTaskIdsV2(
+                    List.of(taskId), startAt, endAt, "node-a");
+
+            assertEquals(oneHourResult.getOutputQps(), wideResult.getOutputQps());
+            assertEquals(oneHourResult.getOutputSizeQps(), wideResult.getOutputSizeQps());
+            assertEquals(oneHourResult.getCoverage(), wideResult.getCoverage());
+            assertEquals(oneHourResult, wideResult);
+            assertTrue(wideResult.getOutputQps().stream().anyMatch(Objects::nonNull));
         }
     }
 

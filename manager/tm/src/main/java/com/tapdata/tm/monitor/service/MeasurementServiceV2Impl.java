@@ -103,6 +103,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     private static final int TASK_ID_BATCH_SIZE = 100;
+    static final long HOURLY_TREND_WINDOW_MILLIS = 24L * 3_600_000L;
     private static final long LATEST_SAMPLE_LOOKBACK_MILLIS = 5L * 60L * 1000L;
     private static final int TASK_COUNTER_RECOVERY_SCHEMA_VERSION = 1;
     private static final Set<String> TASK_COUNTER_CORE_FIELDS = Set.of(
@@ -2319,8 +2320,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
         forEachTaskIdBatch(taskIds, taskIdBatch -> {
             if (Granularity.GRANULARITY_HOUR.equals(granularity) && intervalMillis == 3_600_000L) {
-                for (long windowStart = startAt; windowStart < endAt; windowStart += 3_600_000L) {
-                    long windowEnd = Math.min(endAt, windowStart + 3_600_000L);
+                long windowMillis = hourlyTrendWindowMillis();
+                for (long windowStart = startAt; windowStart < endAt; windowStart += windowMillis) {
+                    long windowEnd = Math.min(endAt, windowStart + windowMillis);
                     Map<String, Map<Long, TaskMetricBucket>> windowMetrics = new HashMap<>();
                     collectTaskMetricsV2Batch(taskIdBatch, granularity, windowStart, windowEnd,
                             intervalMillis, windowMetrics);
@@ -2331,6 +2333,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         intervalMillis, metrics);
             }
         });
+    }
+
+    long hourlyTrendWindowMillis() {
+        return HOURLY_TREND_WINDOW_MILLIS;
     }
 
     private void collectTaskMetricsV2Batch(List<String> taskIdBatch, String granularity, long startAt, long endAt,
