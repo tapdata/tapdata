@@ -29,9 +29,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -41,12 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -193,23 +198,114 @@ class TaskDashboardServiceTest {
     }
 
     @Test
-    void selectedNodeQueryKeepsAccessScopeAndFiltersBothNodeIdentityFields() {
+    void selectedNodeQueryUsesOnlyTargetProcessesAndMergesAuthorizedComponents() {
         ClusterStateService clusterStateService = mock(ClusterStateService.class);
         ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
-        when(clusterStateService.findAccessNodeInfo(user)).thenReturn(
-                List.of(new AccessNodeInfo("visible-process", "host", "ip", "running")));
-        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of());
+        ClusterStateDto first = dashboardState("selected-node", "selected-node", "process-1", true, false);
+        ClusterStateDto second = dashboardState(null, "selected-node", "process-2", false, true);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(first, second));
+        when(clusterStateService.findAccessNodeInfo(eq(user), anyCollection())).thenReturn(List.of(
+                new AccessNodeInfo("process-1", "host", "ip", "stopped"),
+                new AccessNodeInfo("process-2", "host", "ip", "running")));
 
-        ReflectionTestUtils.invokeMethod(taskDashboardService, "dashboardNodes", user, "selected-node");
+        TaskDashboardVo.NodeOption selected = ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node");
 
+        assertEquals("selected-node", selected.getPhysicalNodeId());
+        assertEquals("running", selected.getStatus());
+        assertTrue(selected.isEngineDeployed());
+        assertTrue(selected.isApiServerDeployed());
         ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
         verify(clusterStateService).findAll(query.capture());
         String criteria = query.getValue().getQueryObject().toJson();
-        assertTrue(criteria.contains("visible-process"));
-        assertTrue(criteria.contains("systemInfo.process_id"));
+        assertTrue(criteria.contains("uuid"));
         assertTrue(criteria.contains("systemInfo.uuid"));
         assertTrue(criteria.contains("selected-node"));
-        verify(clusterStateService).findAccessNodeInfo(user);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<Collection<String>> processIds = (ArgumentCaptor) ArgumentCaptor.forClass(Collection.class);
+        verify(clusterStateService).findAccessNodeInfo(eq(user), processIds.capture());
+        assertEquals(Set.of("process-1", "process-2"), new HashSet<>(processIds.getValue()));
+        verify(clusterStateService, never()).findAccessNodeInfo(user);
+    }
+
+    @Test
+    void selectedNodeIgnoresProcessesOutsideTheUserAccessScope() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(
+                dashboardState("selected-node", "selected-node", "allowed", false, true),
+                dashboardState("selected-node", "selected-node", "denied", true, false)));
+        when(clusterStateService.findAccessNodeInfo(eq(user), anyCollection())).thenReturn(List.of(
+                new AccessNodeInfo("allowed", "host", "ip", "running")));
+
+        TaskDashboardVo.NodeOption selected = ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node");
+
+        assertEquals(false, selected.isEngineDeployed());
+        assertTrue(selected.isApiServerDeployed());
+    }
+
+    @Test
+    void selectedNodeRejectsMissingAndUnauthorizedNodes() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(), List.of(
+                dashboardState("selected-node", "selected-node", "denied", true, false)));
+        when(clusterStateService.findAccessNodeInfo(eq(user), anyCollection())).thenReturn(List.of());
+
+        BizException missing = assertThrows(BizException.class, () -> ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node"));
+        assertEquals("server.not.exists", missing.getArgs()[0]);
+        verify(clusterStateService, never()).findAccessNodeInfo(eq(user), anyCollection());
+        BizException denied = assertThrows(BizException.class, () -> ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node"));
+        assertEquals("server.not.exists", denied.getArgs()[0]);
+    }
+
+    @Test
+    void selectedNodeUsesSystemUuidWhenPrimaryUuidIsBlank() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(
+                dashboardState("", "selected-node", "process-1", true, false)));
+        when(clusterStateService.findAccessNodeInfo(eq(user), anyCollection())).thenReturn(List.of(
+                new AccessNodeInfo("process-1", "host", "ip", "running")));
+
+        TaskDashboardVo.NodeOption selected = ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node");
+
+        assertEquals("selected-node", selected.getPhysicalNodeId());
+        assertTrue(selected.isEngineDeployed());
+    }
+
+    @Test
+    void selectedNodeRejectsSystemUuidWhenPrimaryUuidDiffers() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(
+                dashboardState("other-node", "selected-node", "process-1", true, false)));
+        when(clusterStateService.findAccessNodeInfo(eq(user), anyCollection())).thenReturn(List.of(
+                new AccessNodeInfo("process-1", "host", "ip", "running")));
+
+        BizException error = assertThrows(BizException.class, () -> ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node"));
+        assertEquals("server.not.exists", error.getArgs()[0]);
+    }
+
+    private ClusterStateDto dashboardState(String uuid, String systemUuid, String processId,
+                                           boolean engineDeployed, boolean apiDeployed) {
+        ClusterStateDto state = new ClusterStateDto();
+        state.setUuid(uuid);
+        state.setAgentName("agent");
+        state.setSystemInfo(new SystemInfo("host", systemUuid, null, new ArrayList<>(),
+                0L, null, null, processId, null, null, null, null, null, null));
+        Component engine = new Component();
+        engine.setStatus(engineDeployed ? "running" : "not_deploy");
+        Component api = new Component();
+        api.setStatus(apiDeployed ? "running" : "not_deploy");
+        state.setEngine(engine);
+        state.setApiServer(api);
+        return state;
     }
 
     @Test

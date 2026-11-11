@@ -399,9 +399,18 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
      * @return accessNodeInfo list
      */
     public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail) {
+        return findAccessNodeInfo(userDetail, null);
+    }
+
+    public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail, Collection<String> processIds) {
         List<AccessNodeInfo> result = Lists.newArrayList();
+        if (processIds != null && processIds.isEmpty()) {
+            return result;
+        }
         boolean isCloud = settingsService.isCloud();
-        List<Worker> workerList = Optional.ofNullable(workerService.findAllAgent(userDetail)).orElseGet(ArrayList::new);
+        List<Worker> workerList = Optional.ofNullable(processIds == null
+                ? workerService.findAllAgent(userDetail)
+                : workerService.findAllAgent(userDetail, processIds)).orElseGet(ArrayList::new);
         if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
