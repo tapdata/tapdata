@@ -39,7 +39,6 @@ public class InspectEntity extends SchedulableEntity implements IDataPermissionE
 	private String byFirstCheckId; // 如果是差异校验，需要指定对应批次第一次校验结果编号
 
 	private String status;          // "pause/scheduling/running/error/done",    // 任务状态
-	private String auditRunOperationId;
 	private String errorMsg;        // 状态为 error 时有效
 
 	private Long ping_time;

@@ -3,8 +3,6 @@ package com.tapdata.tm.inspect.controller;
 import com.tapdata.tm.audit.Audited;
 
 import com.tapdata.tm.audit.AuditAction;
-import com.tapdata.tm.audit.AuditOperationFinisher;
-import com.tapdata.tm.audit.AuditOutcome;
 
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.controller.BaseController;
@@ -83,7 +81,6 @@ public class InspectController extends BaseController {
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
     private MetadataDefinitionService metadataDefinitionService;
-    private AuditOperationFinisher auditOperationFinisher;
 
     public InspectController(InspectResultService inspectResultService) {
         super();
@@ -361,9 +358,6 @@ public class InspectController extends BaseController {
     @PostMapping("execute")
     @Audited(value = AuditAction.INSPECT_START, objectId = "T(com.tapdata.tm.audit.AuditSpel).idFromWhere(#whereJson)", alternateWhen = "#inspect.status == 'stopping'", alternate = AuditAction.INSPECT_STOP)
     public ResponseMessage<InspectDto> updateByWhere(HttpServletRequest request, @RequestParam("where") String whereJson, @RequestBody InspectDto inspect) {
-        inspect.setAuditRunOperationId(null);
-        inspect.setAuditStopOperationId(null);
-        inspect.setAuditCompletion(null);
         log.info("Inspect Controller -- do execute -  where json：{}, inspect：{} ", whereJson, JSON.toJSONString(inspect));
         whereJson = whereJson.replace("\"_id\"", "\"id\"");
         Where where = parseWhere(whereJson);
@@ -433,50 +427,8 @@ public class InspectController extends BaseController {
     public ResponseMessage<InspectDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody InspectDto inspect) {
         log.info("engin upsertWithWhere whereJson:{}, inspect:{} ", whereJson, JSON.toJSONString(inspect));
         Where where = parseWhere(whereJson);
-        String runId = inspect.getAuditRunOperationId();
-        Object idValue = where.get("id");
-        String id = idValue == null ? null : idValue.toString();
-        if ("stop_rejected".equals(inspect.getAuditCompletion()) && StringUtils.isBlank(runId)) {
-            throw new IllegalArgumentException("Rejected stop report requires an execution id");
-        }
-        if (StringUtils.isNotBlank(runId) && !ObjectId.isValid(id)) {
-            throw new IllegalArgumentException("Correlated inspect report requires a valid id");
-        }
-        if (StringUtils.isNotBlank(runId)) {
-            where.put("auditRunOperationId", runId);
-        }
-        UserDetail user = getLoginUser();
-        if (!"stop_rejected".equals(inspect.getAuditCompletion())) {
-            inspectService.updateByWhere(where, inspect, user);
-        }
-        if (StringUtils.isNotBlank(runId) && ObjectId.isValid(id)
-                && StringUtils.isNotBlank(inspect.getAuditCompletion())) {
-            Query currentRun = Query.query(Criteria.where("_id").is(new ObjectId(id))
-                    .and("auditRunOperationId").is(runId));
-            if (inspectService.findOne(currentRun) != null) {
-                finishInspectReport(id, inspect);
-            }
-        }
+        Long inspectDto = inspectService.updateByWhere(where, inspect, getLoginUser());
         return success(inspect);
-    }
-
-    private void finishInspectReport(String id, InspectDto report) {
-        String completion = report.getAuditCompletion();
-        if (!List.of("completed", "failed", "stopped", "stop_failed", "stop_rejected").contains(completion)) {
-            return;
-        }
-        boolean completed = "completed".equals(completion);
-        if (!"stop_failed".equals(completion) && !"stop_rejected".equals(completion)) {
-            auditOperationFinisher.finishOperation("inspect", id, report.getName(), AuditAction.INSPECT_START,
-                    report.getAuditRunOperationId(), completed ? AuditOutcome.SUCCESS : AuditOutcome.FAILED,
-                    completed ? null : report.getErrorMsg());
-        }
-        if (StringUtils.isNotBlank(report.getAuditStopOperationId())) {
-            boolean stopped = "stopped".equals(completion);
-            auditOperationFinisher.finishOperation("inspect", id, report.getName(), AuditAction.INSPECT_STOP,
-                    report.getAuditStopOperationId(), stopped ? AuditOutcome.SUCCESS : AuditOutcome.FAILED,
-                    stopped ? null : report.getErrorMsg());
-        }
     }
 
 
