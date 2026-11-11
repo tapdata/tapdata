@@ -144,6 +144,17 @@ public class UserController extends BaseController {
         return success(userDto == null ? null : userDto.getAccessCode());
     }
 
+    @Operation(summary = "Reveal a user's access code")
+    @PostMapping("/{userId}/access-code/reveal")
+    @Audited(value = AuditAction.USER_VIEW_ACCESS_CODE, objectId = "#userId")
+    public ResponseMessage<String> revealUserAccessCode(@PathVariable("userId") String userId) {
+        UserDetail user = getLoginUser();
+        return success(dataPermissionCheckOfId(user, userId, DataPermissionActionEnums.View, () -> {
+            UserDto target = userService.findById(toObjectId(userId));
+            return target == null ? null : target.getAccessCode();
+        }));
+    }
+
     @GetMapping("/self")
     public ResponseMessage<UserDto> self() {
         /*UserInfoVo userInfoVo = userService.self(getLoginUser());
@@ -631,7 +642,8 @@ public class UserController extends BaseController {
     @PostMapping("refreshAccessCode")
     @Audited(AuditAction.USER_RESET_ACCESS_CODE)
     public ResponseMessage<String> refreshAccessCode() {
-        return success(userService.refreshAccessCode(getLoginUser()));
+        userService.refreshAccessCode(getLoginUser());
+        return success();
     }
 
     @GetMapping("{userId}/alarmImpact")
