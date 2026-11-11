@@ -109,11 +109,13 @@ class AuditCredentialExposureIT {
     @Test
     void explicit_reveal_is_audited_without_recording_the_secret() throws Exception {
         String id = new ObjectId().toHexString();
+        String otherId = new ObjectId().toHexString();
         UserDetail login = AuditItFixture.user(id, "auditor@example.test", "username_login");
         UserDto user = new UserDto();
         user.setAccessCode("test-private-value");
         UserService users = mock(UserService.class);
         when(users.findById(new ObjectId(id))).thenReturn(user);
+        when(users.findById(new ObjectId(otherId))).thenReturn(user);
         UserController target = spy(new UserController());
         ReflectionTestUtils.setField(target, "userService", users);
         doReturn(login).when(target).getLoginUser();
@@ -137,11 +139,15 @@ class AuditCredentialExposureIT {
             context.registerBean(ApplicationController.class, () -> appTarget);
             context.refresh();
             assertThat(context.getBean(UserController.class).revealAccessCode().getData()).isEqualTo("test-private-value");
-            assertThat(fixture.only(AuditAction.USER_VIEW_ACCESS_CODE).getOutcome()).isEqualTo("SUCCESS");
-            assertThat(context.getBean(UserController.class).revealUserAccessCode(id).getData())
+            assertThat(fixture.only(AuditAction.USER_VIEW_ACCESS_CODE)).satisfies(event -> {
+                assertThat(event.getOutcome()).isEqualTo("SUCCESS");
+                assertThat(event.getObjectId()).isEqualTo(id);
+                assertThat(event.getObjectName()).isEqualTo("auditor@example.test");
+            });
+            assertThat(context.getBean(UserController.class).revealUserAccessCode(otherId).getData())
                     .isEqualTo("test-private-value");
             assertThat(fixture.events(AuditAction.USER_VIEW_ACCESS_CODE)).hasSize(2)
-                    .anySatisfy(event -> assertThat(event.getObjectId()).isEqualTo(id));
+                    .extracting(event -> event.getObjectId()).containsExactly(id, otherId);
             assertThat(context.getBean(ApplicationController.class).revealSecret(null, id).getData())
                     .isEqualTo("test-client-private-value");
             assertThat(fixture.only(AuditAction.API_CLIENT_VIEW_SECRET).getOutcome()).isEqualTo("SUCCESS");
