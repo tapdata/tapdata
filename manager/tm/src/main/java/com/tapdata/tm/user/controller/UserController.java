@@ -138,7 +138,8 @@ public class UserController extends BaseController {
      */
     @Operation(summary = "Reveal current user's access code")
     @PostMapping("/access-code/reveal")
-    @Audited(AuditAction.USER_VIEW_ACCESS_CODE)
+    @Audited(value = AuditAction.USER_VIEW_ACCESS_CODE,
+            objectId = "#root.getLoginUser()?.userId", objectName = "#root.getLoginUser()?.username")
     public ResponseMessage<String> revealAccessCode() {
         UserDto userDto = userService.findById(toObjectId(getLoginUser().getUserId()));
         return success(userDto == null ? null : userDto.getAccessCode());
