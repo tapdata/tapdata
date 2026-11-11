@@ -1452,6 +1452,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
         BulkOperations bulkOperations = null;
         List<WriteModel<Document>> attributedHourRollupWrites = new ArrayList<>();
+        List<PendingAttributedHourRollup> pendingHourRollups = new ArrayList<>();
         for (Map.Entry<String, List<MeasurementEntity>> entry : tagEntities.entrySet()) {
             int idx = 0;
 
@@ -1507,15 +1508,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
                 Map<String, String> tags = reverseHashTag(entry.getKey());
                 if (Granularity.GRANULARITY_MINUTE.equals(granularity) && isAttributedTaskMetric(tags)) {
-                    MongoCollection<Document> collection = mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME);
-                    Document existing = collection.find(upsertQuery.getQueryObject())
-                            .projection(new Document("_id", 1)).first();
-                    Object targetId = existing == null
-                            ? attributedTaskHourDocumentId(tags, nextGranularityDate)
-                            : existing.get("_id");
-                    attributedHourRollupWrites.add(new UpdateOneModel<>(new Document("_id", targetId),
-                            attributedTaskHourRollupPipeline(tags, nextGranularityDate, samples, digests,
-                                    minuteSummaries.values(), first, last), new UpdateOptions().upsert(true)));
+                    pendingHourRollups.add(new PendingAttributedHourRollup(tags, nextGranularityDate, samples,
+                            digests, new ArrayList<>(minuteSummaries.values()), first, last));
                     continue;
                 }
 
@@ -1545,8 +1539,101 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         if (null != bulkOperations) {
             bulkOperations.execute();
         }
+        if (!pendingHourRollups.isEmpty()) {
+            Map<String, Object> existingIds = findExistingAttributedHourIds(pendingHourRollups);
+            for (PendingAttributedHourRollup pending : pendingHourRollups) {
+                Object targetId = existingIds.getOrDefault(attributedHourRollupKey(pending.tags, pending.hourDate),
+                        attributedTaskHourDocumentId(pending.tags, pending.hourDate));
+                attributedHourRollupWrites.add(new UpdateOneModel<>(new Document("_id", targetId),
+                        attributedTaskHourRollupPipeline(pending.tags, pending.hourDate, pending.samples,
+                                pending.digests, pending.summaries, pending.first, pending.last),
+                        new UpdateOptions().upsert(true)));
+            }
+        }
         if (!attributedHourRollupWrites.isEmpty()) {
             bulkWriteAttributedTaskMetrics(attributedHourRollupWrites);
+        }
+    }
+
+    private Map<String, Object> findExistingAttributedHourIds(List<PendingAttributedHourRollup> pendingHourRollups) {
+        Map<String, Object> existingIds = new HashMap<>();
+        Set<String> taskIds = new LinkedHashSet<>();
+        Set<Long> hourTimes = new LinkedHashSet<>();
+        for (PendingAttributedHourRollup pending : pendingHourRollups) {
+            taskIds.add(pending.tags.get(MetricCons.Tags.F_TASK_ID));
+            hourTimes.add(pending.hourDate.getTime());
+        }
+        if (taskIds.isEmpty()) {
+            return existingIds;
+        }
+        List<Date> hourDates = hourTimes.stream().map(Date::new).collect(Collectors.toList());
+        MongoCollection<Document> collection = mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME);
+        List<String> taskIdList = new ArrayList<>(taskIds);
+        forEachTaskIdBatch(taskIdList, taskIdBatch -> {
+            Document filter = new Document(MetricCons.F_GRANULARITY, Granularity.GRANULARITY_HOUR)
+                    .append(PATH_TAGS_TYPE, SAMPLE_TYPE_TASK)
+                    .append(MetricCons.Tags.path(MetricCons.Tags.F_TASK_ID), new Document("$in", taskIdBatch))
+                    .append(MetricCons.F_DATE, new Document("$in", hourDates));
+            Document projection = new Document("_id", 1)
+                    .append(MetricCons.F_TAGS, 1)
+                    .append(MetricCons.F_DATE, 1);
+            for (Document existing : collection.find(filter).projection(projection).sort(new Document("_id", 1))) {
+                Map<String, String> tags = normalizedTags(existing.get(MetricCons.F_TAGS));
+                Date hourDate = existing.getDate(MetricCons.F_DATE);
+                if (tags == null || hourDate == null) {
+                    continue;
+                }
+                String key = attributedHourRollupKey(tags, hourDate);
+                Object id = existing.get("_id");
+                if (attributedTaskHourDocumentId(tags, hourDate).equals(id)) {
+                    existingIds.put(key, id);
+                } else {
+                    existingIds.putIfAbsent(key, id);
+                }
+            }
+        });
+        return existingIds;
+    }
+
+    private static Map<String, String> normalizedTags(Object rawTags) {
+        if (!(rawTags instanceof Map<?, ?> tags)) {
+            return null;
+        }
+        Map<String, String> normalized = new TreeMap<>();
+        for (Map.Entry<?, ?> entry : tags.entrySet()) {
+            if (!(entry.getKey() instanceof String) || (entry.getValue() != null && !(entry.getValue() instanceof String))) {
+                return null;
+            }
+            normalized.put((String) entry.getKey(), (String) entry.getValue());
+        }
+        return normalized;
+    }
+
+    private static String attributedHourRollupKey(Map<String, String> tags, Date hourDate) {
+        return JsonUtil.toJson(new TreeMap<>(tags)) + "\u0000" + hourDate.getTime();
+    }
+
+    private static final class PendingAttributedHourRollup {
+        private final Map<String, String> tags;
+        private final Date hourDate;
+        private final List<Map<String, Object>> samples;
+        private final List<Map<String, Object>> digests;
+        private final List<MeasurementEntity.DashboardMinuteSummary> summaries;
+        private final Long first;
+        private final Long last;
+
+        private PendingAttributedHourRollup(Map<String, String> tags, Date hourDate,
+                                            List<Map<String, Object>> samples,
+                                            List<Map<String, Object>> digests,
+                                            List<MeasurementEntity.DashboardMinuteSummary> summaries,
+                                            Long first, Long last) {
+            this.tags = tags;
+            this.hourDate = hourDate;
+            this.samples = samples;
+            this.digests = digests;
+            this.summaries = summaries;
+            this.first = first;
+            this.last = last;
         }
     }
 

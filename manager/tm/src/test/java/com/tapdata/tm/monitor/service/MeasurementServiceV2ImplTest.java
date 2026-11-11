@@ -29,12 +29,19 @@ import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.BulkWriteOptions;
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.WriteModel;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
@@ -2273,6 +2280,133 @@ class MeasurementServiceV2ImplTest {
             // Should create upsert operations for both tag groups
             verify(bulkOperations, atLeast(2)).upsert(any(Query.class), any());
             verify(bulkOperations, times(1)).execute();
+        }
+
+        @Test
+        void attributedHourRollupBatchesLookupAndPrefersMatchingExistingIds() {
+            Map<String, String> legacyTags = attributedTags("task-legacy");
+            Map<String, String> deterministicTags = attributedTags("task-deterministic");
+            Map<String, String> missingTags = attributedTags("task-missing");
+            List<MeasurementEntity> entities = List.of(
+                    attributedMinuteEntity(legacyTags),
+                    attributedMinuteEntity(deterministicTags),
+                    attributedMinuteEntity(missingTags));
+            ObjectId legacyId = new ObjectId();
+            String deterministicId = MeasurementServiceV2Impl.attributedTaskHourDocumentId(deterministicTags, new Date(0L));
+            Map<String, String> reorderedLegacyTags = new LinkedHashMap<>();
+            reorderedLegacyTags.put("physicalNodeId", legacyTags.get("physicalNodeId"));
+            reorderedLegacyTags.put(MetricCons.Tags.F_TASK_ID, legacyTags.get(MetricCons.Tags.F_TASK_ID));
+            reorderedLegacyTags.put(MetricCons.Tags.F_TYPE, legacyTags.get(MetricCons.Tags.F_TYPE));
+            List<Document> existing = List.of(
+                    new Document("_id", legacyId).append(MetricCons.F_TAGS, reorderedLegacyTags)
+                            .append(MetricCons.F_DATE, new Date(0L)),
+                    new Document("_id", new ObjectId()).append(MetricCons.F_TAGS, deterministicTags)
+                            .append(MetricCons.F_DATE, new Date(0L)),
+                    new Document("_id", deterministicId).append(MetricCons.F_TAGS, deterministicTags)
+                            .append(MetricCons.F_DATE, new Date(0L)));
+
+            MongoCollection<Document> collection = mock(MongoCollection.class);
+            @SuppressWarnings("unchecked")
+            FindIterable<Document> found = mock(FindIterable.class);
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(entities);
+            when(mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME)).thenReturn(collection);
+            when(collection.find(any(Bson.class))).thenReturn(found);
+            when(found.projection(any(Bson.class))).thenReturn(found);
+            when(found.sort(any(Bson.class))).thenReturn(found);
+            @SuppressWarnings("unchecked")
+            MongoCursor<Document> cursor = mock(MongoCursor.class);
+            Iterator<Document> iterator = existing.iterator();
+            when(found.iterator()).thenReturn(cursor);
+            when(cursor.hasNext()).thenAnswer(invocation -> iterator.hasNext());
+            when(cursor.next()).thenAnswer(invocation -> iterator.next());
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(
+                    anyMap(), anyLong(), anyLong(), eq(Granularity.GRANULARITY_MINUTE));
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, 0L, 180_000L,
+                    Granularity.GRANULARITY_MINUTE);
+
+            ArgumentCaptor<Bson> queryCaptor = ArgumentCaptor.forClass(Bson.class);
+            verify(collection, times(1)).find(queryCaptor.capture());
+            Document lookup = Document.parse(queryCaptor.getValue().toBsonDocument(Document.class,
+                    com.mongodb.MongoClientSettings.getDefaultCodecRegistry()).toJson());
+            assertEquals(3, ((List<?>) ((Document) lookup.get("tags.taskId")).get("$in")).size());
+            assertEquals(List.of(new Date(0L)), ((Document) lookup.get(MetricCons.F_DATE)).get("$in"));
+
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            ArgumentCaptor<List<WriteModel<Document>>> writesCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+            verify(collection).bulkWrite(writesCaptor.capture(), any(BulkWriteOptions.class));
+            Map<String, Object> idsByTask = new HashMap<>();
+            for (WriteModel<Document> write : writesCaptor.getValue()) {
+                UpdateOneModel<Document> update = (UpdateOneModel<Document>) write;
+                Document stage = (Document) update.getUpdatePipeline().get(0);
+                Document set = stage.get("$set", Document.class);
+                Document tagsExpression = set.get(MetricCons.F_TAGS, Document.class);
+                List<?> tagOptions = (List<?>) tagsExpression.get("$ifNull");
+                Document literal = (Document) tagOptions.get(1);
+                Map<?, ?> tags = (Map<?, ?>) literal.get("$literal");
+                idsByTask.put((String) tags.get(MetricCons.Tags.F_TASK_ID),
+                        ((Document) update.getFilter()).get("_id"));
+                assertTrue(update.getOptions().isUpsert());
+            }
+            assertEquals(legacyId, idsByTask.get("task-legacy"));
+            assertEquals(deterministicId, idsByTask.get("task-deterministic"));
+            assertEquals(MeasurementServiceV2Impl.attributedTaskHourDocumentId(missingTags, new Date(0L)),
+                    idsByTask.get("task-missing"));
+        }
+
+        @Test
+        void attributedHourRollupLookupBatchesTaskIdsByOneHundred() {
+            List<MeasurementEntity> entities = new ArrayList<>();
+            for (int i = 0; i < 101; i++) {
+                entities.add(attributedMinuteEntity(attributedTags("task-" + i)));
+            }
+            MongoCollection<Document> collection = mock(MongoCollection.class);
+            @SuppressWarnings("unchecked")
+            FindIterable<Document> found = mock(FindIterable.class);
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(entities);
+            when(mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME)).thenReturn(collection);
+            when(collection.find(any(Bson.class))).thenReturn(found);
+            when(found.projection(any(Bson.class))).thenReturn(found);
+            when(found.sort(any(Bson.class))).thenReturn(found);
+            @SuppressWarnings("unchecked")
+            MongoCursor<Document> cursor = mock(MongoCursor.class);
+            when(found.iterator()).thenReturn(cursor);
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(
+                    anyMap(), anyLong(), anyLong(), eq(Granularity.GRANULARITY_MINUTE));
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, 0L, 60_000L,
+                    Granularity.GRANULARITY_MINUTE);
+
+            ArgumentCaptor<Bson> queryCaptor = ArgumentCaptor.forClass(Bson.class);
+            verify(collection, times(2)).find(queryCaptor.capture());
+            assertEquals(List.of(1, 100), queryCaptor.getAllValues().stream()
+                    .map(bson -> {
+                        Document query = Document.parse(bson.toBsonDocument(Document.class,
+                                com.mongodb.MongoClientSettings.getDefaultCodecRegistry()).toJson());
+                        return ((List<?>) ((Document) query.get("tags.taskId")).get("$in")).size();
+                    }).sorted().toList());
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            ArgumentCaptor<List<WriteModel<Document>>> writesCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+            verify(collection).bulkWrite(writesCaptor.capture(), any(BulkWriteOptions.class));
+            assertEquals(101, writesCaptor.getValue().size());
+        }
+
+        private MeasurementEntity attributedMinuteEntity(Map<String, String> tags) {
+            MeasurementEntity entity = taskMetricsEntity(tags.get(MetricCons.Tags.F_TASK_ID),
+                    tags.get("physicalNodeId"), Granularity.GRANULARITY_MINUTE, List.of(metricSample(0L, 10D)));
+            entity.setTags(tags);
+            entity.setDate(new Date(0L));
+            return entity;
+        }
+
+        private Map<String, String> attributedTags(String taskId) {
+            Map<String, String> tags = new LinkedHashMap<>();
+            tags.put(MetricCons.Tags.F_TYPE, MetricCons.SampleType.TASK.code());
+            tags.put(MetricCons.Tags.F_TASK_ID, taskId);
+            tags.put("physicalNodeId", "node-a");
+            return tags;
         }
 
         @Test
