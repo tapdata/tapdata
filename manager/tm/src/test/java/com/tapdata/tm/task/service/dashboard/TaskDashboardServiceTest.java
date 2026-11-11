@@ -246,6 +246,26 @@ class TaskDashboardServiceTest {
     }
 
     @Test
+    void selectedNodeDoesNotTreatEmptyGroupAsAnAuthorizedProcess() {
+        ClusterStateService clusterStateService = mock(ClusterStateService.class);
+        ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);
+        when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(
+                dashboardState("selected-node", "selected-node", "allowed", false, true),
+                dashboardState("selected-node", "selected-node", "denied", true, false)));
+        AccessNodeInfo emptyGroup = new AccessNodeInfo();
+        emptyGroup.setProcessId("denied");
+        emptyGroup.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+        emptyGroup.setAccessNodes(List.of());
+        when(clusterStateService.findAccessNodeInfo(eq(user), anyCollection())).thenReturn(List.of(
+                emptyGroup, new AccessNodeInfo("allowed", "host", "ip", "running")));
+
+        TaskDashboardVo.NodeOption selected = ReflectionTestUtils.invokeMethod(
+                taskDashboardService, "findAuthorizedNode", user, "selected-node");
+
+        assertEquals(false, selected.isEngineDeployed());
+    }
+
+    @Test
     void selectedNodeRejectsMissingAndUnauthorizedNodes() {
         ClusterStateService clusterStateService = mock(ClusterStateService.class);
         ReflectionTestUtils.setField(taskDashboardService, "clusterStateService", clusterStateService);

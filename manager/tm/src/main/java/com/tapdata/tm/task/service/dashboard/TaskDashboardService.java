@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.dashboard;
 
 import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -675,8 +676,11 @@ public class TaskDashboardService {
         if (node == null) {
             return;
         }
-        if (CollectionUtils.isNotEmpty(node.getAccessNodes())) {
-            node.getAccessNodes().forEach(child -> collectAccessNodeStatuses(child, statuses));
+        if (AccessNodeTypeEnum.isGroupManually(node.getAccessNodeType())
+                || CollectionUtils.isNotEmpty(node.getAccessNodes())) {
+            if (CollectionUtils.isNotEmpty(node.getAccessNodes())) {
+                node.getAccessNodes().forEach(child -> collectAccessNodeStatuses(child, statuses));
+            }
             return;
         }
         if (StringUtils.isNotBlank(node.getProcessId())) {
