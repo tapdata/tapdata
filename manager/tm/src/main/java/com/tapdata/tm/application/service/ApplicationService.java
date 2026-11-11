@@ -70,9 +70,10 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
                 .collect(Collectors.toMap(RoleEntity::getId,RoleEntity::getName,(key1, key2) -> key2));
         pageApplications.getItems().stream().forEach(applicationDto -> {
             List scopeNames = new ArrayList<>();
-            applicationDto.getScopes().forEach(s->{
-                scopeNames.add(roleMap.get(ObjectIdDeserialize.toObjectId(s.toString())));
-            });
+            if (applicationDto.getScopes() != null) {
+                applicationDto.getScopes().forEach(s ->
+                        scopeNames.add(roleMap.get(ObjectIdDeserialize.toObjectId(s.toString()))));
+            }
             applicationDto.setScopeNames(scopeNames);
         });
         return pageApplications;
