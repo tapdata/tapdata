@@ -1,5 +1,9 @@
 package com.tapdata.tm.proxy.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import cn.hutool.crypto.digest.MD5;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.async.AsyncContextManager;
@@ -761,6 +765,7 @@ public class ProxyController extends BaseController {
 	}
 
 	@GetMapping("/download")
+	@Audited(value = AuditAction.TASK_DOWNLOAD_LOG, objectName = "#filename", summary = "'agent ' + #agentId")
 	public void downloadFile(@RequestParam String filename, @RequestParam String agentId,
 							 HttpServletRequest request, HttpServletResponse response) {
 

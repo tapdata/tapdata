@@ -1052,7 +1052,8 @@ public class UserServiceImplTest {
             doCallRealMethod().when(userService).refreshAccessCode(userDetail);
             String actual = userService.refreshAccessCode(userDetail);
             assertEquals(accessCode, actual);
-            verify(userLogService, new Times(1)).addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), userDto.getAccessCode());
+            // 审计只记录发生了重置，不记录新访问码本身
+            verify(userLogService, new Times(1)).addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), (String) null);
         }
         @Test
         void testRefreshAccessCodeNoUpdate() {

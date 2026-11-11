@@ -172,6 +172,30 @@ class AlarmEventQueryIT {
     }
 
     @Test
+    @DisplayName("引擎恢复事件：列表和详情均返回已恢复，筛选使用同一状态")
+    void should_preserve_engine_recovery_state() {
+        AlarmInfo recovered = alarm();
+        recovered.setMetric(AlarmKeyEnum.ENGINE_ONLINE);
+        recovered.setAgentId("agent-1");
+        recovered.setLevel(Level.RECOVERY);
+        recovered.setStatus(AlarmStatusEnum.RECOVER);
+        recovered.setRecoveryTime(new Date(1500));
+        alarmData.add(recovered);
+        when(mongo.findById(recovered.getId(), AlarmInfo.class)).thenReturn(recovered);
+        AlarmEventQuery query = new AlarmEventQuery();
+        query.setStatus(List.of(AlarmStatusEnum.RECOVER));
+
+        AlarmEventVo row = service.list(query, admin, Locale.CHINA).getItems().get(0);
+        assertThat(lastAlarmQuery.get().getQueryObject().toJson()).contains("RECOVER");
+        AlarmEventVo detail = service.detail(recovered.getId().toHexString(), admin, Locale.CHINA);
+
+        assertThat(row.getStatus()).isEqualTo(AlarmStatusEnum.RECOVER);
+        assertThat(detail.getStatus()).isEqualTo(row.getStatus());
+        assertThat(detail.getLevel()).isEqualTo(Level.RECOVERY);
+        assertThat(detail.getRecoveryTime()).isEqualTo(new Date(1500));
+    }
+
+    @Test
     @DisplayName("AC1 非任务告警（校验、引擎、API Server）同样返回并识别对象类型")
     void should_include_non_task_alarms() {
         AlarmInfo inspect = alarm();
@@ -390,7 +414,8 @@ class AlarmEventQueryIT {
 
         assertThat(stats).isEqualTo(new AlarmEventStatsVo(7, 2, 4, 1));
         assertThat(queries.get(1)).contains("\"status\": \"ING\"").contains("EMERGENCY");
-        assertThat(queries.get(3)).contains("\"status\": \"RECOVER\"");
+        assertThat(queries.get(3)).contains("\"status\": \"RECOVER\"")
+                .contains("\"metric\": {\"$ne\": \"ENGINE_ONLINE\"}");
     }
 
     @Test

@@ -10,6 +10,8 @@ import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHTag;
 import org.kohsuke.github.GitHub;
 import org.kohsuke.github.GitHubBuilder;
+import org.kohsuke.github.HttpConnector;
+import org.kohsuke.github.extras.ImpatientHttpConnector;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -29,6 +31,9 @@ import java.util.regex.Pattern;
 @Service
 @Slf4j
 public class GitHubService extends GitBaseService {
+
+	/** GitHub API 建连超时，固定 30s —— 连不上不该等到读超时那么久 */
+	private static final int CONNECT_TIMEOUT_MILLIS = 30_000;
 
 	private static final Pattern REPO_PATTERN =
 			Pattern.compile("^(?:https?://|git@)[^/:]+[:/]([^/]+)/([^/]+?)(?:\\.git)?/?$");
@@ -125,6 +130,11 @@ public class GitHubService extends GitBaseService {
 		}
 	}
 
+	/** 用 long 算再夹回 int：分钟数配大了（>35791）直接乘会溢出成负数，setReadTimeout 会抛 IllegalArgumentException */
+	private int readTimeoutMillis() {
+		return (int) Math.min(Integer.MAX_VALUE, exportTimeoutMinutes() * 60_000L);
+	}
+
 	private String[] parseOwnerAndRepo(String repoUrl) {
 		Matcher matcher = REPO_PATTERN.matcher(repoUrl);
 		if (!matcher.find()) {
@@ -134,7 +144,10 @@ public class GitHubService extends GitBaseService {
 	}
 
 	private GitHub createGitHubClient(String repoUrl, String token) throws IOException {
-		GitHubBuilder builder = new GitHubBuilder();
+		// 默认 connector 没有读超时，listTags / createPullRequest 卡住就是永久卡住
+		GitHubBuilder builder = new GitHubBuilder()
+				.withConnector(new ImpatientHttpConnector(HttpConnector.DEFAULT,
+						CONNECT_TIMEOUT_MILLIS, readTimeoutMillis()));
 		String host = extractHost(repoUrl);
 		if (host != null
 				&& !"github.com".equalsIgnoreCase(host)

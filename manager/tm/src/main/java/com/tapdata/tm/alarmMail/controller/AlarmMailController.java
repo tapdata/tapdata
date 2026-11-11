@@ -1,5 +1,9 @@
 package com.tapdata.tm.alarmMail.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import cn.hutool.core.lang.Validator;
 import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
@@ -34,6 +38,7 @@ public class AlarmMailController extends BaseController {
 
     @Operation(summary = "Add user default recipient")
     @PostMapping("/save")
+    @Audited(value = AuditAction.NOTIFICATION_UPDATE, summary = "'alarm mail'")
     public ResponseMessage<Void> alarmMailSave(@RequestBody AlarmMailDto alarmMailDto) {
         UserDetail userDetail = getLoginUser();
         if(null == userDetail){

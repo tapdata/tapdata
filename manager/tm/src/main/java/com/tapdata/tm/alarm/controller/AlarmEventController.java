@@ -1,5 +1,9 @@
 package com.tapdata.tm.alarm.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.alarm.dto.AlarmEventQuery;
 import com.tapdata.tm.alarm.dto.AlarmEventStatsVo;
 import com.tapdata.tm.alarm.dto.AlarmEventVo;
@@ -46,6 +50,7 @@ public class AlarmEventController extends BaseController {
 
     @Operation(summary = "close alarm events, requires the close permission")
     @PostMapping("close")
+    @Audited(value = AuditAction.ALARM_CLOSE, objectId = "#ids")
     public ResponseMessage<Void> close(@RequestBody List<String> ids) {
         queryService.close(ids, getLoginUser());
         return success();

@@ -1,5 +1,8 @@
 package com.tapdata.tm.config;
 
+import com.tapdata.tm.audit.AuditSource;
+import com.tapdata.tm.audit.LoginAuditRecorder;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -301,6 +304,18 @@ public class AuthorizationConfig {
 
     private static class LoggingOAuth2ErrorResponseHandler implements AuthenticationFailureHandler {
         private static final ObjectMapper objectMapper = new ObjectMapper();
+
+        /** OAuth2 客户端凭据认证失败计入审计；错误码取 OAuth2 标准码，不记录客户端提交的凭据。 */
+        private static void auditFailure(HttpServletRequest request, Exception exception) {
+            try {
+                LoginAuditRecorder recorder = SpringContextHelper.getBean(LoginAuditRecorder.class);
+                String code = exception instanceof OAuth2AuthenticationException oauth2 && oauth2.getError() != null
+                        ? oauth2.getError().getErrorCode() : "invalid_client";
+                recorder.failed(request.getParameter("client_id"), LoginAuditRecorder.METHOD_OAUTH2, code, AuditSource.OPENAPI);
+            } catch (Exception e) {
+                log.warn("OAuth2 failure audit skipped: {}", e.getMessage());
+            }
+        }
         private final AuthenticationFailureHandler delegate =
                 new org.springframework.security.oauth2.server.authorization.web.authentication.OAuth2ErrorAuthenticationFailureHandler();
 
@@ -322,6 +337,7 @@ public class AuthorizationConfig {
                         request.getRequestURI(), exception.getMessage());
             }
 
+            auditFailure(request, exception);
             BufferingHttpServletResponseWrapper bufferingResponse = new BufferingHttpServletResponseWrapper(response);
             delegate.onAuthenticationFailure(request, bufferingResponse, exception);
 

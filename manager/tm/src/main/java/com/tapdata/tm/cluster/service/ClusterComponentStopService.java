@@ -1,5 +1,7 @@
 package com.tapdata.tm.cluster.service;
 
+import com.tapdata.tm.audit.ServiceLifecycleAudit;
+
 import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.dto.ComponentStoppedRequest;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
@@ -43,6 +45,7 @@ public class ClusterComponentStopService {
     private TransformSchemaService transformSchema;
     private UserService userService;
     private TaskAlarmScheduler taskAlarmScheduler;
+    private ServiceLifecycleAudit serviceLifecycleAudit;
 
     public Map<String, Object> componentStopped(ComponentStoppedRequest req, UserDetail caller) {
         log.info("ClusterComponent event=received component={} uuid={} processId={} callerUserId={}",
@@ -64,12 +67,18 @@ public class ClusterComponentStopService {
         switch (component) {
             case ComponentStoppedRequest.COMPONENT_ENGINE:
                 workerUpdated = markWorkerStopped(processId, "connector");
+                if (serviceLifecycleAudit != null) {
+                    serviceLifecycleAudit.onStopped("connector", processId, null, null);
+                }
                 taskRescheduled = failoverTasksOf(processId);
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "engine");
                 sendEngineOfflineAlarm(processId);
                 break;
             case ComponentStoppedRequest.COMPONENT_APISERVER:
                 workerUpdated = markWorkerStopped(processId, WorkerType.API_SERVER.getType());
+                if (serviceLifecycleAudit != null) {
+                    serviceLifecycleAudit.onStopped(WorkerType.API_SERVER.getType(), processId, null, null);
+                }
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "apiServer");
                 break;
             case ComponentStoppedRequest.COMPONENT_FRONTEND:

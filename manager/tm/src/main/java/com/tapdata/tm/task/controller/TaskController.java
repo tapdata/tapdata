@@ -1,5 +1,9 @@
 package com.tapdata.tm.task.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
@@ -213,6 +217,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.TASK_CREATE, objectId = "#result?.id", objectName = "#task.name")
     public ResponseMessage<TaskDto> save(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
 
@@ -229,6 +234,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#task.id", objectName = "#task.name")
     public ResponseMessage<TaskDto> update(HttpServletRequest request, @RequestBody TaskDto task) {
 			UserDetail user = getLoginUser();
 			TaskDto resultTask = dataPermissionCheckOfId(request, user, task.getId(), DataPermissionActionEnums.Edit, () -> {
@@ -357,6 +363,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#id")
     public ResponseMessage<TaskDto> updateById(HttpServletRequest request, @PathVariable("id") String id, @RequestBody TaskDto task) {
 			task.setId(MongoUtils.toObjectId(id));
 			UserDetail user = getLoginUser();
@@ -377,6 +384,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "编辑以一个已经存在的任务")
     @PatchMapping("confirm/{id}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#id")
     public ResponseMessage<TaskDto> confirmById(
 			HttpServletRequest request,
 			@PathVariable("id") String id,
@@ -402,6 +410,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "新增一个任务")
     @PatchMapping("confirm")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#task.id", objectName = "#task.name")
     public ResponseMessage<TaskDto> confirmById(@RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                 @RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
@@ -417,6 +426,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("confirmStart/{id}")
+    @Audited(value = AuditAction.TASK_START, objectId = "#id")
     public ResponseMessage<TaskDto> confirmStart(@PathVariable("id") String id, @RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                  @RequestBody TaskDto task) {
         task.setId(MongoUtils.toObjectId(id));
@@ -549,6 +559,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#id")
     public ResponseMessage<TaskDto> replceById(@PathVariable("id") String id, @RequestBody TaskDto task) {
         return success(taskService.replaceById(MongoUtils.toObjectId(id), task, getLoginUser()));
     }
@@ -561,6 +572,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#id")
     public ResponseMessage<TaskDto> replaceById2(@PathVariable("id") String id, @RequestBody TaskDto task) {
         return success(taskService.replaceById(MongoUtils.toObjectId(id), task, getLoginUser()));
     }
@@ -574,6 +586,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.TASK_DELETE, objectId = "#id")
     public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
@@ -752,6 +765,7 @@ public class TaskController extends BaseController {
 //    }
 
     @PostMapping("increase/clear/{taskId}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'increase clear'")
     public ResponseMessage<List<IncreaseSyncVO>> increaseClear(@PathVariable("taskId") String taskId,
                                                                @RequestParam("srcNode") String srcNode,
                                                                @RequestParam("tgtNode") String tgtNode) {
@@ -760,6 +774,7 @@ public class TaskController extends BaseController {
     }
 
     @PostMapping("increase/backtracking/{taskId}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'increase backtracking'")
     public ResponseMessage<List<IncreaseSyncVO>> increaseBacktracking(@PathVariable("taskId") String taskId,
                                                                       @RequestParam("srcNode") String srcNode,
                                                                       @RequestParam("tgtNode") String tgtNode,
@@ -771,6 +786,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "复制同步任务")
     @PutMapping("copy/{id}")
+    @Audited(value = AuditAction.TASK_COPY, objectId = "#id")
     public ResponseMessage<TaskDto> copy(HttpServletRequest request, @PathVariable("id") String id) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
@@ -783,6 +799,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "启动同步任务")
     @PutMapping("start/{id}")
+    @Audited(value = AuditAction.TASK_START, objectId = "#id")
     public ResponseMessage<Void> start(HttpServletRequest request, @PathVariable("id") String id) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
@@ -796,6 +813,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "暂停同步任务")
     //@PutMapping("pause/{id}")
+    @Audited(value = AuditAction.TASK_STOP, objectId = "#id", alternateWhen = "#force", alternate = AuditAction.TASK_FORCE_STOP)
     public ResponseMessage<Void> pause(
 			HttpServletRequest request,
 			@PathVariable("id") String id,
@@ -812,6 +830,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "重置同步任务")
     @PutMapping("renew/{id}")
+    @Audited(value = AuditAction.TASK_RESET, objectId = "#id")
     public ResponseMessage<Void> renew(HttpServletRequest request, @PathVariable("id") String id) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
@@ -824,6 +843,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "停止同步任务")
     @PutMapping("stop/{id}")
+    @Audited(value = AuditAction.TASK_STOP, objectId = "#id", alternateWhen = "#force", alternate = AuditAction.TASK_FORCE_STOP)
     public ResponseMessage<TaskDto> stop(
 			HttpServletRequest request,
 			@PathVariable("id") String id,
@@ -952,6 +972,7 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "重置任务接口")
     @PostMapping("renew/{id}")
+    @Audited(value = AuditAction.TASK_RESET, objectId = "#id")
     public ResponseMessage<Void> renew(
 			HttpServletRequest request,
 			@PathVariable("id") String id,
@@ -1003,12 +1024,14 @@ public class TaskController extends BaseController {
     }
 
     @DeleteMapping("history")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#id", summary = "'clean history'")
     public ResponseMessage<TaskDto> cleanHistory(@RequestParam("id") String id, @RequestParam("time") Long time) {
         taskService.clean(id, time);
         return success();
     }
 
     @PutMapping("batchStart")
+    @Audited(value = AuditAction.TASK_START, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds,
 																																 @RequestParam(value = "syncType", required = false) String syncType,
                                                                  HttpServletRequest request,
@@ -1026,6 +1049,7 @@ public class TaskController extends BaseController {
 		}
 
     @PutMapping("batchStop")
+    @Audited(value = AuditAction.TASK_STOP, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds,
 																																@RequestParam(value = "syncType", required = false) String syncType,
                                                                 HttpServletRequest request,
@@ -1061,6 +1085,7 @@ public class TaskController extends BaseController {
 		}
 
     @DeleteMapping("batchDelete")
+    @Audited(value = AuditAction.TASK_DELETE, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds,
 																																	@RequestParam(value = "syncType", required = false) String syncType,
 																																	HttpServletRequest request,
@@ -1083,6 +1108,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
+    @Audited(value = AuditAction.TASK_RESET, objectId = "#taskIds")
     public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds,
 																																 @RequestParam(value = "syncType", required = false) String syncType,
 																																 HttpServletRequest request,
@@ -1236,12 +1262,14 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务导出")
     @GetMapping("batch/load")
+    @Audited(value = AuditAction.TASK_EXPORT, objectId = "#taskId")
     public void batchLoadTasks(@RequestParam("taskId") List<String> taskId, HttpServletResponse response) {
         taskService.batchLoadTask(response, taskId, getLoginUser());
     }
 
     @Operation(summary = "任务导入")
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.TASK_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
                                         @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode,
@@ -1279,12 +1307,14 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
+    @Audited(value = AuditAction.TASK_UPDATE_TAGS, objectId = "#batchUpdateParam.id")
     public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
         return success(metadataDefinitionService.batchUpdateListTags("Task", batchUpdateParam, getLoginUser()));
     }
 
     @Operation(summary = "批量增删任务标签")
     @PatchMapping("batchApplyListtags")
+    @Audited(value = AuditAction.TASK_UPDATE_TAGS, objectId = "#batchApplyListTagsParam.ids")
     public ResponseMessage<List<String>> batchApplyListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
         return success(metadataDefinitionService.batchApplyListTags("Task", batchApplyListTagsParam, getLoginUser()));
     }
@@ -1382,6 +1412,7 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    @Audited(value = AuditAction.TASK_TEST_RUN, objectId = "#dto.taskId")
     public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
         taskNodeService.testRunJsNode(dto, getLoginUser());
         return success();
@@ -1389,6 +1420,7 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/mock-data")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    @Audited(value = AuditAction.TASK_TEST_RUN, objectId = "#dto.taskId")
     public ResponseMessage<Map<String,Object>> mockDate(@RequestBody TestRunDto dto) {
         return success(taskNodeService.mockDateRPC(dto,getLoginUser()));
     }
@@ -1396,12 +1428,14 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    @Audited(value = AuditAction.TASK_TEST_RUN, objectId = "#dto.taskId")
     public ResponseMessage<Map<String, Object>> testRunJsRPC(@RequestBody TestRunDto dto) {
         return testRunRPC(dto, ProcessorNodeType.Standard_JS.type());
     }
 
     @PostMapping("migrate-python/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    @Audited(value = AuditAction.TASK_TEST_RUN, objectId = "#dto.taskId")
     public ResponseMessage<Map<String, Object>> testRunPythonRPC(@RequestBody TestRunDto dto) {
         return testRunRPC(dto, ProcessorNodeType.PYTHON.type());
     }
@@ -1506,6 +1540,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务日志设置")
     @PutMapping("/logSetting/{taskId}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'log setting'")
     public ResponseMessage<Void> logSetting (@PathVariable("taskId") String taskId,
                                              @RequestBody LogSettingParam logSettingParam) {
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
@@ -1514,6 +1549,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务日志设置")
     @PostMapping("/logSetting/{level}/{taskId}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'log level ' + #level")
     public ResponseMessage<Void> logSettingPost (@PathVariable("taskId") String taskId,
                                                  @PathVariable("level") String level) {
         LogSettingParam logSettingParam = new LogSettingParam();
@@ -1545,6 +1581,7 @@ public class TaskController extends BaseController {
 
 
     @PatchMapping("rename/{taskId}")
+    @Audited(value = AuditAction.TASK_RENAME, objectId = "#taskId", summary = "#newName")
     public ResponseMessage<Void> rename(@PathVariable("taskId") String taskId, @RequestParam("newName") String newName) {
         taskService.rename(taskId, newName, getLoginUser());
         return success();
@@ -1552,6 +1589,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "修改任务信息（名称和描述）")
     @PatchMapping("updateInfo/{taskId}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "#newName")
     public ResponseMessage<Void> updateTaskInfo(@PathVariable("taskId") String taskId,
                                                @RequestParam("newName") String newName,
                                                @RequestParam(value = "desc", required = false) String desc) {
@@ -1683,6 +1721,7 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "Batch modify task alarm information")
     @PostMapping("/alarm/batch-update")
+    @Audited(value = AuditAction.TASK_UPDATE_ALARM, objectId = "#alarm.taskIds")
     public ResponseMessage<BatchAlarmResult> batchUpdateTaskAlarm(HttpServletRequest request, @RequestBody BatchUpdateAlarmParam alarm){
         UserDetail userDetail = getLoginUser();
         BatchAlarmResult result = new BatchAlarmResult();

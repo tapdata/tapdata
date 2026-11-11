@@ -1,5 +1,9 @@
 package com.tapdata.tm.discovery.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.discovery.bean.*;
@@ -59,6 +63,7 @@ public class DisCoveryController extends BaseController {
 
     @Operation(summary = "find storage object preview")
     @GetMapping("storage/preview/{id}")
+    @Audited(value = AuditAction.DATA_PREVIEW, objectId = "#id")
     public ResponseMessage<Page<Object>> storagePreview(@PathVariable("id") String id, @RequestParam(value = "skip", defaultValue = "0") Integer skip,
     @RequestParam(value = "size", defaultValue = "20") Integer size) {
         return success(discoveryService.storagePreview(id, getLoginUser()));

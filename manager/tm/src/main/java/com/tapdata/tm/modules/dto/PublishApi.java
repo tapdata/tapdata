@@ -88,12 +88,15 @@ public class PublishApi {
 
     private String publishStatus;
 
+    private String auditPublishOperationId;
+
     public static PublishApi from(ModulesDto dto) {
         if (null == dto) {
             return null;
         }
         PublishApi api = new PublishApi();
         api.setName(dto.getName());
+        api.setAuditPublishOperationId(dto.getAuditPublishOperationId());
         api.setDataSource(dto.getDataSource());
         api.setTableName(dto.getTableName());
         api.setApiVersion(dto.getApiVersion());

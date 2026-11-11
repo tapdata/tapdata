@@ -2,6 +2,14 @@ package com.tapdata.tm.userLog.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditEvent;
+import com.tapdata.tm.audit.AuditEventService;
+import com.tapdata.tm.audit.AuditOperationRegistry;
+import com.tapdata.tm.audit.AuditOutcome;
+import com.tapdata.tm.audit.AuditPhase;
+import com.tapdata.tm.audit.AuditRequestContext;
+import com.tapdata.tm.audit.LegacyAuditMapping;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -14,6 +22,7 @@ import com.tapdata.tm.userLog.constant.UserLogType;
 import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.dto.User;
 import com.tapdata.tm.userLog.entity.UserLogs;
+import com.tapdata.tm.utils.SensitiveDataMasker;
 import com.tapdata.tm.userLog.repository.UserLogRepository;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
@@ -36,6 +45,12 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
 
     @Autowired
     MessageSource messageSource;
+
+    @Autowired(required = false)
+    private AuditEventService auditEventService;
+
+    @Autowired(required = false)
+    private AuditOperationRegistry auditOperationRegistry;
 
     private final String DESC_PREFIX = "desc.";
 
@@ -154,6 +169,9 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
     }
 
     protected void addUserLog(Modular modular, Operation operation, UserDetail userDetail, ObjectId sourceId, UserLogType type, String parameter1, String parameter2, String parameter3, Boolean rename, boolean systemStart) {
+        if (recordAsAuditEvent(modular, operation, userDetail, sourceId, parameter1, parameter2, systemStart)) {
+            return;
+        }
         try {
             UserLogs userLogs = new UserLogs();
             userLogs.setModular(modular.getValue());
@@ -164,9 +182,10 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             userLogs.setSourceId(sourceId);
             userLogs.setType(type.getValue());
 
-            userLogs.setParameter1(parameter1);
-            userLogs.setParameter2(parameter2);
-            userLogs.setParameter3(parameter3);
+            // 写入边界同样脱敏，避免任何调用方把凭证明文落库
+            userLogs.setParameter1(SensitiveDataMasker.maskAuditField(modular.getValue(), "parameter1", parameter1));
+            userLogs.setParameter2(SensitiveDataMasker.mask(parameter2));
+            userLogs.setParameter3(SensitiveDataMasker.mask(parameter3));
 
             User user = new User();
             BeanUtil.copyProperties(userDetail, user);
@@ -181,6 +200,41 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         } catch (Exception e) {
             log.error("执行插入操作日志失败", e);
         }
+    }
+
+    /**
+     * 旧调用统一转写为审计事件：在 @Audited 接口内由切面负责记录，这里不再重复；
+     * 无法映射的组合返回 false，继续按旧格式记录。
+     */
+    protected boolean recordAsAuditEvent(Modular modular, Operation operation, UserDetail userDetail, ObjectId sourceId,
+                                         String parameter1, String parameter2, boolean systemStart) {
+        AuditRequestContext context = AuditRequestContext.current();
+        if (context != null && context.inAuditedScope()) {
+            return true;
+        }
+        AuditAction action = LegacyAuditMapping.map(modular, operation);
+        if (action == null || auditEventService == null) {
+            return false;
+        }
+        AuditEvent event = AuditEvent.of(action, action.isAsync() ? AuditOutcome.ACCEPTED : AuditOutcome.SUCCESS);
+        if (action.isAsync()) {
+            event.setPhase(AuditPhase.REQUEST);
+        }
+        String name = LegacyAuditMapping.parameterIsSecret(modular) ? null : parameter1;
+        event.object(sourceId == null ? null : sourceId.toHexString(), name);
+        if (!LegacyAuditMapping.parameterIsSecret(modular) && StringUtils.isNotBlank(parameter2)) {
+            event.setSummary(parameter2);
+        }
+        if (systemStart) {
+            event.system();
+        }
+        String operationId = auditEventService.currentOperationId();
+        event.setOperationId(operationId);
+        auditEventService.record(event, systemStart ? null : userDetail);
+        if (action.isAsync() && auditOperationRegistry != null && sourceId != null) {
+            auditOperationRegistry.register(action.getObjectType(), sourceId.toHexString(), operationId, action, name);
+        }
+        return true;
     }
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, Boolean rename) {
@@ -247,10 +301,27 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         long total = allData ? userLogRepository.count(filter.getWhere()) : userLogRepository.count(filter.getWhere(), userDetail);
 
         List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
+        // 历史数据可能已落库明文凭证，读取边界统一脱敏后再格式化文案
+        items.forEach(item -> {
+            item.setParameter1(SensitiveDataMasker.maskAuditField(item.getModular(), "parameter1", item.getParameter1()));
+            item.setParameter2(SensitiveDataMasker.mask(item.getParameter2()));
+            item.setParameter3(SensitiveDataMasker.mask(item.getParameter3()));
+            item.setDesc(SensitiveDataMasker.mask(item.getDesc()));
+            item.setUrl(SensitiveDataMasker.mask(item.getUrl()));
+        });
         Locale locale = MessageUtil.getLocale();
         items.forEach(item -> item.setI18nMessage(renderI18nMessage(item, locale)));
 
         return new Page<>(total, items);
+    }
+
+    /** 升级前历史记录的原自然语言描述，供审计页面兼容展示。 */
+    public String renderLegacyMessage(UserLogDto dto, Locale locale) {
+        try {
+            return renderI18nMessage(dto, locale);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     protected String renderI18nMessage(UserLogDto dto, Locale locale) {

@@ -1,5 +1,9 @@
 package com.tapdata.tm.apiServer.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.apiServer.dto.ApiServerDto;
@@ -74,6 +78,7 @@ public class ApiServerController extends BaseController {
 
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.SETTINGS_UPDATE, objectName = "#metadataDefinition.clientName", summary = "'create api server'")
     public ResponseMessage<ApiServerDto> save(@RequestBody ApiServerDto metadataDefinition) {
         metadataDefinition.setId(null);
         return success(apiServerService.save(metadataDefinition, getLoginUser()));
@@ -107,6 +112,7 @@ public class ApiServerController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "'update api server'")
     public ResponseMessage<ApiServerDto> updateById(HttpServletRequest request, @RequestBody ApiServerDto metadataDefinition) {
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfId(request, userDetail, metadataDefinition.getId().toHexString(), DataPermissionActionEnums.Edit,
@@ -115,6 +121,7 @@ public class ApiServerController extends BaseController {
 
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "'update api server ' + #id")
     public ResponseMessage<ApiServerDto> updateById(HttpServletRequest request, @PathVariable("id") String id, @RequestBody ApiServerDto metadataDefinition) {
         if (metadataDefinition.getId() == null || !metadataDefinition.getId().toHexString().equals(id)) {
             metadataDefinition.setId(MongoUtils.toObjectId(id));
@@ -150,6 +157,7 @@ public class ApiServerController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.SETTINGS_UPDATE, summary = "'delete api server ' + #id")
     public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.Delete, () -> {
@@ -239,6 +247,7 @@ public class ApiServerController extends BaseController {
      * @param response a HttpServletResponse
      */
     @GetMapping(value = "/download/{id}")
+    @Audited(value = AuditAction.API_CLIENT_VIEW_SECRET, summary = "'download api server config ' + #id")
     public void downloadFile(@PathVariable("id") String id, HttpServletResponse response) {
         Query query = Query.query(Criteria.where("id").is(id));
         ApiServerDto apiServerDto = apiServerService.findOne(query);
