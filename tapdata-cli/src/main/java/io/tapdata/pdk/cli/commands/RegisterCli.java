@@ -2,26 +2,17 @@ package io.tapdata.pdk.cli.commands;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.CommonCli;
+import io.tapdata.pdk.registration.RegistrationMetadata;
 import io.tapdata.pdk.cli.services.UploadFileService;
 import io.tapdata.pdk.cli.utils.PrintUtil;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.constants.DataSourceQCType;
-import io.tapdata.pdk.core.tapnode.TapNodeContainer;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.utils.IOUtils;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
@@ -135,115 +126,9 @@ public class RegisterCli extends CommonCli {
                             }
                         }
 
-                        JSONObject o = (JSONObject) JSON.toJSON(specification);
-                        DataSourceQCType qcType = DataSourceQCType.parse(specification.getManifest().get("Authentication"));
-                        qcType = (null == qcType) ? DataSourceQCType.Alpha : qcType;
-                        o.put("qcType", qcType);
-
-                        String pdkAPIVersion = specification.getManifest().get("PDK-API-Version");
-                        int pdkAPIBuildNumber = CommonUtils.getPdkBuildNumer(pdkAPIVersion);
-                        o.put("pdkAPIVersion", pdkAPIVersion);
-                        o.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
-                        o.put("beta", "beta".equals(authentication));
-                        String nodeType = null;
-                        switch (nodeInfo.getNodeType()) {
-                            case TapNodeInfo.NODE_TYPE_SOURCE:
-                                nodeType = "source";
-                                break;
-                            case TapNodeInfo.NODE_TYPE_SOURCE_TARGET:
-                                nodeType = "source_and_target";
-                                break;
-                            case TapNodeInfo.NODE_TYPE_TARGET:
-                                nodeType = "target";
-                                break;
-                            case TapNodeInfo.NODE_TYPE_PROCESSOR:
-                                nodeType = "processor";
-                                break;
-                            default:
-                                throw new IllegalArgumentException("Unknown node type " + nodeInfo.getNodeType());
-                        }
-                        o.put("type", nodeType);
-                        // get the version info and group info from jar
-                        o.put("version", nodeInfo.getNodeClass().getPackage().getImplementationVersion());
-                        o.put("group", nodeInfo.getNodeClass().getPackage().getImplementationVendor());
-
-                        TapNodeContainer nodeContainer = JSON.parseObject(IOUtils.toString(nodeInfo.readResource(nodeInfo.getNodeClass().getAnnotation(TapConnectorClass.class).value())), TapNodeContainer.class);
-                        if (nodeContainer.getDataTypes() == null) {
-                            try (InputStream dataTypeInputStream = this.getClass().getClassLoader().getResourceAsStream("default-data-types.json")) {
-                                if (dataTypeInputStream != null) {
-                                    String dataTypesJson = org.apache.commons.io.IOUtils.toString(dataTypeInputStream, StandardCharsets.UTF_8);
-                                    if (StringUtils.isNotBlank(dataTypesJson)) {
-                                        TapNodeContainer container = InstanceFactory.instance(JsonParser.class).fromJson(dataTypesJson, TapNodeContainer.class);
-                                        if (container != null && container.getDataTypes() != null)
-                                            nodeContainer.setDataTypes(container.getDataTypes());
-                                    }
-                                }
-                            }
-                        }
-                        Map<String, Object> messsages = nodeContainer.getMessages();
-                        String replacePath = null;//"replace_default";
-                        Map<String, Object> replaceConfig = needReplaceKeyWords(nodeInfo, replacePath);
-                        if (messsages != null) {
-                            Set<String> keys = messsages.keySet();
-                            for (String key : keys) {
-                                if (!key.equalsIgnoreCase("default")) {
-                                    Map<String, Object> messagesForLan = (Map<String, Object>) messsages.get(key);
-                                    if (messagesForLan != null) {
-                                        for (String mKey : messagesForLan.keySet()) {
-                                            if (!("doc".equals(mKey) || mKey.startsWith("doc:"))) continue;
-                                            String filePath = (String) messagesForLan.get(mKey);
-                                            if (null == filePath || filePath.isEmpty()) continue;
-                                            addFile(filePath, inputStreamMap, nodeInfo, replaceConfig);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        o.put("expression", JSON.toJSONString(nodeContainer.getDataTypes()));
-                        if (nodeContainer.getMessages() != null) {
-                            o.put("messages", nodeContainer.getMessages());
-                        }
-
-                        io.tapdata.pdk.apis.TapConnector connector1 = (io.tapdata.pdk.apis.TapConnector) nodeInfo.getNodeClass().getConstructor().newInstance();
-                        ConnectorFunctions connectorFunctions = new ConnectorFunctions();
-                        TapCodecsRegistry codecRegistry = new TapCodecsRegistry();
-                        connector1.registerCapabilities(connectorFunctions, codecRegistry);
-
-                        List<Capability> capabilities = connectorFunctions.getCapabilities();
-                        DataMap dataMap = nodeContainer.getConfigOptions();
-                        if (dataMap != null) {
-                            List<Map<String, Object>> capabilityList = (List<Map<String, Object>>) dataMap.get("capabilities");
-
-                            if (CollectionUtils.isNotEmpty(capabilityList)) {
-                                for (Map<String, Object> capabilityFromSpec : capabilityList) {
-                                    String capabilityId = (String) capabilityFromSpec.get("id");
-                                    if (capabilityId != null) {
-                                        List<String> alternatives = (List<String>) capabilityFromSpec.get("alternatives");
-                                        capabilities.add(Capability.create(capabilityId).alternatives(alternatives).type(Capability.TYPE_OTHER));
-                                    }
-                                }
-                            }
-
-                            Map<String, Object> supportDDL = (Map<String, Object>) dataMap.get("supportDDL");
-                            if (supportDDL != null) {
-                                List<String> ddlEvents = (List<String>) supportDDL.get("events");
-                                if (ddlEvents != null) {
-                                    for (String ddlEvent : ddlEvents) {
-                                        capabilities.add(Capability.create(ddlEvent).type(Capability.TYPE_DDL));
-                                    }
-                                }
-                            }
-
-                        }
-                        if (CollectionUtils.isNotEmpty(capabilities)) {
-                            o.put("capabilities", capabilities);
-                            if (null != dataMap) {
-                                dataMap.remove("capabilities");
-                            }
-                        }
-
-                        Map<Class<?>, String> tapTypeDataTypeMap = codecRegistry.getTapTypeDataTypeMap();
-                        o.put("tapTypeDataTypeMap", JSON.toJSONString(tapTypeDataTypeMap));
+                        Map<String, Object> replaceConfig = needReplaceKeyWords(nodeInfo, null);
+                        JSONObject o = RegistrationMetadata.build(nodeInfo,
+                                filePath -> addFile(filePath, inputStreamMap, nodeInfo, replaceConfig));
                         String jsonString = o.toJSONString();
                         jsons.add(jsonString);
                     }

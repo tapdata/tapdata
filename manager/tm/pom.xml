@@ -436,10 +436,18 @@
             <artifactId>bcprov-jdk18on</artifactId>
             <scope>compile</scope>
         </dependency>
+        <!-- 1.2.84 修 CVE-2026-16723（1.2.68–1.2.83 默认配置即可 RCE），
+             且与 1.2.83 二进制兼容。
+             ⚠ 不要升到 fastjson 2.x（含兼容包 com.alibaba:fastjson:2.0.x）：
+             tm 依赖 tapdata-pdk-runner，其 AbstractResultDeserializer 直接读
+             DefaultJSONParser.input / .lexer——1.x 里是 public final，2.x 兼容包
+             里是 private。pdk-runner 的字节码按 1.x 编译，换 2.x 会在解析
+             TapTable/TapField 的 TapType 时抛 IllegalAccessError（2026-08-04 实测）。
+             升 2.x 的前置条件 = 先在 tapdata-common-lib 重写该类。 -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
-            <version>1.2.83</version>
+            <version>1.2.84</version>
         </dependency>
 		<dependency>
 			<groupId>com.sun.mail</groupId>
@@ -453,7 +461,7 @@
 		<dependency>
 			<groupId>org.jsoup</groupId>
 			<artifactId>jsoup</artifactId>
-			<version>1.19.1</version>
+			<version>1.23.2</version>
 		</dependency>
 		<!--阿里云短信sdk-->
 		<dependency>
@@ -660,6 +668,13 @@
 			<groupId>org.easytesting</groupId>
 			<artifactId>fest-assert</artifactId>
 			<version>${version.fest}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- 两库红线（ArchUnit 编译期结构化，TAP-12057 / ADR-0002）；与引擎 iengine-app 同版本 -->
+		<dependency>
+			<groupId>com.tngtech.archunit</groupId>
+			<artifactId>archunit-junit5</artifactId>
+			<version>1.3.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

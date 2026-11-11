@@ -1,5 +1,8 @@
 package com.tapdata.tm.cluster.service;
 
+import com.tapdata.tm.audit.AuditNode;
+import com.tapdata.tm.audit.ClusterOperationAudit;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.map.MapUtil;
@@ -32,6 +35,7 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerField;
 import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -68,6 +72,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     @Autowired(required = false)
     @Lazy
     WorkerService workerService;
+    @Autowired(required = false)
+    private ClusterOperationAudit clusterOperationAudit;
+
 
     @Autowired
     ClusterOperationService clusterOperationService;
@@ -134,12 +141,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
                 List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
                 clusterStateDtoList.forEach(clusterStateDto -> {
-                    addNewClusterOperation(clusterStateDto, param, downList);
+                    addNewClusterOperation(clusterStateDto, param, downList, userDetail);
                     updateWorker(processId, param.getVersion(), userDetail);
                 });
             } else {
                 clusterStateDtoList.forEach(clusterStateDto -> {
-                    addNewClusterOperation(clusterStateDto, param, null);
+                    addNewClusterOperation(clusterStateDto, param, null, userDetail);
                 });
             }
 
@@ -158,6 +165,10 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         clusterOperationDto.setOperation(updataStatusRequest.getOperation());
         clusterOperationDto.setStatus(0);
         ClusterOperationDto clusterOper = clusterOperationService.save(clusterOperationDto, userDetail);
+        if (clusterOperationAudit != null && clusterOper.getId() != null) {
+            clusterOperationAudit.accepted(updataStatusRequest.getOperation(), clusterOper.getId().toHexString(),
+                    updataStatusRequest.getServer(), auditNode(updataStatusRequest.getUuid(), updataStatusRequest.getServer()), userDetail);
+        }
         String server = updataStatusRequest.getServer() + "Operation";
         Map<String, Object> data = new HashMap<>();
         data.put("_id", clusterOper.getId());
@@ -267,7 +278,19 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         return 1;
     }
 
-    private void addNewClusterOperation(ClusterStateDto clusterStateDto, UpdateAgentVersionParam param, List downloadList) {
+    private AuditNode auditNode(String uuid, String server) {
+        try {
+            ClusterStateDto state = findOne(Query.query(Criteria.where("systemInfo.uuid").is(uuid)));
+            if (state == null || state.getSystemInfo() == null) {
+                return new AuditNode(server, uuid, null, null);
+            }
+            return new AuditNode(server, uuid, state.getSystemInfo().getHostname(), state.getSystemInfo().getIp());
+        } catch (Exception e) {
+            return new AuditNode(server, uuid, null, null);
+        }
+    }
+
+    private void addNewClusterOperation(ClusterStateDto clusterStateDto, UpdateAgentVersionParam param, List downloadList, UserDetail userDetail) {
         ClusterOperationEntity cluserOperationEntity = new ClusterOperationEntity();
         cluserOperationEntity.setOperationTime(new Date());
         cluserOperationEntity.setProcess_id(param.getProcessId());
@@ -288,6 +311,14 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         cluserOperationEntity.setCreateAt(new Date());
         cluserOperationEntity.setLastUpdAt(new Date());
         repository.getMongoOperations().insert(cluserOperationEntity);
+        if (clusterOperationAudit != null && cluserOperationEntity.getId() != null) {
+            boolean upgrade = ClusterOperationTypeEnum.upgrade.name().equals(param.getOp());
+            String server = upgrade ? "agent" : "engine";
+            clusterOperationAudit.accepted(param.getOp(),
+                    upgrade ? ClusterOperationAudit.UPGRADE_OBJECT_TYPE : ClusterOperationAudit.OBJECT_TYPE,
+                    upgrade ? param.getProcessId() : cluserOperationEntity.getId().toHexString(), server,
+                    auditNode(clusterStateDto.getUuid(), server), userDetail);
+        }
     }
 
     private void updateWorker(String processId, String version, UserDetail user) {
@@ -487,7 +518,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
             Map<String, Worker> apiMap;
             if (!apiServerId.isEmpty()) {
-                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId).and("worker_type").is(WorkerType.API_SERVER.getType())));
+                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where(WorkerField.PROCESS_ID.field()).in(apiServerId)
+                        .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                        .and(WorkerField.DELETED.field()).ne(true)));
                 apiMap = allApiServerInfo.stream()
                         .filter(Objects::nonNull)
                         .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))

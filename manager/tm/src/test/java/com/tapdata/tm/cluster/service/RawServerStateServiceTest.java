@@ -200,24 +200,43 @@ class RawServerStateServiceTest {
             }
         }
 
+        /**
+         * 钉住存活阈值本身（3 分钟），而不是「恰好整 3 分钟」那个点。
+         *
+         * <p><b>为什么不测那个点。</b>判据是 {@code RawServerStateService:61} 的
+         * {@code now - timestamp <= 3 分钟}，而 {@code now} 是<b>被测代码自己</b>再读一次
+         * {@code System.currentTimeMillis()} 得到的，比本用例读到的那次晚一个未知的 {@code delta >= 0}。
+         * 种子播成 {@code currentTime - 3 分钟} 时，「是否存活」等价于 {@code delta == 0} ——
+         * 也就是整条调用路径是否落在同一毫秒里。这不是可判定的断言，是一次掷硬币。</p>
+         *
+         * <p>本用例此前正是那么写的（种子整 3 分钟、断言 not alive），靠「至少过了 1 毫秒」蒙对；
+         * JVM 一热、这段路径进了同一毫秒就翻红。而且它断言的方向与生产语义（{@code <=} 即存活）
+         * 以及它自己上一行的注释都相反 —— 它从来没有测过它命名的那件事。</p>
+         *
+         * <p><b>改成钉阈值。</b>界内 5 秒必须存活、界外 5 秒必须不存活。界外那条对任何 {@code delta}
+         * 都成立；界内那条的余量是整整 5 秒（原先是 0）。阈值一旦从 3 分钟改成 2 或 4 分钟，两条各红一条。
+         * 整毫秒边界上 {@code <} 与 {@code <=} 的区别用 wall clock 判定不了，也不是任何需求关心的事。</p>
+         */
         @Test
-        void testGetAllLatestIsAliveExactlyThreeMinutes() {
+        void testGetAllLatestIsAliveAroundThreeMinuteThreshold() {
             Filter filter = new Filter();
             filter.setWhere(new Where());
 
+            long threshold = 3 * 60 * 1000L;
+            long margin = 5000L;
             long currentTime = System.currentTimeMillis();
 
-            RawServerStateDto dto1 = new RawServerStateDto();
-            dto1.setServiceId("service1");
-            dto1.setTimestamp(new Date(currentTime - 3 * 60 * 1000L - 1000)); // 3 minutes + 1s ago (beyond liveness window)
+            RawServerStateDto inside = new RawServerStateDto();
+            inside.setServiceId("service-inside");
+            inside.setTimestamp(new Date(currentTime - threshold + margin));  // 2 分 55 秒前
 
-            RawServerStateDto dto2 = new RawServerStateDto();
-            dto2.setServiceId("service2");
-            dto2.setTimestamp(new Date(currentTime - 3 * 60 * 1000L - 2000)); // 3 minutes + 2s ago (beyond liveness window)
+            RawServerStateDto outside = new RawServerStateDto();
+            outside.setServiceId("service-outside");
+            outside.setTimestamp(new Date(currentTime - threshold - margin)); // 3 分 05 秒前
 
             List<RawServerStateDto> results = new ArrayList<>();
-            results.add(dto1);
-            results.add(dto2);
+            results.add(inside);
+            results.add(outside);
 
             AggregationResults<RawServerStateDto> aggregationResults = mock(AggregationResults.class);
             when(aggregationResults.getMappedResults()).thenReturn(results);
@@ -233,11 +252,14 @@ class RawServerStateServiceTest {
                 assertNotNull(result);
                 assertEquals(2, result.getTotal());
 
-                // Both servers last reported beyond the 3-minute window, so both are not alive.
-                // Assert order-independently to avoid coupling to the service's sort order and to
-                // sub-millisecond timing between this test's clock read and the service's own.
-                assertFalse(result.getItems().get(0).getIsAlive());
-                assertFalse(result.getItems().get(1).getIsAlive());
+                // getAllLatest 按 timestamp 升序排（RawServerStateService:63），所以更早的 outside 在前。
+                // 显式断言 serviceId：旧版把注释挂在了错的下标上，而两条断言恰好都是 assertFalse，
+                // 于是那处错位一直没有被任何东西暴露出来。
+                assertEquals("service-outside", result.getItems().get(0).getServiceId());
+                assertFalse(result.getItems().get(0).getIsAlive(), "超出阈值 5 秒的服务不应判为存活");
+
+                assertEquals("service-inside", result.getItems().get(1).getServiceId());
+                assertTrue(result.getItems().get(1).getIsAlive(), "未到阈值 5 秒的服务必须判为存活");
             }
         }
     }

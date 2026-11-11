@@ -42,6 +42,7 @@ import io.tapdata.exception.TapPdkBaseException;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
+import io.tapdata.flow.engine.V2.index.PdkIndexService;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.TransactionOperator;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
@@ -124,6 +125,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
 			initTargetDB();
+			discoverTargetPhysicalFields(filterSubPartitionTableTableMap());
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 			this.writePolicyService.setStartTransactionMap(startTransactionMap);
 			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
@@ -589,19 +591,18 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected List<TapIndex> queryExistsIndexes(TapTable tapTable, List<TapIndex> indexList) throws Throwable {
-		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
-		if (null == queryIndexesFunction) {
-			return new ArrayList<>();
-		}
+		// P1-1(TAP-12057): 读回走可复用的 PdkIndexService 忠实读通道（返回全部物理索引，null-safe）；
+		// 身份比对仍用既有 tapIndexEquals 循环，行为等价。service 无状态、即用即弃。
+		List<TapIndex> physicalIndexes = new PdkIndexService().queryIndexes(getConnectorNode(), tapTable);
 		List<TapIndex> existsIndexes = new ArrayList<>();
-		queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)-> tapIndexList.forEach(existsIndex -> {
+		for (TapIndex existsIndex : physicalIndexes) {
 			// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
 			for (TapIndex tapIndex : indexList) {
 				if (tapIndexEquals(existsIndex, tapIndex, true)) {
 					existsIndexes.add(tapIndex);
 				}
 			}
-		}));
+		}
 		return existsIndexes;
 	}
 
@@ -808,6 +809,25 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 		for (TapDDLEvent tapDDLEvent : tapDDLEvents) {
 			Object result = ddlEventHandlers.handle(tapDDLEvent);
+			if (Boolean.TRUE.equals(result)) {
+				if (tapDDLEvent instanceof TapAlterFieldAttributesEvent) {
+					invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), ((TapAlterFieldAttributesEvent) tapDDLEvent).getFieldName());
+				} else if (tapDDLEvent instanceof TapAlterFieldNameEvent) {
+					ValueChange<String> change = ((TapAlterFieldNameEvent) tapDDLEvent).getNameChange();
+					if (change != null) {
+						invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), change.getBefore());
+						invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), change.getAfter());
+					}
+				} else if (tapDDLEvent instanceof TapDropFieldEvent) {
+					invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), ((TapDropFieldEvent) tapDDLEvent).getFieldName());
+				} else if (tapDDLEvent instanceof TapNewFieldEvent) {
+					List<TapField> newFields = ((TapNewFieldEvent) tapDDLEvent).getNewFields();
+					if (newFields != null) newFields.forEach(field -> invalidateDiscoveredTargetField(tapDDLEvent.getTableId(), field.getName()));
+				} else if (tapDDLEvent instanceof TapCreateTableEvent
+						&& !Boolean.TRUE.equals(tapDDLEvent.getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY))) {
+					invalidateDiscoveredTargetFields(tapDDLEvent.getTableId());
+				}
+			}
 			if (null == result) {
 				obsLogger.warn("DDL event: " + tapDDLEvent.getClass().getSimpleName() + " does not supported");
 			}

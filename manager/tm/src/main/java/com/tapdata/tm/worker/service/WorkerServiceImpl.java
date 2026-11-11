@@ -1,5 +1,8 @@
 package com.tapdata.tm.worker.service;
 
+import com.tapdata.tm.audit.ClusterOperationAudit;
+import com.tapdata.tm.audit.ServiceLifecycleAudit;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
@@ -53,6 +56,8 @@ import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
+import com.tapdata.tm.worker.entity.field.WorkerField;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -99,6 +104,11 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class WorkerServiceImpl extends WorkerService{
+    @Autowired(required = false)
+    private ClusterOperationAudit clusterOperationAudit;
+    @Autowired(required = false)
+    private ServiceLifecycleAudit serviceLifecycleAudit;
+
 
     @Autowired
     private DataFlowService dataFlowService;
@@ -640,15 +650,19 @@ public class WorkerServiceImpl extends WorkerService{
                 workUpdate.set("updatePingTime", now.getTime());
 //                update(workerQuery, workUpdate);
                 repository.getMongoOperations().updateMulti(workerQuery, workUpdate, Worker.class);
-
+                if (clusterOperationAudit != null && ("done".equals(status) || "fail".equals(status))) {
+                    clusterOperationAudit.finished(ClusterOperationAudit.UPGRADE_OBJECT_TYPE, processId,
+                            "done".equals(status), "audit_reason_upgrade_failed");
+                }
             }
         }
     }
 
 
     public Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("worker_type").is("api-server"));
-        query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
+        Query query = Query.query(Criteria.where(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true));
+        query.addCriteria(Criteria.where(WorkerField.PING_TIME.field()).gte(System.currentTimeMillis() - 30000L));
         query.addCriteria(Criteria.where(USER_ID).is(userDetail.getUserId()));
         WorkerDto worker = findOne(query);
         log.debug("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
@@ -669,9 +683,9 @@ public class WorkerServiceImpl extends WorkerService{
 
     @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
-        final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
-                .and("worker_type").is("api-server")
-                .and("delete").ne(true);
+        final Criteria criteria = Criteria.where(WorkerField.PROCESS_ID.field()).is(status.getProcessId())
+                .and(WorkerField.WORKER_TYPE.field()).is(WorkerType.API_SERVER.getType())
+                .and(WorkerField.DELETED.field()).ne(true);
         final Update update = new Update();
         final Query query = Query.query(criteria);
         final Long time = Optional.ofNullable(status.getTime()).orElse(new Date().getTime());
@@ -817,7 +831,9 @@ public class WorkerServiceImpl extends WorkerService{
 //        }
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-        Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
+        Criteria where = Criteria.where("process_id").is(worker.getProcessId())
+                .and("worker_type").is(worker.getWorkerType())
+                .and(WorkerField.DELETED.field()).ne(true);
         if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
                 .of(Query.query(where))
                 .map(query -> {
@@ -839,6 +855,9 @@ public class WorkerServiceImpl extends WorkerService{
                 convertToEntity(Worker.class, worker), loginUser
         );
         workerPing.increment(worker.getWorkerType(), worker.getVersion());
+        if (serviceLifecycleAudit != null) {
+            serviceLifecycleAudit.onHeartbeat(worker.getWorkerType(), worker.getProcessId(), worker.getHostname(), worker.getWorkerIp());
+        }
         Query query = Query.query(where);
         query.fields().include("process_id", "worker_type", "isDeleted");
         Optional<Worker> workerOptional = repository.findOne(query);

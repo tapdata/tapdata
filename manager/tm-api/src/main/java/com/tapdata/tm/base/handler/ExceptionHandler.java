@@ -1,6 +1,8 @@
 package com.tapdata.tm.base.handler;
 
+import com.tapdata.tm.audit.AccessFailureAuditor;
 import com.tapdata.tm.base.controller.BaseController;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.ds.exception.ConnectionAgentConflictException;
@@ -41,6 +43,9 @@ import java.util.stream.Collectors;
 @Order(-2)
 @Slf4j
 public class ExceptionHandler extends BaseController {
+
+	@Autowired(required = false)
+	private AccessFailureAuditor accessFailureAuditor;
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(Throwable.class)
 	public ResponseMessage<?> handlerException(Throwable e, HttpServletRequest request, HttpServletResponse response) throws Throwable {
@@ -140,6 +145,9 @@ public class ExceptionHandler extends BaseController {
 		log.error("System error:{}", ThrowableUtils.getStackTraceByPn(e));
 		if ("NotAuthorized".equals(e.getErrorCode()) || "NotLogin".equals(e.getErrorCode())) {
 			response.setStatus(HttpStatus.SC_UNAUTHORIZED);
+			if (accessFailureAuditor != null) {
+				accessFailureAuditor.onBizException(e.getErrorCode(), request);
+			}
 		}
 
 		if (e instanceof ConnectionAgentConflictException conflict) {

@@ -6,6 +6,10 @@
  */
 package com.tapdata.tm.roleMapping.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -65,6 +69,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDto)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects({#roleDto}, null)")
     public ResponseMessage<RoleMappingDto> save(@RequestBody RoleMappingDto roleDto) {
         checkRoleMappingPermission(roleDto);
         roleDto.setId(null);
@@ -79,6 +84,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "RoleMappings saveAll")
     @PostMapping("/saveAll")
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDtos, null)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects(#roleDtos, null)")
     public ResponseMessage<List<RoleMappingDto>> saveAll(@RequestBody List<RoleMappingDto> roleDtos) {
 //		return success(roleDtos.stream().map(roleDto -> save(roleDto).getData()).collect(Collectors.toList()));
         if (CollectionUtils.isNotEmpty(roleDtos)){
@@ -97,6 +103,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDto)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects({#roleDto}, null)")
     public ResponseMessage<RoleMappingDto> update(@RequestBody RoleMappingDto roleDto) {
         checkRoleMappingPermission(roleDto);
         return success(roleMappingService.save(roleDto, getLoginUser()));
@@ -136,6 +143,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDto)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects({#roleDto}, null)")
     public ResponseMessage<RoleMappingDto> put(@RequestBody RoleMappingDto roleDto) {
         checkRoleMappingPermission(roleDto);
         return success(roleMappingService.replaceOrInsert(roleDto, getLoginUser()));
@@ -164,6 +172,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDto)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects({#roleDto}, null)")
     public ResponseMessage<RoleMappingDto> updateById(@PathVariable("id") String id, @RequestBody RoleMappingDto roleDto) {
         checkRoleMappingPermission(id, roleDto);
         roleDto.setId(MongoUtils.toObjectId(id));
@@ -193,6 +202,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDto)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects({#roleDto}, null)")
     public ResponseMessage<RoleMappingDto> replceById(@PathVariable("id") String id, @RequestBody RoleMappingDto roleDto) {
         checkRoleMappingPermission(id, roleDto);
         return success(roleMappingService.replaceById(MongoUtils.toObjectId(id), roleDto, getLoginUser()));
@@ -206,6 +216,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
+    @Audited(value = AuditAction.ROLE_GRANT, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#roleDto)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects({#roleDto}, null)")
     public ResponseMessage<RoleMappingDto> replaceById2(@PathVariable("id") String id, @RequestBody RoleMappingDto roleDto) {
         checkRoleMappingPermission(id, roleDto);
         return success(roleMappingService.replaceById(MongoUtils.toObjectId(id), roleDto, getLoginUser()));
@@ -220,6 +231,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.ROLE_REVOKE, summary = "'role mapping ' + #id")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         RoleMappingDto roleMappingDto = roleMappingService.findById(MongoUtils.toObjectId(id), new Field());
         checkRoleMappingPermission(roleMappingDto);
@@ -289,6 +301,7 @@ public class RoleMappingController extends BaseController {
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
+    @Audited(value = AuditAction.PERMISSION_UPDATE, summary = "#whereJson")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);

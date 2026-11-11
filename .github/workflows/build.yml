@@ -330,6 +330,8 @@ jobs:
           echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
           printf '%s\n' "$RSYNC_PASSWORD" > /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.net:873/data/version/
+      - name: Verify Frontend Node.js
+        run: bash tapdata/build/ensure-frontend-node.sh
       - name: Build Frontend
         run: |
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}

@@ -1,5 +1,8 @@
 package com.tapdata.tm.task.service;
 
+import com.tapdata.tm.audit.AuditAction;
+import com.tapdata.tm.audit.AuditFinalizer;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
@@ -906,6 +909,9 @@ public class TaskServiceImpl extends TaskService{
         }
         return warnings;
     }
+    @Autowired(required = false)
+    private AuditFinalizer auditFinalizer;
+
 
     @Autowired
     @Lazy
@@ -1363,7 +1369,13 @@ public class TaskServiceImpl extends TaskService{
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
-        userLogService.addUserLog(modular, Operation.DELETE, user, id.toString(), taskDto.getName());
+        if (auditFinalizer != null) {
+            boolean liveCache = TaskDto.SYNC_TYPE_MEM_CACHE.equals(taskDto.getSyncType());
+            auditFinalizer.finishOrRecord(liveCache ? "live_cache" : "task", id.toHexString(), taskDto.getName(),
+                    liveCache ? AuditAction.LIVE_CACHE_DELETE : AuditAction.TASK_DELETE, user);
+        } else {
+            userLogService.addUserLog(modular, Operation.DELETE, user, id.toString(), taskDto.getName());
+        }
 
         try {
             metadataInstancesService.deleteTaskMetadata(id.toHexString(), user);
@@ -3970,9 +3982,8 @@ public class TaskServiceImpl extends TaskService{
 
                // 目标环境该任务已被删除时，删除本身就是一种变更：必须导入并把记录从删除态拉回来，
                // 否则误删的任务再导入也恢复不了。其余运行状态差异（如 stop → running）仍按无变化处理。
-               // 只在项目导入（GROUP_IMPORT）下恢复——REPLACE / IMPORT_AS_COPY 走按 name 查重，
-               // 复活后 DB 里的名字仍是删除时改过的「原名_随机6位」，查不到会另分配 _id 变成副本。
-               boolean restoreDeleted = ImportModeEnum.GROUP_IMPORT.equals(importMode)
+               // 只对「按 _id 覆盖」的模式恢复；导入副本 / 冲突即取消两种模式的语义不是恢复，保持原样。
+               boolean restoreDeleted = RESTORE_DELETED_IMPORT_MODES.contains(importMode)
                        && isDeletedTask(taskDto.getId(), user);
 
                if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
@@ -4042,6 +4053,10 @@ public class TaskServiceImpl extends TaskService{
         }
         return importResult;
     }
+
+    /** 按 _id 覆盖目标记录的导入模式——只有这些模式下「目标已删除」才意味着要恢复它 */
+    private static final Set<ImportModeEnum> RESTORE_DELETED_IMPORT_MODES = EnumSet.of(
+            ImportModeEnum.GROUP_IMPORT, ImportModeEnum.REPLACE, ImportModeEnum.REUSE_EXISTING);
 
     /**
      * 目标环境该任务是否处于删除态：is_deleted 已置位，或仍停在 deleting / delete_failed。

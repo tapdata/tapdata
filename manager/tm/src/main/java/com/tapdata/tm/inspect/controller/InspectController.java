@@ -1,5 +1,9 @@
 package com.tapdata.tm.inspect.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -10,6 +14,10 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverScope;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiverType;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
@@ -51,6 +59,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,6 +79,7 @@ import java.util.function.Supplier;
 public class InspectController extends BaseController {
     private final InspectResultService inspectResultService;
     private InspectService inspectService;
+    private AlarmReceiverAccess alarmReceiverAccess;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
     private MetadataDefinitionService metadataDefinitionService;
@@ -119,6 +129,7 @@ public class InspectController extends BaseController {
 
     @Operation(summary = "校验任务导入")
     @PostMapping(path = "/batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.INSPECT_IMPORT, objectId = "#taskId", summary = "#file.originalFilename")
     public ResponseMessage<Void> importTask(@RequestParam(value = "file") MultipartFile file, @RequestParam(value = "taskId") String taskId) {
         inspectService.importTask(file,taskId,getLoginUser());
         return success();
@@ -137,6 +148,7 @@ public class InspectController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.INSPECT_CREATE, objectId = "#result?.id", objectName = "#inspect.name")
     public ResponseMessage<InspectDto> save(@RequestBody InspectDto inspect) {
         List<Task> task = inspect.getTasks();
         PlatformInfo platformInfo = inspect.getPlatformInfo();
@@ -152,9 +164,42 @@ public class InspectController extends BaseController {
             throw new BizException("Inspect.Name.Exist");
         }
 
+        UserDetail user = getLoginUser();
+        if (inspect.getAlarmReceivers() != null ||
+                (StringUtils.isNotBlank(inspect.getFlowId()) && !Boolean.TRUE.equals(inspect.getUseSystemDefaultReceivers()))) {
+            List<AlarmReceiver> existingReceivers = null;
+            if (StringUtils.isNotBlank(inspect.getFlowId())) {
+                ObjectId linkedId = MongoUtils.toObjectId(inspect.getFlowId());
+                TaskDto linkedTask = linkedId == null ? null : DataPermissionHelper.checkOfQuery(
+                        user, DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.View,
+                        taskService.dataPermissionFindById(linkedId, new Field()),
+                        dto -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
+                        () -> taskService.findByTaskId(linkedId, "alarmReceivers", "emailReceivers"),
+                        () -> null);
+                if (linkedTask != null && inspect.getAlarmReceivers() == null) {
+                    List<AlarmReceiver> inherited = linkedTask.getAlarmReceivers();
+                    if (inherited == null && linkedTask.getEmailReceivers() != null) {
+                        inherited = linkedTask.getEmailReceivers().stream()
+                                .filter(StringUtils::isNotBlank)
+                                .map(email -> new AlarmReceiver(AlarmReceiverType.EMAIL, null, email))
+                                .toList();
+                    }
+                    inspect.setAlarmReceivers(inherited == null ? null : new ArrayList<>(inherited));
+                }
+                // Only an unchanged selection from a task the caller may view can be inherited.
+                // A subset or modified selection is a new Inspect reference and needs its own scope check.
+                if (linkedTask != null && AlarmReceiverScope.sameSelection(inspect.getAlarmReceivers(), linkedTask.getAlarmReceivers())) {
+                    existingReceivers = linkedTask.getAlarmReceivers();
+                }
+            }
+            if (inspect.getAlarmReceivers() != null) {
+                alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), existingReceivers);
+            }
+        }
+
         Date date=new Date();
         inspect.setPing_time(date.getTime());
-        return success(inspectService.save(inspect, getLoginUser()));
+        return success(inspectService.save(inspect, user));
     }
 
 
@@ -165,13 +210,22 @@ public class InspectController extends BaseController {
      * @return
      */
     @PatchMapping()
+    @Audited(value = AuditAction.INSPECT_UPDATE, objectId = "#inspect.id", objectName = "#inspect.name")
     public ResponseMessage<InspectDto> updateById(HttpServletRequest request, @RequestBody InspectDto inspect) {
+        UserDetail user = getLoginUser();
         InspectDto resultTask = dataPermissionCheckOfId(request,
-                getLoginUser(),
+                user,
                 inspect.getId(),
                 DataPermissionActionEnums.Edit,
                 Lists.newArrayList(DataPermissionActionEnums.Edit),
-                () -> inspectService.updateById(inspect.getId(), inspect, getLoginUser())
+                () -> {
+                    if (inspect.getAlarmReceivers() != null) {
+                        InspectDto current = inspectService.findById(inspect.getId(), Field.includes("alarmReceivers"));
+                        List<AlarmReceiver> currentReceivers = current == null ? null : current.getAlarmReceivers();
+                        alarmReceiverAccess.checkNewReferences(user, inspect.getAlarmReceivers(), currentReceivers);
+                    }
+                    return inspectService.updateById(inspect.getId(), inspect, user);
+                }
         );
         return success(resultTask);
     }
@@ -250,6 +304,7 @@ public class InspectController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.INSPECT_DELETE, objectId = "#id")
     public ResponseMessage<Map<String, Long>> delete(HttpServletRequest request, @PathVariable("id") String id) {
         Map<String, Long> deleteResult = dataPermissionCheckOfId(
                 request,
@@ -316,6 +371,7 @@ public class InspectController extends BaseController {
      */
     @Operation(summary = "页面点击 更新inspect的时候，会调用这个方法")
     @PostMapping("execute")
+    @Audited(value = AuditAction.INSPECT_START, objectId = "T(com.tapdata.tm.audit.AuditSpel).idFromWhere(#whereJson)", alternateWhen = "#inspect.status == 'stopping'", alternate = AuditAction.INSPECT_STOP)
     public ResponseMessage<InspectDto> updateByWhere(HttpServletRequest request, @RequestParam("where") String whereJson, @RequestBody InspectDto inspect) {
         log.info("Inspect Controller -- do execute -  where json：{}, inspect：{} ", whereJson, JSON.toJSONString(inspect));
         whereJson = whereJson.replace("\"_id\"", "\"id\"");
@@ -393,6 +449,7 @@ public class InspectController extends BaseController {
 
     @Operation(summary = "启动差异修复")
     @PutMapping("/{id}/recovery/start")
+    @Audited(value = AuditAction.INSPECT_REPAIR, objectId = "#id")
     public ResponseMessage<InspectRecoveryStartVerifyVo> recoveryStart(HttpServletRequest request, @PathVariable String id) {
         InspectDto inspectDto = dataPermissionCheckOfId(
             request,
@@ -434,12 +491,14 @@ public class InspectController extends BaseController {
 
     @Operation(summary = "批量修改标签")
     @PatchMapping("batchUpdateListtags")
+    @Audited(value = AuditAction.INSPECT_UPDATE, objectId = "#batchApplyListTagsParam.ids", summary = "'update tags'")
     public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
         return success(metadataDefinitionService.batchApplyListTags("Inspect", batchApplyListTagsParam, getLoginUser()));
     }
 
     @Operation(summary = "导出修复事件SQL")
     @PutMapping("/{inspectId}/recover-sql/{inspectResultId}/export")
+    @Audited(value = AuditAction.INSPECT_EXPORT_RESULT, objectId = "#inspectId", summary = "'recover sql'")
     public ResponseMessage<InspectRecoveryStartVerifyVo> exportRecoverySql(HttpServletRequest request
         , @PathVariable(name = "inspectId") String inspectId
         , @PathVariable(name = "inspectResultId") String inspectResultId) {
@@ -463,6 +522,7 @@ public class InspectController extends BaseController {
 
     @GetMapping("/{inspectId}/recover-sql/{inspectResultId}/download")
     @Operation(summary = "Manual check or recover or exportRecoverSql")
+    @Audited(value = AuditAction.INSPECT_EXPORT_RESULT, objectId = "#inspectId", summary = "'recover sql download'")
     public void downloadRecoverSql(HttpServletRequest request, HttpServletResponse response
         , @PathVariable(name = "inspectId") String inspectId
         , @PathVariable(name = "inspectResultId") String inspectResultId) {

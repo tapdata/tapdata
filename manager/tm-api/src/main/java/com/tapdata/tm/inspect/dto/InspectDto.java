@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmReceiver;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
@@ -124,5 +125,14 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
 	private Boolean isExportSql;
 	private List<AlarmSettingVO> alarmSettings;
 	private List<AlarmRuleVO> alarmRules;
+	/** Custom recipients for this inspect; null keeps system defaults, empty is an explicit empty custom selection. */
+	private List<AlarmReceiver> alarmReceivers;
+	/** Explicit edit command: clear a previously saved custom selection and use system defaults. */
+	@org.springframework.data.annotation.Transient
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	private Boolean useSystemDefaultReceivers;
+	/** Resolved email snapshot for cloud delivery compatibility. */
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	private List<String> emailReceivers;
 	private List<Tag> listtags;
 }

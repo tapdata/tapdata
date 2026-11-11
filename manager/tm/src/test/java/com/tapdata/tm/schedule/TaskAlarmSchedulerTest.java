@@ -7,6 +7,7 @@ import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -230,7 +231,9 @@ class TaskAlarmSchedulerTest {
             verify(mongoTemplate, times(1)).insert(captor.capture());
             AlarmInfo saved = captor.getValue();
             Assertions.assertEquals(AlarmKeyEnum.ENGINE_ONLINE, saved.getMetric());
-            Assertions.assertEquals(AlarmStatusEnum.ING, saved.getStatus());
+            Assertions.assertEquals(AlarmStatusEnum.RECOVER, saved.getStatus());
+            Assertions.assertEquals(Level.RECOVERY, saved.getLevel());
+            Assertions.assertNotNull(saved.getRecoveryTime());
             Assertions.assertEquals("agent-1", saved.getAgentId());
             Assertions.assertEquals("host-1-new", saved.getName());
             Assertions.assertEquals("host-1-new", saved.getParam().get("agentName"));

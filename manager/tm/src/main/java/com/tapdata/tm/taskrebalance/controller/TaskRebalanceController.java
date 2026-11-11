@@ -1,5 +1,9 @@
 package com.tapdata.tm.taskrebalance.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -39,6 +43,7 @@ public class TaskRebalanceController extends BaseController {
 
     @Operation(summary = "Create and execute task rebalance from preview")
     @PostMapping
+    @Audited(value = AuditAction.TASK_UPDATE, summary = "'task rebalance'")
     public ResponseMessage<TaskRebalanceVo> create(@RequestBody TaskRebalancePreviewVo preview) {
         return success(taskRebalanceService.createAndExecute(preview, getLoginUser()));
     }
@@ -64,6 +69,7 @@ public class TaskRebalanceController extends BaseController {
 
     @Operation(summary = "Cancel pending jobs in task rebalance")
     @PostMapping("/{id}/cancel")
+    @Audited(value = AuditAction.TASK_UPDATE, summary = "'cancel task rebalance ' + #id")
     public ResponseMessage<Void> cancel(@PathVariable("id") String id) {
         taskRebalanceService.cancel(id, getLoginUser());
         return success();
@@ -71,6 +77,7 @@ public class TaskRebalanceController extends BaseController {
 
     @Operation(summary = "Cancel a pending task rebalance job")
     @PostMapping("/{id}/cancel/{taskId}")
+    @Audited(value = AuditAction.TASK_UPDATE, objectId = "#taskId", summary = "'cancel task rebalance'")
     public ResponseMessage<Void> cancelJob(@PathVariable("id") String id, @PathVariable("taskId") String taskId) {
         taskRebalanceService.cancelJob(id, taskId, getLoginUser());
         return success();

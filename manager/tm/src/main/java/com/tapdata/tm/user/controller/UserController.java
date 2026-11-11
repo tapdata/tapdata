@@ -1,5 +1,12 @@
 package com.tapdata.tm.user.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
+import com.tapdata.tm.audit.AuditSource;
+import com.tapdata.tm.audit.LoginAuditRecorder;
+
 import cn.hutool.crypto.digest.BCrypt;
 import com.mongodb.BasicDBObject;
 import com.tapdata.tm.Permission.dto.PermissionDto;
@@ -107,6 +114,9 @@ public class UserController extends BaseController {
     UserLogService userLogService;
 
     @Autowired
+    LoginAuditRecorder loginAuditRecorder;
+
+    @Autowired
     private AlarmService alarmService;
 
     @Autowired
@@ -123,6 +133,17 @@ public class UserController extends BaseController {
      *
      * @return
      */
+    /**
+     * 显示或复制当前用户的访问码。页面显示与复制通过该接口取得访问码，以便服务端记录这一敏感读取（需求 8.3）。
+     */
+    @Operation(summary = "Reveal current user's access code")
+    @PostMapping("/access-code/reveal")
+    @Audited(AuditAction.USER_VIEW_ACCESS_CODE)
+    public ResponseMessage<String> revealAccessCode() {
+        UserDto userDto = userService.findById(toObjectId(getLoginUser().getUserId()));
+        return success(userDto == null ? null : userDto.getAccessCode());
+    }
+
     @GetMapping("/self")
     public ResponseMessage<UserDto> self() {
         /*UserInfoVo userInfoVo = userService.self(getLoginUser());
@@ -138,6 +159,7 @@ public class UserController extends BaseController {
      * @return
      */
     @PatchMapping("{id}")
+    @Audited(value = AuditAction.USER_UPDATE, action = "T(com.tapdata.tm.audit.AuditSpel).userUpdateAction(#id, #settingJson)", objectId = "#id")
     public ResponseMessage<UserDto> updateUserInfo(@PathVariable("id") String id,
                                                    @RequestBody String settingJson) {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
@@ -158,12 +180,15 @@ public class UserController extends BaseController {
     public ResponseMessage<AccessTokenDto> generateToken(@RequestBody GenerateAccessTokenDto accessCodeDto) {
         String accessCode = accessCodeDto.getAccesscode();
         if (StringUtils.isEmpty(accessCode)) {
+            loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_ACCESS_CODE, "AccessCode.Is.Null", AuditSource.OPENAPI);
             return failed("AccessCode.Is.Null");
         }
         AccessTokenDto generateToken = accessTokenService.generateToken(accessCodeDto);
         if (null == generateToken) {
+            loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_ACCESS_CODE, "AccessCode.No.User", AuditSource.OPENAPI);
             return failed("AccessCode.No.User");
         } else {
+            loginAuditRecorder.succeeded(generateToken.getUserId(), LoginAuditRecorder.METHOD_ACCESS_CODE, AuditSource.OPENAPI);
             return success(generateToken);
         }
     }
@@ -187,12 +212,16 @@ public class UserController extends BaseController {
         accessCode = accessCode.replace("accesscode=", "");
 
         if (StringUtils.isEmpty(accessCode)) {
+            loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_ACCESS_CODE, "AccessCode.Is.Null", AuditSource.OPENAPI);
             return failed("AccessCode.Is.Null");
         }
         AccessTokenDto generateToken = accessTokenService.generateToken(accessCode);
         if (null == generateToken) {
+            loginAuditRecorder.failed(null, LoginAuditRecorder.METHOD_ACCESS_CODE, "AccessCode.No.User", AuditSource.OPENAPI);
             return failed("AccessCode.No.User");
         } else {
+            // 表单版与 JSON 版是同一动作，成功分支同样记录，否则该入口的认证事件缺失（TAP-13018 F-13）
+            loginAuditRecorder.succeeded(generateToken.getUserId(), LoginAuditRecorder.METHOD_ACCESS_CODE, AuditSource.OPENAPI);
             return success(generateToken);
         }
     }
@@ -319,6 +348,28 @@ public class UserController extends BaseController {
     @PostMapping("/login")
     @IgnoreLogin
     public ResponseMessage<AccessTokenDto> login(@RequestBody @Validated LoginRequest loginRequest) {
+        String attemptedAccount = loginRequest.getEmail();
+        String method = !"admin@admin.com".equals(attemptedAccount) && userService.checkLdapLoginEnable()
+                ? LoginAuditRecorder.METHOD_LDAP : LoginAuditRecorder.METHOD_LOCAL;
+        ResponseMessage<AccessTokenDto> result;
+        try {
+            result = doLogin(loginRequest);
+        } catch (BizException e) {
+            loginAuditRecorder.failed(attemptedAccount, method, e.getErrorCode(), AuditSource.UI);
+            throw e;
+        } catch (RuntimeException e) {
+            loginAuditRecorder.failed(attemptedAccount, method, "SystemError", AuditSource.UI);
+            throw e;
+        }
+        if (!ResponseMessage.OK.equals(result.getCode())) {
+            loginAuditRecorder.failed(attemptedAccount, method, result.getCode(), AuditSource.UI);
+        } else if (result.getData() != null) {
+            loginAuditRecorder.succeeded(result.getData().getUserId(), attemptedAccount, method, AuditSource.UI);
+        }
+        return result;
+    }
+
+    private ResponseMessage<AccessTokenDto> doLogin(LoginRequest loginRequest) {
         String password;
         try {
             password = RC4Util.decrypt(RC4_KEY, loginRequest.getPassword());
@@ -390,11 +441,6 @@ public class UserController extends BaseController {
             userService.update(Query.query(Criteria.where("id").is(user.getId())), update);
             throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
         }
-        try {
-            userLogService.addUserLog(Modular.SYSTEM, com.tapdata.tm.userLog.constant.Operation.LOGIN, user.getId().toHexString(), "", "");
-        } catch (Exception e) {
-            log.error("登录添加操作日志异常 {}", e.getMessage());
-        }
         return success(accessTokenDto);
 
     }
@@ -439,6 +485,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "user deletePermissionRoleMapping")
     @DeleteMapping("/deletePermissionRoleMapping")
+    @Audited(value = AuditAction.PERMISSION_UPDATE, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(null, #dto.data)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects(null, #dto.data)")
     public ResponseMessage<Page<RoleDto>> deletePermissionRoleMapping(@RequestParam(value = "id") String id, @RequestBody DeletePermissionRoleMappingDto dto) {
         UserDetail userDetail = getLoginUser();
         checkRoleManagementPermission(userDetail);
@@ -453,6 +500,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "user updatePermissionRoleMapping")
     @PutMapping("/updatePermissionRoleMapping")
+    @Audited(value = AuditAction.PERMISSION_UPDATE, action = "T(com.tapdata.tm.audit.AuditSpel).mappingAction(#dto.adds, #dto.deletes)", objectId = "T(com.tapdata.tm.audit.AuditSpel).mappingObjects(#dto.adds, #dto.deletes)")
     public ResponseMessage<Page<RoleDto>> updatePermissionRoleMapping(@RequestBody UpdatePermissionRoleMappingDto dto) {
         UserDetail userDetail = getLoginUser();
         checkRoleManagementPermission(userDetail);
@@ -480,6 +528,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
+    @Audited(value = AuditAction.USER_UPDATE, objectId = "T(com.tapdata.tm.audit.AuditSpel).idFromWhere(#whereJson)")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody UserDto userDto) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit, () -> {
@@ -493,6 +542,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
+    @Audited(value = AuditAction.USER_CREATE, objectId = "#result?.id", objectName = "#request.email")
     public ResponseMessage<UserDto> save(@RequestBody @Validated CreateUserRequest request) {
         UserDetail userDetail = getLoginUser();
         checkUserManagementPermission(userDetail);
@@ -502,17 +552,20 @@ public class UserController extends BaseController {
 
     @Operation(summary = "User change password")
     @PostMapping("/change-password")
+    @Audited(AuditAction.USER_CHANGE_PASSWORD)
     public ResponseMessage<Long> changePassword(@RequestBody @Validated ChangePasswordRequest request) {
         return success(userService.changePassword(request, getLoginUser()));
     }
 
     @Operation(summary = "Bind phone on current login user")
     @PatchMapping("/phone")
+    @Audited(AuditAction.USER_UPDATE_CONTACT)
     public ResponseMessage<UserDto> updatePhone(@RequestBody @Validated BindPhoneReq bindPhoneReq) {
         return success(userService.updatePhone(getLoginUser(), bindPhoneReq));
     }
     @Operation(summary = "Bind email on current login user")
     @PatchMapping("/email")
+    @Audited(AuditAction.USER_UPDATE_CONTACT)
     public ResponseMessage<UserDto> updatePhone(@RequestBody @Validated BindEmailReq bindEmailReq) {
         return success(userService.updateEmail(getLoginUser(), bindEmailReq));
     }
@@ -541,12 +594,14 @@ public class UserController extends BaseController {
     @Operation(summary = "企业版重置密码")
     @PostMapping("/reset")
     @IgnoreLogin
+    @Audited(value = AuditAction.USER_RESET_PASSWORD, objectName = "T(com.tapdata.tm.audit.AuditRedactor).maskAccount(#resetPasswordParam.email)")
     public ResponseMessage<Long> reset(@RequestBody ResetPasswordParam resetPasswordParam) {
         return success(userService.reset(resetPasswordParam));
     }
 
     @Operation(summary = "企业版重置密码")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.USER_DELETE, objectId = "#id")
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete, () -> {
@@ -558,6 +613,7 @@ public class UserController extends BaseController {
     @Operation(summary = "test ldap login")
     @PostMapping("testLdapLogin")
     @IgnoreLogin
+    @Audited(AuditAction.LDAP_TEST)
     public ResponseMessage<TestResponseDto> testLoginByLdap(@RequestBody TestLdapDto testldapDto) {
         TestResponseDto res = userService.testLoginByLdap(testldapDto);
         return success(res);
@@ -573,6 +629,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "refresh access code")
     @PostMapping("refreshAccessCode")
+    @Audited(AuditAction.USER_RESET_ACCESS_CODE)
     public ResponseMessage<String> refreshAccessCode() {
         return success(userService.refreshAccessCode(getLoginUser()));
     }
@@ -586,6 +643,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
+    @Audited(value = AuditAction.USER_UPDATE_TAGS, objectId = "#batchUpdateParam.id")
     public ResponseMessage<String> batchUpdateListTags( @RequestBody BatchUpdateParam batchUpdateParam) {
         UserDetail userDetail = getLoginUser();
         List<String> idList = batchUpdateParam.getId();

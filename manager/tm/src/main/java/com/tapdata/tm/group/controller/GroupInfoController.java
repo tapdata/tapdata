@@ -1,5 +1,9 @@
 package com.tapdata.tm.group.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -10,6 +14,9 @@ import com.tapdata.tm.group.dto.GroupInfoDto;
 import com.tapdata.tm.group.dto.GroupInfoRecordDto;
 import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.group.service.GroupInfoRecordService;
+import com.tapdata.tm.module.dto.ServingIndexImportResult;
+import com.tapdata.tm.module.dto.ServingIndexPlanDiffs;
+import com.tapdata.tm.module.dto.ServingIndexPreviewResult;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.group.vo.ExportGroupRequest;
 import com.tapdata.tm.group.vo.GroupImportResult;
@@ -70,6 +77,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "group导出")
     @PostMapping("/batch/load")
+    @Audited(value = AuditAction.TASK_EXPORT, summary = "'resource group export'")
     public void batchLoadTasks(@RequestBody ExportGroupRequest exportRequest,
             HttpServletResponse response) {
         UserDetail userDetail = getLoginUser();
@@ -81,6 +89,7 @@ public class GroupInfoController extends BaseController {
 
 	@Operation(summary = "group导出")
 	@PostMapping("/batch/load/git")
+	@Audited(value = AuditAction.TASK_EXPORT, summary = "'resource group export to git'")
 	public ResponseMessage<Map<String, String>> batchLoadTasksGit(@RequestBody ExportGroupRequest exportRequest) {
 		dataPermissionCheckOfMenu(getLoginUser(), DataPermissionMenuEnums.ProjectImportAndExport, DataPermissionActionEnums.View,
                 () -> {
@@ -92,6 +101,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "group异步导入，返回记录ID用于查询进度")
     @PostMapping(path = "/batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.TASK_IMPORT, summary = "'resource group import ' + #file.originalFilename")
     public ResponseMessage<Map<String, String>> batchImport(@RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode)
             throws IOException {
@@ -124,6 +134,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "新增group")
     @PostMapping
+    @Audited(value = AuditAction.TASK_UPDATE_TAGS, objectName = "#groupInfoDto.name", summary = "'create resource group'")
     public ResponseMessage<GroupInfoDto> save(@RequestBody GroupInfoDto groupInfoDto) {
         groupInfoDto.setId(null);
         return success(groupInfoService.save(groupInfoDto, getLoginUser()));
@@ -136,6 +147,7 @@ public class GroupInfoController extends BaseController {
      */
     @Operation(summary = "修改 发布  group")
     @PatchMapping()
+    @Audited(value = AuditAction.TASK_UPDATE_TAGS, objectName = "#groupInfoDto.name", summary = "'update resource group'")
     public ResponseMessage update(@RequestBody GroupInfoDto groupInfoDto) {
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfId(userDetail, groupInfoDto.getId().toHexString(), DataPermissionActionEnums.Edit,
@@ -150,6 +162,7 @@ public class GroupInfoController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
+    @Audited(value = AuditAction.TASK_UPDATE_TAGS, summary = "'delete resource group ' + #id")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         dataPermissionCheckOfId(getLoginUser(), id, DataPermissionActionEnums.Delete, () -> {
             groupInfoService.deleteLogicsById(id);
@@ -211,10 +224,45 @@ public class GroupInfoController extends BaseController {
         return success(groupInfoService.previewApis(file, getLoginUser()));
     }
 
+    /**
+     * TAP-12057 · P4-1：服务型索引的 dry-run。<b>一条索引都不建</b>，只读回目标库、自写比对、出计划表。
+     *
+     * <p>路径与形状是 worker 的既定契约：{@code preview-resource.sh} 是所有资源类型共用的通用脚本，
+     * 只认 {@code .data.add/.update/.delete}，改这两样等于改 CICD 的对接面。</p>
+     */
+    @Operation(summary = "对比服务型索引变更（dry-run，不建任何索引）")
+    @PostMapping(path = "/preview/indexes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ServingIndexPreviewResult> previewIndexes(@RequestParam("file") MultipartFile file)
+            throws IOException {
+        ServingIndexPreviewResult result = groupInfoService.previewIndexes(file, getLoginUser());
+        ResponseMessage<ServingIndexPreviewResult> response = success(result);
+        // 读不回目标库 / 有声明落不了地 / 越过 64 上限时必须让这一步红：空计划表最容易被读成「无事可做」。
+        ServingIndexPlanDiffs.applyProblem(response, ServingIndexPlanDiffs.problemOf(result.getReport()));
+        return response;
+    }
+
+    /**
+     * TAP-12057 · P4-1：把包里带来的索引声明幂等地落到目标库（已存在的跳过，只加不删）。
+     *
+     * <p>部署矩阵里这一腿排在 {@code apis} 之后——声明随 Module 走，Module 得先落地（方案 §3.5）。</p>
+     */
+    @Operation(summary = "落地服务型索引（幂等：已有的跳过，只加不删）")
+    @PostMapping(path = "/import/indexes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.API_IMPORT, summary = "#file.originalFilename")
+    public ResponseMessage<ServingIndexImportResult> importIndexes(@RequestParam("file") MultipartFile file)
+            throws IOException {
+        ServingIndexImportResult result = groupInfoService.importIndexes(file, getLoginUser());
+        ResponseMessage<ServingIndexImportResult> response = success(result);
+        // 有索引没建成就不许一路绿：索引腿幂等，重跑代价只是再读一次（方案 §4 运行手册）。
+        ServingIndexPlanDiffs.applyProblem(response, ServingIndexPlanDiffs.problemOf(result.getReport()));
+        return response;
+    }
+
     // ====================== Split Import APIs ======================
 
     @Operation(summary = "导入连接，返回记录ID和变更diff")
     @PostMapping(path = "/import/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.DATASOURCE_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<GroupImportResult> importConnections(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
@@ -226,6 +274,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "导入任务，返回记录ID和变更diff")
     @PostMapping(path = "/import/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.TASK_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<GroupImportResult> importTasks(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
@@ -236,6 +285,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "导入迁移任务")
     @PostMapping(path = "/import/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.TASK_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<GroupImportResult> importMigrateTasks(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
@@ -246,6 +296,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "导入同步任务")
     @PostMapping(path = "/import/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.TASK_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<GroupImportResult> importSyncTasks(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
@@ -256,6 +307,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "同步导入GroupInfo，返回记录ID")
     @PostMapping(path = "/import/groupInfo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.TASK_IMPORT, summary = "'resource group ' + #file.originalFilename")
     public ResponseMessage<Map<String, String>> importGroupInfo(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode)
@@ -268,6 +320,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "导入用户/角色/权限信息")
     @PostMapping(path = "/import/users", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.USER_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<Map<String, Object>> importUsers(
             @RequestParam("file") MultipartFile file)
             throws IOException {
@@ -282,6 +335,7 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "导入API(模块)，返回记录ID和变更diff")
     @PostMapping(path = "/import/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Audited(value = AuditAction.API_IMPORT, summary = "#file.originalFilename")
     public ResponseMessage<GroupImportResult> importApis(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,

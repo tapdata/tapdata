@@ -1,5 +1,9 @@
 package com.tapdata.tm.system.api.controller;
 
+import com.tapdata.tm.audit.Audited;
+
+import com.tapdata.tm.audit.AuditAction;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -53,18 +57,21 @@ public class TextEncryptionRuleController extends BaseController {
 
     @Operation(summary = "创建文本加密规则配置")
     @PostMapping("/create")
+    @Audited(value = AuditAction.API_UPDATE_SECURITY, objectName = "#dto.name", summary = "'create text encryption rule'")
     public ResponseMessage<Boolean> create(@RequestBody TextEncryptionRuleDto dto) {
         return success(textEncryptionRuleService.create(dto, getLoginUser()));
     }
 
     @Operation(summary = "更新文本加密规则配置")
     @PatchMapping
+    @Audited(value = AuditAction.API_UPDATE_SECURITY, objectName = "#dto.name", summary = "'update text encryption rule'")
     public ResponseMessage<Boolean> update(@RequestBody TextEncryptionRuleDto dto) {
         return success(textEncryptionRuleService.update(dto, getLoginUser()));
     }
 
     @Operation(summary = "删除文本加密规则配置")
     @DeleteMapping("/{ids}")
+    @Audited(value = AuditAction.API_UPDATE_SECURITY, summary = "'delete text encryption rule ' + #ids")
     public ResponseMessage<Boolean> delete(@PathVariable String ids) {
         return success(textEncryptionRuleService.batchDelete(ids, getLoginUser()));
     }
