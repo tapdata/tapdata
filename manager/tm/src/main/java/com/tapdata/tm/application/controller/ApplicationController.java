@@ -211,7 +211,7 @@ public class ApplicationController extends BaseController {
         if (application == null) {
             throw new BizException("NotFound");
         }
-        return success(application.getClientSecret());
+        return sensitiveSuccess(application.getClientSecret());
     }
 
     @Operation(summary = "Find a model instance by {{id}} from the data source")

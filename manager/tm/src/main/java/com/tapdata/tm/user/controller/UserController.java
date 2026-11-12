@@ -142,7 +142,7 @@ public class UserController extends BaseController {
             objectId = "#root.getLoginUser()?.userId", objectName = "#root.getLoginUser()?.username")
     public ResponseMessage<String> revealAccessCode() {
         UserDto userDto = userService.findById(toObjectId(getLoginUser().getUserId()));
-        return success(userDto == null ? null : userDto.getAccessCode());
+        return sensitiveSuccess(userDto == null ? null : userDto.getAccessCode());
     }
 
     @Operation(summary = "Reveal a user's access code")
@@ -150,7 +150,7 @@ public class UserController extends BaseController {
     @Audited(value = AuditAction.USER_VIEW_ACCESS_CODE, objectId = "#userId")
     public ResponseMessage<String> revealUserAccessCode(@PathVariable("userId") String userId) {
         UserDetail user = getLoginUser();
-        return success(dataPermissionCheckOfId(user, userId, DataPermissionActionEnums.View, () -> {
+        return sensitiveSuccess(dataPermissionCheckOfId(user, userId, DataPermissionActionEnums.View, () -> {
             UserDto target = userService.findById(toObjectId(userId));
             return target == null ? null : target.getAccessCode();
         }));
