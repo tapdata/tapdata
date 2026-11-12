@@ -3,6 +3,7 @@ package com.tapdata.cache.external;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.tapdata.cache.CacheUtil;
+import com.tapdata.cache.ICacheGetter;
 import com.tapdata.cache.ICacheStore;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -21,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -84,6 +86,7 @@ class ExternalStorageCacheServiceTest {
     private static class TestService extends ExternalStorageCacheService {
         private final AtomicReference<DataFlowCacheConfig> remoteConfig;
         private final List<TestStore> stores;
+        private ICacheGetter testGetter;
 
         TestService(HazelcastInstance hazelcast, AtomicReference<DataFlowCacheConfig> remoteConfig,
                     List<TestStore> stores) {
@@ -102,6 +105,15 @@ class ExternalStorageCacheServiceTest {
             TestStore store = new TestStore(config);
             stores.add(store);
             return store;
+        }
+
+        @Override
+        protected ICacheGetter getCacheGetterInstance(String cacheName, DataFlowCacheConfig config, ICacheStore store) {
+            return testGetter == null ? super.getCacheGetterInstance(cacheName, config, store) : testGetter;
+        }
+
+        void setGetter(ICacheGetter getter) {
+            this.testGetter = getter;
         }
 
         ICacheStore store(String cacheName) {
@@ -154,6 +166,7 @@ class ExternalStorageCacheServiceTest {
 
     private static class SharedHazelcast {
         final ConcurrentHashMap<String, String> values = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
         final IMap<String, String> map = mock(IMap.class);
         final HazelcastInstance instance = mock(HazelcastInstance.class);
 
@@ -163,6 +176,14 @@ class ExternalStorageCacheServiceTest {
             when(map.get(anyString())).thenAnswer(invocation -> values.get(invocation.getArgument(0)));
             doAnswer(invocation -> values.put(invocation.getArgument(0), invocation.getArgument(1)))
                     .when(map).put(anyString(), anyString());
+            doAnswer(invocation -> {
+                locks.computeIfAbsent(invocation.getArgument(0), key -> new ReentrantLock()).lock();
+                return null;
+            }).when(map).lock(anyString());
+            doAnswer(invocation -> {
+                locks.computeIfAbsent(invocation.getArgument(0), key -> new ReentrantLock()).unlock();
+                return null;
+            }).when(map).unlock(anyString());
         }
     }
 
@@ -281,6 +302,98 @@ class ExternalStorageCacheServiceTest {
             destroy.get(2, TimeUnit.SECONDS);
             ExecutionException failedRead = assertThrows(ExecutionException.class, () -> read.get(2, TimeUnit.SECONDS));
             assertTrue(failedRead.getCause() instanceof IllegalStateException);
+        } finally {
+            releaseDestroy.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void concurrentCacheReadsDoNotSerializeSourceLookups() throws Throwable {
+        SharedHazelcast hazelcast = new SharedHazelcast();
+        String cacheName = "parallel-cache-reads";
+        DataFlowCacheConfig config = config(cacheName, "pk");
+        AtomicReference<DataFlowCacheConfig> remote = new AtomicReference<>(config);
+        TestService service = new TestService(hazelcast.instance, remote, new java.util.concurrent.CopyOnWriteArrayList<>());
+        service.registerCache(config);
+
+        ICacheGetter getter = mock(ICacheGetter.class);
+        CountDownLatch firstLookup = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondLookup = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        when(getter.getCache(eq(cacheName), any(), any())).thenAnswer(invocation -> {
+            if (calls.incrementAndGet() == 1) {
+                firstLookup.countDown();
+                assertTrue(releaseFirst.await(3, TimeUnit.SECONDS));
+            } else {
+                secondLookup.countDown();
+            }
+            return Collections.emptyMap();
+        });
+        service.setGetter(getter);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Map<String, Object>> first = executor.submit(() -> {
+                try {
+                    return service.getCache(cacheName, true, "first");
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            assertTrue(firstLookup.await(2, TimeUnit.SECONDS));
+            Future<Map<String, Object>> second = executor.submit(() -> {
+                try {
+                    return service.getCache(cacheName, true, "second");
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            assertTrue(secondLookup.await(2, TimeUnit.SECONDS), "second source lookup must proceed while first is blocked");
+            releaseFirst.countDown();
+            first.get(2, TimeUnit.SECONDS);
+            second.get(2, TimeUnit.SECONDS);
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void registrationWaitsForRemoteDestroyToFinishBeforePublishingActiveGeneration() throws Exception {
+        SharedHazelcast hazelcast = new SharedHazelcast();
+        String cacheName = "cross-node-destroy-register-race";
+        DataFlowCacheConfig configA = config(cacheName, "oldPk");
+        DataFlowCacheConfig configB = config(cacheName, "newPk");
+        AtomicReference<DataFlowCacheConfig> taskA = new AtomicReference<>(configA);
+        AtomicReference<DataFlowCacheConfig> taskB = new AtomicReference<>(configB);
+        List<TestStore> storesA = new java.util.concurrent.CopyOnWriteArrayList<>();
+        List<TestStore> storesB = new java.util.concurrent.CopyOnWriteArrayList<>();
+        TestService first = new TestService(hazelcast.instance, taskA, storesA);
+        TestService second = new TestService(hazelcast.instance, taskB, storesB);
+        first.registerCache(configA);
+        TestStore oldStore = (TestStore) first.store(cacheName);
+        CountDownLatch destroyStarted = new CountDownLatch(1);
+        CountDownLatch releaseDestroy = new CountDownLatch(1);
+        oldStore.blockDestroy(destroyStarted, releaseDestroy);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> destroy = executor.submit(() -> first.destroy(cacheName));
+            assertTrue(destroyStarted.await(2, TimeUnit.SECONDS));
+            Future<?> registration = executor.submit(() -> second.registerCache(configB));
+            assertThrows(TimeoutException.class, () -> registration.get(200, TimeUnit.MILLISECONDS));
+            releaseDestroy.countDown();
+            destroy.get(3, TimeUnit.SECONDS);
+            registration.get(3, TimeUnit.SECONDS);
+
+            assertTrue(hazelcast.values.get(cacheName).startsWith("active:"));
+            ICacheStore rebuilt = second.store(cacheName);
+            assertSame(configB, storesB.get(storesB.size() - 1).config);
+            assertNotSame(oldStore, rebuilt);
         } finally {
             releaseDestroy.countDown();
             executor.shutdownNow();

@@ -1,6 +1,7 @@
 package com.tapdata.cache.external;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.map.IMap;
 import com.tapdata.cache.AbstractCacheService;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheGetter;
@@ -14,7 +15,7 @@ import java.util.concurrent.locks.Lock;
 public class ExternalStorageCacheService extends AbstractCacheService {
 
 	private final HazelcastInstance hazelcastInstance;
-	private final java.util.Map<String, String> cacheGenerationMap;
+	private final IMap<String, String> cacheGenerationMap;
 
 
 	public ExternalStorageCacheService(HazelcastInstance hazelcastInstance, ClientMongoOperator clientMongoOperator) {
@@ -31,6 +32,12 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 	@Override
 	protected void publishSharedCacheGeneration(String cacheName, String generation) {
 		cacheGenerationMap.put(cacheName, generation);
+	}
+
+	@Override
+	protected AutoCloseable acquireSharedCacheLifecycleLock(String cacheName) {
+		cacheGenerationMap.lock(cacheName);
+		return () -> cacheGenerationMap.unlock(cacheName);
 	}
 
 	@Override

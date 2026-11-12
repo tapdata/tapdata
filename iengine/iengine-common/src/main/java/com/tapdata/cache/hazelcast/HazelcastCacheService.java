@@ -5,6 +5,7 @@ import com.hazelcast.config.EvictionPolicy;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.MaxSizePolicy;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.map.IMap;
 import com.tapdata.cache.AbstractCacheService;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheGetter;
@@ -21,7 +22,7 @@ public class HazelcastCacheService extends AbstractCacheService {
 	private final static String CACHE_KEY_PREFIX = "cache-";
 
 	private final HazelcastInstance hazelcastInstance;
-	private final Map<String, String> cacheGenerationMap;
+	private final IMap<String, String> cacheGenerationMap;
 
 	private Map<String, ICacheStats> cacheStatsMap;
 
@@ -42,6 +43,12 @@ public class HazelcastCacheService extends AbstractCacheService {
 	@Override
 	protected void publishSharedCacheGeneration(String cacheName, String generation) {
 		cacheGenerationMap.put(cacheName, generation);
+	}
+
+	@Override
+	protected AutoCloseable acquireSharedCacheLifecycleLock(String cacheName) {
+		cacheGenerationMap.lock(cacheName);
+		return () -> cacheGenerationMap.unlock(cacheName);
 	}
 
 	@Override
