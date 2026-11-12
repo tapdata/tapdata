@@ -41,7 +41,8 @@ class AuditCredentialUpdateMongoIT {
                 ApplicationDto update = new ApplicationDto();
                 update.setId(clientId);
                 update.setClientName("after");
-                applications.updateById(update, login);
+                ApplicationDto updated = applications.updateById(update, login);
+                assertThat(updated.isClientSecretConfigured()).isTrue();
                 Document storedApp = mongo.getCollection(appCollection).find(new Document("_id", clientId)).first();
                 assertThat(storedApp.getString("clientName")).isEqualTo("after");
                 assertThat(storedApp.getString("clientSecret")).isEqualTo("original-client-secret");

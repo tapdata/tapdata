@@ -12,6 +12,7 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.user.controller.UserController;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,7 @@ class AuditCredentialExposureIT {
         ApplicationService applications = mock(ApplicationService.class);
         when(applications.find(any(Filter.class), same(login))).thenReturn(Page.page(List.of(client), 1));
         when(applications.findById(eq(new ObjectId(id)), any(Field.class), same(login))).thenReturn(client);
+        when(applications.findOne(any(Filter.class), same(login))).thenReturn(client);
         ApplicationController applicationController = spy(new ApplicationController());
         ReflectionTestUtils.setField(applicationController, "applicationService", applications);
         doReturn(login).when(applicationController).getLoginUser();
@@ -88,6 +90,11 @@ class AuditCredentialExposureIT {
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             assertThat(listing).contains("test-client", "\"clientSecretConfigured\":true")
                     .doesNotContain("test-client-secret", "\"clientSecret\":");
+            String projected = applicationsHttp.perform(get("/api/Applications/findOne")
+                            .param("filter", "{\"fields\":{\"clientName\":true}}"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            assertThat(projected).contains("\"clientSecretConfigured\":true").doesNotContain("test-client-secret");
+            verify(applications).findOne(argThat((Filter filter) -> Boolean.TRUE.equals(filter.getFields().get("clientSecret"))), same(login));
             String clientReveal = applicationsHttp.perform(post("/api/Applications/{id}/secret/reveal", id))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             assertThat(clientReveal).contains("test-client-secret");
@@ -127,6 +134,8 @@ class AuditCredentialExposureIT {
         ReflectionTestUtils.setField(appTarget, "applicationService", applications);
         doReturn(login).when(appTarget).getLoginUser();
         AuditItFixture fixture = new AuditItFixture();
+        fixture.collection("User").put(new ObjectId(otherId), new org.bson.Document("_id", new ObjectId(otherId))
+                .append("email", "other@example.test"));
         AuditWebContext.begin("", "127.0.0.1", null, login);
         try (GenericApplicationContext context = new GenericApplicationContext();
              MockedStatic<DataPermissionHelper> permissions = mockStatic(DataPermissionHelper.class)) {
@@ -148,6 +157,8 @@ class AuditCredentialExposureIT {
                     .isEqualTo("test-private-value");
             assertThat(fixture.events(AuditAction.USER_VIEW_ACCESS_CODE)).hasSize(2)
                     .extracting(event -> event.getObjectId()).containsExactly(id, otherId);
+            assertThat(fixture.events(AuditAction.USER_VIEW_ACCESS_CODE).get(1).getObjectName())
+                    .isEqualTo("other@example.test");
             assertThat(context.getBean(ApplicationController.class).revealSecret(null, id).getData())
                     .isEqualTo("test-client-private-value");
             assertThat(fixture.only(AuditAction.API_CLIENT_VIEW_SECRET).getOutcome()).isEqualTo("SUCCESS");
@@ -164,5 +175,10 @@ class AuditCredentialExposureIT {
         assertThat(mapper.readValue("{\"clientSecret\":\"new-secret\"}", ApplicationDto.class).getClientSecret())
                 .isEqualTo("new-secret");
         assertThat(mapper.writeValueAsString(new ApplicationDto())).contains("\"clientSecretConfigured\":false");
+        WorkerDto worker = new WorkerDto();
+        worker.setAccessCode("worker-private-code");
+        assertThat(mapper.writeValueAsString(worker)).doesNotContain("worker-private-code", "accesscode");
+        assertThat(mapper.readValue("{\"accesscode\":\"worker-private-code\"}", WorkerDto.class).getAccessCode())
+                .isEqualTo("worker-private-code");
     }
 }
