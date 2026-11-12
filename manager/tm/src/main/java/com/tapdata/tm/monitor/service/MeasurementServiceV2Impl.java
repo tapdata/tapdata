@@ -3,6 +3,12 @@ package com.tapdata.tm.monitor.service;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.BulkWriteOptions;
+import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.WriteModel;
+import com.mongodb.MongoBulkWriteException;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -39,6 +45,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -64,17 +71,26 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HexFormat;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -87,7 +103,20 @@ import java.util.stream.Stream;
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     private static final int TASK_ID_BATCH_SIZE = 100;
+    static final long HOURLY_TREND_WINDOW_MILLIS = 24L * 3_600_000L;
     private static final long LATEST_SAMPLE_LOOKBACK_MILLIS = 5L * 60L * 1000L;
+    private static final int TASK_COUNTER_RECOVERY_SCHEMA_VERSION = 1;
+    private static final Set<String> TASK_COUNTER_CORE_FIELDS = Set.of(
+            MetricCons.SS.VS.F_INPUT_DDL_TOTAL,
+            MetricCons.SS.VS.F_INPUT_INSERT_TOTAL,
+            MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL,
+            MetricCons.SS.VS.F_INPUT_DELETE_TOTAL,
+            MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL);
 
     public static final String SAMPLE_TYPE_TABLE = MetricCons.SampleType.TABLE.code();
     public static final String SAMPLE_TYPE_TASK = MetricCons.SampleType.TASK.code();
@@ -96,6 +125,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public static final String FIELD_TAGS_TABLE = MetricCons.Tags.F_TABLE;
     public static final String FIELD_TAGS_TASK_ID = MetricCons.Tags.F_TASK_ID;
     public static final String FIELD_TAGS_TASK_RECORD_ID = MetricCons.Tags.F_TASK_RECORD_ID;
+    public static final String FIELD_TAGS_PHYSICAL_NODE_ID = "physicalNodeId";
     public static final String FIELD_SS_VS_REPLICATE_LAG = MetricCons.SS.VS.F_REPLICATE_LAG;
     public static final String FIELD_SS_VS_CURR_EVENT_TS = MetricCons.SS.VS.F_CURR_EVENT_TS;
     public static final String FIELD_SS_VS_INPUT_QPS = MetricCons.SS.VS.F_INPUT_QPS;
@@ -136,8 +166,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     }
 
     private void addBulkAgentMeasurement(List<SampleRequest> sampleRequestList) {
-        BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        BulkOperations bulkOperations = null;
+        List<WriteModel<Document>> attributedWrites = new ArrayList<>();
         DateTime date = DateUtil.date();
+        Date receivedMinute = TimeUtil.cleanTimeAfterMinute(date);
+        Date receivedSecond = TimeUtil.cleanTimeAfterSecond(date);
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
@@ -146,39 +179,48 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 continue;
             }
 
-            Date theDate = TimeUtil.cleanTimeAfterMinute(date);
+            AtomicReference<Sample> requestSample = new AtomicReference<>(singleSampleRequest.getSample());
+            Sample sample = requestSample.get();
+            boolean attributedTaskSample = SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))
+                    && StringUtils.isNotBlank(tags.get(FIELD_TAGS_PHYSICAL_NODE_ID));
+            if (attributedTaskSample && sample.getDate() == null) {
+                log.warn("Skip task metric sample with physical node {} because its collection time is missing", tags.get(FIELD_TAGS_PHYSICAL_NODE_ID));
+                continue;
+            }
+            if (attributedTaskSample && sample.getDate().after(date)) {
+                log.warn("Clamp task metric sample with physical node {} because its collection time is in the future", tags.get(FIELD_TAGS_PHYSICAL_NODE_ID));
+            }
+
+            Date sampleDate = attributedTaskSample
+                    ? (sample.getDate().after(date) ? receivedSecond : sample.getDate())
+                    : receivedSecond;
+            Date documentDate = attributedTaskSample ? TimeUtil.cleanTimeAfterMinute(sampleDate) : receivedMinute;
             if (!SAMPLE_TYPE_TABLE.equals(tags.get(FIELD_TAGS_TYPE))) {
-                criteria.and(MetricCons.F_DATE).is(theDate);
+                criteria.and(MetricCons.F_DATE).is(documentDate);
             }
 
             addTags2Criteria(criteria, tags);
 
-            Date second = TimeUtil.cleanTimeAfterSecond(date);
-            AtomicReference<Sample> requestSample = new AtomicReference<>(singleSampleRequest.getSample());
-
             Query query = Query.query(criteria);
-            requestSample.get().setDate(second);
+            sample.setDate(sampleDate);
             if (SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))) {
                 reuseShareCdcDelayIfNeed(tags, requestSample.get());
             }
 
             Map<String, Object> sampleMap = requestSample.get().toMap();
-            Document upd = new Document();
-            upd.put("$each", Collections.singletonList(sampleMap));
-            upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
-            upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
-
-            Update update = new Update()
-                    .min(MetricCons.F_FIRST, requestSample.get().getDate())
-                    .max(MetricCons.F_LAST, requestSample.get().getDate());
-            if (SAMPLE_TYPE_TABLE.equals(tags.get(FIELD_TAGS_TYPE))) {
-                update.set(MetricCons.F_SAMPLES, Collections.singletonList(sampleMap));
-                update.set(MetricCons.F_DATE, theDate);
+            if (attributedTaskSample) {
+                String id = attributedTaskMinuteDocumentId(tags, documentDate);
+                List<Bson> pipeline = attributedTaskMetricUpdatePipeline(
+                        tags, documentDate, sampleMap, sampleDate, sampleDate.before(receivedMinute));
+                attributedWrites.add(new UpdateOneModel<>(new Document("_id", id), pipeline,
+                        new UpdateOptions().upsert(true)));
             } else {
-                update.push(MetricCons.F_SAMPLES, upd);
+                if (bulkOperations == null) {
+                    bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED,
+                            MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+                }
+                addLegacySampleToBulk(bulkOperations, query, tags, sampleMap, requestSample.get(), receivedMinute);
             }
-
-            bulkOperations.upsert(query, update);
             if (SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))) {
                 Map<String, Object> vs = (Map) sampleMap.get(Sample.FIELD_VALUES);
                 Object replicateLag = vs.get(FIELD_SS_VS_REPLICATE_LAG);
@@ -193,7 +235,119 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
         }
 
-        bulkOperations.execute();
+        if (bulkOperations != null) {
+            bulkOperations.execute();
+        }
+        if (!attributedWrites.isEmpty()) {
+            bulkWriteAttributedTaskMetrics(attributedWrites);
+        }
+    }
+
+    private void bulkWriteAttributedTaskMetrics(List<WriteModel<Document>> attributedWrites) {
+        MongoCollection<Document> collection = mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME);
+        BulkWriteOptions options = new BulkWriteOptions().ordered(true);
+        try {
+            collection.bulkWrite(attributedWrites, options);
+        } catch (MongoBulkWriteException e) {
+            if (!isDuplicateKeyOnly(e)) {
+                throw e;
+            }
+            // A concurrent first upsert can win the deterministic _id insert; replay is idempotent.
+            collection.bulkWrite(attributedWrites, options);
+        }
+    }
+
+    private boolean isDuplicateKeyOnly(MongoBulkWriteException exception) {
+        return exception.getWriteErrors() != null && !exception.getWriteErrors().isEmpty()
+                && exception.getWriteErrors().stream().allMatch(error -> error.getCode() == 11000
+                || error.getCode() == 11001 || error.getCode() == 12582);
+    }
+
+    private void addLegacySampleToBulk(BulkOperations bulkOperations, Query query, Map<String, String> tags,
+                                       Map<String, Object> sampleMap, Sample sample, Date receivedMinute) {
+            Document upd = new Document();
+            upd.put("$each", Collections.singletonList(sampleMap));
+            upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
+            upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
+
+            Update update = new Update()
+                    .min(MetricCons.F_FIRST, sample.getDate())
+                    .max(MetricCons.F_LAST, sample.getDate());
+            if (SAMPLE_TYPE_TABLE.equals(tags.get(FIELD_TAGS_TYPE))) {
+                update.set(MetricCons.F_SAMPLES, Collections.singletonList(sampleMap));
+                update.set(MetricCons.F_DATE, receivedMinute);
+            } else {
+                update.push(MetricCons.F_SAMPLES, upd);
+            }
+
+            bulkOperations.upsert(query, update);
+    }
+
+    static String attributedTaskMinuteDocumentId(Map<String, String> tags, Date documentDate) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(JsonUtil.toJson(new TreeMap<>(tags)).getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+            digest.update(Long.toString(documentDate.getTime()).getBytes(StandardCharsets.UTF_8));
+            return "tapdata-task-metric-v2:" + HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    static List<Bson> attributedTaskMetricUpdatePipeline(Map<String, String> tags, Date documentDate,
+                                                          Map<String, Object> sampleMap, Date sampleDate, boolean late) {
+        Document existingSamples = new Document("$ifNull", Arrays.asList("$" + MetricCons.F_SAMPLES, Collections.emptyList()));
+        Document newerSamples = filterSamplesByDate(existingSamples, sampleDate, "$gt");
+        Document olderSamples = filterSamplesByDate(existingSamples, sampleDate, "$lt");
+        Document retainedSamples = new Document("$slice", Arrays.asList(
+                new Document("$concatArrays", Arrays.asList(newerSamples,
+                        Collections.singletonList(new Document("$literal", sampleMap)), olderSamples)),
+                200));
+
+        Document first = new Document("$min", Arrays.asList(
+                new Document("$ifNull", Arrays.asList("$" + MetricCons.F_FIRST, sampleDate)), sampleDate));
+        Document last = new Document("$max", Arrays.asList(
+                new Document("$ifNull", Arrays.asList("$" + MetricCons.F_LAST, sampleDate)), sampleDate));
+        Document dirty = new Document("$or", Arrays.asList(
+                new Document("$ifNull", Arrays.asList("$" + MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY, false)), late));
+        Document retainStage = new Document("$set", new Document(MetricCons.F_GRANULARITY,
+                new Document("$ifNull", Arrays.asList("$" + MetricCons.F_GRANULARITY, Granularity.GRANULARITY_MINUTE)))
+                .append(MetricCons.F_DATE, new Document("$ifNull", Arrays.asList("$" + MetricCons.F_DATE, documentDate)))
+                .append(MetricCons.F_TAGS, new Document("$ifNull", Arrays.asList("$" + MetricCons.F_TAGS, new Document("$literal", tags))))
+                .append(MetricCons.F_SAMPLES, retainedSamples)
+                .append(MetricCons.F_FIRST, first)
+                .append(MetricCons.F_LAST, last)
+                .append(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY, dirty));
+        Document summaryStage = new Document("$set",
+                new Document(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_SUM, sumSampleMetric(MetricCons.SS.VS.F_OUTPUT_QPS))
+                        .append(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_COUNT, countSampleMetric(MetricCons.SS.VS.F_OUTPUT_QPS))
+                        .append(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM, sumSampleMetric(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS))
+                        .append(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT, countSampleMetric(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS)));
+        return Arrays.asList(retainStage, summaryStage);
+    }
+
+    private static Document filterSamplesByDate(Document samples, Date sampleDate, String comparison) {
+        return new Document("$filter", new Document("input", samples)
+                .append("as", "existingSample")
+                .append("cond", new Document(comparison, Arrays.asList("$$existingSample." + Sample.FIELD_DATE, sampleDate))));
+    }
+
+    private static Document sumSampleMetric(String metricName) {
+        Document metricValue = new Document("$ifNull", Arrays.asList(
+                "$$dashboardSample." + Sample.FIELD_VALUES + "." + metricName, 0));
+        return new Document("$sum", new Document("$map", new Document("input", "$" + MetricCons.F_SAMPLES)
+                .append("as", "dashboardSample")
+                .append("in", metricValue)));
+    }
+
+    private static Document countSampleMetric(String metricName) {
+        Document metricValue = new Document("$ifNull", Arrays.asList(
+                "$$dashboardSample." + Sample.FIELD_VALUES + "." + metricName, null));
+        Document nonNullValue = new Document("$ne", Arrays.asList(metricValue, null));
+        return new Document("$size", new Document("$filter", new Document("input", "$" + MetricCons.F_SAMPLES)
+                .append("as", "dashboardSample")
+                .append("cond", nonNullValue)));
     }
 
     private void reuseShareCdcDelayIfNeed(Map<String, String> tags, Sample sample) {
@@ -403,6 +557,177 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         return ret;
+    }
+
+    @Override
+    public Object getSamples(MeasurementQueryParam measurementQueryParam, boolean taskCounterRecovery) {
+        MeasurementQueryParam.MeasurementQuerySample recoverySample = taskCounterRecovery
+                ? validTaskCounterRecoverySample(measurementQueryParam)
+                : null;
+        if (recoverySample == null) {
+            return getSamples(measurementQueryParam);
+        }
+        return getTaskCounterRecoverySamples(measurementQueryParam, recoverySample);
+    }
+
+    private MeasurementQueryParam.MeasurementQuerySample validTaskCounterRecoverySample(
+            MeasurementQueryParam queryParam) {
+        if (queryParam == null || queryParam.getStartAt() == null || queryParam.getEndAt() == null
+                || queryParam.getStartAt() > queryParam.getEndAt()
+                || queryParam.getSamples() == null || queryParam.getSamples().size() != 1) {
+            return null;
+        }
+        MeasurementQueryParam.MeasurementQuerySample sample = queryParam.getSamples().values().iterator().next();
+        if (sample == null || !MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT
+                .equals(sample.getType()) || sample.getTags() == null || CollectionUtils.isEmpty(sample.getFields())
+                || !sample.getFields().containsAll(TASK_COUNTER_CORE_FIELDS)) {
+            return null;
+        }
+        Map<String, String> tags = sample.getTags();
+        if (!SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))
+                || StringUtils.isBlank(tags.get(FIELD_TAGS_TASK_ID))
+                || StringUtils.isBlank(tags.get(FIELD_TAGS_TASK_RECORD_ID))) {
+            return null;
+        }
+        return sample;
+    }
+
+    private Object getTaskCounterRecoverySamples(MeasurementQueryParam queryParam,
+                                                MeasurementQueryParam.MeasurementQuerySample querySample) {
+        String unique = queryParam.getSamples().entrySet().stream()
+                .filter(entry -> entry.getValue() == querySample)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElseThrow();
+        Map<String, List<Map<String, Object>>> data = new HashMap<>();
+        List<Map<String, Object>> resultSamples = new ArrayList<>();
+        data.put(unique, resultSamples);
+        Sample latest = findLatestTaskCounterSample(querySample.getTags(), queryParam.getStartAt(),
+                queryParam.getEndAt(), querySample.getFields());
+        if (latest != null) {
+            validateTaskCounterCoreFields(latest, querySample.getTags());
+            Map<String, Number> selectedValues = new HashMap<>();
+            for (String field : querySample.getFields()) {
+                if (latest.getVs().containsKey(field)) {
+                    selectedValues.put(field, latest.getVs().get(field));
+                }
+            }
+            Sample selected = new Sample();
+            selected.setDate(latest.getDate());
+            selected.setVs(selectedValues);
+            resultSamples.addAll(formatSingleSamples(Map.of(hashTag(querySample.getTags()), selected)));
+        }
+        return Map.of("taskCounterRecoverySchemaVersion", TASK_COUNTER_RECOVERY_SCHEMA_VERSION,
+                "samples", data);
+    }
+
+    private void validateTaskCounterCoreFields(Sample sample, Map<String, String> tags) {
+        for (String field : TASK_COUNTER_CORE_FIELDS) {
+            Number value = sample.getVs().get(field);
+            if (value == null || !Double.isFinite(value.doubleValue())) {
+                throw new IllegalStateException("Invalid task counter sample field " + field + " for taskId="
+                        + tags.get(FIELD_TAGS_TASK_ID) + ", taskRecordId=" + tags.get(FIELD_TAGS_TASK_RECORD_ID));
+            }
+        }
+    }
+
+    private Sample findLatestTaskCounterSample(Map<String, String> tags, long startAt, long endAt,
+                                               List<String> fields) {
+        long effectiveEnd = Math.min(endAt, System.currentTimeMillis());
+        if (startAt > effectiveEnd) {
+            return null;
+        }
+        long minuteMillis = Granularity.getGranularityMillisInterval(Granularity.GRANULARITY_MINUTE);
+        long firstMinute = startAt - startAt % minuteMillis;
+        long lastMinute = effectiveEnd - effectiveEnd % minuteMillis;
+        Criteria criteria = Criteria.where(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
+                .and(PATH_TAGS_TASK_ID).is(tags.get(FIELD_TAGS_TASK_ID))
+                .and(PATH_TAGS_TASK_RECORD_ID).is(tags.get(FIELD_TAGS_TASK_RECORD_ID))
+                .and(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
+                .and(MetricCons.F_DATE).gte(new Date(firstMinute)).lte(new Date(lastMinute));
+        Query query = new Query(criteria);
+        query.fields().include(MetricCons.F_DATE, MetricCons.F_TAGS, MetricCons.F_SAMPLES);
+        query.with(Sort.by(Sort.Direction.DESC, MetricCons.F_DATE));
+
+        Long latestMinute = null;
+        long latestSampleTime = Long.MIN_VALUE;
+        Sample latestSample = null;
+        Set<Long> conflictingTimestamps = new HashSet<>();
+        try (Stream<MeasurementEntity> stream = mongoOperations.stream(query, MeasurementEntity.class,
+                MeasurementEntity.COLLECTION_NAME)) {
+            Iterator<MeasurementEntity> iterator = stream.iterator();
+            while (iterator.hasNext()) {
+                MeasurementEntity entity = iterator.next();
+                if (entity == null || entity.getDate() == null || CollectionUtils.isEmpty(entity.getSamples())) {
+                    continue;
+                }
+                long documentMinute = entity.getDate().getTime();
+                if (latestMinute != null && documentMinute < latestMinute) {
+                    break;
+                }
+                for (Sample sample : entity.getSamples()) {
+                    if (sample == null || sample.getDate() == null || sample.getVs() == null
+                            || sample.getVs().isEmpty() || fields.stream().noneMatch(sample.getVs()::containsKey)) {
+                        continue;
+                    }
+                    long sampleTime = sample.getDate().getTime();
+                    if (sampleTime < startAt || sampleTime > effectiveEnd) {
+                        continue;
+                    }
+                    if (latestMinute == null) {
+                        latestMinute = documentMinute;
+                    }
+                    if (documentMinute != latestMinute) {
+                        continue;
+                    }
+                    if (sampleTime > latestSampleTime) {
+                        latestSampleTime = sampleTime;
+                        latestSample = sample;
+                    } else if (sampleTime == latestSampleTime
+                            && !sameSampleValues(latestSample, sample, fields)) {
+                        conflictingTimestamps.add(sampleTime);
+                    }
+                }
+            }
+        }
+        if (conflictingTimestamps.contains(latestSampleTime)) {
+            throw new IllegalStateException("Conflicting task counter samples at the same timestamp for taskId="
+                    + tags.get(FIELD_TAGS_TASK_ID) + ", taskRecordId=" + tags.get(FIELD_TAGS_TASK_RECORD_ID)
+                    + ", sampleDate=" + latestSampleTime);
+        }
+        return latestSample;
+    }
+
+    private boolean sameSampleValues(Sample left, Sample right, List<String> fields) {
+        if (left == null || right == null) {
+            return false;
+        }
+        for (String key : fields) {
+            if (left.getVs().containsKey(key) != right.getVs().containsKey(key)) {
+                return false;
+            }
+            if (!left.getVs().containsKey(key)) {
+                continue;
+            }
+            Number leftValue = left.getVs().get(key);
+            Number rightValue = right.getVs().get(key);
+            if (leftValue == null || rightValue == null) {
+                if (leftValue != rightValue) {
+                    return false;
+                }
+            } else if (!sameNumberValue(leftValue, rightValue)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameNumberValue(Number left, Number right) {
+        try {
+            return new BigDecimal(left.toString()).compareTo(new BigDecimal(right.toString())) == 0;
+        } catch (NumberFormatException e) {
+            return Double.compare(left.doubleValue(), right.doubleValue()) == 0;
+        }
     }
 
     private void fillNodeCurrentEventTimestampIfNeed(Map<String, List<Map<String, Object>>> data, MeasurementQueryParam measurementQueryParam) {
@@ -1103,6 +1428,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         includedFields.add(MetricCons.F_SAMPLES);
         includedFields.add(MetricCons.F_DIGEST);
         includedFields.add(MetricCons.F_GRANULARITY);
+        if (Granularity.GRANULARITY_MINUTE.equals(granularity)) {
+            includedFields.add(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_SUM);
+            includedFields.add(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_COUNT);
+            includedFields.add(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM);
+            includedFields.add(MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT);
+        }
 
         Query query = new Query(criteria);
         query.fields().include(includedFields.toArray(new String[]{}));
@@ -1121,6 +1452,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         BulkOperations bulkOperations = null;
+        List<WriteModel<Document>> attributedHourRollupWrites = new ArrayList<>();
+        List<PendingAttributedHourRollup> pendingHourRollups = new ArrayList<>();
         for (Map.Entry<String, List<MeasurementEntity>> entry : tagEntities.entrySet()) {
             int idx = 0;
 
@@ -1132,6 +1465,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 List<MeasurementEntity> entities = entry.getValue();
                 List<Map<String, Object>> samples = new ArrayList<>();
                 List<Map<String, Object>> digests = new ArrayList<>();
+                Map<Long, MeasurementEntity.DashboardMinuteSummary> minuteSummaries = new HashMap<>();
                 // the last value should not be included, it should be [start, end)
                 for (long time = innerStart; time < innerEnd && idx < entry.getValue().size(); time += interval) {
                     MeasurementEntity entity = entities.get(idx);
@@ -1150,6 +1484,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     nextGranularitySample.setDate(new Date(time));
                     nextGranularitySample.setVs(entity.averageValues());
                     samples.add(nextGranularitySample.toMap());
+                    if (Granularity.GRANULARITY_MINUTE.equals(granularity)
+                            && isAttributedTaskMetric(entity.getTags())) {
+                        MeasurementEntity.DashboardMinuteSummary summary = dashboardMinuteSummary(entity, new Date(time));
+                        mergeDashboardMinuteSummary(minuteSummaries, summary);
+                    }
                     TDigestEntity nextGranularityDigest = new TDigestEntity();
                     nextGranularityDigest.setDate(new Date(time));
                     nextGranularityDigest.setDigest(entity.getDigestBytes());
@@ -1166,6 +1505,14 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 Criteria upsertCriteria = Criteria.where(MetricCons.F_GRANULARITY).is(nextGranularity);
                 upsertCriteria.and(MetricCons.F_TAGS).is(reverseHashTag(entry.getKey()));
                 upsertCriteria.and(MetricCons.F_DATE).is(nextGranularityDate);
+                Query upsertQuery = new Query(upsertCriteria);
+
+                Map<String, String> tags = reverseHashTag(entry.getKey());
+                if (Granularity.GRANULARITY_MINUTE.equals(granularity) && isAttributedTaskMetric(tags)) {
+                    pendingHourRollups.add(new PendingAttributedHourRollup(tags, nextGranularityDate, samples,
+                            digests, new ArrayList<>(minuteSummaries.values()), first, last));
+                    continue;
+                }
 
                 Document ss = new Document();
                 ss.put("$each", samples);
@@ -1186,13 +1533,228 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 if (null == bulkOperations) {
                     bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
                 }
-                bulkOperations.upsert(new Query(upsertCriteria), update);
+                bulkOperations.upsert(upsertQuery, update);
             }
         }
 
         if (null != bulkOperations) {
             bulkOperations.execute();
         }
+        if (!pendingHourRollups.isEmpty()) {
+            Map<String, Object> existingIds = findExistingAttributedHourIds(pendingHourRollups);
+            for (PendingAttributedHourRollup pending : pendingHourRollups) {
+                Object targetId = existingIds.getOrDefault(attributedHourRollupKey(pending.tags, pending.hourDate),
+                        attributedTaskHourDocumentId(pending.tags, pending.hourDate));
+                attributedHourRollupWrites.add(new UpdateOneModel<>(new Document("_id", targetId),
+                        attributedTaskHourRollupPipeline(pending.tags, pending.hourDate, pending.samples,
+                                pending.digests, pending.summaries, pending.first, pending.last),
+                        new UpdateOptions().upsert(true)));
+            }
+        }
+        if (!attributedHourRollupWrites.isEmpty()) {
+            bulkWriteAttributedTaskMetrics(attributedHourRollupWrites);
+        }
+    }
+
+    private Map<String, Object> findExistingAttributedHourIds(List<PendingAttributedHourRollup> pendingHourRollups) {
+        Map<String, Object> existingIds = new HashMap<>();
+        Set<String> taskIds = new LinkedHashSet<>();
+        Set<Long> hourTimes = new LinkedHashSet<>();
+        for (PendingAttributedHourRollup pending : pendingHourRollups) {
+            taskIds.add(pending.tags.get(MetricCons.Tags.F_TASK_ID));
+            hourTimes.add(pending.hourDate.getTime());
+        }
+        if (taskIds.isEmpty()) {
+            return existingIds;
+        }
+        List<Date> hourDates = hourTimes.stream().map(Date::new).collect(Collectors.toList());
+        MongoCollection<Document> collection = mongoOperations.getCollection(MeasurementEntity.COLLECTION_NAME);
+        List<String> taskIdList = new ArrayList<>(taskIds);
+        forEachTaskIdBatch(taskIdList, taskIdBatch -> {
+            Document filter = new Document(MetricCons.F_GRANULARITY, Granularity.GRANULARITY_HOUR)
+                    .append(PATH_TAGS_TYPE, SAMPLE_TYPE_TASK)
+                    .append(MetricCons.Tags.path(MetricCons.Tags.F_TASK_ID), new Document("$in", taskIdBatch))
+                    .append(MetricCons.F_DATE, new Document("$in", hourDates));
+            Document projection = new Document("_id", 1)
+                    .append(MetricCons.F_TAGS, 1)
+                    .append(MetricCons.F_DATE, 1);
+            for (Document existing : collection.find(filter).projection(projection).sort(new Document("_id", 1))) {
+                Map<String, String> tags = normalizedTags(existing.get(MetricCons.F_TAGS));
+                Date hourDate = existing.getDate(MetricCons.F_DATE);
+                if (tags == null || hourDate == null) {
+                    continue;
+                }
+                String key = attributedHourRollupKey(tags, hourDate);
+                Object id = existing.get("_id");
+                if (attributedTaskHourDocumentId(tags, hourDate).equals(id)) {
+                    existingIds.put(key, id);
+                } else {
+                    existingIds.putIfAbsent(key, id);
+                }
+            }
+        });
+        return existingIds;
+    }
+
+    private static Map<String, String> normalizedTags(Object rawTags) {
+        if (!(rawTags instanceof Map<?, ?> tags)) {
+            return null;
+        }
+        Map<String, String> normalized = new TreeMap<>();
+        for (Map.Entry<?, ?> entry : tags.entrySet()) {
+            if (!(entry.getKey() instanceof String) || (entry.getValue() != null && !(entry.getValue() instanceof String))) {
+                return null;
+            }
+            normalized.put((String) entry.getKey(), (String) entry.getValue());
+        }
+        return normalized;
+    }
+
+    private static String attributedHourRollupKey(Map<String, String> tags, Date hourDate) {
+        return JsonUtil.toJson(new TreeMap<>(tags)) + "\u0000" + hourDate.getTime();
+    }
+
+    private static final class PendingAttributedHourRollup {
+        private final Map<String, String> tags;
+        private final Date hourDate;
+        private final List<Map<String, Object>> samples;
+        private final List<Map<String, Object>> digests;
+        private final List<MeasurementEntity.DashboardMinuteSummary> summaries;
+        private final Long first;
+        private final Long last;
+
+        private PendingAttributedHourRollup(Map<String, String> tags, Date hourDate,
+                                            List<Map<String, Object>> samples,
+                                            List<Map<String, Object>> digests,
+                                            List<MeasurementEntity.DashboardMinuteSummary> summaries,
+                                            Long first, Long last) {
+            this.tags = tags;
+            this.hourDate = hourDate;
+            this.samples = samples;
+            this.digests = digests;
+            this.summaries = summaries;
+            this.first = first;
+            this.last = last;
+        }
+    }
+
+    private boolean isAttributedTaskMetric(Map<String, String> tags) {
+        return tags != null && SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))
+                && StringUtils.isNotBlank(tags.get(FIELD_TAGS_PHYSICAL_NODE_ID));
+    }
+
+    static String attributedTaskHourDocumentId(Map<String, String> tags, Date hourDate) {
+        return deterministicMeasurementDocumentId("tapdata-task-metric-hour-v2:", tags, hourDate);
+    }
+
+    private static String deterministicMeasurementDocumentId(String prefix, Map<String, String> tags, Date date) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(JsonUtil.toJson(new TreeMap<>(tags)).getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+            digest.update(Long.toString(date.getTime()).getBytes(StandardCharsets.UTF_8));
+            return prefix + HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    static List<Bson> attributedTaskHourRollupPipeline(Map<String, String> tags, Date hourDate,
+                                                        List<Map<String, Object>> samples,
+                                                        List<Map<String, Object>> digests,
+                                                        Collection<MeasurementEntity.DashboardMinuteSummary> summaries,
+                                                        Long first, Long last) {
+        List<Document> summaryDocuments = summaries.stream()
+                .filter(Objects::nonNull)
+                .map(summary -> new Document("date", summary.getDate())
+                        .append("outputQpsSum", summary.getOutputQpsSum())
+                        .append("outputQpsCount", summary.getOutputQpsCount())
+                        .append("outputSizeQpsSum", summary.getOutputSizeQpsSum())
+                        .append("outputSizeQpsCount", summary.getOutputSizeQpsCount()))
+                .collect(Collectors.toList());
+        Document set = new Document(MetricCons.F_GRANULARITY,
+                new Document("$ifNull", Arrays.asList("$" + MetricCons.F_GRANULARITY, Granularity.GRANULARITY_HOUR)))
+                .append(MetricCons.F_DATE, new Document("$ifNull", Arrays.asList("$" + MetricCons.F_DATE, hourDate)))
+                .append(MetricCons.F_TAGS, new Document("$ifNull", Arrays.asList("$" + MetricCons.F_TAGS, new Document("$literal", tags))))
+                .append(MetricCons.F_SAMPLES, replaceArrayEntriesByDate(MetricCons.F_SAMPLES, samples, Sample.FIELD_DATE))
+                .append(MetricCons.F_DIGEST, replaceArrayEntriesByDate(MetricCons.F_DIGEST, digests, TDigestEntity.FIELD_DATE))
+                .append("dashboardMinuteSummaries", replaceArrayEntriesByDate("dashboardMinuteSummaries", summaryDocuments, "date"))
+                .append(MetricCons.F_FIRST, new Document("$min", Arrays.asList(
+                        new Document("$ifNull", Arrays.asList("$" + MetricCons.F_FIRST, new Date(first))), new Date(first))))
+                .append(MetricCons.F_LAST, new Document("$max", Arrays.asList(
+                        new Document("$ifNull", Arrays.asList("$" + MetricCons.F_LAST, new Date(last))), new Date(last))));
+        return List.of(new Document("$set", set));
+    }
+
+    private static Document replaceArrayEntriesByDate(String field, List<?> incoming, String dateField) {
+        Document existing = new Document("$ifNull", Arrays.asList("$" + field, Collections.emptyList()));
+        Document newer = new Document("$filter", new Document("input", "$$value")
+                .append("as", "existingEntry")
+                .append("cond", new Document("$gt", Arrays.asList("$$existingEntry." + dateField, "$$this." + dateField))));
+        Document older = new Document("$filter", new Document("input", "$$value")
+                .append("as", "existingEntry")
+                .append("cond", new Document("$lt", Arrays.asList("$$existingEntry." + dateField, "$$this." + dateField))));
+        Document merged = new Document("$concatArrays", Arrays.asList(newer,
+                Collections.singletonList("$$this"), older));
+        Document bounded = new Document("$slice", Arrays.asList(merged, 200));
+        return new Document("$reduce", new Document("input", new Document("$literal", incoming))
+                .append("initialValue", existing)
+                .append("in", bounded));
+    }
+
+    private MeasurementEntity.DashboardMinuteSummary dashboardMinuteSummary(MeasurementEntity entity, Date date) {
+        MeasurementEntity.DashboardMinuteSummary summary = new MeasurementEntity.DashboardMinuteSummary();
+        summary.setDate(date);
+        if (entity.getDashboardOutputQpsCount() != null) {
+            summary.setOutputQpsSum(Optional.ofNullable(entity.getDashboardOutputQpsSum()).orElse(0D));
+            summary.setOutputQpsCount(entity.getDashboardOutputQpsCount());
+        } else {
+            MetricSummary qps = summarizeMinuteMetric(entity.getSamples(), MetricCons.SS.VS.F_OUTPUT_QPS);
+            summary.setOutputQpsSum(qps.sum);
+            summary.setOutputQpsCount(qps.count);
+        }
+        if (entity.getDashboardOutputSizeQpsCount() != null) {
+            summary.setOutputSizeQpsSum(Optional.ofNullable(entity.getDashboardOutputSizeQpsSum()).orElse(0D));
+            summary.setOutputSizeQpsCount(entity.getDashboardOutputSizeQpsCount());
+        } else {
+            MetricSummary sizeQps = summarizeMinuteMetric(entity.getSamples(), MetricCons.SS.VS.F_OUTPUT_SIZE_QPS);
+            summary.setOutputSizeQpsSum(sizeQps.sum);
+            summary.setOutputSizeQpsCount(sizeQps.count);
+        }
+        return summary;
+    }
+
+    private MetricSummary summarizeMinuteMetric(List<Sample> samples, String metricName) {
+        double sum = 0D;
+        long count = 0L;
+        if (CollectionUtils.isNotEmpty(samples)) {
+            for (Sample sample : samples) {
+                Number value = sample == null || sample.getVs() == null ? null : sample.getVs().get(metricName);
+                if (value != null) {
+                    sum += value.doubleValue();
+                    count++;
+                }
+            }
+        }
+        return new MetricSummary(sum, count);
+    }
+
+    private void mergeDashboardMinuteSummary(Map<Long, MeasurementEntity.DashboardMinuteSummary> summaries,
+                                             MeasurementEntity.DashboardMinuteSummary incoming) {
+        long timestamp = incoming.getDate().getTime();
+        MeasurementEntity.DashboardMinuteSummary current = summaries.get(timestamp);
+        if (current == null) {
+            summaries.put(timestamp, incoming);
+            return;
+        }
+        current.setOutputQpsSum(Optional.ofNullable(current.getOutputQpsSum()).orElse(0D)
+                + Optional.ofNullable(incoming.getOutputQpsSum()).orElse(0D));
+        current.setOutputQpsCount(Optional.ofNullable(current.getOutputQpsCount()).orElse(0L)
+                + Optional.ofNullable(incoming.getOutputQpsCount()).orElse(0L));
+        current.setOutputSizeQpsSum(Optional.ofNullable(current.getOutputSizeQpsSum()).orElse(0D)
+                + Optional.ofNullable(incoming.getOutputSizeQpsSum()).orElse(0D));
+        current.setOutputSizeQpsCount(Optional.ofNullable(current.getOutputSizeQpsCount()).orElse(0L)
+                + Optional.ofNullable(incoming.getOutputSizeQpsCount()).orElse(0L));
     }
 
     @Override
@@ -1576,6 +2138,809 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             result.getOutputSizeQps().add(Optional.ofNullable(outputSizeQps).orElse(0D));
         }
         return result;
+    }
+
+    @Override
+    public TaskMetricsTrendVo aggregateTaskMetricsByTaskIdsV2(List<String> taskIds, long startAt, long endAt, String physicalNodeId) {
+        TaskMetricsTrendVo result = new TaskMetricsTrendVo();
+        List<String> normalizedTaskIds = normalizeTaskIds(taskIds);
+        if (normalizedTaskIds.isEmpty() || startAt >= endAt) {
+            result.setStatus("no_data");
+            result.setTraceability("complete");
+            result.setCoverage("unknown");
+            return result;
+        }
+
+        long rangeMillis = endAt - startAt;
+        long intervalMillis = rangeMillis <= 5L * 60L * 1000L ? 5L * 1000L
+                : rangeMillis <= 60L * 60L * 1000L ? 60L * 1000L : 60L * 60L * 1000L;
+        long intervalSeconds = intervalMillis / 1000L;
+        result.setIntervalSeconds(intervalSeconds);
+
+        Map<String, Map<Long, TaskMetricBucket>> metrics = new HashMap<>();
+        long hourMillis = Granularity.getGranularityMillisInterval(Granularity.GRANULARITY_HOUR);
+        long firstCompleteHour = ceilToInterval(startAt, hourMillis);
+        long lastCompleteHour = endAt - endAt % hourMillis;
+        if (rangeMillis <= hourMillis || firstCompleteHour >= lastCompleteHour) {
+            collectTaskMetricsV2(normalizedTaskIds, Granularity.GRANULARITY_MINUTE, startAt, endAt,
+                    intervalMillis, physicalNodeId, metrics);
+        } else {
+            collectTaskMetricsV2(normalizedTaskIds, Granularity.GRANULARITY_MINUTE, startAt, firstCompleteHour,
+                    intervalMillis, physicalNodeId, metrics);
+            collectTaskMetricsV2(normalizedTaskIds, Granularity.GRANULARITY_HOUR, firstCompleteHour, lastCompleteHour,
+                    intervalMillis, physicalNodeId, metrics);
+            collectTaskMetricsV2(normalizedTaskIds, Granularity.GRANULARITY_MINUTE, lastCompleteHour, endAt,
+                    intervalMillis, physicalNodeId, metrics);
+        }
+
+        long firstBucket = startAt - startAt % intervalMillis;
+        int timelineSize = 0;
+        int bucketsWithValues = 0;
+        boolean hasUnattributedData = false;
+        boolean hasAttributableData = false;
+        boolean hasSelectedNodeData = false;
+        Map<Long, Double> outputQpsByBucket = new HashMap<>();
+        Map<Long, Double> outputSizeQpsByBucket = new HashMap<>();
+        Map<Long, Set<Long>> coveredMinutesByBucket = new HashMap<>();
+        Set<Long> incompleteSelectedBuckets = new HashSet<>();
+        Set<Long> partiallyCoveredSelectedBuckets = new HashSet<>();
+        for (Map<Long, TaskMetricBucket> taskBuckets : metrics.values()) {
+            for (Map.Entry<Long, TaskMetricBucket> bucketEntry : taskBuckets.entrySet()) {
+                TaskMetricBucket bucket = bucketEntry.getValue();
+                if (intervalMillis == hourMillis && bucket.preAggregatedHour) {
+                    hasUnattributedData |= bucket.hasUnattributedData;
+                    hasAttributableData |= bucket.hasAttributableData;
+                    hasSelectedNodeData |= bucket.hasSelectedNodeData;
+                    if (bucket.partiallyCovered) {
+                        partiallyCoveredSelectedBuckets.add(bucketEntry.getKey());
+                    }
+                    if (bucket.incompleteSelected) {
+                        incompleteSelectedBuckets.add(bucketEntry.getKey());
+                    }
+                    coveredMinutesByBucket.computeIfAbsent(bucketEntry.getKey(), ignored -> new HashSet<>())
+                            .addAll(bucket.coveredMinutes);
+                    if (bucket.sampleCount > 0) {
+                        outputQpsByBucket.merge(bucketEntry.getKey(), bucket.outputQpsSum / bucket.sampleCount, Double::sum);
+                    }
+                    if (bucket.outputSizeSampleCount > 0) {
+                        outputSizeQpsByBucket.merge(bucketEntry.getKey(), bucket.outputSizeQpsSum / bucket.outputSizeSampleCount, Double::sum);
+                    }
+                    continue;
+                }
+                if (intervalMillis == hourMillis && !bucket.hourlyMinutes.isEmpty()) {
+                    HourlyTaskBucketSummary summary = summarizeHourlyTaskBucket(bucket, physicalNodeId);
+                    hasUnattributedData |= summary.hasUnattributedData;
+                    hasAttributableData |= summary.hasAttributableData;
+                    hasSelectedNodeData |= summary.hasSelectedNodeData;
+                    if (summary.partiallyCovered) {
+                        partiallyCoveredSelectedBuckets.add(bucketEntry.getKey());
+                    }
+                    if (summary.incompleteSelected) {
+                        incompleteSelectedBuckets.add(bucketEntry.getKey());
+                    }
+                    coveredMinutesByBucket.computeIfAbsent(bucketEntry.getKey(), ignored -> new HashSet<>())
+                            .addAll(summary.coveredMinutes);
+                    if (summary.outputQps != null) {
+                        outputQpsByBucket.merge(bucketEntry.getKey(), summary.outputQps, Double::sum);
+                    }
+                    if (summary.outputSizeQps != null) {
+                        outputSizeQpsByBucket.merge(bucketEntry.getKey(), summary.outputSizeQps, Double::sum);
+                    }
+                    continue;
+                }
+                if (bucket.sampleCount == 0 && bucket.outputSizeSampleCount == 0) {
+                    continue;
+                }
+                hasUnattributedData |= bucket.unattributedSampleCount > 0;
+                hasAttributableData |= bucket.byPhysicalNode.values().stream().anyMatch(node -> node.sampleCount > 0);
+                MetricAccumulator selected = StringUtils.isBlank(physicalNodeId) ? null : bucket.byPhysicalNode.get(physicalNodeId);
+                if (selected != null && selected.sampleCount > 0) {
+                    hasSelectedNodeData = true;
+                }
+                boolean selectedNode = StringUtils.isNotBlank(physicalNodeId);
+                if (selectedNode && bucket.sampleCount > 0) {
+                    if (bucket.unattributedSampleCount > 0) {
+                        incompleteSelectedBuckets.add(bucketEntry.getKey());
+                        continue;
+                    }
+                    if (selected == null || selected.sampleCount == 0) {
+                        partiallyCoveredSelectedBuckets.add(bucketEntry.getKey());
+                    }
+                }
+                if (bucket.sampleCount > 0) {
+                    Double qps = selectedNode ? nodeBucketContribution(bucket, physicalNodeId)
+                            : Double.valueOf(bucket.outputQpsSum / bucket.sampleCount);
+                    if (qps != null) {
+                        outputQpsByBucket.merge(bucketEntry.getKey(), qps, Double::sum);
+                    }
+                }
+                if (bucket.outputSizeSampleCount > 0) {
+                    if (selectedNode && bucket.unattributedOutputSizeSampleCount > 0) {
+                        incompleteSelectedBuckets.add(bucketEntry.getKey());
+                    } else if (selectedNode && (selected == null || selected.outputSizeSampleCount == 0)) {
+                        partiallyCoveredSelectedBuckets.add(bucketEntry.getKey());
+                    } else {
+                        double sizeQps = selectedNode
+                                ? selected.outputSizeQpsSum / bucket.outputSizeSampleCount
+                                : bucket.outputSizeQpsSum / bucket.outputSizeSampleCount;
+                        outputSizeQpsByBucket.merge(bucketEntry.getKey(), sizeQps, Double::sum);
+                    }
+                }
+            }
+        }
+
+        for (long cursor = firstBucket; cursor < endAt; cursor += intervalMillis) {
+            timelineSize++;
+            result.getTs().add(cursor / 1000L);
+            Double outputQps = incompleteSelectedBuckets.contains(cursor) ? null : outputQpsByBucket.get(cursor);
+            Double outputSizeQps = incompleteSelectedBuckets.contains(cursor) ? null : outputSizeQpsByBucket.get(cursor);
+            result.getOutputQps().add(outputQps);
+            result.getOutputSizeQps().add(outputSizeQps);
+            if (outputQps != null) {
+                bucketsWithValues++;
+            }
+        }
+
+        result.setHasUnattributedData(hasUnattributedData);
+        result.setHasSelectedNodeData(hasSelectedNodeData);
+        result.setStatus(bucketsWithValues > 0 ? "ok" : "no_data");
+        boolean hasRelevantAttributableData = StringUtils.isBlank(physicalNodeId) ? hasAttributableData : hasSelectedNodeData;
+        result.setTraceability(!hasUnattributedData ? "complete" : hasRelevantAttributableData ? "partial" : "untraceable");
+        boolean completeMinuteCoverage = true;
+        if (intervalMillis == hourMillis) {
+            Map<Long, Integer> expectedMinuteCounts = expectedMinuteCounts(startAt, endAt, intervalMillis);
+            completeMinuteCoverage = expectedMinuteCounts.entrySet().stream().allMatch(entry ->
+                    coveredMinutesByBucket.getOrDefault(entry.getKey(), Collections.emptySet()).size() >= entry.getValue());
+        }
+        result.setCoverage(bucketsWithValues == 0 ? "unknown"
+                : bucketsWithValues == timelineSize && completeMinuteCoverage
+                && incompleteSelectedBuckets.isEmpty() && partiallyCoveredSelectedBuckets.isEmpty()
+                ? "complete" : "partial");
+        return result;
+    }
+
+    private Map<Long, Integer> expectedMinuteCounts(long startAt, long endAt, long intervalMillis) {
+        Map<Long, Integer> expected = new HashMap<>();
+        long minuteMillis = Granularity.getGranularityMillisInterval(Granularity.GRANULARITY_MINUTE);
+        for (long minuteStart = startAt - startAt % minuteMillis; minuteStart < endAt; minuteStart += minuteMillis) {
+            if (minuteStart + minuteMillis <= startAt) {
+                continue;
+            }
+            long bucketStart = minuteStart - minuteStart % intervalMillis;
+            expected.merge(bucketStart, 1, Integer::sum);
+        }
+        return expected;
+    }
+
+    private void collectTaskMetricsV2(List<String> taskIds, String granularity, long startAt, long endAt,
+                                      long intervalMillis, String physicalNodeId,
+                                      Map<String, Map<Long, TaskMetricBucket>> metrics) {
+        if (startAt >= endAt) {
+            return;
+        }
+        forEachTaskIdBatch(taskIds, taskIdBatch -> {
+            if (Granularity.GRANULARITY_HOUR.equals(granularity) && intervalMillis == 3_600_000L) {
+                long windowMillis = hourlyTrendWindowMillis();
+                for (long windowStart = startAt; windowStart < endAt; windowStart += windowMillis) {
+                    long windowEnd = Math.min(endAt, windowStart + windowMillis);
+                    Map<String, Map<Long, TaskMetricBucket>> windowMetrics = new HashMap<>();
+                    collectTaskMetricsV2Batch(taskIdBatch, granularity, windowStart, windowEnd,
+                            intervalMillis, windowMetrics);
+                    mergeHourlyWindowMetrics(windowMetrics, metrics, physicalNodeId);
+                }
+            } else {
+                collectTaskMetricsV2Batch(taskIdBatch, granularity, startAt, endAt,
+                        intervalMillis, metrics);
+            }
+        });
+    }
+
+    long hourlyTrendWindowMillis() {
+        return HOURLY_TREND_WINDOW_MILLIS;
+    }
+
+    private void collectTaskMetricsV2Batch(List<String> taskIdBatch, String granularity, long startAt, long endAt,
+                                           long intervalMillis,
+                                           Map<String, Map<Long, TaskMetricBucket>> metrics) {
+        long sourceGranularityMillis = Granularity.getGranularityMillisInterval(granularity);
+        long queryStart = startAt - sourceGranularityMillis;
+        long queryEnd = endAt + sourceGranularityMillis;
+        Map<String, DirtyTaskMinuteSummary> dirtyMinutes = Granularity.GRANULARITY_HOUR.equals(granularity)
+                ? collectDirtyTaskMinuteSummaries(taskIdBatch, startAt, endAt)
+                : Collections.emptyMap();
+            Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(granularity)
+                    .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
+                    .and(PATH_TAGS_TASK_ID).in(taskIdBatch)
+                    .and(MetricCons.F_DATE).gte(new Date(queryStart)).lt(new Date(queryEnd));
+            Query query = new Query(criteria);
+            query.fields().include(MetricCons.F_TAGS, MetricCons.F_SAMPLES);
+            if (Granularity.GRANULARITY_HOUR.equals(granularity)) {
+                query.fields().include("dashboardMinuteSummaries");
+            }
+            query.with(Sort.by(MetricCons.F_DATE).ascending());
+            Map<String, HourlySourceSnapshot> processedHourlyMinutes = new HashMap<>();
+            try (Stream<MeasurementEntity> stream = mongoOperations.stream(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
+                stream.forEach(entity -> {
+                    if (entity == null || entity.getTags() == null || CollectionUtils.isEmpty(entity.getSamples())) {
+                        return;
+                    }
+                    String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
+                    if (StringUtils.isBlank(taskId)) {
+                        return;
+                    }
+                    String physicalId = entity.getTags().get(FIELD_TAGS_PHYSICAL_NODE_ID);
+                    DashboardMinuteSummaryIndex summaryIndex =
+                            Granularity.GRANULARITY_HOUR.equals(granularity)
+                                    ? dashboardMinuteSummariesByTime(entity.getDashboardMinuteSummaries())
+                                    : DashboardMinuteSummaryIndex.empty();
+                    for (Sample sample : entity.getSamples()) {
+                        if (sample == null || sample.getDate() == null) {
+                            continue;
+                        }
+                        if (Granularity.GRANULARITY_HOUR.equals(granularity)) {
+                            long sampleTime = sample.getDate().getTime();
+                            if (sampleTime < startAt || sampleTime >= endAt) {
+                                continue;
+                            }
+                            String minuteKey = taskMetricMinuteKey(entity.getTags(), sampleTime);
+                            if (dirtyMinutes.containsKey(minuteKey)) {
+                                continue;
+                            }
+                            if (summaryIndex.conflictingDates.contains(sampleTime)) {
+                                markHourlyMinuteConflict(metrics, taskId, sampleTime, intervalMillis);
+                                continue;
+                            }
+                            MeasurementEntity.DashboardMinuteSummary summary = summaryIndex.byTime.get(sampleTime);
+                            HourlySourceSnapshot snapshot = hourlySourceSnapshot(sample, summary);
+                            HourlySourceSnapshot previous = processedHourlyMinutes.putIfAbsent(minuteKey, snapshot);
+                            if (previous != null) {
+                                if (!previous.equals(snapshot)) {
+                                    markHourlyMinuteConflict(metrics, taskId, sampleTime, intervalMillis);
+                                }
+                                continue;
+                            }
+                            collectTaskMetricV2AggregatedSample(sample, summary, taskId, physicalId,
+                                    startAt, endAt, intervalMillis, metrics);
+                        } else {
+                            collectTaskMetricV2Sample(sample, taskId, physicalId, startAt, endAt, intervalMillis, metrics);
+                        }
+                    }
+                });
+            }
+            for (DirtyTaskMinuteSummary dirtyMinute : dirtyMinutes.values()) {
+                if (dirtyMinute.conflicting) {
+                    markHourlyMinuteConflict(metrics, dirtyMinute.taskId, dirtyMinute.dateMillis, intervalMillis);
+                    continue;
+                }
+                collectTaskMetricV2Contribution(dirtyMinute.taskId, dirtyMinute.physicalNodeId,
+                        dirtyMinute.dateMillis, startAt, endAt, intervalMillis,
+                        dirtyMinute.outputQpsSum, dirtyMinute.outputQpsCount,
+                        dirtyMinute.outputSizeQpsSum, dirtyMinute.outputSizeQpsCount, metrics);
+            }
+    }
+
+    private void mergeHourlyWindowMetrics(Map<String, Map<Long, TaskMetricBucket>> windowMetrics,
+                                          Map<String, Map<Long, TaskMetricBucket>> metrics,
+                                          String physicalNodeId) {
+        windowMetrics.forEach((taskId, buckets) -> buckets.forEach((bucketStart, sourceBucket) -> {
+            HourlyTaskBucketSummary summary = summarizeHourlyTaskBucket(sourceBucket, physicalNodeId);
+            TaskMetricBucket target = metrics.computeIfAbsent(taskId, ignored -> new HashMap<>())
+                    .computeIfAbsent(bucketStart, ignored -> new TaskMetricBucket());
+            target.preAggregatedHour = true;
+            target.hasUnattributedData |= summary.hasUnattributedData;
+            target.hasAttributableData |= summary.hasAttributableData;
+            target.hasSelectedNodeData |= summary.hasSelectedNodeData;
+            target.partiallyCovered |= summary.partiallyCovered;
+            target.incompleteSelected |= summary.incompleteSelected;
+            target.coveredMinutes.addAll(summary.coveredMinutes);
+            if (summary.outputQps != null) {
+                target.outputQpsSum += summary.outputQps;
+                target.sampleCount++;
+            }
+            if (summary.outputSizeQps != null) {
+                target.outputSizeQpsSum += summary.outputSizeQps;
+                target.outputSizeSampleCount++;
+            }
+        }));
+    }
+
+    private HourlyTaskBucketSummary summarizeHourlyTaskBucket(TaskMetricBucket bucket, String physicalNodeId) {
+        HourlyTaskBucketSummary result = new HourlyTaskBucketSummary();
+        boolean selectedNode = StringUtils.isNotBlank(physicalNodeId);
+        boolean hasSelectedQpsEvidence = !selectedNode || bucket.hourlyMinutes.values().stream()
+                .map(minute -> minute.byPhysicalNode.get(physicalNodeId))
+                .filter(Objects::nonNull)
+                .anyMatch(node -> node.outputQps.hasData());
+        boolean hasSelectedSizeEvidence = !selectedNode || bucket.hourlyMinutes.values().stream()
+                .map(minute -> minute.byPhysicalNode.get(physicalNodeId))
+                .filter(Objects::nonNull)
+                .anyMatch(node -> node.outputSizeQps.hasData());
+        double qpsSum = 0D;
+        int qpsMinuteCount = 0;
+        double sizeSum = 0D;
+        int sizeMinuteCount = 0;
+
+        for (Map.Entry<Long, HourlyTaskMinuteBucket> minuteEntry : bucket.hourlyMinutes.entrySet()) {
+            HourlyTaskMinuteBucket minute = minuteEntry.getValue();
+            HourlyMetricValue qps = summarizeHourlyMetric(minute, true, physicalNodeId, hasSelectedQpsEvidence);
+            HourlyMetricValue size = summarizeHourlyMetric(minute, false, physicalNodeId, hasSelectedSizeEvidence);
+            result.hasUnattributedData |= qps.hasUnattributedData || size.hasUnattributedData;
+            result.hasAttributableData |= qps.hasAttributableData || size.hasAttributableData;
+            result.hasSelectedNodeData |= qps.hasSelectedNodeData || size.hasSelectedNodeData;
+            result.partiallyCovered |= qps.partial || size.partial;
+            result.incompleteSelected |= selectedNode && hasSelectedQpsEvidence && qps.partial && !qps.hasData;
+            if (qps.hasData && qps.value != null) {
+                qpsSum += qps.value;
+                qpsMinuteCount++;
+                result.coveredMinutes.add(minuteEntry.getKey());
+            }
+            if (size.hasData && size.value != null) {
+                sizeSum += size.value;
+                sizeMinuteCount++;
+            }
+        }
+        if (hasSelectedQpsEvidence && qpsMinuteCount > 0) {
+            result.outputQps = qpsSum / qpsMinuteCount;
+        }
+        if (hasSelectedSizeEvidence && sizeMinuteCount > 0) {
+            result.outputSizeQps = sizeSum / sizeMinuteCount;
+        }
+        if (selectedNode && !hasSelectedQpsEvidence && (qpsMinuteCount > 0 || !bucket.hourlyMinutes.isEmpty())) {
+            result.partiallyCovered = true;
+        }
+        return result;
+    }
+
+    private HourlyMetricValue summarizeHourlyMetric(HourlyTaskMinuteBucket minute, boolean outputQps,
+                                                    String physicalNodeId, boolean hasSelectedEvidence) {
+        if (outputQps ? minute.outputQpsConflict : minute.outputSizeQpsConflict) {
+            return new HourlyMetricValue(null, false, hasUnattributed(minute, outputQps),
+                    hasAttributable(minute, outputQps), false, true);
+        }
+
+        long weightedCount = 0L;
+        double weightedSum = 0D;
+        int unweightedSequences = 0;
+        String unweightedNodeId = null;
+        Double unweightedValue = null;
+        boolean hasUnattributed = false;
+        boolean hasAttributable = false;
+        boolean hasSelectedData = false;
+        boolean hasLegacyAndWeightedMix = false;
+
+        for (Map.Entry<String, HourlyNodeMinuteMetric> entry : minute.byPhysicalNode.entrySet()) {
+            HourlyMetricAccumulator accumulator = outputQps ? entry.getValue().outputQps : entry.getValue().outputSizeQps;
+            if (accumulator.conflict) {
+                return new HourlyMetricValue(null, false, hasUnattributed(minute, outputQps),
+                        hasAttributable(minute, outputQps), false, true);
+            }
+            if (accumulator.weightedCount > 0 && accumulator.hasUnweightedValue) {
+                hasLegacyAndWeightedMix = true;
+            }
+            weightedCount += accumulator.weightedCount;
+            weightedSum += accumulator.weightedSum;
+            if (accumulator.hasUnweightedValue) {
+                unweightedSequences++;
+                unweightedNodeId = entry.getKey();
+                unweightedValue = accumulator.unweightedValue;
+            }
+            if (StringUtils.isBlank(entry.getKey())) {
+                hasUnattributed |= accumulator.hasData();
+            } else {
+                hasAttributable |= accumulator.hasData();
+            }
+            if (StringUtils.isNotBlank(physicalNodeId) && physicalNodeId.equals(entry.getKey())
+                    && accumulator.hasData()) {
+                hasSelectedData = true;
+            }
+        }
+
+        if (hasLegacyAndWeightedMix || unweightedSequences > 1
+                || (unweightedSequences > 0 && weightedCount > 0)) {
+            return new HourlyMetricValue(null, false, hasUnattributed, hasAttributable,
+                    hasSelectedData, true);
+        }
+        if (unweightedSequences == 1) {
+            if (!StringUtils.isNotBlank(physicalNodeId)) {
+                return new HourlyMetricValue(unweightedValue, true, hasUnattributed,
+                        hasAttributable, false, false);
+            }
+            if (StringUtils.isBlank(unweightedNodeId)) {
+                if (Double.compare(unweightedValue, 0D) == 0) {
+                    return new HourlyMetricValue(0D, true, true, hasAttributable,
+                            false, true);
+                }
+                return new HourlyMetricValue(null, false, true, hasAttributable,
+                        false, true);
+            }
+            if (!physicalNodeId.equals(unweightedNodeId)) {
+                return new HourlyMetricValue(hasSelectedEvidence ? 0D : null,
+                        hasSelectedEvidence, false, true, false, true);
+            }
+            return new HourlyMetricValue(unweightedValue, true, false, true,
+                    true, false);
+        }
+        if (weightedCount <= 0) {
+            return new HourlyMetricValue(null, false, hasUnattributed, hasAttributable,
+                    hasSelectedData, false);
+        }
+        if (!StringUtils.isNotBlank(physicalNodeId)) {
+            return new HourlyMetricValue(weightedSum / weightedCount, true,
+                    hasUnattributed, hasAttributable, false, false);
+        }
+        if (hasUnattributed) {
+            return new HourlyMetricValue(null, false, true, hasAttributable,
+                    hasSelectedData, true);
+        }
+        HourlyNodeMinuteMetric selected = minute.byPhysicalNode.get(physicalNodeId);
+        double selectedSum = selected == null ? 0D
+                : (outputQps ? selected.outputQps.weightedSum : selected.outputSizeQps.weightedSum);
+        return new HourlyMetricValue(hasSelectedEvidence ? selectedSum / weightedCount : null,
+                hasSelectedEvidence, false, hasAttributable, hasSelectedData,
+                !hasSelectedData);
+    }
+
+    private boolean hasUnattributed(HourlyTaskMinuteBucket minute, boolean outputQps) {
+        HourlyNodeMinuteMetric node = minute.byPhysicalNode.get(null);
+        return node != null && (outputQps ? node.outputQps : node.outputSizeQps).hasData();
+    }
+
+    private boolean hasAttributable(HourlyTaskMinuteBucket minute, boolean outputQps) {
+        return minute.byPhysicalNode.entrySet().stream()
+                .filter(entry -> StringUtils.isNotBlank(entry.getKey()))
+                .map(entry -> outputQps ? entry.getValue().outputQps : entry.getValue().outputSizeQps)
+                .anyMatch(HourlyMetricAccumulator::hasData);
+    }
+
+    private void markHourlyMinuteConflict(Map<String, Map<Long, TaskMetricBucket>> metrics,
+                                          String taskId, long timestamp, long intervalMillis) {
+        long bucketStart = timestamp - timestamp % intervalMillis;
+        long minuteStart = timestamp - timestamp % 60_000L;
+        TaskMetricBucket bucket = metrics.computeIfAbsent(taskId, ignored -> new HashMap<>())
+                .computeIfAbsent(bucketStart, ignored -> new TaskMetricBucket());
+        HourlyTaskMinuteBucket minute = bucket.hourlyMinutes.computeIfAbsent(minuteStart,
+                ignored -> new HourlyTaskMinuteBucket());
+        minute.outputQpsConflict = true;
+        minute.outputSizeQpsConflict = true;
+    }
+
+    private HourlySourceSnapshot hourlySourceSnapshot(Sample sample,
+                                                       MeasurementEntity.DashboardMinuteSummary summary) {
+        if (summary != null) {
+            return new HourlySourceSnapshot(summary.getOutputQpsSum(), summary.getOutputQpsCount(),
+                    summary.getOutputSizeQpsSum(), summary.getOutputSizeQpsCount(), true);
+        }
+        Map<String, Number> values = sample.getVs();
+        Number qps = values == null ? null : values.get(MetricCons.SS.VS.F_OUTPUT_QPS);
+        Number size = values == null ? null : values.get(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS);
+        return new HourlySourceSnapshot(qps == null ? null : qps.doubleValue(), qps == null ? 0L : 1L,
+                size == null ? null : size.doubleValue(), size == null ? 0L : 1L, false);
+    }
+
+    private boolean sameDashboardMinuteSummary(MeasurementEntity.DashboardMinuteSummary left,
+                                               MeasurementEntity.DashboardMinuteSummary right) {
+        return Objects.equals(left.getOutputQpsSum(), right.getOutputQpsSum())
+                && Objects.equals(left.getOutputQpsCount(), right.getOutputQpsCount())
+                && Objects.equals(left.getOutputSizeQpsSum(), right.getOutputSizeQpsSum())
+                && Objects.equals(left.getOutputSizeQpsCount(), right.getOutputSizeQpsCount());
+    }
+
+    private Map<String, DirtyTaskMinuteSummary> collectDirtyTaskMinuteSummaries(List<String> taskIdBatch,
+                                                                                long startAt, long endAt) {
+        Map<String, DirtyTaskMinuteSummary> dirtyMinutes = new HashMap<>();
+        Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
+                .and(MeasurementEntity.FIELD_DASHBOARD_ROLLUP_DIRTY).is(true)
+                .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
+                .and(PATH_TAGS_TASK_ID).in(taskIdBatch)
+                .and(MetricCons.F_DATE).gte(new Date(startAt)).lt(new Date(endAt));
+        Query query = new Query(criteria);
+        query.fields().include(MetricCons.F_DATE, MetricCons.F_TAGS,
+                MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_SUM,
+                MeasurementEntity.FIELD_DASHBOARD_OUTPUT_QPS_COUNT,
+                MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM,
+                MeasurementEntity.FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT);
+        query.with(Sort.by(MetricCons.F_DATE).ascending());
+        try (Stream<MeasurementEntity> stream = mongoOperations.stream(query, MeasurementEntity.class,
+                MeasurementEntity.COLLECTION_NAME)) {
+            stream.forEach(entity -> {
+                if (entity == null || entity.getTags() == null || entity.getDate() == null) {
+                    return;
+                }
+                String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
+                if (StringUtils.isBlank(taskId)) {
+                    return;
+                }
+                String key = taskMetricMinuteKey(entity.getTags(), entity.getDate().getTime());
+                DirtyTaskMinuteSummary summary = dirtyMinutes.computeIfAbsent(key,
+                        ignored -> new DirtyTaskMinuteSummary(taskId,
+                                entity.getTags().get(FIELD_TAGS_PHYSICAL_NODE_ID), entity.getDate().getTime()));
+                summary.add(entity);
+            });
+        }
+        return dirtyMinutes;
+    }
+
+    private DashboardMinuteSummaryIndex dashboardMinuteSummariesByTime(
+            List<MeasurementEntity.DashboardMinuteSummary> summaries) {
+        if (CollectionUtils.isEmpty(summaries)) {
+            return DashboardMinuteSummaryIndex.empty();
+        }
+        Map<Long, MeasurementEntity.DashboardMinuteSummary> byTime = new HashMap<>();
+        Set<Long> conflictingDates = new HashSet<>();
+        summaries.stream().filter(Objects::nonNull).filter(summary -> summary.getDate() != null).forEach(summary -> {
+            long timestamp = summary.getDate().getTime();
+            MeasurementEntity.DashboardMinuteSummary existing = byTime.putIfAbsent(timestamp, summary);
+            if (existing != null && !sameDashboardMinuteSummary(existing, summary)) {
+                conflictingDates.add(timestamp);
+            }
+        });
+        return new DashboardMinuteSummaryIndex(byTime, conflictingDates);
+    }
+
+    private String taskMetricMinuteKey(Map<String, String> tags, long minuteDate) {
+        return hashTag(tags) + "@" + minuteDate;
+    }
+
+    private void collectTaskMetricV2AggregatedSample(Sample sample,
+                                                     MeasurementEntity.DashboardMinuteSummary summary,
+                                                     String taskId, String physicalNodeId,
+                                                     long startAt, long endAt, long intervalMillis,
+                                                     Map<String, Map<Long, TaskMetricBucket>> metrics) {
+        if (sample.getVs() == null) {
+            return;
+        }
+        Map<String, Number> values = sample.getVs();
+        Number outputQpsCount;
+        Number outputQpsSum;
+        Number outputSizeQpsCount;
+        Number outputSizeQpsSum;
+        boolean weighted = summary != null;
+        if (summary != null) {
+            outputQpsCount = Optional.ofNullable(summary.getOutputQpsCount()).orElse(0L);
+            outputQpsSum = Optional.ofNullable(summary.getOutputQpsSum()).orElse(0D);
+            outputSizeQpsCount = Optional.ofNullable(summary.getOutputSizeQpsCount()).orElse(0L);
+            outputSizeQpsSum = Optional.ofNullable(summary.getOutputSizeQpsSum()).orElse(0D);
+        } else {
+            Number outputQps = values.get(MetricCons.SS.VS.F_OUTPUT_QPS);
+            outputQpsCount = outputQps == null ? 0L : 1L;
+            outputQpsSum = outputQps;
+            Number outputSizeQps = values.get(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS);
+            outputSizeQpsCount = outputSizeQps == null ? 0L : 1L;
+            outputSizeQpsSum = outputSizeQps;
+        }
+        collectTaskMetricV2Contribution(taskId, physicalNodeId, sample.getDate().getTime(), startAt, endAt,
+                intervalMillis, outputQpsSum, outputQpsCount.longValue(),
+                outputSizeQpsSum, outputSizeQpsCount.longValue(), weighted, metrics);
+    }
+
+    private void collectTaskMetricV2Sample(Sample sample, String taskId, String physicalNodeId,
+                                           long startAt, long endAt, long intervalMillis,
+                                           Map<String, Map<Long, TaskMetricBucket>> metrics) {
+        if (sample == null || sample.getDate() == null || sample.getVs() == null) {
+            return;
+        }
+        long timestamp = sample.getDate().getTime();
+        if (timestamp < startAt || timestamp >= endAt) {
+            return;
+        }
+        Number outputQps = sample.getVs().get(MetricCons.SS.VS.F_OUTPUT_QPS);
+        Number outputSizeQps = sample.getVs().get(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS);
+        collectTaskMetricV2Contribution(taskId, physicalNodeId, timestamp, startAt, endAt, intervalMillis,
+                outputQps, outputQps == null ? 0L : 1L,
+                outputSizeQps, outputSizeQps == null ? 0L : 1L, metrics);
+    }
+
+    private void collectTaskMetricV2Contribution(String taskId, String physicalNodeId, long timestamp,
+                                                 long startAt, long endAt, long intervalMillis,
+                                                 Number outputQpsSum, long outputQpsCount,
+                                                 Number outputSizeQpsSum, long outputSizeQpsCount,
+                                                 Map<String, Map<Long, TaskMetricBucket>> metrics) {
+        collectTaskMetricV2Contribution(taskId, physicalNodeId, timestamp, startAt, endAt, intervalMillis,
+                outputQpsSum, outputQpsCount, outputSizeQpsSum, outputSizeQpsCount, true, metrics);
+    }
+
+    private void collectTaskMetricV2Contribution(String taskId, String physicalNodeId, long timestamp,
+                                                 long startAt, long endAt, long intervalMillis,
+                                                 Number outputQpsSum, long outputQpsCount,
+                                                 Number outputSizeQpsSum, long outputSizeQpsCount,
+                                                 boolean weighted,
+                                                 Map<String, Map<Long, TaskMetricBucket>> metrics) {
+        if (timestamp < startAt || timestamp >= endAt || (outputQpsCount <= 0 && outputSizeQpsCount <= 0)) {
+            return;
+        }
+        long bucketStart = timestamp - timestamp % intervalMillis;
+        TaskMetricBucket bucket = metrics.computeIfAbsent(taskId, key -> new HashMap<>())
+                .computeIfAbsent(bucketStart, key -> new TaskMetricBucket());
+        if (intervalMillis == 3_600_000L) {
+            long minuteStart = timestamp - timestamp % 60_000L;
+            HourlyTaskMinuteBucket minute = bucket.hourlyMinutes.computeIfAbsent(minuteStart,
+                    ignored -> new HourlyTaskMinuteBucket());
+            HourlyNodeMinuteMetric node = minute.byPhysicalNode.computeIfAbsent(physicalNodeId,
+                    ignored -> new HourlyNodeMinuteMetric());
+            if (outputQpsCount > 0) {
+                if (weighted) {
+                    node.outputQps.addWeighted(outputQpsSum, outputQpsCount);
+                } else {
+                    node.outputQps.addUnweighted(outputQpsSum);
+                }
+            }
+            if (outputSizeQpsCount > 0) {
+                if (weighted) {
+                    node.outputSizeQps.addWeighted(outputSizeQpsSum, outputSizeQpsCount);
+                } else {
+                    node.outputSizeQps.addUnweighted(outputSizeQpsSum);
+                }
+            }
+            return;
+        }
+        bucket.sampleCount += outputQpsCount;
+        bucket.outputQpsSum += outputQpsSum == null ? 0D : outputQpsSum.doubleValue();
+        bucket.outputSizeSampleCount += outputSizeQpsCount;
+        bucket.outputSizeQpsSum += outputSizeQpsSum == null ? 0D : outputSizeQpsSum.doubleValue();
+        if (StringUtils.isBlank(physicalNodeId)) {
+            bucket.unattributedSampleCount += outputQpsCount;
+            bucket.unattributedOutputSizeSampleCount += outputSizeQpsCount;
+        } else {
+            MetricAccumulator node = bucket.byPhysicalNode.computeIfAbsent(physicalNodeId, key -> new MetricAccumulator());
+            node.sampleCount += outputQpsCount;
+            node.outputQpsSum += outputQpsSum == null ? 0D : outputQpsSum.doubleValue();
+            node.outputSizeSampleCount += outputSizeQpsCount;
+            node.outputSizeQpsSum += outputSizeQpsSum == null ? 0D : outputSizeQpsSum.doubleValue();
+        }
+    }
+
+    private long ceilToInterval(long value, long interval) {
+        long remainder = value % interval;
+        return remainder == 0 ? value : value + interval - remainder;
+    }
+
+    static Double nodeBucketContribution(TaskMetricBucket bucket, String physicalNodeId) {
+        if (bucket == null || bucket.sampleCount == 0 || bucket.unattributedSampleCount > 0) {
+            return null;
+        }
+        MetricAccumulator selected = bucket.byPhysicalNode.get(physicalNodeId);
+        return selected == null ? null : selected.outputQpsSum / bucket.sampleCount;
+    }
+
+    static class TaskMetricBucket {
+        private long sampleCount;
+        private long unattributedSampleCount;
+        private long outputSizeSampleCount;
+        private long unattributedOutputSizeSampleCount;
+        private double outputQpsSum;
+        private double outputSizeQpsSum;
+        private final Map<String, MetricAccumulator> byPhysicalNode = new HashMap<>();
+        private final Map<Long, HourlyTaskMinuteBucket> hourlyMinutes = new HashMap<>();
+        private boolean preAggregatedHour;
+        private boolean hasUnattributedData;
+        private boolean hasAttributableData;
+        private boolean hasSelectedNodeData;
+        private boolean partiallyCovered;
+        private boolean incompleteSelected;
+        private final Set<Long> coveredMinutes = new HashSet<>();
+    }
+
+    static class MetricAccumulator {
+        private long sampleCount;
+        private long outputSizeSampleCount;
+        private double outputQpsSum;
+        private double outputSizeQpsSum;
+    }
+
+    private static class HourlyTaskMinuteBucket {
+        private final Map<String, HourlyNodeMinuteMetric> byPhysicalNode = new HashMap<>();
+        private boolean outputQpsConflict;
+        private boolean outputSizeQpsConflict;
+    }
+
+    private static class HourlyNodeMinuteMetric {
+        private final HourlyMetricAccumulator outputQps = new HourlyMetricAccumulator();
+        private final HourlyMetricAccumulator outputSizeQps = new HourlyMetricAccumulator();
+    }
+
+    private static class HourlyMetricAccumulator {
+        private double weightedSum;
+        private long weightedCount;
+        private Double unweightedValue;
+        private boolean hasUnweightedValue;
+        private boolean conflict;
+
+        private void addWeighted(Number sum, long count) {
+            weightedSum += sum == null ? 0D : sum.doubleValue();
+            weightedCount += count;
+        }
+
+        private void addUnweighted(Number value) {
+            if (value == null) {
+                return;
+            }
+            if (hasUnweightedValue) {
+                conflict = true;
+                return;
+            }
+            unweightedValue = value.doubleValue();
+            hasUnweightedValue = true;
+        }
+
+        private boolean hasData() {
+            return weightedCount > 0 || hasUnweightedValue;
+        }
+    }
+
+    private record HourlyMetricValue(Double value, boolean hasData, boolean hasUnattributedData,
+                                     boolean hasAttributableData, boolean hasSelectedNodeData,
+                                     boolean partial) {
+    }
+
+    private static class HourlyTaskBucketSummary {
+        private Double outputQps;
+        private Double outputSizeQps;
+        private boolean hasUnattributedData;
+        private boolean hasAttributableData;
+        private boolean hasSelectedNodeData;
+        private boolean partiallyCovered;
+        private boolean incompleteSelected;
+        private final Set<Long> coveredMinutes = new HashSet<>();
+    }
+
+    private record HourlySourceSnapshot(Double outputQps, Long outputQpsCount,
+                                         Double outputSizeQps, Long outputSizeQpsCount,
+                                         boolean weighted) {
+    }
+
+    private static class DashboardMinuteSummaryIndex {
+        private final Map<Long, MeasurementEntity.DashboardMinuteSummary> byTime;
+        private final Set<Long> conflictingDates;
+
+        private DashboardMinuteSummaryIndex(Map<Long, MeasurementEntity.DashboardMinuteSummary> byTime,
+                                            Set<Long> conflictingDates) {
+            this.byTime = byTime;
+            this.conflictingDates = conflictingDates;
+        }
+
+        private static DashboardMinuteSummaryIndex empty() {
+            return new DashboardMinuteSummaryIndex(Collections.emptyMap(), Collections.emptySet());
+        }
+    }
+
+    private record MetricSummary(double sum, long count) {
+    }
+
+    static class DirtyTaskMinuteSummary {
+        private final String taskId;
+        private final String physicalNodeId;
+        private final long dateMillis;
+        private double outputQpsSum;
+        private long outputQpsCount;
+        private double outputSizeQpsSum;
+        private long outputSizeQpsCount;
+        private boolean initialized;
+        private boolean conflicting;
+
+        DirtyTaskMinuteSummary(String taskId, String physicalNodeId, long dateMillis) {
+            this.taskId = taskId;
+            this.physicalNodeId = physicalNodeId;
+            this.dateMillis = dateMillis;
+        }
+
+        private void add(MeasurementEntity entity) {
+            double nextOutputQpsSum = Optional.ofNullable(entity.getDashboardOutputQpsSum()).orElse(0D);
+            long nextOutputQpsCount = Optional.ofNullable(entity.getDashboardOutputQpsCount()).orElse(0L);
+            double nextOutputSizeQpsSum = Optional.ofNullable(entity.getDashboardOutputSizeQpsSum()).orElse(0D);
+            long nextOutputSizeQpsCount = Optional.ofNullable(entity.getDashboardOutputSizeQpsCount()).orElse(0L);
+            if (initialized) {
+                conflicting |= Double.compare(outputQpsSum, nextOutputQpsSum) != 0
+                        || outputQpsCount != nextOutputQpsCount
+                        || Double.compare(outputSizeQpsSum, nextOutputSizeQpsSum) != 0
+                        || outputSizeQpsCount != nextOutputSizeQpsCount;
+                return;
+            }
+            outputQpsSum = nextOutputQpsSum;
+            outputQpsCount = nextOutputQpsCount;
+            outputSizeQpsSum = nextOutputSizeQpsSum;
+            outputSizeQpsCount = nextOutputSizeQpsCount;
+            initialized = true;
+        }
     }
 
     private void collectTaskMetricsBatch(List<String> taskIdBatch, TaskMetricsRangeProfile rangeProfile, long queryStart,

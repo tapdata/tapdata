@@ -1237,8 +1237,19 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDashboardVo> dashboard(@RequestParam(required = false) String type,
                                                       @RequestParam(required = false) Long step,
                                                       @RequestParam(required = false) String dashboardType,
-                                                      @RequestParam(required = false) Integer top) {
-        return success(taskService.dashboard(getLoginUser(), type, step, dashboardType, top));
+                                                      @RequestParam(required = false) Integer top,
+                                                      @RequestParam(required = false) String physicalNodeId,
+                                                      @RequestParam(required = false) Long startAt,
+                                                      @RequestParam(required = false) Long endAt,
+                                                      @RequestParam(required = false) Integer trendSchemaVersion) {
+        return success(taskService.dashboard(getLoginUser(), type, step, dashboardType, top,
+                physicalNodeId, startAt, endAt, trendSchemaVersion));
+    }
+
+    @Operation(summary = "Task Dashboard trend nodes")
+    @GetMapping("/dashboard/nodes")
+    public ResponseMessage<List<TaskDashboardVo.NodeOption>> dashboardNodes() {
+        return success(taskService.dashboardNodes(getLoginUser()));
     }
 
 

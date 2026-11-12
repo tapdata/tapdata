@@ -42,6 +42,7 @@ import io.tapdata.observable.metric.util.TapCompletableFutureEx;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -63,12 +64,30 @@ import static org.mockito.Mockito.*;
 
 public class ObservableAspectTaskTest {
     ObservableAspectTask observableAspectTask;
+    private Object previousRetrieverOperator;
+
     @BeforeEach
     void init() {
+        previousRetrieverOperator = ReflectionTestUtils.getField(TaskSampleRetriever.getInstance(), "operator");
         observableAspectTask = new ObservableAspectTask();
         TaskDto taskDto = new TaskDto();
         taskDto.setId(ObjectId.get());
         ReflectionTestUtils.setField(observableAspectTask,"task",taskDto);
+    }
+
+    @AfterEach
+    void restoreRetrieverOperator() {
+        ReflectionTestUtils.setField(TaskSampleRetriever.getInstance(), "operator", previousRetrieverOperator);
+    }
+
+    private void mockEmptyCounterRecovery() {
+        HttpClientMongoOperator operator = mock(HttpClientMongoOperator.class);
+        TaskSampleRetriever.SampleResponse response = new TaskSampleRetriever.SampleResponse();
+        TaskSampleRetriever.Samples samples = new TaskSampleRetriever.Samples();
+        samples.setRetriever(Collections.emptyList());
+        response.setSamples(samples);
+        when(operator.postOne(anyMap(), anyString(), eq(TaskSampleRetriever.SampleResponse.class))).thenReturn(response);
+        ReflectionTestUtils.setField(TaskSampleRetriever.getInstance(), "operator", operator);
     }
 
     @Nested
@@ -93,8 +112,7 @@ public class ObservableAspectTaskTest {
         taskDto.setStartTime(new Date());
         observableAspectTask.setTask(taskDto);
 
-        HttpClientMongoOperator mockRestTemplateOperator = mock(HttpClientMongoOperator.class);
-        TaskSampleRetriever.getInstance().start(mockRestTemplateOperator);
+        mockEmptyCounterRecovery();
 
         // test onStart and onStop if null handler
         observableAspectTask.onStart(new TaskStartAspect().task(taskDto));
@@ -379,7 +397,7 @@ public class ObservableAspectTaskTest {
 
         @Test
         void testStateStart_1() {
-            TaskSampleRetriever.getInstance().start(mock(HttpClientMongoOperator.class));
+            mockEmptyCounterRecovery();
 
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
@@ -458,7 +476,7 @@ public class ObservableAspectTaskTest {
 
         @Test
         void testStateStart_2() {
-            TaskSampleRetriever.getInstance().start(mock(HttpClientMongoOperator.class));
+            mockEmptyCounterRecovery();
 
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());

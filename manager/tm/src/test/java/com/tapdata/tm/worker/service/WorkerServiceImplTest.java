@@ -9,6 +9,7 @@ import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
@@ -22,7 +23,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -42,6 +45,51 @@ class WorkerServiceImplTest {
         mongoTemplate = mock(MongoTemplate.class);
         workerService = mock(WorkerServiceImpl.class);
         ReflectionTestUtils.setField(workerService, "mongoTemplate", mongoTemplate);
+    }
+
+    @Test
+    void filteredAgentLookupRetainsUserPermissionQuery() {
+        WorkerRepository repository = mock(WorkerRepository.class);
+        WorkerServiceImpl service = new WorkerServiceImpl(repository);
+        SettingsService settings = mock(SettingsService.class);
+        ReflectionTestUtils.setField(service, "settingsService", settings);
+        UserDetail user = mock(UserDetail.class);
+
+        service.findAllAgent(user, List.of("selected-process"));
+
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(repository).findAll(query.capture(), same(user));
+        Map<?, ?> filter = query.getValue().getQueryObject();
+        assertEquals("connector", filter.get("worker_type"));
+        assertEquals(true, ((Map<?, ?>) filter.get("isDeleted")).get("$ne"));
+        assertEquals(List.of("selected-process"), ((Map<?, ?>) filter.get("process_id")).get("$in"));
+    }
+
+    @Test
+    void filteredAgentLookupRetainsCloudSharedWorkerScope() {
+        WorkerRepository repository = mock(WorkerRepository.class);
+        WorkerServiceImpl service = new WorkerServiceImpl(repository);
+        SettingsService settings = mock(SettingsService.class);
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        ReflectionTestUtils.setField(service, "settingsService", settings);
+        ReflectionTestUtils.setField(service, "mongoTemplate", mongo);
+        UserDetail user = mock(UserDetail.class);
+        when(user.getUserId()).thenReturn("current-user");
+        when(settings.isCloud()).thenReturn(true);
+        WorkerExpire shared = new WorkerExpire();
+        shared.setShareUser("shared-owner");
+        shared.setExpireTime(new Date(System.currentTimeMillis() + 60_000L));
+        when(mongo.findOne(any(Query.class), org.mockito.ArgumentMatchers.eq(WorkerExpire.class))).thenReturn(shared);
+
+        service.findAllAgent(user, List.of("selected-process"));
+
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(repository).findAll(query.capture());
+        Map<?, ?> filter = query.getValue().getQueryObject();
+        assertEquals(List.of("selected-process"), ((Map<?, ?>) filter.get("process_id")).get("$in"));
+        String sharedFilter = filter.get("$or").toString();
+        Assertions.assertTrue(sharedFilter.contains("current-user"));
+        Assertions.assertTrue(sharedFilter.contains("shared-owner"));
     }
 
     @Nested

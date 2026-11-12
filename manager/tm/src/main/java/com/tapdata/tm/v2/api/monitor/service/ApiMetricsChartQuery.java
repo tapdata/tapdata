@@ -194,6 +194,32 @@ public class ApiMetricsChartQuery {
         return result;
     }
 
+    public ApiRequestTrend homepageRequestTrendV2(QueryBase param, String physicalNodeId) {
+        ApiRequestTrend result = ApiRequestTrend.create(param.getGranularity());
+        boolean byNode = StringUtils.isNotBlank(physicalNodeId);
+        MetricTypes metricType = byNode ? MetricTypes.SERER : MetricTypes.ALL;
+        ApiMetricsRawService.DashboardRequestData dashboardData = service.dashboardRequestData(
+                param.getStartAt(), param.getEndAt(), param.getGranularity(), metricType, physicalNodeId);
+        Map<Long, Long> requestCounts = dashboardData.requestCounts();
+        long intervalSeconds = param.getGranularity().getSeconds();
+        long startBucket = param.getStartAt() - param.getStartAt() % intervalSeconds;
+        boolean hasData = !requestCounts.isEmpty();
+        boolean allBucketsCovered = hasData;
+        for (long cursor = startBucket; cursor < param.getEndAt(); cursor += intervalSeconds) {
+            Long count = requestCounts.get(cursor);
+            result.getTs().add(cursor);
+            result.getValues().add(count == null ? null : count / (double) intervalSeconds);
+            allBucketsCovered &= count != null;
+        }
+        boolean hasUnattributedData = dashboardData.hasUnattributedData();
+        result.setHasUnattributedData(hasUnattributedData);
+        boolean hasAttributableData = byNode ? hasData : dashboardData.hasAttributableData();
+        result.setTraceability(hasUnattributedData ? (hasAttributableData ? "partial" : "untraceable") : "complete");
+        result.setCoverage(hasData ? (allBucketsCovered ? "complete" : "partial") : "unknown");
+        result.setStatus(hasData ? "ok" : "no_data");
+        return result;
+    }
+
     public List<ServerItem> serverOverviewList(ServerListParam param) {
         List<ServerItem> result = new ArrayList<>();
         long delay = metricsRawMergeService.getDelay();

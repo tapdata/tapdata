@@ -8,6 +8,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.AccessNodeInfo;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
@@ -40,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 class ClusterStateServiceTest {
@@ -105,6 +108,7 @@ class ClusterStateServiceTest {
             when(agentGroupService.filterGroupList(anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
 
             when(clusterStateService.findAccessNodeInfo(userDetail)).thenCallRealMethod();
+            when(clusterStateService.findAccessNodeInfo(eq(userDetail), isNull())).thenCallRealMethod();
         }
 
         void assertVerify(int getHostnameTimes, int getTcmInfoTimes,
@@ -205,6 +209,73 @@ class ClusterStateServiceTest {
                 clusterStateService.findAccessNodeInfo(userDetail);
             }
             Assertions.assertTrue(captor.getValue().isEmpty());
+        }
+
+        @Test
+        void filteredAccessUsesOnlyRequestedProcessIdsAndStillFiltersGroups() {
+            List<String> processIds = List.of("id");
+            when(clusterStateService.findAccessNodeInfo(userDetail, processIds)).thenCallRealMethod();
+            when(workerService.findAllAgent(userDetail, processIds)).thenReturn(workerList);
+            ClusterStateDto state = new ClusterStateDto();
+            SystemInfo info = mock(SystemInfo.class);
+            when(info.getProcess_id()).thenReturn("id");
+            state.setSystemInfo(info);
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(state));
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> result;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("30");
+                result = clusterStateService.findAccessNodeInfo(userDetail, processIds);
+            }
+
+            Assertions.assertEquals(1, result.size());
+            Assertions.assertEquals("id", result.get(0).getProcessId());
+            Assertions.assertEquals("stopped", result.get(0).getStatus());
+            verify(workerService).findAllAgent(userDetail, processIds);
+            verify(workerService, never()).findAllAgent(userDetail);
+            ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+            verify(clusterStateService).findAll(query.capture());
+            Assertions.assertEquals(processIds,
+                    ((org.bson.Document) query.getValue().getQueryObject().get("systemInfo.process_id")).get("$in"));
+            verify(agentGroupService).filterGroupList(anyList(), eq(userDetail));
+        }
+
+        @Test
+        void nullProcessFilterRetainsUnfilteredAccessBehavior() {
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> original;
+            List<AccessNodeInfo> filteredNull;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("30");
+                original = clusterStateService.findAccessNodeInfo(userDetail);
+                filteredNull = clusterStateService.findAccessNodeInfo(userDetail, null);
+            }
+
+            Assertions.assertEquals(original.size(), filteredNull.size());
+            Assertions.assertEquals(original.get(0).getProcessId(), filteredNull.get(0).getProcessId());
+            Assertions.assertEquals(original.get(0).getStatus(), filteredNull.get(0).getStatus());
+            verify(workerService, times(2)).findAllAgent(userDetail);
+            verify(agentGroupService, times(2)).filterGroupList(anyList(), eq(userDetail));
+        }
+
+        @Test
+        void apiOnlyClusterStateIsNotExposedAsAnEngineAccessNode() {
+            when(workerService.findAllAgent(userDetail)).thenReturn(new ArrayList<>());
+            ClusterStateDto apiOnlyState = new ClusterStateDto();
+            apiOnlyState.setApiServer(new com.tapdata.tm.cluster.dto.Component());
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(apiOnlyState));
+
+            List<AccessNodeInfo> result = clusterStateService.findAccessNodeInfo(userDetail);
+
+            Assertions.assertTrue(result.isEmpty());
+            verify(clusterStateService, never()).findAll(any(Query.class));
+            verify(agentGroupService, never()).filterGroupList(anyList(), any(UserDetail.class));
         }
     }
     @Nested
