@@ -109,7 +109,8 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
         } else {
             updateByWhere(query, applicationDto, userDetail);
         }
-        return applicationDto;
+        return userDetail.isRoot() && !userDetail.isFreeAuth()
+                ? findById(applicationDto.getId()) : findById(applicationDto.getId(), userDetail);
     }
 
     public List<ApplicationDto> findByIds(List<String> idList){

@@ -279,6 +279,7 @@ public class ApplicationController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
+        filter.setFields(includeSecretForConfigured(filter.getFields()));
         Filter finalFilter = filter;
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,

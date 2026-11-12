@@ -639,7 +639,7 @@ public class UserController extends BaseController {
         return success(res);
     }
 
-    @Operation(summary = "refresh access code")
+    @Operation(summary = "refresh access code", description = "Rotates the access code without returning it. Call POST /api/users/access-code/reveal to retrieve the new code; this sensitive read is separately audited.")
     @PostMapping("refreshAccessCode")
     @Audited(AuditAction.USER_RESET_ACCESS_CODE)
     public ResponseMessage<String> refreshAccessCode() {
