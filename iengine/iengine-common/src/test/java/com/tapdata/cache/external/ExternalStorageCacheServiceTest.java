@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -90,6 +91,7 @@ class ExternalStorageCacheServiceTest {
         private final AtomicReference<DataFlowCacheConfig> remoteConfig;
         private final List<TestStore> stores;
         private ICacheGetter testGetter;
+        private boolean failLifecycleLock;
 
         TestService(HazelcastInstance hazelcast, AtomicReference<DataFlowCacheConfig> remoteConfig,
                     List<TestStore> stores) {
@@ -115,8 +117,18 @@ class ExternalStorageCacheServiceTest {
             return testGetter == null ? super.getCacheGetterInstance(cacheName, config, store) : testGetter;
         }
 
+        @Override
+        protected AutoCloseable acquireSharedCacheLifecycleLock(String cacheName) {
+            if (failLifecycleLock) throw new IllegalStateException("simulated cluster lock failure");
+            return super.acquireSharedCacheLifecycleLock(cacheName);
+        }
+
         void setGetter(ICacheGetter getter) {
             this.testGetter = getter;
+        }
+
+        void failLifecycleLock() {
+            this.failLifecycleLock = true;
         }
 
         ICacheStore store(String cacheName) {
@@ -179,14 +191,26 @@ class ExternalStorageCacheServiceTest {
             when(map.get(anyString())).thenAnswer(invocation -> values.get(invocation.getArgument(0)));
             doAnswer(invocation -> values.put(invocation.getArgument(0), invocation.getArgument(1)))
                     .when(map).put(anyString(), anyString());
-            doAnswer(invocation -> {
-                locks.computeIfAbsent(invocation.getArgument(0), key -> new ReentrantLock()).lock();
-                return null;
-            }).when(map).lock(anyString());
+            try {
+                doAnswer(invocation -> {
+                    try {
+                        return locks.computeIfAbsent(invocation.getArgument(0), key -> new ReentrantLock())
+                                .tryLock(invocation.getArgument(1), invocation.getArgument(2));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(e);
+                    }
+                }).when(map).tryLock(anyString(), anyLong(), any(TimeUnit.class));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
             doAnswer(invocation -> {
                 locks.computeIfAbsent(invocation.getArgument(0), key -> new ReentrantLock()).unlock();
                 return null;
             }).when(map).unlock(anyString());
+            doAnswer(invocation -> values.remove(invocation.getArgument(0), invocation.getArgument(1)))
+                    .when(map).remove(anyString(), anyString());
         }
     }
 
@@ -225,6 +249,27 @@ class ExternalStorageCacheServiceTest {
         service.registerCache(configB);
         assertNotSame(oldStore, service.store("destroy-failure"));
         assertSame(configB, stores.get(stores.size() - 1).config);
+    }
+
+    @Test
+    void distributedLockFailureStillCleansLocalStoreAndGetter() throws Throwable {
+        SharedHazelcast hazelcast = new SharedHazelcast();
+        String cacheName = "distributed-lock-failure";
+        DataFlowCacheConfig config = config(cacheName, "pk");
+        List<TestStore> stores = new java.util.concurrent.CopyOnWriteArrayList<>();
+        TestService service = new TestService(hazelcast.instance, new AtomicReference<>(config), stores);
+        service.registerCache(config);
+        ICacheGetter getter = mock(ICacheGetter.class);
+        service.setGetter(getter);
+        service.getCache(cacheName, true, "key");
+        TestStore store = (TestStore) service.store(cacheName);
+
+        service.failLifecycleLock();
+        service.destroy(cacheName);
+
+        assertTrue(!service.hasStore(cacheName));
+        assertEquals(0, store.destroyCalls.get(), "physical cluster destroy is skipped without the distributed fence");
+        verify(getter).close();
     }
 
     @Test
@@ -366,7 +411,7 @@ class ExternalStorageCacheServiceTest {
     }
 
     @Test
-    void registrationWaitsForRemoteDestroyToFinishBeforePublishingActiveGeneration() throws Exception {
+    void registrationFailsFastWhileRemoteDestroyIsInProgress() throws Exception {
         SharedHazelcast hazelcast = new SharedHazelcast();
         String cacheName = "cross-node-destroy-register-race";
         DataFlowCacheConfig configA = config(cacheName, "oldPk");
@@ -388,10 +433,12 @@ class ExternalStorageCacheServiceTest {
             Future<?> destroy = executor.submit(() -> first.destroy(cacheName));
             assertTrue(destroyStarted.await(2, TimeUnit.SECONDS));
             Future<?> registration = executor.submit(() -> second.registerCache(configB));
-            assertThrows(TimeoutException.class, () -> registration.get(200, TimeUnit.MILLISECONDS));
+            ExecutionException fenced = assertThrows(ExecutionException.class, () -> registration.get(2, TimeUnit.SECONDS));
+            assertTrue(fenced.getCause().getCause() instanceof IllegalStateException);
+            assertTrue(hazelcast.values.get(cacheName).startsWith("destroying:"));
             releaseDestroy.countDown();
             destroy.get(3, TimeUnit.SECONDS);
-            registration.get(3, TimeUnit.SECONDS);
+            second.registerCache(configB);
 
             assertTrue(hazelcast.values.get(cacheName).startsWith("active:"));
             ICacheStore rebuilt = second.store(cacheName);
@@ -405,7 +452,7 @@ class ExternalStorageCacheServiceTest {
     }
 
     @Test
-    void hazelcastMembersSerializeRegistrationWithClusterWideDestroy() throws Exception {
+    void hazelcastMembersRejectRegistrationDuringDestroyThenAllowRetry() throws Exception {
         String cluster = "cache-destroy-register-" + java.util.UUID.randomUUID();
         HazelcastInstance firstMember = newHazelcastInstance(cluster);
         HazelcastInstance secondMember = newHazelcastInstance(cluster);
@@ -429,11 +476,12 @@ class ExternalStorageCacheServiceTest {
             Future<?> destroy = executor.submit(() -> first.destroy(cacheName));
             assertTrue(destroyStarted.await(5, TimeUnit.SECONDS));
             Future<?> registration = executor.submit(() -> second.registerCache(configB));
-            assertThrows(TimeoutException.class, () -> registration.get(300, TimeUnit.MILLISECONDS));
+            ExecutionException fenced = assertThrows(ExecutionException.class, () -> registration.get(5, TimeUnit.SECONDS));
+            assertTrue(fenced.getCause().getCause() instanceof IllegalStateException);
 
             releaseDestroy.countDown();
             destroy.get(5, TimeUnit.SECONDS);
-            registration.get(5, TimeUnit.SECONDS);
+            second.registerCache(configB);
 
             IMap<String, String> generations = firstMember.getMap(GENERATION_MAP_NAME);
             assertTrue(generations.get(cacheName).startsWith("active:"));

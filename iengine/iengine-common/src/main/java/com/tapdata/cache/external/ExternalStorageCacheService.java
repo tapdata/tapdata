@@ -11,6 +11,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.TimeUnit;
 
 public class ExternalStorageCacheService extends AbstractCacheService {
 
@@ -36,8 +37,20 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 
 	@Override
 	protected AutoCloseable acquireSharedCacheLifecycleLock(String cacheName) {
-		cacheGenerationMap.lock(cacheName);
+		try {
+			if (!cacheGenerationMap.tryLock(cacheName, 5, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("Timed out acquiring cache lifecycle lock: " + cacheName);
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("Interrupted acquiring cache lifecycle lock: " + cacheName, e);
+		}
 		return () -> cacheGenerationMap.unlock(cacheName);
+	}
+
+	@Override
+	protected void finishSharedCacheDestroy(String cacheName, String generation) {
+		cacheGenerationMap.remove(cacheName, generation);
 	}
 
 	@Override

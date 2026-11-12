@@ -91,6 +91,9 @@ public abstract class AbstractCacheService implements ICacheService {
 		return () -> { };
 	}
 
+	protected void finishSharedCacheDestroy(String cacheName, String generation) {
+	}
+
 	public AbstractCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
 		this(clientMongoOperator);
 		this.cacheStatusMap = cacheStatusMap;
@@ -298,22 +301,26 @@ public abstract class AbstractCacheService implements ICacheService {
 	@Override
 	public void registerCache(DataFlowCacheConfig cacheConfig) {
 		String cacheName = cacheConfig.getCacheName();
-		try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
-			Lock writeLock = cacheOperationLock(cacheName).writeLock();
-			writeLock.lock();
-			try {
+		Lock writeLock = cacheOperationLock(cacheName).writeLock();
+		writeLock.lock();
+		try {
+			try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
 				synchronized (cacheLifecycleLock(cacheName)) {
+					String currentGeneration = sharedCacheGeneration(cacheName);
+					if (currentGeneration != null && currentGeneration.startsWith("destroying:")) {
+						throw new IllegalStateException("Cache is being destroyed: " + cacheName);
+					}
 					cacheConfigMap.put(cacheName, new CacheConfigEntry(cacheConfig, currentTimeMillis()));
 					onCacheRegistered(cacheConfig);
 					String generation = "active:" + UUID.randomUUID();
 					publishSharedCacheGeneration(cacheName, generation);
 					cacheStoreGenerationMap.put(cacheName, generation);
 				}
-			} finally {
-				writeLock.unlock();
+			} catch (Exception e) {
+				throw new IllegalStateException("Unable to register cache: " + cacheName, e);
 			}
-		} catch (Exception e) {
-			throw new IllegalStateException("Unable to register cache: " + cacheName, e);
+		} finally {
+			writeLock.unlock();
 		}
 	}
 
@@ -471,47 +478,65 @@ public abstract class AbstractCacheService implements ICacheService {
 				logger.warn("Unable to preload cache store [{}] before destroy; local cleanup will still run: {}", cacheName, e.getMessage());
 			}
 		}
-		try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
-			Lock writeLock = cacheOperationLock(cacheName).writeLock();
-			writeLock.lock();
-			try {
-				synchronized (cacheLifecycleLock(cacheName)) {
-			try {
-				String generation = "destroying:" + UUID.randomUUID();
-				publishSharedCacheGeneration(cacheName, generation);
-				cacheStoreGenerationMap.put(cacheName, generation);
-			} catch (Exception e) {
-				logger.error("cache generation publish failed: " + cacheName, e);
-			}
-			ICacheStore store = cacheStoreMap.remove(cacheName);
-			if (store == null && preloaded != null && cacheStoreConfigMap.get(cacheName) != null) store = preloaded;
-			cacheStoreConfigMap.remove(cacheName);
-			cacheStatusMap.remove(cacheName);
-			cacheConfigLoads.remove(cacheName);
-			cacheConfigMap.invalidate(cacheName);
-			CacheGetterEntry entry;
-			synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
-				entry = this.cacheGetterMap.remove(cacheName);
-			}
-			try {
-				if (store != null) store.destroy();
-			} catch (Exception e) {
-				logger.error("cache destroy error: " + cacheName, e);
-			} finally {
-				if (entry != null) {
-					try {
-						entry.getter.close();
-					} catch (Exception e) {
-						logger.error("cache getter close error: " + cacheName, e);
+		Lock writeLock = cacheOperationLock(cacheName).writeLock();
+		writeLock.lock(); // Wait for local reads before acquiring the distributed lock.
+		String destroyingGeneration = null;
+		ICacheStore store;
+		CacheGetterEntry entry;
+		try {
+			synchronized (cacheLifecycleLock(cacheName)) {
+				try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+					String currentGeneration = sharedCacheGeneration(cacheName);
+					if (currentGeneration == null || !currentGeneration.startsWith("destroying:")) {
+						String candidateGeneration = "destroying:" + UUID.randomUUID();
+						publishSharedCacheGeneration(cacheName, candidateGeneration);
+						destroyingGeneration = candidateGeneration;
 					}
+				} catch (Exception e) {
+					logger.warn("Unable to acquire distributed cache lifecycle lock for [{}]; local cleanup will continue without cluster destroy: {}",
+							cacheName, e.getMessage());
+				}
+				store = cacheStoreMap.remove(cacheName);
+				if (store == null && destroyingGeneration != null && preloaded != null
+						&& cacheStoreConfigMap.get(cacheName) != null) store = preloaded;
+				cacheStoreConfigMap.remove(cacheName);
+				cacheStatusMap.remove(cacheName);
+				cacheConfigLoads.remove(cacheName);
+				cacheConfigMap.invalidate(cacheName);
+				synchronized (cacheGetterLockMap.computeIfAbsent(cacheName, key -> new Object())) {
+					entry = cacheGetterMap.remove(cacheName);
+				}
+				if (destroyingGeneration != null) cacheStoreGenerationMap.put(cacheName, destroyingGeneration);
+				else cacheStoreGenerationMap.remove(cacheName);
+			}
+
+			if (destroyingGeneration != null && store != null) {
+				try {
+					store.destroy();
+				} catch (Exception e) {
+					logger.error("cache destroy error: " + cacheName, e);
 				}
 			}
-				}
-			} finally {
-				writeLock.unlock();
+		} finally {
+			writeLock.unlock();
+		}
+
+		// Connector shutdown is local and may block; do not keep a cluster-wide lock while closing it.
+		if (entry != null) {
+			try {
+				entry.getter.close();
+			} catch (Exception e) {
+				logger.error("cache getter close error: " + cacheName, e);
 			}
-		} catch (Exception e) {
-			logger.error("cache lifecycle lock error: " + cacheName, e);
+		}
+		if (destroyingGeneration != null) {
+			try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+				finishSharedCacheDestroy(cacheName, destroyingGeneration);
+				cacheStoreGenerationMap.remove(cacheName, destroyingGeneration);
+			} catch (Exception e) {
+				logger.warn("Unable to finalize distributed cache destroy for [{}]; cache remains fenced until recovery: {}",
+						cacheName, e.getMessage());
+			}
 		}
 	}
 

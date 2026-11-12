@@ -15,6 +15,7 @@ import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
 public class HazelcastCacheService extends AbstractCacheService {
@@ -47,8 +48,20 @@ public class HazelcastCacheService extends AbstractCacheService {
 
 	@Override
 	protected AutoCloseable acquireSharedCacheLifecycleLock(String cacheName) {
-		cacheGenerationMap.lock(cacheName);
+		try {
+			if (!cacheGenerationMap.tryLock(cacheName, 5, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("Timed out acquiring cache lifecycle lock: " + cacheName);
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("Interrupted acquiring cache lifecycle lock: " + cacheName, e);
+		}
 		return () -> cacheGenerationMap.unlock(cacheName);
+	}
+
+	@Override
+	protected void finishSharedCacheDestroy(String cacheName, String generation) {
+		cacheGenerationMap.remove(cacheName, generation);
 	}
 
 	@Override
