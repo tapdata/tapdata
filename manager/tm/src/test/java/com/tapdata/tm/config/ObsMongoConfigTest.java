@@ -3,6 +3,8 @@ package com.tapdata.tm.config;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +57,7 @@ class ObsMongoConfigTest {
 
         ArgumentCaptor<Bson> keyCaptor = ArgumentCaptor.forClass(Bson.class);
         ArgumentCaptor<IndexOptions> optionsCaptor = ArgumentCaptor.forClass(IndexOptions.class);
-        verify(collection, times(2)).createIndex(keyCaptor.capture(), optionsCaptor.capture());
+        verify(collection, times(3)).createIndex(keyCaptor.capture(), optionsCaptor.capture());
         verify(collection, never()).dropIndexes();
 
         Document throughputIndex = (Document) keyCaptor.getAllValues().get(0);
@@ -76,6 +78,9 @@ class ObsMongoConfigTest {
                 latestIndex);
         assertEquals(ObsMongoConfig.IDX_GRNTY_TYPE_TASK_ID_DATE, optionsCaptor.getAllValues().get(0).getName());
         assertEquals(ObsMongoConfig.IDX_TASK_ID_GRNTY_TYPE_DATE, optionsCaptor.getAllValues().get(1).getName());
+        assertEquals(ObsMongoConfig.IDX_TASK_DASHBOARD_DIRTY, optionsCaptor.getAllValues().get(2).getName());
+        assertEquals(new Document("grnty", 1).append("dashboardRollupDirty", 1)
+                .append("tags.taskId", 1).append("date", 1), keyCaptor.getAllValues().get(2));
         assertFalse(optionsCaptor.getAllValues().get(0).isBackground());
         assertFalse(optionsCaptor.getAllValues().get(1).isBackground());
     }
@@ -89,7 +94,9 @@ class ObsMongoConfigTest {
 
         verify(collection).dropIndexes();
         verify(collection, times(3)).createIndex(any(Bson.class));
-        verify(collection, times(3)).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection, times(4)).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection).createIndex(eq(new BsonDocument("date", new BsonInt32(-1))),
+                argThat(options -> Long.valueOf(7L).equals(options.getExpireAfter(TimeUnit.DAYS))));
     }
 
     @Test
@@ -107,7 +114,9 @@ class ObsMongoConfigTest {
 
         config.initializeAgentMeasurementIndexes(collection);
 
-        verify(collection, never()).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection).createIndex(eq(dirtyIndex()),
+                argThat(options -> ObsMongoConfig.IDX_TASK_DASHBOARD_DIRTY.equals(options.getName())));
+        verify(collection, times(1)).createIndex(any(Bson.class), any(IndexOptions.class));
     }
 
     @Test
@@ -124,7 +133,9 @@ class ObsMongoConfigTest {
 
         config.initializeDashboardIndexes(collection);
 
-        verify(collection, never()).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection).createIndex(eq(dirtyIndex()),
+                argThat(options -> ObsMongoConfig.IDX_TASK_DASHBOARD_DIRTY.equals(options.getName())));
+        verify(collection, times(1)).createIndex(any(Bson.class), any(IndexOptions.class));
     }
 
     @Test
@@ -144,7 +155,9 @@ class ObsMongoConfigTest {
                 .append("date", -1);
         verify(collection).createIndex(eq(latestIndex),
                 argThat(options -> ObsMongoConfig.IDX_TASK_ID_GRNTY_TYPE_DATE.equals(options.getName())));
-        verify(collection, times(1)).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection).createIndex(eq(dirtyIndex()),
+                argThat(options -> ObsMongoConfig.IDX_TASK_DASHBOARD_DIRTY.equals(options.getName())));
+        verify(collection, times(2)).createIndex(any(Bson.class), any(IndexOptions.class));
     }
 
     @Test
@@ -155,7 +168,7 @@ class ObsMongoConfigTest {
 
         config.initializeDashboardIndexes(collection);
 
-        verify(collection, times(2)).createIndex(any(Bson.class), any(IndexOptions.class));
+        verify(collection, times(3)).createIndex(any(Bson.class), any(IndexOptions.class));
     }
 
     @Test
@@ -187,6 +200,11 @@ class ObsMongoConfigTest {
             release.countDown();
         }
         future.get(5, TimeUnit.SECONDS);
+    }
+
+    private Document dirtyIndex() {
+        return new Document("grnty", 1).append("dashboardRollupDirty", 1)
+                .append("tags.taskId", 1).append("date", 1);
     }
 
     private void mockExistingIndexes(Document... indexes) {

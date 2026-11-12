@@ -20,6 +20,11 @@ import java.util.*;
 @NoArgsConstructor
 public class MeasurementEntity {
     public static final String COLLECTION_NAME = "AgentMeasurementV2";
+    public static final String FIELD_DASHBOARD_OUTPUT_QPS_SUM = "dashboardOutputQpsSum";
+    public static final String FIELD_DASHBOARD_OUTPUT_QPS_COUNT = "dashboardOutputQpsCount";
+    public static final String FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM = "dashboardOutputSizeQpsSum";
+    public static final String FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT = "dashboardOutputSizeQpsCount";
+    public static final String FIELD_DASHBOARD_ROLLUP_DIRTY = "dashboardRollupDirty";
 
     @BsonId
     private String id;
@@ -42,6 +47,29 @@ public class MeasurementEntity {
 
     @Field(MetricCons.F_DIGEST)
     private List<TDigestEntity> digest;
+
+    @Field(FIELD_DASHBOARD_OUTPUT_QPS_SUM)
+    private Double dashboardOutputQpsSum;
+    @Field(FIELD_DASHBOARD_OUTPUT_QPS_COUNT)
+    private Long dashboardOutputQpsCount;
+    @Field(FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM)
+    private Double dashboardOutputSizeQpsSum;
+    @Field(FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT)
+    private Long dashboardOutputSizeQpsCount;
+    @Field(FIELD_DASHBOARD_ROLLUP_DIRTY)
+    private Boolean dashboardRollupDirty;
+    @Field("dashboardMinuteSummaries")
+    private List<DashboardMinuteSummary> dashboardMinuteSummaries;
+
+    @Data
+    @NoArgsConstructor
+    public static class DashboardMinuteSummary {
+        private Date date;
+        private Double outputQpsSum;
+        private Long outputQpsCount;
+        private Double outputSizeQpsSum;
+        private Long outputSizeQpsCount;
+    }
 
     public MeasurementEntity(List<Sample> samples,List<TDigestEntity> digest) {
         this.samples = samples;

@@ -25,6 +25,10 @@ public interface MeasurementServiceV2 {
 
     Object getSamples(MeasurementQueryParam measurementQueryParam);
 
+    default Object getSamples(MeasurementQueryParam measurementQueryParam, boolean taskCounterRecovery) {
+        return getSamples(measurementQueryParam);
+    }
+
     Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end);
 
     void aggregateMeasurement(AggregateMeasurementParam param);
@@ -46,6 +50,8 @@ public interface MeasurementServiceV2 {
     Map<String, Sample> findLastMinuteSamplesByTaskIds(List<String> taskIds);
 
     TaskMetricsTrendVo aggregateTaskMetricsByTaskIds(List<String> taskIds, long startAt, long endAt);
+
+    TaskMetricsTrendVo aggregateTaskMetricsByTaskIdsV2(List<String> taskIds, long startAt, long endAt, String physicalNodeId);
 
     void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto);
 

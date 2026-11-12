@@ -84,6 +84,8 @@ import java.math.BigInteger;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -174,13 +176,24 @@ public class WorkerServiceImpl extends WorkerService{
         }
     }
 
+    @Override
     public List<Worker> findAllAgent(UserDetail userDetail) {
+        return findAllAgent(userDetail, null);
+    }
+
+    @Override
+    public List<Worker> findAllAgent(UserDetail userDetail, Collection<String> processIds) {
         if (Objects.isNull(userDetail)) {
             return null;
         }
+        if (processIds != null && processIds.isEmpty()) {
+            return Collections.emptyList();
+        }
         Criteria criteria = Criteria.where("worker_type").is("connector")
                 .and("isDeleted").ne(true);
-
+        if (processIds != null) {
+            criteria.and(WorkerField.PROCESS_ID.field()).in(processIds);
+        }
         return getWorkers(userDetail, criteria);
     }
 

@@ -2452,6 +2452,17 @@ public class TaskServiceImpl extends TaskService{
         return taskDashboardService.dashboard(user, type, step, dashboardType, top);
     }
 
+    @Override
+    public TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top,
+                                     String physicalNodeId, Long startAt, Long endAt, Integer trendSchemaVersion) {
+        return taskDashboardService.dashboard(user, type, step, dashboardType, top, physicalNodeId, startAt, endAt, trendSchemaVersion);
+    }
+
+    @Override
+    public List<TaskDashboardVo.NodeOption> dashboardNodes(UserDetail user) {
+        return taskDashboardService.dashboardNodes(user);
+    }
+
     protected List<InspectDto> inspectTaskList(Filter filter, UserDetail user) {
         return DataPermissionHelper.check(
                 user,

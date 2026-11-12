@@ -169,6 +169,11 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top);
 
+    public abstract TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top,
+                                              String physicalNodeId, Long startAt, Long endAt, Integer trendSchemaVersion);
+
+    public abstract List<TaskDashboardVo.NodeOption> dashboardNodes(UserDetail user);
+
     public abstract Map<String, Integer> inspectChart(UserDetail user);
 
     public abstract List<TaskEntity> findByIds(List<ObjectId> idList);

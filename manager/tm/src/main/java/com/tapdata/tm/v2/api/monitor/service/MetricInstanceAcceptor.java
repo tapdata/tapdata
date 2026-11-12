@@ -63,6 +63,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         initSecondIfNeed(entity);
         Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
         ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, entity.getReqPath(), apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
+        setPhysicalNodeIdIfServerScoped(sub, entity);
         sub.merge(isOk, reqBytes, requestCost, dbCost);
         sub.mergeWorker(workerId, isOk, needWorkerInfo);
         lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
@@ -91,8 +92,10 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                     entity.getBucketSec(),
                     TimeGranularity.SECOND_FIVE,
                     metricType);
+            setPhysicalNodeIdIfServerScoped(sub, entity);
             subMetrics.put(entity.getBucketSec(), sub);
             lastBucketMin = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketMin(), TimeGranularity.MINUTE, metricType);
+            setPhysicalNodeIdIfServerScoped(lastBucketMin, entity);
             lastBucketMin.setSubMetrics(subMetrics);
         }
     }
@@ -103,6 +106,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         }
         Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
         ApiMetricsRaw sub = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketSec(), TimeGranularity.SECOND_FIVE, metricType);
+        setPhysicalNodeIdIfServerScoped(sub, entity);
         subMetrics.put(entity.getBucketSec(), sub);
         lastBucketMin.setSubMetrics(subMetrics);
     }
@@ -114,6 +118,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         lastBucketHour = bucketInfoGetter.apply(entity.getBucketHour(), TimeGranularity.HOUR);
         if (null == lastBucketHour) {
             lastBucketHour = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketHour(), TimeGranularity.HOUR, metricType);
+            setPhysicalNodeIdIfServerScoped(lastBucketHour, entity);
         }
     }
 
@@ -126,6 +131,13 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             return;
         }
         lastBucketDay = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketDay(), TimeGranularity.DAY, metricType);
+        setPhysicalNodeIdIfServerScoped(lastBucketDay, entity);
+    }
+
+    private void setPhysicalNodeIdIfServerScoped(ApiMetricsRaw raw, MetricInstanceFactory.CallInfo entity) {
+        if (metricType == MetricTypes.API_SERVER || metricType == MetricTypes.SERER) {
+            raw.setPhysicalNodeId(entity.getPhysicalNodeId());
+        }
     }
 
     void acceptMinuteIfNeed(MetricInstanceFactory.CallInfo entity) {
