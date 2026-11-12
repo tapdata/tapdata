@@ -64,7 +64,12 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
 
 
     public Page find(Filter filter, UserDetail userDetail) {
-        Page<ApplicationDto> pageApplications = super.find(filter, userDetail);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        List<ApplicationEntity> entities = repository.findWithoutClientSecrets(filter, userDetail);
+        Page<ApplicationDto> pageApplications = new Page<>(repository.count(filter.getWhere(), userDetail),
+                convertToDto(entities, ApplicationDto.class, "password"));
         RoleRepository roleRepository = SpringContextHelper.getBean(RoleRepository.class);
         Map<ObjectId, String> roleMap = roleRepository.findAll(Query.query(Criteria.where("_id").ne(null))).stream()
                 .collect(Collectors.toMap(RoleEntity::getId,RoleEntity::getName,(key1, key2) -> key2));

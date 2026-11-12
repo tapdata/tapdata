@@ -159,7 +159,6 @@ public class ApplicationController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        filter.setFields(includeSecretForConfigured(filter.getFields()));
         Where where = filter.getWhere();
         if (where == null) {
             where = new Where();

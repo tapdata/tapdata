@@ -1,6 +1,7 @@
 package com.tapdata.tm.application.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
@@ -42,10 +43,13 @@ public class ApplicationDto extends BaseDto implements IDataPermissionDto {
     private Object responseTypes;
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String clientSecret;
+    @JsonIgnore
+    private Boolean computedClientSecretConfigured;
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     public boolean isClientSecretConfigured() {
-        return clientSecret != null && !clientSecret.isEmpty();
+        return computedClientSecretConfigured != null ? computedClientSecretConfigured
+                : clientSecret != null && !clientSecret.isEmpty();
     }
     private List scopes;
     private List scopeNames;
