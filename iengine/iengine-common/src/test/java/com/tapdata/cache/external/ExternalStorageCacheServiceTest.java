@@ -1,10 +1,13 @@
 package com.tapdata.cache.external;
 
+import com.hazelcast.config.Config;
+import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheGetter;
 import com.tapdata.cache.ICacheStore;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.construct.constructImpl.ConstructIMap;
@@ -399,6 +402,58 @@ class ExternalStorageCacheServiceTest {
             executor.shutdownNow();
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
         }
+    }
+
+    @Test
+    void hazelcastMembersSerializeRegistrationWithClusterWideDestroy() throws Exception {
+        String cluster = "cache-destroy-register-" + java.util.UUID.randomUUID();
+        HazelcastInstance firstMember = newHazelcastInstance(cluster);
+        HazelcastInstance secondMember = newHazelcastInstance(cluster);
+        String cacheName = "real-member-destroy-register-race";
+        DataFlowCacheConfig configA = config(cacheName, "oldPk");
+        DataFlowCacheConfig configB = config(cacheName, "newPk");
+        AtomicReference<DataFlowCacheConfig> taskA = new AtomicReference<>(configA);
+        AtomicReference<DataFlowCacheConfig> taskB = new AtomicReference<>(configB);
+        List<TestStore> storesA = new java.util.concurrent.CopyOnWriteArrayList<>();
+        List<TestStore> storesB = new java.util.concurrent.CopyOnWriteArrayList<>();
+        TestService first = new TestService(firstMember, taskA, storesA);
+        TestService second = new TestService(secondMember, taskB, storesB);
+        first.registerCache(configA);
+        TestStore oldStore = (TestStore) first.store(cacheName);
+        CountDownLatch destroyStarted = new CountDownLatch(1);
+        CountDownLatch releaseDestroy = new CountDownLatch(1);
+        oldStore.blockDestroy(destroyStarted, releaseDestroy);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> destroy = executor.submit(() -> first.destroy(cacheName));
+            assertTrue(destroyStarted.await(5, TimeUnit.SECONDS));
+            Future<?> registration = executor.submit(() -> second.registerCache(configB));
+            assertThrows(TimeoutException.class, () -> registration.get(300, TimeUnit.MILLISECONDS));
+
+            releaseDestroy.countDown();
+            destroy.get(5, TimeUnit.SECONDS);
+            registration.get(5, TimeUnit.SECONDS);
+
+            IMap<String, String> generations = firstMember.getMap(GENERATION_MAP_NAME);
+            assertTrue(generations.get(cacheName).startsWith("active:"));
+            ICacheStore rebuilt = second.store(cacheName);
+            assertSame(configB, storesB.get(storesB.size() - 1).config);
+            assertNotSame(oldStore, rebuilt);
+        } finally {
+            releaseDestroy.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+            firstMember.shutdown();
+            secondMember.shutdown();
+        }
+    }
+
+    private static HazelcastInstance newHazelcastInstance(String clusterName) {
+        Config config = HazelcastUtil.getConfig("cache-test-" + java.util.UUID.randomUUID());
+        config.setClusterName(clusterName);
+        config.getNetworkConfig().getJoin().getTcpIpConfig().addMember("127.0.0.1");
+        return Hazelcast.newHazelcastInstance(config);
     }
 
     private static DataFlowCacheConfig config(String cacheName, String primaryKey) {
