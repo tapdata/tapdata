@@ -88,10 +88,16 @@ public class ApplicationRepository extends BaseRepository<ApplicationEntity, Obj
             removeFilter("user_id", query);
             query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
             if ((!userDetail.isRoot()) && !userDetail.isFreeAuth()) {
-                query.addCriteria(Criteria.where("_id").exists(true).orOperator(
-                        Criteria.where("user_id").is(userDetail.getUserId()),
-                        Criteria.where("user_id").exists(false)
-                ));
+                // Attach the ownership condition as a top-level $or so it never shares the "_id" key
+                // with an existing id/_id criterion; otherwise the exact id filter is overwritten
+                // when the query is mapped, or adding the criterion fails outright.
+                try {
+                    addOrFilter(query,
+                            Criteria.where("user_id").is(userDetail.getUserId()),
+                            Criteria.where("user_id").exists(false));
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    throw new IllegalStateException("Apply application ownership filter failed", e);
+                }
             }
         }
         return query;
