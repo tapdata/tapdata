@@ -4,6 +4,7 @@ import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.base.security.LoginUserResolver;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.config.LocaleConfig;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.LoginUserInterceptor;
 import com.tapdata.tm.config.security.UserDetail;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.context.request.RequestContextHolder;
 
@@ -31,10 +34,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,8 +46,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 系统趋势 REST 契约黑盒验证（L1）。
  *
- * <p>通过 MockMvc 走真实 TaskController + LoginUserInterceptor + ExceptionHandler，
- * 只替换 TaskService 的下游依赖，验证路由、参数绑定、7 天边界、非法节点与未认证行为。</p>
+ * <p>通过 MockMvc 走真实 TaskController + 生产 {@link LocaleConfig} 注册的 LoginUserInterceptor
+ * + ExceptionHandler，只替换 TaskService 的下游依赖，验证路由、参数绑定、7 天边界、
+ * 非法节点与未认证行为。</p>
  */
 class SystemTrendsContractIT {
 
@@ -112,9 +114,26 @@ class SystemTrendsContractIT {
         ReflectionTestUtils.setField(controller, "taskService", taskService);
         ReflectionTestUtils.setField(controller, "loginUserResolver", resolver);
 
+        // 复用生产 LocaleConfig 的注册逻辑，而不是在测试里手工注册拦截器。
+        LocaleConfig localeConfig = new LocaleConfig();
+        ReflectionTestUtils.setField(localeConfig, "loginUserInterceptor", new LoginUserInterceptor(resolver));
+        List<HandlerInterceptor> registered = new ArrayList<>();
+        InterceptorRegistry registry = new InterceptorRegistry() {
+            @Override
+            public org.springframework.web.servlet.config.annotation.InterceptorRegistration addInterceptor(
+                    HandlerInterceptor interceptor) {
+                registered.add(interceptor);
+                return super.addInterceptor(interceptor);
+            }
+        };
+        localeConfig.addInterceptors(registry);
+        assertTrue(registered.stream().anyMatch(LoginUserInterceptor.class::isInstance),
+                "production LocaleConfig must register LoginUserInterceptor");
+        HandlerInterceptor[] interceptors = registered.toArray(new HandlerInterceptor[0]);
+
         mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new ExceptionHandler())
-                .addInterceptors(new LoginUserInterceptor(resolver))
+                .addInterceptors(interceptors)
                 .build();
     }
 
@@ -137,10 +156,21 @@ class SystemTrendsContractIT {
     void allowsSevenDayRangeAndNodeOptions() throws Exception {
         long endAt = NOW_SECONDS;
         long startAt = endAt - MAX_RANGE_SECONDS;
+        long intervalSeconds = 3600L;
+        long alignedStart = startAt - startAt % intervalSeconds;
+        long buckets = (endAt - alignedStart + intervalSeconds - 1) / intervalSeconds;
 
         mvc.perform(authenticated(get(rangeRequest(startAt, endAt))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data").exists());
+                .andExpect(jsonPath("$.data.query.startAt").value(startAt))
+                .andExpect(jsonPath("$.data.query.endAt").value(endAt))
+                .andExpect(jsonPath("$.data.query.step").value(intervalSeconds))
+                .andExpect(jsonPath("$.data.query.intervalSeconds").value(intervalSeconds))
+                .andExpect(jsonPath("$.data.query.trendSchemaVersion").value(2))
+                .andExpect(jsonPath("$.data.trends.throughput.ts.length()").value((int) buckets))
+                .andExpect(jsonPath("$.data.trends.throughput.ts[0]").value(alignedStart))
+                .andExpect(jsonPath("$.data.trends.throughput.values.length()").value((int) buckets))
+                .andExpect(jsonPath("$.data.trends.throughput.status").value("no_data"));
 
         TaskDashboardVo.NodeOption option = new TaskDashboardVo.NodeOption();
         option.setPhysicalNodeId("node-a");
