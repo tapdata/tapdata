@@ -54,6 +54,26 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 	}
 
 	@Override
+	protected void publishSharedCacheDestroyFence(String cacheName, String generation) {
+		cacheGenerationMap.set(cacheName, generation, CACHE_DESTROY_FENCE_LEASE_SECONDS, TimeUnit.SECONDS);
+	}
+
+	@Override
+	protected void renewSharedCacheDestroyFence(String cacheName, String generation) {
+		boolean locked = false;
+		try {
+			locked = cacheGenerationMap.tryLock(cacheName, 1, TimeUnit.SECONDS);
+			if (locked && generation.equals(cacheGenerationMap.get(cacheName))) {
+				cacheGenerationMap.set(cacheName, generation, CACHE_DESTROY_FENCE_LEASE_SECONDS, TimeUnit.SECONDS);
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} finally {
+			if (locked) cacheGenerationMap.unlock(cacheName);
+		}
+	}
+
+	@Override
 	protected boolean usesDistributedCacheGeneration() {
 		return true;
 	}

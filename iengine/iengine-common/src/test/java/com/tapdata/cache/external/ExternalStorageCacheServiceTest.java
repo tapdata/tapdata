@@ -191,6 +191,8 @@ class ExternalStorageCacheServiceTest {
             when(map.get(anyString())).thenAnswer(invocation -> values.get(invocation.getArgument(0)));
             doAnswer(invocation -> values.put(invocation.getArgument(0), invocation.getArgument(1)))
                     .when(map).put(anyString(), anyString());
+            doAnswer(invocation -> values.put(invocation.getArgument(0), invocation.getArgument(1)))
+                    .when(map).set(anyString(), anyString(), anyLong(), any(TimeUnit.class));
             try {
                 doAnswer(invocation -> {
                     try {
@@ -411,7 +413,7 @@ class ExternalStorageCacheServiceTest {
     }
 
     @Test
-    void registrationFailsFastWhileRemoteDestroyIsInProgress() throws Exception {
+    void registrationWaitsBrieflyForRemoteDestroyFenceThenSucceeds() throws Exception {
         SharedHazelcast hazelcast = new SharedHazelcast();
         String cacheName = "cross-node-destroy-register-race";
         DataFlowCacheConfig configA = config(cacheName, "oldPk");
@@ -433,12 +435,11 @@ class ExternalStorageCacheServiceTest {
             Future<?> destroy = executor.submit(() -> first.destroy(cacheName));
             assertTrue(destroyStarted.await(2, TimeUnit.SECONDS));
             Future<?> registration = executor.submit(() -> second.registerCache(configB));
-            ExecutionException fenced = assertThrows(ExecutionException.class, () -> registration.get(2, TimeUnit.SECONDS));
-            assertTrue(fenced.getCause().getCause() instanceof IllegalStateException);
+            assertThrows(TimeoutException.class, () -> registration.get(200, TimeUnit.MILLISECONDS));
             assertTrue(hazelcast.values.get(cacheName).startsWith("destroying:"));
             releaseDestroy.countDown();
             destroy.get(3, TimeUnit.SECONDS);
-            second.registerCache(configB);
+            registration.get(3, TimeUnit.SECONDS);
 
             assertTrue(hazelcast.values.get(cacheName).startsWith("active:"));
             ICacheStore rebuilt = second.store(cacheName);
@@ -452,7 +453,7 @@ class ExternalStorageCacheServiceTest {
     }
 
     @Test
-    void hazelcastMembersRejectRegistrationDuringDestroyThenAllowRetry() throws Exception {
+    void hazelcastMembersWaitForDestroyFenceThenRegister() throws Exception {
         String cluster = "cache-destroy-register-" + java.util.UUID.randomUUID();
         HazelcastInstance firstMember = newHazelcastInstance(cluster);
         HazelcastInstance secondMember = newHazelcastInstance(cluster);
@@ -476,12 +477,11 @@ class ExternalStorageCacheServiceTest {
             Future<?> destroy = executor.submit(() -> first.destroy(cacheName));
             assertTrue(destroyStarted.await(5, TimeUnit.SECONDS));
             Future<?> registration = executor.submit(() -> second.registerCache(configB));
-            ExecutionException fenced = assertThrows(ExecutionException.class, () -> registration.get(5, TimeUnit.SECONDS));
-            assertTrue(fenced.getCause().getCause() instanceof IllegalStateException);
+            assertThrows(TimeoutException.class, () -> registration.get(300, TimeUnit.MILLISECONDS));
 
             releaseDestroy.countDown();
             destroy.get(5, TimeUnit.SECONDS);
-            second.registerCache(configB);
+            registration.get(5, TimeUnit.SECONDS);
 
             IMap<String, String> generations = firstMember.getMap(GENERATION_MAP_NAME);
             assertTrue(generations.get(cacheName).startsWith("active:"));
@@ -494,6 +494,44 @@ class ExternalStorageCacheServiceTest {
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
             firstMember.shutdown();
             secondMember.shutdown();
+        }
+    }
+
+    @Test
+    void subsequentDestroyReclaimsAbandonedFence() {
+        SharedHazelcast hazelcast = new SharedHazelcast();
+        String cacheName = "abandoned-destroy-fence";
+        DataFlowCacheConfig config = config(cacheName, "pk");
+        TestService service = new TestService(hazelcast.instance, new AtomicReference<>(config), new java.util.concurrent.CopyOnWriteArrayList<>());
+        TestStore staleStore = new TestStore(config);
+        service.seedStore(cacheName, staleStore);
+        hazelcast.values.put(cacheName, "destroying:abandoned-process");
+
+        service.destroy(cacheName);
+
+        assertEquals(1, staleStore.destroyCalls.get());
+        assertTrue(!service.hasStore(cacheName));
+        assertTrue(!hazelcast.values.containsKey(cacheName));
+    }
+
+    @Test
+    void registrationRecoversAfterExpiredDestroyFence() throws Exception {
+        String cacheName = "expired-destroy-fence";
+        HazelcastInstance member = newHazelcastInstance("cache-expired-fence-" + java.util.UUID.randomUUID());
+        try {
+            IMap<String, String> generations = member.getMap(GENERATION_MAP_NAME);
+            generations.set(cacheName, "destroying:v2:abandoned", 1, TimeUnit.SECONDS);
+            DataFlowCacheConfig config = config(cacheName, "newPk");
+            List<TestStore> stores = new java.util.concurrent.CopyOnWriteArrayList<>();
+            TestService service = new TestService(member, new AtomicReference<>(config), stores);
+
+            service.registerCache(config);
+
+            assertTrue(generations.get(cacheName).startsWith("active:"));
+            service.store(cacheName);
+            assertSame(config, stores.get(0).config);
+        } finally {
+            member.shutdown();
         }
     }
 

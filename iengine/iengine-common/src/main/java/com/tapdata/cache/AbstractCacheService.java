@@ -25,6 +25,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -41,6 +43,14 @@ public abstract class AbstractCacheService implements ICacheService {
 	private final Cache<String, DataFlowCacheConfig> cacheInitializations = CacheBuilder.newBuilder().build();
 	static final long CACHE_CONFIG_EXPIRE_MS = TimeUnit.SECONDS.toMillis(600);
 	static final long CACHE_CONFIG_MISS_RETRY_MS = TimeUnit.SECONDS.toMillis(30);
+	static final long CACHE_DESTROY_FENCE_WAIT_MS = TimeUnit.SECONDS.toMillis(5);
+	protected static final long CACHE_DESTROY_FENCE_LEASE_SECONDS = 3;
+	protected static final long CACHE_DESTROY_FENCE_RENEW_SECONDS = 1;
+	private static final ScheduledExecutorService CACHE_DESTROY_FENCE_RENEWAL_EXECUTOR = Executors.newScheduledThreadPool(2, r -> {
+		Thread thread = new Thread(r, "shared-cache-destroy-fence-renewal");
+		thread.setDaemon(true);
+		return thread;
+	});
 
 	/**
 	 * getter 满 {@link #CACHE_GETTER_EXPIRE_MS} 后在下一次访问时重建以加载最新配置，替换下来的旧 getter 释放回源连接器。
@@ -92,6 +102,24 @@ public abstract class AbstractCacheService implements ICacheService {
 	}
 
 	protected void finishSharedCacheDestroy(String cacheName, String generation) {
+	}
+
+	protected void publishSharedCacheDestroyFence(String cacheName, String generation) {
+		publishSharedCacheGeneration(cacheName, generation);
+	}
+
+	protected void renewSharedCacheDestroyFence(String cacheName, String generation) {
+	}
+
+	private AutoCloseable startSharedCacheDestroyFenceRenewal(String cacheName, String generation) {
+		ScheduledFuture<?> renewal = CACHE_DESTROY_FENCE_RENEWAL_EXECUTOR.scheduleAtFixedRate(() -> {
+			try {
+				renewSharedCacheDestroyFence(cacheName, generation);
+			} catch (Exception e) {
+				logger.warn("Unable to renew distributed cache destroy fence for [{}]: {}", cacheName, e.getMessage());
+			}
+		}, CACHE_DESTROY_FENCE_RENEW_SECONDS, CACHE_DESTROY_FENCE_RENEW_SECONDS, TimeUnit.SECONDS);
+		return () -> renewal.cancel(false);
 	}
 
 	public AbstractCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
@@ -304,20 +332,35 @@ public abstract class AbstractCacheService implements ICacheService {
 		Lock writeLock = cacheOperationLock(cacheName).writeLock();
 		writeLock.lock();
 		try {
-			try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
-				synchronized (cacheLifecycleLock(cacheName)) {
-					String currentGeneration = sharedCacheGeneration(cacheName);
-					if (currentGeneration != null && currentGeneration.startsWith("destroying:")) {
-						throw new IllegalStateException("Cache is being destroyed: " + cacheName);
+			long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CACHE_DESTROY_FENCE_WAIT_MS);
+			while (true) {
+				boolean destroying;
+				try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+					synchronized (cacheLifecycleLock(cacheName)) {
+						String currentGeneration = sharedCacheGeneration(cacheName);
+						destroying = currentGeneration != null && currentGeneration.startsWith("destroying:");
+						if (!destroying) {
+							cacheConfigMap.put(cacheName, new CacheConfigEntry(cacheConfig, currentTimeMillis()));
+							onCacheRegistered(cacheConfig);
+							String generation = "active:" + UUID.randomUUID();
+							publishSharedCacheGeneration(cacheName, generation);
+							cacheStoreGenerationMap.put(cacheName, generation);
+							return;
+						}
 					}
-					cacheConfigMap.put(cacheName, new CacheConfigEntry(cacheConfig, currentTimeMillis()));
-					onCacheRegistered(cacheConfig);
-					String generation = "active:" + UUID.randomUUID();
-					publishSharedCacheGeneration(cacheName, generation);
-					cacheStoreGenerationMap.put(cacheName, generation);
+				} catch (Exception e) {
+					throw new IllegalStateException("Unable to register cache: " + cacheName, e);
 				}
-			} catch (Exception e) {
-				throw new IllegalStateException("Unable to register cache: " + cacheName, e);
+				long remainingNanos = deadline - System.nanoTime();
+				if (!destroying || remainingNanos <= 0) {
+					throw new IllegalStateException("Cache is still being destroyed after bounded wait: " + cacheName);
+				}
+				try {
+					TimeUnit.NANOSECONDS.sleep(Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(100)));
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new IllegalStateException("Interrupted waiting for cache destroy: " + cacheName, e);
+				}
 			}
 		} finally {
 			writeLock.unlock();
@@ -487,9 +530,9 @@ public abstract class AbstractCacheService implements ICacheService {
 			synchronized (cacheLifecycleLock(cacheName)) {
 				try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
 					String currentGeneration = sharedCacheGeneration(cacheName);
-					if (currentGeneration == null || !currentGeneration.startsWith("destroying:")) {
-						String candidateGeneration = "destroying:" + UUID.randomUUID();
-						publishSharedCacheGeneration(cacheName, candidateGeneration);
+					if (currentGeneration == null || !currentGeneration.startsWith("destroying:v2:")) {
+						String candidateGeneration = "destroying:v2:" + currentTimeMillis() + ":" + UUID.randomUUID();
+						publishSharedCacheDestroyFence(cacheName, candidateGeneration);
 						destroyingGeneration = candidateGeneration;
 					}
 				} catch (Exception e) {
@@ -510,11 +553,25 @@ public abstract class AbstractCacheService implements ICacheService {
 				else cacheStoreGenerationMap.remove(cacheName);
 			}
 
-			if (destroyingGeneration != null && store != null) {
+			if (destroyingGeneration != null) {
+				AutoCloseable fenceRenewal = startSharedCacheDestroyFenceRenewal(cacheName, destroyingGeneration);
 				try {
-					store.destroy();
+					if (store != null) store.destroy();
 				} catch (Exception e) {
 					logger.error("cache destroy error: " + cacheName, e);
+				} finally {
+					try {
+						fenceRenewal.close();
+					} catch (Exception e) {
+						logger.warn("Unable to stop cache destroy fence renewal for [{}]: {}", cacheName, e.getMessage());
+					}
+					try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+						finishSharedCacheDestroy(cacheName, destroyingGeneration);
+						cacheStoreGenerationMap.remove(cacheName, destroyingGeneration);
+					} catch (Exception e) {
+						logger.warn("Unable to finalize distributed cache destroy for [{}]; the lease will expire and a later destroy can recover: {}",
+								cacheName, e.getMessage());
+					}
 				}
 			}
 		} finally {
@@ -527,15 +584,6 @@ public abstract class AbstractCacheService implements ICacheService {
 				entry.getter.close();
 			} catch (Exception e) {
 				logger.error("cache getter close error: " + cacheName, e);
-			}
-		}
-		if (destroyingGeneration != null) {
-			try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
-				finishSharedCacheDestroy(cacheName, destroyingGeneration);
-				cacheStoreGenerationMap.remove(cacheName, destroyingGeneration);
-			} catch (Exception e) {
-				logger.warn("Unable to finalize distributed cache destroy for [{}]; cache remains fenced until recovery: {}",
-						cacheName, e.getMessage());
 			}
 		}
 	}
