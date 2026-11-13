@@ -14,11 +14,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Query;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -113,6 +116,18 @@ class ApplicationServiceTest {
             id = new ObjectId();
             applicationDto = new ApplicationDto();
             applicationDto.setId(id);
+            when(repository.findById(eq(id), any(Field.class)))
+                    .thenAnswer(invocation -> Optional.of(persistedApplication()));
+            when(repository.findById(eq(id), same(userDetail)))
+                    .thenAnswer(invocation -> Optional.of(persistedApplication()));
+        }
+
+        private ApplicationEntity persistedApplication() {
+            ApplicationEntity entity = new ApplicationEntity();
+            entity.setId(id);
+            entity.setClientId(applicationDto.getClientId());
+            entity.setClientSecret("retained-secret");
+            return entity;
         }
 
         @Test
@@ -160,7 +175,9 @@ class ApplicationServiceTest {
 
             assertNotNull(result);
             assertEquals(id, result.getId());
+            assertTrue(result.isClientSecretConfigured());
             verify(repository, times(1)).update(any(Query.class), any(ApplicationEntity.class));
+            verify(repository).findById(eq(id), any(Field.class));
         }
 
         @Test
@@ -194,7 +211,9 @@ class ApplicationServiceTest {
 
             assertNotNull(result);
             assertEquals(id, result.getId());
+            assertTrue(result.isClientSecretConfigured());
             verify(repository, times(1)).updateByWhere(any(Query.class), any(), any(UserDetail.class));
+            verify(repository).findById(id, userDetail);
         }
 
         @Test
@@ -294,6 +313,15 @@ class ApplicationServiceTest {
 
             assertNotNull(result);
             assertEquals("unique-client-id", result.getClientId());
+        }
+
+        @Test
+        void testUpdateByIdReturnsNullWhenRecordIsNotVisible() {
+            when(repository.findById(id, userDetail)).thenReturn(Optional.empty());
+            when(repository.updateByWhere(any(Query.class), any(), same(userDetail)))
+                    .thenReturn(UpdateResult.acknowledged(0, 0L, null));
+
+            assertNull(service.updateById(applicationDto, userDetail));
         }
     }
 }

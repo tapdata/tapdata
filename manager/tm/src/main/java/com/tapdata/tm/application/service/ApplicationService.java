@@ -64,15 +64,21 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
 
 
     public Page find(Filter filter, UserDetail userDetail) {
-        Page<ApplicationDto> pageApplications = super.find(filter, userDetail);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        List<ApplicationEntity> entities = repository.findWithoutClientSecrets(filter, userDetail);
+        Page<ApplicationDto> pageApplications = new Page<>(repository.count(filter.getWhere(), userDetail),
+                convertToDto(entities, ApplicationDto.class, "password"));
         RoleRepository roleRepository = SpringContextHelper.getBean(RoleRepository.class);
         Map<ObjectId, String> roleMap = roleRepository.findAll(Query.query(Criteria.where("_id").ne(null))).stream()
                 .collect(Collectors.toMap(RoleEntity::getId,RoleEntity::getName,(key1, key2) -> key2));
         pageApplications.getItems().stream().forEach(applicationDto -> {
             List scopeNames = new ArrayList<>();
-            applicationDto.getScopes().forEach(s->{
-                scopeNames.add(roleMap.get(ObjectIdDeserialize.toObjectId(s.toString())));
-            });
+            if (applicationDto.getScopes() != null) {
+                applicationDto.getScopes().forEach(s ->
+                        scopeNames.add(roleMap.get(ObjectIdDeserialize.toObjectId(s.toString()))));
+            }
             applicationDto.setScopeNames(scopeNames);
         });
         return pageApplications;
@@ -108,7 +114,8 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
         } else {
             updateByWhere(query, applicationDto, userDetail);
         }
-        return applicationDto;
+        return userDetail.isRoot() && !userDetail.isFreeAuth()
+                ? findById(applicationDto.getId()) : findById(applicationDto.getId(), userDetail);
     }
 
     public List<ApplicationDto> findByIds(List<String> idList){

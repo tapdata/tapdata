@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.annotation.ReadOnlyProperty;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 
 import java.util.List;
@@ -74,6 +75,8 @@ public class ApplicationEntity extends BaseEntity implements IDataPermissionEnti
     private String tokenType;
     private List responseTypes;
     private String clientSecret;
+    @ReadOnlyProperty
+    private Boolean computedClientSecretConfigured;
     private List scopes;
     private List<String> redirectUris;
     private Boolean showMenu;
