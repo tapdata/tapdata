@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 public class ApiMetricsRaw extends BaseEntity {
     private String processId;
 
+    private String physicalNodeId;
+
     private String apiId;
 
     private String reqPath;

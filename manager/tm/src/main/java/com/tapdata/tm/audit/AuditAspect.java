@@ -362,7 +362,8 @@ public class AuditAspect {
 				}
 			}
 			for (String id : ids) {
-				names.computeIfAbsent(id, key -> resolveName(action.getObjectType(), key));
+				names.computeIfAbsent(id, key -> resolveName(
+						action == AuditAction.USER_VIEW_ACCESS_CODE ? "user" : action.getObjectType(), key));
 			}
 			names.values().removeIf(v -> v == null);
 		} catch (Exception e) {
