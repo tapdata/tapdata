@@ -31,6 +31,12 @@ public class ExternalStorageCacheStore implements ICacheStore {
 		this.dataMap = new DocumentIMap<>(hazelcastInstance, referenceId, CacheUtil.CACHE_NAME_PREFIX + config.getCacheName(), externalStorage);
 	}
 
+	ExternalStorageCacheStore(DataFlowCacheConfig config, ConstructIMap<Map<String, Map<String, Object>>> dataMap) {
+		this.cacheConfig = config;
+		this.referenceId = String.format("%s", getClass().getSimpleName());
+		this.dataMap = dataMap;
+	}
+
 	@Override
 	public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable {
 
