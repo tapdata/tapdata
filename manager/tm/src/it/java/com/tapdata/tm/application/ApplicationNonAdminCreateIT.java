@@ -1,7 +1,6 @@
 package com.tapdata.tm.application;
 
 import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.application.controller.ApplicationController;
 import com.tapdata.tm.application.dto.ApplicationDto;
@@ -17,7 +16,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -28,7 +26,8 @@ import org.springframework.data.mongodb.core.query.UpdateDefinition;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,8 +61,37 @@ class ApplicationNonAdminCreateIT {
     @Test
     @DisplayName("非管理员创建 API Client：回填 clientId 的更新只命中新建记录")
     void should_create_api_client_as_non_admin_without_touching_other_clients() {
-        MongoTemplate mongo = spy(new MongoTemplate(new SimpleMongoClientDatabaseFactory(mock(MongoClient.class), "it")));
         ObjectId createdId = new ObjectId();
+
+        Document mapped = saveAsNewUserAndCaptureUpdateFilter(createdId);
+
+        assertThat(mapped.get("_id")).isEqualTo(createdId);
+        assertThat(mapped).containsEntry("customId", "tenant-a");
+        assertThat(mapped.getList("$or", Document.class)).containsExactly(
+                new Document("user_id", "new-user-id"),
+                new Document("user_id", new Document("$exists", false)));
+    }
+
+    @Test
+    @DisplayName("非管理员创建 API Client：更新条件不会命中无归属记录或该用户已有的其它 API Client（code 66 场景）")
+    void should_not_match_other_clients_that_would_raise_immutable_id_error() {
+        ObjectId createdId = new ObjectId();
+        Document created = new Document("_id", createdId).append("customId", "tenant-a").append("user_id", "new-user-id");
+        Document legacyWithoutOwner = new Document("_id", new ObjectId()).append("customId", "tenant-a");
+        Document ownedEarlier = new Document("_id", new ObjectId()).append("customId", "tenant-a").append("user_id", "new-user-id");
+        Document otherUser = new Document("_id", new ObjectId()).append("customId", "tenant-a").append("user_id", "other-user");
+
+        Document mapped = saveAsNewUserAndCaptureUpdateFilter(createdId);
+
+        // Before the fix the exact _id condition was lost, so updateMulti matched legacyWithoutOwner and
+        // ownedEarlier as well and MongoDB rejected "$set _id" on them with code 66.
+        assertThat(List.of(created, legacyWithoutOwner, ownedEarlier, otherUser))
+                .filteredOn(stored -> matches(mapped, stored))
+                .containsExactly(created);
+    }
+
+    private Document saveAsNewUserAndCaptureUpdateFilter(ObjectId createdId) {
+        MongoTemplate mongo = spy(new MongoTemplate(new SimpleMongoClientDatabaseFactory(mock(MongoClient.class), "it")));
         doAnswer(call -> {
             ApplicationEntity entity = call.getArgument(0);
             entity.setId(createdId);
@@ -73,60 +101,46 @@ class ApplicationNonAdminCreateIT {
         doReturn(UpdateResult.acknowledged(1, 1L, null)).when(mongo)
                 .updateMulti(any(Query.class), any(UpdateDefinition.class), eq(ApplicationEntity.class));
         doReturn(null).when(mongo).findOne(any(Query.class), eq(ApplicationEntity.class), anyString());
-        ApplicationController controller = controller(mongo);
 
-        ApplicationDto created;
+        ApplicationDto saved;
         try (MockedStatic<DataPermissionHelper> ignored = mockStatic(DataPermissionHelper.class)) {
-            created = controller.save(newClient()).getData();
+            saved = controller(mongo).save(newClient()).getData();
         }
 
-        assertThat(created.getId()).isEqualTo(createdId);
-        assertThat(created.getClientId()).isEqualTo(createdId.toHexString());
+        assertThat(saved.getId()).isEqualTo(createdId);
+        assertThat(saved.getClientId()).isEqualTo(createdId.toHexString());
         ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
         verify(mongo).updateMulti(captor.capture(), any(UpdateDefinition.class), eq(ApplicationEntity.class));
-        Document mapped = new QueryMapper(mongo.getConverter()).getMappedObject(captor.getValue().getQueryObject(),
+        return new QueryMapper(mongo.getConverter()).getMappedObject(captor.getValue().getQueryObject(),
                 mongo.getConverter().getMappingContext().getPersistentEntity(ApplicationEntity.class));
-        assertThat(mapped.get("_id")).isEqualTo(createdId);
-        assertThat(mapped).containsEntry("customId", "tenant-a");
-        assertThat(mapped.getList("$or", Document.class)).containsExactly(
-                new Document("user_id", "new-user-id"),
-                new Document("user_id", new Document("$exists", false)));
     }
 
-    @Test
-    @EnabledIfSystemProperty(named = "audit.it.mongoUri", matches = ".+")
-    @DisplayName("非管理员创建 API Client：真实 MongoDB 不再报 _id 不可变错误（code 66）")
-    void should_not_raise_immutable_id_error_on_real_mongo() {
-        try (MongoClient client = MongoClients.create(System.getProperty("audit.it.mongoUri"));
-             MockedStatic<DataPermissionHelper> ignored = mockStatic(DataPermissionHelper.class)) {
-            MongoTemplate mongo = new MongoTemplate(client, "tap13258_" + UUID.randomUUID().toString().replace("-", ""));
-            try {
-                String collection = mongo.getCollectionName(ApplicationEntity.class);
-                ObjectId legacy = new ObjectId();
-                ObjectId ownedEarlier = new ObjectId();
-                mongo.getCollection(collection).insertMany(List.of(
-                        new Document("_id", legacy).append("customId", "tenant-a").append("clientName", "legacy-without-owner")
-                                .append("clientId", "legacy-client"),
-                        new Document("_id", ownedEarlier).append("customId", "tenant-a").append("clientName", "owned-earlier")
-                                .append("clientId", "owned-client").append("user_id", "new-user-id")));
-
-                ApplicationDto created = controller(mongo).save(newClient()).getData();
-
-                assertThat(created.getId()).isNotNull();
-                assertThat(created.getClientId()).isEqualTo(created.getId().toHexString());
-                Document stored = mongo.getCollection(collection).find(new Document("_id", created.getId())).first();
-                assertThat(stored).isNotNull();
-                assertThat(stored.getString("clientId")).isEqualTo(created.getId().toHexString());
-                assertThat(stored.getString("user_id")).isEqualTo("new-user-id");
-                assertThat(mongo.getCollection(collection).countDocuments()).isEqualTo(3);
-                assertThat(mongo.getCollection(collection).find(new Document("_id", legacy)).first())
-                        .containsEntry("clientName", "legacy-without-owner").containsEntry("clientId", "legacy-client");
-                assertThat(mongo.getCollection(collection).find(new Document("_id", ownedEarlier)).first())
-                        .containsEntry("clientName", "owned-earlier").containsEntry("clientId", "owned-client");
-            } finally {
-                mongo.getDb().drop();
+    /**
+     * Minimal evaluator for the filter shapes produced here: field equality, {$exists: bool} and $or.
+     */
+    private static boolean matches(Document filter, Document stored) {
+        for (Map.Entry<String, Object> condition : filter.entrySet()) {
+            String key = condition.getKey();
+            Object expected = condition.getValue();
+            if ("$or".equals(key)) {
+                boolean any = false;
+                for (Object branch : (List<?>) expected) {
+                    any |= matches((Document) branch, stored);
+                }
+                if (!any) {
+                    return false;
+                }
+            } else if (expected instanceof Document && ((Document) expected).containsKey("$exists")) {
+                if (stored.containsKey(key) != Boolean.TRUE.equals(((Document) expected).get("$exists"))) {
+                    return false;
+                }
+            } else if (expected instanceof Document) {
+                throw new IllegalArgumentException("Unsupported filter operator for " + key + ": " + expected);
+            } else if (!Objects.equals(expected, stored.get(key))) {
+                return false;
             }
         }
+        return true;
     }
 
     private ApplicationController controller(MongoTemplate mongo) {
