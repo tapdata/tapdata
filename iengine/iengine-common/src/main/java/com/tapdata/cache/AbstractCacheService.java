@@ -25,7 +25,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
@@ -38,6 +43,14 @@ public abstract class AbstractCacheService implements ICacheService {
 	private final Cache<String, DataFlowCacheConfig> cacheInitializations = CacheBuilder.newBuilder().build();
 	static final long CACHE_CONFIG_EXPIRE_MS = TimeUnit.SECONDS.toMillis(600);
 	static final long CACHE_CONFIG_MISS_RETRY_MS = TimeUnit.SECONDS.toMillis(30);
+	static final long CACHE_DESTROY_FENCE_WAIT_MS = TimeUnit.SECONDS.toMillis(5);
+	protected static final long CACHE_DESTROY_FENCE_LEASE_SECONDS = 3;
+	protected static final long CACHE_DESTROY_FENCE_RENEW_SECONDS = 1;
+	private static final ScheduledExecutorService CACHE_DESTROY_FENCE_RENEWAL_EXECUTOR = Executors.newScheduledThreadPool(2, r -> {
+		Thread thread = new Thread(r, "shared-cache-destroy-fence-renewal");
+		thread.setDaemon(true);
+		return thread;
+	});
 
 	/**
 	 * getter 满 {@link #CACHE_GETTER_EXPIRE_MS} 后在下一次访问时重建以加载最新配置，替换下来的旧 getter 释放回源连接器。
@@ -62,6 +75,8 @@ public abstract class AbstractCacheService implements ICacheService {
 	});
 
 	private final Map<String, ICacheStore> cacheStoreMap;
+	private final Map<String, DataFlowCacheConfig> cacheStoreConfigMap = new ConcurrentHashMap<>();
+	private final Map<String, String> cacheStoreGenerationMap = new ConcurrentHashMap<>();
 
 	private final Map<String, Long> lastLogTSMap;
 
@@ -73,9 +88,39 @@ public abstract class AbstractCacheService implements ICacheService {
 	protected Map<String, String> cacheStatusMap;
 
 	protected final ClientMongoOperator clientMongoOperator;
+	private final Map<String, ReentrantReadWriteLock> cacheOperationLocks = new ConcurrentHashMap<>();
 
 	// 每个 cacheName 一把销毁锁，见 destroy(String)；与 cacheStatusLockMap 一样按 cacheName 常驻
 	protected final Map<String, Object> cacheDestroyLockMap = new ConcurrentHashMap<>();
+
+	private ReentrantReadWriteLock cacheOperationLock(String cacheName) {
+		return cacheOperationLocks.computeIfAbsent(cacheName, key -> new ReentrantReadWriteLock());
+	}
+
+	protected AutoCloseable acquireSharedCacheLifecycleLock(String cacheName) {
+		return () -> { };
+	}
+
+	protected void finishSharedCacheDestroy(String cacheName, String generation) {
+	}
+
+	protected void publishSharedCacheDestroyFence(String cacheName, String generation) {
+		publishSharedCacheGeneration(cacheName, generation);
+	}
+
+	protected void renewSharedCacheDestroyFence(String cacheName, String generation) {
+	}
+
+	private AutoCloseable startSharedCacheDestroyFenceRenewal(String cacheName, String generation) {
+		ScheduledFuture<?> renewal = CACHE_DESTROY_FENCE_RENEWAL_EXECUTOR.scheduleAtFixedRate(() -> {
+			try {
+				renewSharedCacheDestroyFence(cacheName, generation);
+			} catch (Exception e) {
+				logger.warn("Unable to renew distributed cache destroy fence for [{}]: {}", cacheName, e.getMessage());
+			}
+		}, CACHE_DESTROY_FENCE_RENEW_SECONDS, CACHE_DESTROY_FENCE_RENEW_SECONDS, TimeUnit.SECONDS);
+		return () -> renewal.cancel(false);
+	}
 
 	public AbstractCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
 		this(clientMongoOperator);
@@ -111,13 +156,71 @@ public abstract class AbstractCacheService implements ICacheService {
 	}
 
 	private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
+		if (usesDistributedCacheGeneration()) return getGenerationAwareCacheGetter(cacheName);
+		return getLegacyCacheGetter(cacheName);
+	}
+
+	protected boolean usesDistributedCacheGeneration() {
+		return false;
+	}
+
+	protected ICacheGetter getCacheGetterInstance(String cacheName, DataFlowCacheConfig config, ICacheStore store) {
+		return getCacheGetterInstance(cacheName);
+	}
+
+	private ICacheGetter getGenerationAwareCacheGetter(String cacheName) throws InterruptedException {
+		waitCacheNodeCompletedInitialIfNeed(cacheName);
+		for (int attempt = 0; attempt < 5; attempt++) {
+			DataFlowCacheConfig config = getConfig(cacheName);
+			if (config == null) return null;
+			String generation = sharedCacheGeneration(cacheName);
+			CacheGetterEntry cached = cacheGetterMap.get(cacheName);
+			if (cached != null && !cached.isExpired(currentTimeMillis()) && cached.config == config
+					&& java.util.Objects.equals(cached.generation, generation)
+					&& cacheStoreMap.containsKey(cacheName) && cacheStoreConfigMap.get(cacheName) == config) {
+				return cached.getter;
+			}
+			ICacheStore store = getCacheStore(cacheName);
+			generation = cacheStoreGenerationMap.get(cacheName);
+			if (store == null) return null;
+			Lock writeLock = cacheOperationLock(cacheName).writeLock();
+			writeLock.lock();
+			try {
+				synchronized (cacheLifecycleLock(cacheName)) {
+				if (!java.util.Objects.equals(generation, sharedCacheGeneration(cacheName))
+						|| cacheStoreMap.get(cacheName) != store || cacheConfigMap.getIfPresent(cacheName) == null
+						|| cacheConfigMap.getIfPresent(cacheName).config != config
+						|| cacheStoreConfigMap.get(cacheName) != config) continue;
+				synchronized (cacheGetterLockMap.computeIfAbsent(cacheName, key -> new Object())) {
+					CacheGetterEntry entry = cacheGetterMap.get(cacheName);
+					long now = currentTimeMillis();
+					if (entry != null && !entry.isExpired(now) && entry.config == config
+							&& java.util.Objects.equals(entry.generation, generation)) return entry.getter;
+					ICacheGetter getter = getCacheGetterInstance(cacheName, config, store);
+					if (getter == null) return null;
+					cacheGetterMap.put(cacheName, new CacheGetterEntry(getter, now, config, generation));
+					if (entry != null) releaseExpiredGetter(cacheName, entry.getter);
+					return getter;
+				}
+			}
+			} finally {
+				writeLock.unlock();
+			}
+		}
+		throw new IllegalStateException("Cache generation changed repeatedly while creating its getter: " + cacheName);
+	}
+
+	private ICacheGetter getLegacyCacheGetter(String cacheName) throws InterruptedException {
 		waitCacheNodeCompletedInitialIfNeed(cacheName);
 		CacheGetterEntry entry = this.cacheGetterMap.get(cacheName);
 		if (entry != null && !entry.isExpired(currentTimeMillis())) {
 			return entry.getter;
 		}
 		// 创建与替换按 cacheName 串行，保证同一时刻只有一个 getter，替换下来的旧 getter 都会被释放
-		synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
+		Lock writeLock = cacheOperationLock(cacheName).writeLock();
+		writeLock.lock();
+		try {
+			synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
 			entry = this.cacheGetterMap.get(cacheName);
 			long now = currentTimeMillis();
 			if (entry != null && !entry.isExpired(now)) {
@@ -133,6 +236,56 @@ public abstract class AbstractCacheService implements ICacheService {
 			}
 			return getter;
 		}
+		} finally {
+			writeLock.unlock();
+		}
+	}
+
+	@FunctionalInterface
+	private interface GetterOperation<T> {
+		T apply(ICacheGetter getter) throws Throwable;
+	}
+
+	@FunctionalInterface
+	private interface StoreOperation<T> {
+		T apply(ICacheStore store) throws Throwable;
+	}
+
+	private <T> T withCacheGetter(String cacheName, GetterOperation<T> operation) throws Throwable {
+		for (int attempt = 0; attempt < 5; attempt++) {
+			ICacheGetter getter = getCacheGetter(cacheName);
+			if (getter == null) throw new IllegalStateException("Cache getter is unavailable: " + cacheName);
+			Lock readLock = cacheOperationLock(cacheName).readLock();
+			readLock.lock();
+			try {
+				CacheGetterEntry entry = cacheGetterMap.get(cacheName);
+				if (entry == null || entry.getter != getter) continue;
+				if (usesDistributedCacheGeneration()
+						&& !java.util.Objects.equals(entry.generation, sharedCacheGeneration(cacheName))) continue;
+				return operation.apply(getter);
+			} finally {
+				readLock.unlock();
+			}
+		}
+		throw new IllegalStateException("Cache generation changed repeatedly while reading: " + cacheName);
+	}
+
+	private <T> T withCacheStore(String cacheName, StoreOperation<T> operation) throws Throwable {
+		if (!usesDistributedCacheGeneration()) return operation.apply(getCacheStore(cacheName));
+		for (int attempt = 0; attempt < 5; attempt++) {
+			ICacheStore store = getCacheStore(cacheName);
+			if (store == null) throw new IllegalStateException("Cache store is unavailable: " + cacheName);
+			Lock readLock = cacheOperationLock(cacheName).readLock();
+			readLock.lock();
+			try {
+				if (cacheStoreMap.get(cacheName) != store
+						|| !java.util.Objects.equals(cacheStoreGenerationMap.get(cacheName), sharedCacheGeneration(cacheName))) continue;
+				return operation.apply(store);
+			} finally {
+				readLock.unlock();
+			}
+		}
+		throw new IllegalStateException("Cache generation changed repeatedly while writing: " + cacheName);
 	}
 
 	/**
@@ -176,14 +329,152 @@ public abstract class AbstractCacheService implements ICacheService {
 	@Override
 	public void registerCache(DataFlowCacheConfig cacheConfig) {
 		String cacheName = cacheConfig.getCacheName();
-		synchronized (cacheLifecycleLock(cacheName)) {
-			cacheConfigMap.put(cacheName, new CacheConfigEntry(cacheConfig, currentTimeMillis()));
-			onCacheRegistered(cacheConfig);
+		Lock writeLock = cacheOperationLock(cacheName).writeLock();
+		writeLock.lock();
+		try {
+			long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CACHE_DESTROY_FENCE_WAIT_MS);
+			while (true) {
+				boolean destroying;
+				try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+					synchronized (cacheLifecycleLock(cacheName)) {
+						String currentGeneration = sharedCacheGeneration(cacheName);
+						destroying = currentGeneration != null && currentGeneration.startsWith("destroying:");
+						if (!destroying) {
+							cacheConfigMap.put(cacheName, new CacheConfigEntry(cacheConfig, currentTimeMillis()));
+							onCacheRegistered(cacheConfig);
+							String generation = "active:" + UUID.randomUUID();
+							publishSharedCacheGeneration(cacheName, generation);
+							cacheStoreGenerationMap.put(cacheName, generation);
+							return;
+						}
+					}
+				} catch (Exception e) {
+					throw new IllegalStateException("Unable to register cache: " + cacheName, e);
+				}
+				long remainingNanos = deadline - System.nanoTime();
+				if (!destroying || remainingNanos <= 0) {
+					throw new IllegalStateException("Cache is still being destroyed after bounded wait: " + cacheName);
+				}
+				try {
+					TimeUnit.NANOSECONDS.sleep(Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(100)));
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new IllegalStateException("Interrupted waiting for cache destroy: " + cacheName, e);
+				}
+			}
+		} finally {
+			writeLock.unlock();
 		}
 	}
 
 	private Object cacheLifecycleLock(String cacheName) {
 		return cacheDestroyLockMap.computeIfAbsent(cacheName, key -> new Object());
+	}
+
+	protected final Object getCacheLifecycleLock(String cacheName) {
+		return cacheLifecycleLock(cacheName);
+	}
+
+	/**
+	 * Hazelcast-backed services override these hooks to publish a per-cache generation to every engine node.
+	 * Local cache implementations retain the default process-local behavior.
+	 */
+	protected String sharedCacheGeneration(String cacheName) {
+		return null;
+	}
+
+	protected void publishSharedCacheGeneration(String cacheName, String generation) {
+	}
+
+	protected final ICacheStore getOrCreateCacheStore(String cacheName, Function<DataFlowCacheConfig, ICacheStore> factory,
+													 boolean failWhenConfigMissing) {
+		for (int attempt = 0; attempt < 5; attempt++) {
+			String generation = sharedCacheGeneration(cacheName);
+			if (generation != null && generation.startsWith("destroying:")) {
+				invalidateLocalCacheGeneration(cacheName, generation);
+				if (failWhenConfigMissing) throw new IllegalStateException("Cache is being destroyed: " + cacheName);
+				return null;
+			}
+			String knownGeneration = cacheStoreGenerationMap.get(cacheName);
+			if (!java.util.Objects.equals(knownGeneration, generation)
+					&& (cacheStoreMap.containsKey(cacheName) || cacheStoreConfigMap.containsKey(cacheName)
+					|| cacheConfigMap.getIfPresent(cacheName) != null || cacheGetterMap.containsKey(cacheName))) {
+				invalidateLocalCacheGeneration(cacheName, generation);
+			} else if (generation != null) {
+				cacheStoreGenerationMap.put(cacheName, generation);
+			}
+
+			// Config refresh may block on TM. Never perform it while holding the per-cache lifecycle lock.
+			DataFlowCacheConfig config = getConfig(cacheName);
+			if (config == null) {
+				invalidateLocalCacheGeneration(cacheName, generation);
+				if (failWhenConfigMissing) throw new IllegalStateException("Cache configuration is unavailable: " + cacheName);
+				return null;
+			}
+			Lock writeLock = cacheOperationLock(cacheName).writeLock();
+			writeLock.lock();
+			try {
+				synchronized (cacheLifecycleLock(cacheName)) {
+				String currentGeneration = sharedCacheGeneration(cacheName);
+				if (!java.util.Objects.equals(generation, currentGeneration)) continue;
+				CacheConfigEntry configEntry = cacheConfigMap.getIfPresent(cacheName);
+				if (configEntry == null || configEntry.config != config) continue;
+				ICacheStore current = cacheStoreMap.get(cacheName);
+				if (current != null && cacheStoreConfigMap.get(cacheName) == config
+						&& java.util.Objects.equals(cacheStoreGenerationMap.get(cacheName), generation)) {
+					return current;
+				}
+				if (current != null) {
+					cacheStoreMap.remove(cacheName, current);
+					cacheStoreConfigMap.remove(cacheName);
+					cacheStoreGenerationMap.remove(cacheName);
+					invalidateCacheGetter(cacheName);
+				}
+				ICacheStore created = factory.apply(config);
+				if (created != null) {
+					cacheStoreMap.put(cacheName, created);
+					cacheStoreConfigMap.put(cacheName, config);
+					if (generation != null) cacheStoreGenerationMap.put(cacheName, generation);
+				}
+				return created;
+			}
+			} finally {
+				writeLock.unlock();
+			}
+		}
+		throw new IllegalStateException("Cache configuration changed repeatedly while creating its store: " + cacheName);
+	}
+
+	private void invalidateLocalCacheGeneration(String cacheName, String generation) {
+		ICacheGetter oldGetter = null;
+		Lock writeLock = cacheOperationLock(cacheName).writeLock();
+		writeLock.lock();
+		try {
+			synchronized (cacheLifecycleLock(cacheName)) {
+			String current = sharedCacheGeneration(cacheName);
+			if (!java.util.Objects.equals(generation, current)) return;
+			cacheStoreMap.remove(cacheName);
+			cacheStoreConfigMap.remove(cacheName);
+			if (generation != null) cacheStoreGenerationMap.put(cacheName, generation);
+			cacheConfigLoads.remove(cacheName);
+			cacheConfigMap.invalidate(cacheName);
+			synchronized (cacheGetterLockMap.computeIfAbsent(cacheName, key -> new Object())) {
+				CacheGetterEntry entry = cacheGetterMap.remove(cacheName);
+				if (entry != null) oldGetter = entry.getter;
+			}
+		}
+		} finally {
+			writeLock.unlock();
+		}
+		if (oldGetter != null) releaseExpiredGetter(cacheName, oldGetter);
+	}
+
+	private void invalidateCacheGetter(String cacheName) {
+		CacheGetterEntry old;
+		synchronized (cacheGetterLockMap.computeIfAbsent(cacheName, key -> new Object())) {
+			old = cacheGetterMap.remove(cacheName);
+		}
+		if (old != null) releaseExpiredGetter(cacheName, old.getter);
 	}
 
 	private boolean configIsFresh(CacheConfigEntry entry) {
@@ -222,46 +513,99 @@ public abstract class AbstractCacheService implements ICacheService {
 	 */
 	@Override
 	public void destroy(String cacheName) {
-		synchronized (cacheLifecycleLock(cacheName)) {
+		ICacheStore preloaded = cacheStoreMap.get(cacheName);
+		if (preloaded == null) {
 			try {
-				ICacheStore cacheStore = this.getCacheStore(cacheName);
-				if (cacheStore != null) {
-					cacheStore.destroy();
-				}
-				this.cacheStatusMap.remove(cacheName);
-				this.cacheConfigLoads.remove(cacheName);
-				this.cacheConfigMap.invalidate(cacheName);
-				CacheGetterEntry entry;
-				synchronized (this.cacheGetterLockMap.computeIfAbsent(cacheName, k -> new Object())) {
-					entry = this.cacheGetterMap.remove(cacheName);
-				}
-				if (entry != null) {
-					entry.getter.close();
-				}
+				preloaded = getCacheStore(cacheName);
 			} catch (Exception e) {
-				logger.error("cache destroy error: " + cacheName, e);
+				logger.warn("Unable to preload cache store [{}] before destroy; local cleanup will still run: {}", cacheName, e.getMessage());
+			}
+		}
+		Lock writeLock = cacheOperationLock(cacheName).writeLock();
+		writeLock.lock(); // Wait for local reads before acquiring the distributed lock.
+		String destroyingGeneration = null;
+		ICacheStore store;
+		CacheGetterEntry entry;
+		try {
+			synchronized (cacheLifecycleLock(cacheName)) {
+				try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+					String currentGeneration = sharedCacheGeneration(cacheName);
+					if (currentGeneration == null || !currentGeneration.startsWith("destroying:v2:")) {
+						String candidateGeneration = "destroying:v2:" + currentTimeMillis() + ":" + UUID.randomUUID();
+						publishSharedCacheDestroyFence(cacheName, candidateGeneration);
+						destroyingGeneration = candidateGeneration;
+					}
+				} catch (Exception e) {
+					logger.warn("Unable to acquire distributed cache lifecycle lock for [{}]; local cleanup will continue without cluster destroy: {}",
+							cacheName, e.getMessage());
+				}
+				store = cacheStoreMap.remove(cacheName);
+				if (store == null && destroyingGeneration != null && preloaded != null
+						&& cacheStoreConfigMap.get(cacheName) != null) store = preloaded;
+				cacheStoreConfigMap.remove(cacheName);
+				cacheStatusMap.remove(cacheName);
+				cacheConfigLoads.remove(cacheName);
+				cacheConfigMap.invalidate(cacheName);
+				synchronized (cacheGetterLockMap.computeIfAbsent(cacheName, key -> new Object())) {
+					entry = cacheGetterMap.remove(cacheName);
+				}
+				if (destroyingGeneration != null) cacheStoreGenerationMap.put(cacheName, destroyingGeneration);
+				else cacheStoreGenerationMap.remove(cacheName);
+			}
+
+			if (destroyingGeneration != null) {
+				AutoCloseable fenceRenewal = startSharedCacheDestroyFenceRenewal(cacheName, destroyingGeneration);
+				try {
+					if (store != null) store.destroy();
+				} catch (Exception e) {
+					logger.error("cache destroy error: " + cacheName, e);
+				} finally {
+					try {
+						fenceRenewal.close();
+					} catch (Exception e) {
+						logger.warn("Unable to stop cache destroy fence renewal for [{}]: {}", cacheName, e.getMessage());
+					}
+					try (AutoCloseable ignored = acquireSharedCacheLifecycleLock(cacheName)) {
+						finishSharedCacheDestroy(cacheName, destroyingGeneration);
+						cacheStoreGenerationMap.remove(cacheName, destroyingGeneration);
+					} catch (Exception e) {
+						logger.warn("Unable to finalize distributed cache destroy for [{}]; the lease will expire and a later destroy can recover: {}",
+								cacheName, e.getMessage());
+					}
+				}
+			}
+		} finally {
+			writeLock.unlock();
+		}
+
+		// Connector shutdown is local and may block; do not keep a cluster-wide lock while closing it.
+		if (entry != null) {
+			try {
+				entry.getter.close();
+			} catch (Exception e) {
+				logger.error("cache getter close error: " + cacheName, e);
 			}
 		}
 	}
 
 	@Override
 	public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
-		return getCacheGetter(cacheName).getAndSetCache(cacheName, lookup, cacheKeys);
+		return withCacheGetter(cacheName, getter -> getter.getAndSetCache(cacheName, lookup, cacheKeys));
 	}
 
 	@Override
 	public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
-		return getCacheGetter(cacheName).getAndSetCacheArray(cacheName, lookup, cacheKeys);
+		return withCacheGetter(cacheName, getter -> getter.getAndSetCacheArray(cacheName, lookup, cacheKeys));
 	}
 
 	@Override
 	public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
-		return getCacheGetter(cacheName).getCache(cacheName, lookup, cacheKeys);
+		return withCacheGetter(cacheName, getter -> getter.getCache(cacheName, lookup, cacheKeys));
 	}
 
 	@Override
 	public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws Throwable {
-		return getCacheGetter(cacheName).getCacheItem(cacheName, field, defaultValue, cacheKeys);
+		return withCacheGetter(cacheName, getter -> getter.getCacheItem(cacheName, field, defaultValue, cacheKeys));
 	}
 
 	@Override
@@ -373,12 +717,12 @@ public abstract class AbstractCacheService implements ICacheService {
 
 	@Override
 	public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable {
-		getCacheStore(cacheName).cacheRow(cacheName, key, rows);
+		withCacheStore(cacheName, store -> { store.cacheRow(cacheName, key, rows); return null; });
 	}
 
 	@Override
 	public void removeByKey(String cacheName, String cacheKey, String pkKey) throws Throwable {
-		getCacheStore(cacheName).removeByKey(cacheName, cacheKey, pkKey);
+		withCacheStore(cacheName, store -> { store.removeByKey(cacheName, cacheKey, pkKey); return null; });
 	}
 
 	@Override
@@ -448,10 +792,18 @@ public abstract class AbstractCacheService implements ICacheService {
 	private static class CacheGetterEntry {
 		private final ICacheGetter getter;
 		private final long createTime;
+		private final DataFlowCacheConfig config;
+		private final String generation;
 
 		private CacheGetterEntry(ICacheGetter getter, long createTime) {
+			this(getter, createTime, null, null);
+		}
+
+		private CacheGetterEntry(ICacheGetter getter, long createTime, DataFlowCacheConfig config, String generation) {
 			this.getter = getter;
 			this.createTime = createTime;
+			this.config = config;
+			this.generation = generation;
 		}
 
 		private boolean isExpired(long now) {
