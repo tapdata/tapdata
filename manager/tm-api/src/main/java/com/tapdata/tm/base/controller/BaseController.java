@@ -4,6 +4,7 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.SensitiveResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.security.LoginUserResolver;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -94,6 +95,12 @@ public class BaseController {
 	 */
 	public <T> ResponseMessage<T> success(T data) {
 		ResponseMessage<T> res = new ResponseMessage<>();
+		res.setData(data);
+		return res;
+	}
+
+	protected <T> ResponseMessage<T> sensitiveSuccess(T data) {
+		ResponseMessage<T> res = new SensitiveResponseMessage<>();
 		res.setData(data);
 		return res;
 	}

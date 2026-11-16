@@ -52,6 +52,7 @@ com.tapdata.tm.ds.controller.DataSourceController#updatePartialSchema  # 引擎�
 com.tapdata.tm.ds.controller.DataSourceController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
 com.tapdata.tm.ds.controller.DataSourceController#validateTable  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.ds.controller.DataSourceDefinitionController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.ds.controller.PdkController#registerRelease  # 异步连接器发布注册暂不纳入审计范围（研发决定）；后续纳入时需关联受理和最终结果
 com.tapdata.tm.events.controller.EventsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
 com.tapdata.tm.externalStorage.controller.ExternalStorageController#checkConnectionSharedCDCEnable  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.externalStorage.controller.ExternalStorageController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口

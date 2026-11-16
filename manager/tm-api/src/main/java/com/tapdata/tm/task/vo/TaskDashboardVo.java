@@ -20,6 +20,9 @@ public class TaskDashboardVo {
         private int top;
         private long startAt;
         private long endAt;
+        private String physicalNodeId;
+        private long intervalSeconds;
+        private Integer trendSchemaVersion;
     }
 
     @Data
@@ -78,6 +81,19 @@ public class TaskDashboardVo {
     public static class Trend {
         private List<Long> ts = new ArrayList<>();
         private List<Double> values = new ArrayList<>();
+        private String status;
+        private String traceability;
+        private String coverage;
+        private boolean hasUnattributedData;
+    }
+
+    @Data
+    public static class NodeOption {
+        private String physicalNodeId;
+        private String label;
+        private String status;
+        private boolean engineDeployed;
+        private boolean apiServerDeployed;
     }
 
     @Data

@@ -59,6 +59,17 @@ public class ApplicationController extends BaseController {
         throw new RuntimeException("Un auth");
     }
 
+    private Field includeSecretForConfigured(Field fields) {
+        if (fields == null || fields.isEmpty()) return fields;
+        Field result = new Field();
+        result.putAll(fields);
+        boolean includes = fields.values().stream().anyMatch(value ->
+                Boolean.TRUE.equals(value) || value instanceof Number && ((Number) value).doubleValue() != 0);
+        if (includes) result.put("clientSecret", true);
+        else result.remove("clientSecret");
+        return result;
+    }
+
     private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
         return DataPermissionHelper.check(userDetail, DataPermissionMenuEnums.ApiClient, actionEnums, DataPermissionDataTypeEnums.Application, null, supplier, this::dataPermissionUnAuth);
     }
@@ -200,14 +211,14 @@ public class ApplicationController extends BaseController {
         if (application == null) {
             throw new BizException("NotFound");
         }
-        return success(application.getClientSecret());
+        return sensitiveSuccess(application.getClientSecret());
     }
 
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
     public ResponseMessage<ApplicationDto> findById(HttpServletRequest request, @PathVariable("id") String id,
                                                     @RequestParam("fields") String fieldsJson) {
-        Field fields = parseField(fieldsJson);
+        Field fields = includeSecretForConfigured(parseField(fieldsJson));
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.View,
                 () -> applicationService.findById(MongoUtils.toObjectId(id), fields, userDetail)));
@@ -267,6 +278,7 @@ public class ApplicationController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
+        filter.setFields(includeSecretForConfigured(filter.getFields()));
         Filter finalFilter = filter;
         UserDetail userDetail = getLoginUser();
         return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,

@@ -23,6 +23,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +34,8 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
     public abstract List<Worker> findAvailableAgent(UserDetail userDetail);
 
     public abstract List<Worker> findAllAgent(UserDetail userDetail);
+
+    public abstract List<Worker> findAllAgent(UserDetail userDetail, Collection<String> processIds);
 
     public abstract boolean isAgentTimeout(Long pingTime);
 

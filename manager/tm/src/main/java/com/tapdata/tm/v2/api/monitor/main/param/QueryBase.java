@@ -35,6 +35,7 @@ public class QueryBase {
      * @see TimeType
      */
     String type;
+    String physicalNodeId;
     Long step;
 
     /**

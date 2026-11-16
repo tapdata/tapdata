@@ -2258,7 +2258,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		@DisplayName("test cdc task, update and delete TapEvent, expect return false")
+		@DisplayName("test cdc task, update without enable children and delete without children, expect return false")
 		void test3() {
 			taskDto.setType(SyncTypeEnum.CDC.getSyncType());
 			doReturn(false).when(mockHazelcastMergeNode).isSubTableFirstMode();
@@ -2271,8 +2271,21 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 			TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create().init();
 			tapdataEvent = new TapdataEvent();
+			tapdataEvent.addNodeId("not-in-lookup-map");
 			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
 			assertFalse(mockHazelcastMergeNode.needLookup(tapdataEvent));
+		}
+
+		@Test
+		@DisplayName("test cdc delete with children should enter cleanup lookup path")
+		void testDeleteWithChildrenNeedLookup() {
+			taskDto.setType(SyncTypeEnum.CDC.getSyncType());
+			doReturn(false).when(mockHazelcastMergeNode).isSubTableFirstMode();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.addNodeId("123");
+			TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create().init();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			assertTrue(mockHazelcastMergeNode.needLookup(tapdataEvent));
 		}
 
 		@Test

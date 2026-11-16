@@ -63,8 +63,11 @@ public class MeasureController extends BaseController {
     }
 
     @PostMapping("query/v2")
-    public ResponseMessage<Object> queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
-        Object data = measurementServiceV2.getSamples(measurementQueryParam);
+    public ResponseMessage<Object> queryV2(@RequestBody MeasurementQueryParam measurementQueryParam,
+                                           @RequestParam(value = "taskCounterRecovery", required = false) Boolean taskCounterRecovery) {
+        Object data = Boolean.TRUE.equals(taskCounterRecovery)
+                ? measurementServiceV2.getSamples(measurementQueryParam, true)
+                : measurementServiceV2.getSamples(measurementQueryParam);
         return success(data);
     }
 

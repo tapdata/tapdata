@@ -48,7 +48,7 @@ public class WorkerDto extends BaseDto {
     private Integer totalThread;
     private Long usedMemory;
     private String version;
-    @JsonProperty("accesscode")
+    @JsonProperty(value = "accesscode", access = JsonProperty.Access.WRITE_ONLY)
     private String accessCode;
 
     @JsonProperty("userId")

@@ -70,6 +70,7 @@ public class ParticleSizeAnalyzer {
                             e.setReqPath(raw.getReqPath());
                             e.setApiId(raw.getApiId());
                             e.setProcessId(raw.getProcessId());
+                            e.setPhysicalNodeId(raw.getPhysicalNodeId());
                             sub.add(e);
                         });
             }
@@ -131,6 +132,7 @@ public class ParticleSizeAnalyzer {
             }
             ApiMetricsRaw row = new ApiMetricsRaw();
             row.setProcessId(apiCallEntity.getApi_gateway_uuid());
+            row.setPhysicalNodeId(apiCallEntity.getPhysicalNodeId());
             row.setApiId(apiCallEntity.getAllPathId());
             long errorCount = apiCallEntity.isSucceed() ? 0L : 1L;
             Optional.ofNullable(apiCallEntity.getWorkOid()).ifPresent(oId -> {

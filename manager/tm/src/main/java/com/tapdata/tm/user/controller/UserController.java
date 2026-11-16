@@ -138,10 +138,22 @@ public class UserController extends BaseController {
      */
     @Operation(summary = "Reveal current user's access code")
     @PostMapping("/access-code/reveal")
-    @Audited(AuditAction.USER_VIEW_ACCESS_CODE)
+    @Audited(value = AuditAction.USER_VIEW_ACCESS_CODE,
+            objectId = "#root.getLoginUser()?.userId", objectName = "#root.getLoginUser()?.username")
     public ResponseMessage<String> revealAccessCode() {
         UserDto userDto = userService.findById(toObjectId(getLoginUser().getUserId()));
-        return success(userDto == null ? null : userDto.getAccessCode());
+        return sensitiveSuccess(userDto == null ? null : userDto.getAccessCode());
+    }
+
+    @Operation(summary = "Reveal a user's access code")
+    @PostMapping("/{userId}/access-code/reveal")
+    @Audited(value = AuditAction.USER_VIEW_ACCESS_CODE, objectId = "#userId")
+    public ResponseMessage<String> revealUserAccessCode(@PathVariable("userId") String userId) {
+        UserDetail user = getLoginUser();
+        return sensitiveSuccess(dataPermissionCheckOfId(user, userId, DataPermissionActionEnums.View, () -> {
+            UserDto target = userService.findById(toObjectId(userId));
+            return target == null ? null : target.getAccessCode();
+        }));
     }
 
     @GetMapping("/self")
@@ -627,11 +639,12 @@ public class UserController extends BaseController {
         return success(res);
     }
 
-    @Operation(summary = "refresh access code")
+    @Operation(summary = "refresh access code", description = "Rotates the access code without returning it. Call POST /api/users/access-code/reveal to retrieve the new code; this sensitive read is separately audited.")
     @PostMapping("refreshAccessCode")
     @Audited(AuditAction.USER_RESET_ACCESS_CODE)
     public ResponseMessage<String> refreshAccessCode() {
-        return success(userService.refreshAccessCode(getLoginUser()));
+        userService.refreshAccessCode(getLoginUser());
+        return success();
     }
 
     @GetMapping("{userId}/alarmImpact")

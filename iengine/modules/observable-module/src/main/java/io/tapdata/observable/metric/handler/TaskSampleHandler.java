@@ -2,6 +2,8 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConfigurationCenter;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.CpuMemUsageAspect;
 import io.tapdata.common.sample.CollectorFactory;
@@ -9,6 +11,7 @@ import io.tapdata.common.sample.SamplerPrometheus;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
+import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.firedome.MultiTaggedGauge;
@@ -22,13 +25,19 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Dexter
  */
 public class TaskSampleHandler extends AbstractHandler {
     private static final String TAG = TaskSampleHandler.class.getSimpleName();
+    private static final String PHYSICAL_NODE_ID_TAG = "physicalNodeId";
+    private static final String ENGINE_ID_TAG = "engineId";
+    private static final AtomicBoolean MISSING_NODE_ID_WARNING_LOGGED = new AtomicBoolean();
     static final String SAMPLE_TYPE_TASK = MetricCons.SampleType.TASK.code();
+
+    private final Map<String, String> taskTags;
 
     CounterSampler inputInsertCounter;
     CounterSampler inputUpdateCounter;
@@ -77,6 +86,10 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public TaskSampleHandler(TaskDto task) {
         super(task);
+        this.taskTags = createTaskTags(super.tags(), currentEngineId(), System.getenv("TAPDATA_NODE_ID"));
+        if (!taskTags.containsKey(PHYSICAL_NODE_ID_TAG) && MISSING_NODE_ID_WARNING_LOGGED.compareAndSet(false, true)) {
+            TapLogger.warn(TAG, "TAPDATA_NODE_ID is not set; task throughput samples will not have physical node attribution");
+        }
     }
 
     @Override
@@ -86,7 +99,53 @@ public class TaskSampleHandler extends AbstractHandler {
 
     @Override
     public Map<String, String> tags() {
+        return new HashMap<>(taskTags);
+    }
+
+    @Override
+    protected Map<String, String> recoveryTags() {
         return super.tags();
+    }
+
+    @Override
+    public Map<String, Number> retrieve() {
+        try {
+            return TaskSampleRetriever.getInstance().retrieveTaskCounterRecoveryWithRetry(
+                    task.getStartTime().getTime(), recoveryTags(), samples());
+        } catch (RuntimeException e) {
+            // Keep instrumentation available and restore the previous default-value
+            // behavior when counter history cannot be recovered.
+            TapLogger.error(TAG, "Failed to recover task counters after retries; initialize samplers with defaults: " + e.getMessage());
+            return defaultRecoveryValues();
+        }
+    }
+
+    private Map<String, Number> defaultRecoveryValues() {
+        Map<String, Number> values = new HashMap<>();
+        for (String sample : samples()) {
+            values.put(sample, 0);
+        }
+        return values;
+    }
+
+    static Map<String, String> createTaskTags(Map<String, String> baseTags, String engineId, String physicalNodeId) {
+        Map<String, String> result = new HashMap<>(baseTags);
+        if (engineId != null && !engineId.isBlank()) {
+            result.put(ENGINE_ID_TAG, engineId.trim());
+        }
+        if (physicalNodeId != null && !physicalNodeId.isBlank()) {
+            result.put(PHYSICAL_NODE_ID_TAG, physicalNodeId.trim());
+        }
+        return result;
+    }
+
+    private static String currentEngineId() {
+        ConfigurationCenter configurationCenter = BeanUtil.getBean(ConfigurationCenter.class);
+        if (configurationCenter == null) {
+            return null;
+        }
+        Object engineId = configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
+        return engineId == null ? null : engineId.toString();
     }
 
     @Override

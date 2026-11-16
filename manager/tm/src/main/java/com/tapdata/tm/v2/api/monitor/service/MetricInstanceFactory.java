@@ -54,13 +54,14 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         }
         final String apiId = item.getApiId();
         final String serverId = item.getServerId();
-        final String keyOfApiServer = String.format("%s:%s:%s_0", apiId, reqPath, serverId);
+        final String physicalNodeId = item.getPhysicalNodeId();
+        final String keyOfApiServer = String.format("%s:%s:%s:%s_0", apiId, reqPath, serverId, physicalNodeId);
         final String keyOfApi = String.format("%s:%s:*_1", reqPath, apiId);
-        final String keyOfServer = String.format("*:%s_2", serverId);
+        final String keyOfServer = String.format("*:%s:%s_2", serverId, physicalNodeId);
         final String keyOfAll = "*:*_3";
-        final MetricInstanceAcceptor acceptorOfApiServer = create(keyOfApiServer, MetricTypes.API_SERVER, reqPath, serverId);
+        final MetricInstanceAcceptor acceptorOfApiServer = create(keyOfApiServer, MetricTypes.API_SERVER, reqPath, serverId, physicalNodeId);
         final MetricInstanceAcceptor acceptorOfApi = create(keyOfApi, MetricTypes.API, reqPath, null);
-        final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId)
+        final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId, physicalNodeId)
                 .beSaveWorkerInfo();
         final MetricInstanceAcceptor acceptorOfAll = create(keyOfAll, MetricTypes.ALL, null, null);
         acceptorOfApiServer.accept(item);
@@ -73,27 +74,33 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
     }
 
     MetricInstanceAcceptor create(String key, MetricTypes metricType, String reqPath, String serverId) {
+        return create(key, metricType, reqPath, serverId, null);
+    }
+
+    MetricInstanceAcceptor create(String key, MetricTypes metricType, String reqPath, String serverId, String physicalNodeId) {
         return instanceMap.computeIfAbsent(key,
                 k -> new MetricInstanceAcceptor(
                         metricType,
-                        (ts, type) -> lastOne(reqPath, serverId, metricType, type, ts),
+                        (ts, type) -> lastOne(reqPath, serverId, physicalNodeId, metricType, type, ts),
                         this.apiMetricsRaws::add)
         );
     }
 
-    ApiMetricsRaw lastOne(String reqPath, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
+    ApiMetricsRaw lastOne(String reqPath, String serverId, String physicalNodeId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
         final Criteria criteria = Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricType.getType())
                 .and(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(timeGranularity.getType());
         switch (metricType) {
             case API_SERVER:
                 criteria.and(ApiMetricsRawFields.REQ_PATH.field()).is(reqPath)
-                        .and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId);
+                        .and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId)
+                        .and(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).is(physicalNodeId);
                 break;
             case API:
                 criteria.and(ApiMetricsRawFields.REQ_PATH.field()).is(reqPath);
                 break;
             case SERER:
-                criteria.and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId);
+                criteria.and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId)
+                        .and(ApiMetricsRawFields.PHYSICAL_NODE_ID.field()).is(physicalNodeId);
                 break;
             default:
                 //do nothing
@@ -107,6 +114,10 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         return findOne.apply(query);
     }
 
+    ApiMetricsRaw lastOne(String reqPath, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
+        return lastOne(reqPath, serverId, null, metricType, timeGranularity, timeStart);
+    }
+
     @Getter
     public static class CallInfo {
         static final String UN_KNOW = "UN_KNOWN";
@@ -114,6 +125,7 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         String reqPath;
         String apiId;
         String serverId;
+        String physicalNodeId;
         double requestCost;
         double dbCost;
         boolean isOk;
@@ -135,6 +147,10 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
                     .orElse(Optional.ofNullable(reqPath)
                             .orElse(UN_KNOW));
             this.serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
+            this.physicalNodeId = Optional.ofNullable(entity.get(ApiCallField.PHYSICAL_NODE_ID.field(), String.class))
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .orElse(null);
             this.requestCost = ApiMetricsCompressValueUtil.getNum(entity, ApiCallField.LATENCY.field());
             this.dbCost = ApiMetricsCompressValueUtil.getNum(entity, ApiCallField.DATA_QUERY_TOTAL_TIME.field());
             this.isOk = entity.get(ApiCallField.SUCCEED.field(), Boolean.class);

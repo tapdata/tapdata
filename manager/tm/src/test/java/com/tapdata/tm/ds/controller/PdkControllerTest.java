@@ -3,6 +3,10 @@ package com.tapdata.tm.ds.controller;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.ds.service.impl.PdkReleaseCatalogService;
+import com.tapdata.tm.ds.service.impl.PdkReleaseRegistrationService;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -15,9 +19,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -98,6 +108,101 @@ public class PdkControllerTest {
             when(pkdSourceService.checkJarMD5("111","a.jar")).thenReturn("123456");
             ResponseMessage<String> actual = pdkController.checkFileMd5("111", "a.jar");
             assertEquals("123456",actual.getData());
+        }
+    }
+
+    @Nested
+    class ConnectorReleaseTest {
+        private PdkReleaseCatalogService catalogService;
+        private PdkReleaseRegistrationService registrationService;
+        private SettingsService settingsService;
+        private UserDetail user;
+
+        @BeforeEach
+        void setUp() {
+            catalogService = mock(PdkReleaseCatalogService.class);
+            registrationService = mock(PdkReleaseRegistrationService.class);
+            settingsService = mock(SettingsService.class);
+            user = mock(UserDetail.class);
+            ReflectionTestUtils.setField(pdkController, "pdkReleaseCatalogService", catalogService);
+            ReflectionTestUtils.setField(pdkController, "pdkReleaseRegistrationService", registrationService);
+            ReflectionTestUtils.setField(pdkController, "settingsService", settingsService);
+            doReturn(user).when(pdkController).getLoginUser();
+        }
+
+        @Test
+        void connectorReleasesReturnsCatalog() {
+            List<Map<String, Object>> releases = List.of(Map.of("pdkId", "mysql"));
+            when(catalogService.findLatestReleases()).thenReturn(releases);
+
+            assertEquals(releases, pdkController.connectorReleases().getData());
+        }
+
+        @Test
+        void registrationImpactValidatesReleaseFirst() {
+            Map<String, Object> impact = Map.of("hasInFlightResources", false);
+            when(registrationService.registrationImpact("mysql-connector", "mysql", user)).thenReturn(impact);
+
+            assertEquals(impact, pdkController.registrationImpact("mysql", "mysql-connector").getData());
+            verify(registrationService).registrationImpact("mysql-connector", "mysql", user);
+        }
+
+        @Test
+        void registrationImpactRejectsMismatchedPdkId() {
+            when(registrationService.registrationImpact("mysql-connector", "postgres", user))
+                    .thenThrow(new BizException("Connector release does not match the requested PDK id"));
+
+            assertThrows(BizException.class, () -> pdkController.registrationImpact("postgres", "mysql-connector"));
+
+            verify(registrationService, never()).registrationImpact(anyString(), any());
+        }
+
+        @Test
+        void registerReleasePassesOptions() {
+            Map<String, Object> job = Map.of("jobId", "job-1", "status", "queued", "progress", 1);
+            when(registrationService.startRegistration("mysql-connector", "mysql", true, false, user))
+                    .thenReturn(job);
+
+            assertEquals(job, pdkController.registerRelease(Map.of("artifactId", "mysql-connector", "pdkId", "mysql",
+                    "stopTasks", true, "ignoreInFlightResources", false)).getData());
+
+            verify(registrationService).startRegistration("mysql-connector", "mysql", true, false, user);
+        }
+
+        @Test
+        void registerReleaseRejectsMissingNullBlankAndNonStringFields() {
+            for (String field : List.of("artifactId", "pdkId")) {
+                for (Object invalid : java.util.Arrays.asList(null, "", "  ", 123, true, List.of("mysql"))) {
+                    Map<String, Object> request = new java.util.HashMap<>(Map.of("artifactId", "mysql-connector", "pdkId", "mysql"));
+                    request.put(field, invalid);
+                    BizException error = assertThrows(BizException.class, () -> pdkController.registerRelease(request));
+                    assertEquals("IllegalArgument", error.getErrorCode());
+                    org.junit.jupiter.api.Assertions.assertTrue(error.getMessage().contains(field + " must be a non-empty string"));
+                }
+                Map<String, Object> request = new java.util.HashMap<>(Map.of("artifactId", "mysql-connector", "pdkId", "mysql"));
+                request.remove(field);
+                assertThrows(BizException.class, () -> pdkController.registerRelease(request));
+            }
+            verify(registrationService, never()).startRegistration(anyString(), anyString(), anyBoolean(), anyBoolean(), any());
+        }
+
+        @Test
+        void registerReleaseRejectsCloud() {
+            when(settingsService.isCloud()).thenReturn(true);
+            Map<String, Object> request = Map.of("artifactId", "mysql-connector", "pdkId", "mysql");
+
+            assertThrows(BizException.class, () -> pdkController.registerRelease(request));
+            verify(registrationService, never()).startRegistration(anyString(), anyString(), anyBoolean(), anyBoolean(), any());
+        }
+
+        @Test
+        void registrationImpactRejectsFreeAuthAndMissingUser() {
+            when(user.isFreeAuth()).thenReturn(true);
+            assertThrows(BizException.class, () -> pdkController.registrationImpact("mysql", "mysql-connector"));
+
+            doReturn(null).when(pdkController).getLoginUser();
+            assertThrows(BizException.class, () -> pdkController.registrationImpact("mysql", "mysql-connector"));
+            verify(catalogService, never()).findRelease(anyString());
         }
     }
 }
