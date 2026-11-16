@@ -15,6 +15,20 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Query;
 import java.util.Optional;
+import com.mongodb.client.MongoClient;
+import com.tapdata.tm.base.reporitory.BaseRepository;
+import org.bson.Document;
+import org.junit.jupiter.api.AfterEach;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
+import org.springframework.data.mongodb.core.convert.QueryMapper;
+import org.springframework.data.mongodb.core.query.UpdateDefinition;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.List;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mockStatic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -322,6 +336,51 @@ class ApplicationServiceTest {
                     .thenReturn(UpdateResult.acknowledged(0, 0L, null));
 
             assertNull(service.updateById(applicationDto, userDetail));
+        }
+    }
+
+    @Nested
+    class NonAdminUpdateByIdMappingTest {
+        private Object previousFactory;
+
+        @BeforeEach
+        void saveFactory() {
+            previousFactory = ReflectionTestUtils.getField(BaseRepository.class, "repositoryFactory");
+            ReflectionTestUtils.setField(BaseRepository.class, "repositoryFactory", null);
+        }
+
+        @AfterEach
+        void restoreFactory() {
+            ReflectionTestUtils.setField(BaseRepository.class, "repositoryFactory", previousFactory);
+        }
+
+        @Test
+        void nonAdmin_updateById_targets_only_this_application() {
+            MongoTemplate mongo = spy(new MongoTemplate(new SimpleMongoClientDatabaseFactory(mock(MongoClient.class), "test")));
+            ApplicationService realService = new ApplicationService(new ApplicationRepository(mongo));
+            ObjectId id = new ObjectId();
+            ApplicationDto dto = new ApplicationDto();
+            dto.setId(id);
+            dto.setClientId(id.toHexString());
+            UserDetail nonAdmin = new UserDetail("user-a", "tenant-a", "new-user", "", List.of());
+            nonAdmin.setAuth();
+            doReturn(0L).when(mongo).count(any(Query.class), eq(ApplicationEntity.class), anyString());
+            doReturn(UpdateResult.acknowledged(1, 1L, null)).when(mongo)
+                    .updateMulti(any(Query.class), any(UpdateDefinition.class), eq(ApplicationEntity.class));
+            doReturn(null).when(mongo).findOne(any(Query.class), eq(ApplicationEntity.class), anyString());
+
+            try (MockedStatic<DataPermissionHelper> ignored = mockStatic(DataPermissionHelper.class)) {
+                realService.updateById(dto, nonAdmin);
+            }
+
+            ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+            verify(mongo).updateMulti(captor.capture(), any(UpdateDefinition.class), eq(ApplicationEntity.class));
+            Document mapped = new QueryMapper(mongo.getConverter()).getMappedObject(captor.getValue().getQueryObject(),
+                    mongo.getConverter().getMappingContext().getPersistentEntity(ApplicationEntity.class));
+            assertEquals(id, mapped.get("_id"));
+            assertEquals("tenant-a", mapped.get("customId"));
+            assertEquals(List.of(new Document("user_id", "user-a"), new Document("user_id", new Document("$exists", false))),
+                    mapped.getList("$or", Document.class));
         }
     }
 }
