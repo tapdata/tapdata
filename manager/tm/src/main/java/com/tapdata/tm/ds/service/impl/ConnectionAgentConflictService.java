@@ -123,6 +123,9 @@ public class ConnectionAgentConflictService {
                 candidate.setAccessNodeType(policy.type);
                 candidate.setAccessNodeProcessId(policy.processId);
                 candidate.setPriorityProcessId(policy.priority);
+                // Tasks are persisted before the connection update. Keep the new policy
+                // valid if the user cancels or the subsequent connection write fails.
+                taskScheduleService.validateConnectionAgentPolicy(candidate, user, Collections.emptyMap());
                 taskScheduleService.validateConnectionAgentPolicy(candidate, user, overrides);
                 query.addCriteria(Criteria.where("status").is(task.getStatus()).and("lastUpdAt").is(task.getLastUpdAt())
                         .and("accessNodeType").is(task.getAccessNodeType())
@@ -206,6 +209,10 @@ public class ConnectionAgentConflictService {
             boolean permission = "inspect".equals(type) ? canEditInspection(task, user) : canEdit(task, user);
             item.setCanEdit(permission);
             item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && permission);
+            if (item.isEditable()) {
+                Set<String> allowedAgents = taskScheduleService.connectionAllowedAgents(task, user, overrides);
+                item.setAllowedAgentProcessIds(allowedAgents == null ? null : new ArrayList<>(allowedAgents));
+            }
             item.setAutoResolvable(item.isEditable() && automaticResolves(task, overrides, user));
             item.setBlockedReason(!permission ? "no_edit_permission"
                     : !editableStatus(task.getStatus()) ? "task_active"
