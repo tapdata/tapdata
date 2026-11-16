@@ -167,6 +167,8 @@ class ConnectionAgentConflictServiceTest {
 
     @Test
     void savesStoppedTaskUsingProposedConnectionPolicyBeforeConnectionSave() {
+        source.setAccessNodeProcessId("agent-b");
+        target.setAccessNodeProcessId("agent-b");
         TaskDto task = task("stopped", "stop", "agent-a");
         task.setLastUpdAt(new Date(1234));
         when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
@@ -184,6 +186,22 @@ class ConnectionAgentConflictServiceTest {
         assertTrue(query.getValue().getQueryObject().containsKey("lastUpdAt"));
         assertEquals("agent-b", ((org.bson.Document) update.getValue().getUpdateObject().get("$set")).get("accessNodeProcessId"));
         assertEquals("agent-a", task.getAccessNodeProcessId());
+    }
+
+    @Test
+    void rejectsPolicyThatWouldConflictIfConnectionSaveIsCanceled() {
+        TaskDto task = task("stopped", "stop", "agent-a");
+        task.setLastUpdAt(new Date(1234));
+        when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        service.setMongoTemplate(mongo);
+
+        ConnectionTaskAgentResult result = service.updateTaskAgents(
+                both("agent-b"), edits(task, "agent-b"), user);
+
+        assertTrue(result.getUpdatedTaskIds().isEmpty());
+        assertEquals("Task.AgentConflict", result.getFailures().get(0).getCode());
+        verifyNoInteractions(mongo);
     }
 
     @Test
@@ -206,6 +224,8 @@ class ConnectionAgentConflictServiceTest {
 
     @Test
     void partialBatchReturnsSuccessfulAndFailedTaskIdsSeparately() {
+        source.setAccessNodeProcessId("agent-b");
+        target.setAccessNodeProcessId("agent-b");
         TaskDto first = task("first", "stop", "agent-a");
         TaskDto second = task("second", "running", "agent-a");
         when(tasks.findAll(any(Query.class))).thenReturn(List.of(first), List.of(second));
@@ -223,6 +243,8 @@ class ConnectionAgentConflictServiceTest {
 
     @Test
     void reportsConcurrentUpdateInsteadOfClaimingSuccess() {
+        source.setAccessNodeProcessId("agent-b");
+        target.setAccessNodeProcessId("agent-b");
         TaskDto task = task("task", "stop", "agent-a");
         when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
         MongoTemplate mongo = mock(MongoTemplate.class);
@@ -246,6 +268,7 @@ class ConnectionAgentConflictServiceTest {
         assertEquals("stopped-task", report.getItems().get(0).getName());
         assertEquals("Task.AgentConflict", report.getItems().get(0).getCode());
         assertEquals(2, report.getItems().get(0).getConnections().size());
+        assertEquals(List.of("agent-b"), report.getItems().get(0).getAllowedAgentProcessIds());
         assertEquals("agent-a", stopped.getAccessNodeProcessId());
         assertEquals("agent-a", source.getAccessNodeProcessId());
         ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
