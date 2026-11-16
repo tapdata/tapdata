@@ -116,7 +116,8 @@ class ApplicationNonAdminCreateIT {
     }
 
     /**
-     * Minimal evaluator for the filter shapes produced here: field equality, {$exists: bool} and $or.
+     * Minimal evaluator for the filter shapes produced by the repository: field equality, {$exists: bool},
+     * {$in: [...]}, $and and $or. Unsupported operators fail loudly instead of silently matching.
      */
     private static boolean matches(Document filter, Document stored) {
         for (Map.Entry<String, Object> condition : filter.entrySet()) {
@@ -130,8 +131,18 @@ class ApplicationNonAdminCreateIT {
                 if (!any) {
                     return false;
                 }
+            } else if ("$and".equals(key)) {
+                for (Object branch : (List<?>) expected) {
+                    if (!matches((Document) branch, stored)) {
+                        return false;
+                    }
+                }
             } else if (expected instanceof Document && ((Document) expected).containsKey("$exists")) {
                 if (stored.containsKey(key) != Boolean.TRUE.equals(((Document) expected).get("$exists"))) {
+                    return false;
+                }
+            } else if (expected instanceof Document && ((Document) expected).containsKey("$in")) {
+                if (!((List<?>) ((Document) expected).get("$in")).contains(stored.get(key))) {
                     return false;
                 }
             } else if (expected instanceof Document) {
