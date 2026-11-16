@@ -223,11 +223,15 @@ public class DataNodeSampleHandlerTest {
         void testHandleTableCountAcceptSample() {
             Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
             ReflectionTestUtils.setField(handler, "currentSnapshotTableRowTotalMap", currentSnapshotTableRowTotalMap);
+            CounterSampler snapshotRowCounter = mock(CounterSampler.class);
+            ReflectionTestUtils.setField(handler, "snapshotRowCounter", snapshotRowCounter);
             String table = "table1";
             doCallRealMethod().when(handler).handleTableCountAccept(anyString(), anyLong());
             handler.handleTableCountAccept(table, -1L);
             handler.handleTableCountAccept(table, 10L);
             assertEquals(10L, currentSnapshotTableRowTotalMap.get(table));
+            verify(snapshotRowCounter, times(1)).inc(10L);
+            verify(snapshotRowCounter, times(0)).inc(-1L);
         }
     }
 }

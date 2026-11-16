@@ -45,6 +45,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.types.Decimal128;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +71,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -208,6 +210,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             Map<String, Object> sampleMap = requestSample.get().toMap();
+            sampleMap.put(Sample.FIELD_VALUES, bsonMetricValues(requestSample.get().getVs()));
             if (attributedTaskSample) {
                 String id = attributedTaskMinuteDocumentId(tags, documentDate);
                 List<Bson> pipeline = attributedTaskMetricUpdatePipeline(
@@ -348,6 +351,34 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return new Document("$size", new Document("$filter", new Document("input", "$" + MetricCons.F_SAMPLES)
                 .append("as", "dashboardSample")
                 .append("cond", nonNullValue)));
+    }
+
+    private Map<String, ?> bsonMetricValues(Map<String, Number> values) {
+        if (values == null) {
+            return null;
+        }
+        Map<String, Object> converted = null;
+        for (Map.Entry<String, Number> entry : values.entrySet()) {
+            Object normalized = bsonMetricValue(entry.getValue());
+            if (!Objects.equals(normalized, entry.getValue())) {
+                if (converted == null) {
+                    converted = new HashMap<>(values);
+                }
+                converted.put(entry.getKey(), normalized);
+            }
+        }
+        return converted == null ? values : converted;
+    }
+
+    private Object bsonMetricValue(Number value) {
+        if (value instanceof BigInteger integer) {
+            return integer.bitLength() < Long.SIZE
+                    ? integer.longValue() : new Decimal128(new BigDecimal(integer));
+        }
+        if (value instanceof BigDecimal decimal) {
+            return new Decimal128(decimal);
+        }
+        return value;
     }
 
     private void reuseShareCdcDelayIfNeed(Map<String, String> tags, Sample sample) {
@@ -1483,7 +1514,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     Sample nextGranularitySample = new Sample();
                     nextGranularitySample.setDate(new Date(time));
                     nextGranularitySample.setVs(entity.averageValues());
-                    samples.add(nextGranularitySample.toMap());
+                    Map<String, Object> aggregateSample = nextGranularitySample.toMap();
+                    aggregateSample.put(Sample.FIELD_VALUES, bsonMetricValues(nextGranularitySample.getVs()));
+                    samples.add(aggregateSample);
                     if (Granularity.GRANULARITY_MINUTE.equals(granularity)
                             && isAttributedTaskMetric(entity.getTags())) {
                         MeasurementEntity.DashboardMinuteSummary summary = dashboardMinuteSummary(entity, new Date(time));
