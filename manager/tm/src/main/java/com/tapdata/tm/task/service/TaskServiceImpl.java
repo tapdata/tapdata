@@ -68,6 +68,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.UnknownNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -4840,6 +4841,25 @@ public class TaskServiceImpl extends TaskService{
         start(taskDto, user, startFlag);
     }
 
+    /**
+     * Reject tasks whose DAG contains node types not registered in this version (kept as {@link UnknownNode}),
+     * otherwise the engine would run such nodes as blank pass-through nodes.
+     */
+    protected void validateUnknownNodes(TaskDto taskDto) {
+        if (taskDto.getDag() == null || CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
+            return;
+        }
+        Set<String> types = new TreeSet<>();
+        for (Node<?> node : taskDto.getDag().getNodes()) {
+            if (node instanceof UnknownNode) {
+                types.add(node.getType());
+            }
+        }
+        if (!types.isEmpty()) {
+            throw new BizException("Task.UnknownNodeType", String.join(", ", types));
+        }
+    }
+
     protected void validateViewCdc(TaskDto taskDto, UserDetail user) {
         if ((!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
                 && !TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType()))
@@ -4945,6 +4965,7 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException("Task.StartStatusInvalid");
         }
 
+        validateUnknownNodes(taskDto);
         validateViewCdc(taskDto, user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);

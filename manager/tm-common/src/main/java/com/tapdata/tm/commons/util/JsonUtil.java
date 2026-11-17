@@ -143,7 +143,7 @@ public class JsonUtil {
 			try {
 				return objectMapper.readValue(json, clazz);
 			} catch (JsonProcessingException var4) {
-				var4.printStackTrace();
+				log.error("Failed to parse json to {}: {}", clazz, var4.getMessage(), var4);
 				return null;
 			}
 		}
