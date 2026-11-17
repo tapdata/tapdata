@@ -1055,15 +1055,16 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
-		if (op.equals(OperationType.DELETE.getOp())) {
-			return false;
-		}
 		String preNodeId = getPreNodeId(tapdataEvent);
 		EnableUpdateJoinKey enableUpdateJoinKey = enableUpdateJoinKeyMap.get(preNodeId);
 		if (op.equals(OperationType.UPDATE.getOp()) && Boolean.FALSE.equals(enableUpdateJoinKey.isEnableChildren())) {
 			return false;
 		}
 		boolean existsInLookupMap = this.lookupMap.containsKey(preNodeId);
+		if (op.equals(OperationType.DELETE.getOp())) {
+			// 带子表的 DELETE 进入清理入口，供写入侧 unset 子孙 targetPath；无子表则无需 lookup
+			return existsInLookupMap;
+		}
 		if (existsInLookupMap && SyncStage.INITIAL_SYNC.equals(syncStage)
 				&& (isMainTableFirstMode() || (isSubTableFirstMode() && !isFirstMergeLevel(preNodeId)))) {
 			return false;
@@ -1542,6 +1543,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		String sourceNodeId = getPreNodeId(tapdataEvent);
 		MergeTableProperties currentMergeTableProperty = this.mergeTablePropertiesMap.get(sourceNodeId);
 		Map<String, Object> after = getAfter(tapdataEvent);
+		if (MapUtils.isEmpty(after)) {
+			// DELETE 的 after 为空，必须用 before（含 JS 输出的关联键）构造子孙清理 lookup
+			after = getBefore(tapdataEvent);
+		}
 		List<MergeLookupResult> mergeLookupResults;
 		try {
 			mergeLookupResults = recursiveLookup(currentMergeTableProperty, after, true);
