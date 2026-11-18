@@ -204,7 +204,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         });
         nodeRegister(Snapshot2CDCAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
             setFinish(m);
-            taskMilestone(KPI_SNAPSHOT, this::setRunning); // fix status
+            if (hasSnapshot()) {
+                taskMilestone(KPI_SNAPSHOT, this::setRunning); // fix status
+            }
         });
         nodeRegister(CDCReadBeginAspect.class, KPI_OPEN_CDC_READ, (aspect, m) -> {
             setRunning(m);
@@ -452,10 +454,24 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             milestoneEntity.setRetrySuccess(aspect.getSuccess());
             milestoneEntity.setRetryMetadata(aspect.getRetryMetadata());
         });
+        clearStaleRetrying(aspect, runningMilestone);
         if (aspect.getRetryTimes() > 0) {
             taskRetryAlarm(aspect.getRetryTimes());
         }
         return null;
+    }
+
+    /** Clear stale retrying flags left on previously finished or non-target milestones when retrying stops or moves on. */
+    private void clearStaleRetrying(RetryLifeCycleAspect aspect, MilestoneEntity currentTarget) {
+        for (MilestoneEntity milestone : milestones.values()) {
+            if (milestone == currentTarget || !Boolean.TRUE.equals(milestone.getRetrying())) {
+                continue;
+            }
+            if (!aspect.isRetrying() || milestone.getStatus() == MilestoneStatus.FINISH) {
+                milestone.setRetrying(false);
+                milestone.setNextRetryTs(null);
+            }
+        }
     }
 
     protected void storeMilestoneWhenTargetNodeTableInit(MilestoneEntity milestone, String nid, AtomicLong totals, AtomicLong completed) {
