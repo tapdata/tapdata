@@ -55,11 +55,26 @@ class TaskDagUnknownNodeConversionIT {
                 .append("devFields", List.of("a", "b"));
     }
 
+    /** A node of a newer build whose known field holds a value this version cannot bind (an unknown catalog enum). */
+    private static Document unbindableUnknownNode() {
+        return new Document("id", "unknown-1")
+                .append("name", "dev ai node")
+                .append("type", "dev_ai_processor")
+                .append("catalog", "aiProcessor")
+                .append("isTransformed", true)
+                .append("devScript", "return record;")
+                .append("devOptions", new Document("batch", 10));
+    }
+
     private static Document taskDocument() {
+        return taskDocument(unknownNode());
+    }
+
+    private static Document taskDocument(Document unknownNode) {
         Document dag = new Document("nodes", List.of(
                 new Document("id", "table-1").append("type", "table").append("tableName", "orders")
                         .append("connectionId", "conn-1"),
-                unknownNode()))
+                unknownNode))
                 .append("edges", List.of(new Document("source", "table-1").append("target", "unknown-1")));
         return new Document("_id", new ObjectId()).append("name", "task left by a dev build").append("dag", dag);
     }
@@ -86,5 +101,27 @@ class TaskDagUnknownNodeConversionIT {
         Map<String, Object> writtenUnknown = writtenNodes.stream()
                 .filter(node -> "unknown-1".equals(node.get("id"))).findFirst().orElseThrow();
         unknownNode().forEach((key, value) -> assertEquals(value, writtenUnknown.get(key), "field " + key));
+    }
+
+    @Test
+    @DisplayName("L2：未知节点含当前版本无法绑定的已知字段值（未知 catalog 枚举）时，任务文档仍可读取且不丢节点，写回原值不变")
+    void shouldKeepUnknownNodeWhoseFieldsCannotBeBound() {
+        MappingMongoConverter converter = productionConverter();
+
+        TaskEntity task = converter.read(TaskEntity.class, taskDocument(unbindableUnknownNode()));
+
+        assertEquals(2, task.getDag().getNodes().size(), "the node must not be dropped");
+        UnknownNode unknown = assertInstanceOf(UnknownNode.class, task.getDag().getNode("unknown-1"));
+        assertEquals("dev_ai_processor", unknown.getType());
+        assertEquals(1, task.getDag().getEdges().size());
+
+        Document written = new Document();
+        converter.write(task, written);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> writtenNodes = (List<Map<String, Object>>) ((Map<String, Object>) written.get("dag")).get("nodes");
+        Map<String, Object> writtenUnknown = writtenNodes.stream()
+                .filter(node -> "unknown-1".equals(node.get("id"))).findFirst().orElseThrow();
+        unbindableUnknownNode().forEach((key, value) -> assertEquals(value, writtenUnknown.get(key), "field " + key));
     }
 }
