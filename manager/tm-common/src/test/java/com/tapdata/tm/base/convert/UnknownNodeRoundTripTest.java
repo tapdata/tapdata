@@ -82,6 +82,36 @@ class UnknownNodeRoundTripTest {
     }
 
     @Test
+    @DisplayName("已注册类型（js_processor）含当前版本无法绑定的字段值（未知 catalog 枚举）时保留为 UnknownNode，不丢节点，写回原值不变，WARN 只打一次")
+    void shouldKeepRegisteredNodeWhosePropertiesCannotBeBound() {
+        Map<String, Object> original = node("js-1", "js_processor",
+                "catalog", "aiProcessor", "script", "function process(record){ return record; }", "isTransformed", true);
+        String json = dagJson(original);
+        Logger logger = (Logger) LoggerFactory.getLogger(NodeDeserialize.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        Dag dag;
+        try {
+            dag = JsonUtil.parseJsonUseJackson(json, Dag.class);
+            JsonUtil.parseJsonUseJackson(json, Dag.class);
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertNotNull(dag);
+        assertEquals(2, dag.getNodes().size(), "the node must not be dropped");
+        UnknownNode kept = assertInstanceOf(UnknownNode.class, dag.getNodes().get(1));
+        assertEquals("js-1", kept.getId());
+        assertEquals("js_processor", kept.getType());
+        assertEquals(Set.of("js_processor"), UnknownNode.typesOf(dag.getNodes()));
+        Map<String, Object> written = writtenNode(dag, "js-1");
+        original.forEach((key, value) -> assertEquals(value, written.get(key), "field " + key));
+        assertEquals(1, appender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN && e.getFormattedMessage().contains("js_processor")).count());
+    }
+
+    @Test
     @DisplayName("写回时保留的原值覆盖 Gson 按字段写出的同名 key（isTransformed）")
     void shouldWriteBackKeptValueOverGsonFieldValue() {
         Map<String, Object> original = node("unknown-1", "dev_only_processor", "isTransformed", true);

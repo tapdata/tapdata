@@ -161,11 +161,18 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
         // An engine would run such nodes as blank pass-through nodes. Move to error rather than scheduling failed:
         // scheduling failed tasks are retried automatically, which would repeat this every minute.
-        String message = MessageFormat.format("Task contains node types not supported by this version: {0}. The task is not "
-                + "scheduled and is set to error; remove or replace these nodes, then start the task again.", String.join(", ", types));
+        StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
+        boolean movedToError = result != null && result.isOk();
+        if (!movedToError) {
+            // E.g. the status was changed concurrently; the next scheduling round rejects the task again.
+            log.warn("Task {} contains unsupported nodes {} but could not be set to error from status {}: {}", taskDto.getName(),
+                    types, taskDto.getStatus(), result == null ? null : result.getMessage());
+        }
+        String message = MessageFormat.format("Task contains nodes whose type or properties are not supported by this version: "
+                + "{0}. The task is not scheduled{1}; remove or replace these nodes, then start the task again.",
+                String.join(", ", types), movedToError ? " and is set to error" : "");
         log.warn("{} task = {}", message, taskDto.getName());
         monitoringLogsService.startTaskErrorLog(taskDto, user, message, Level.ERROR);
-        stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
         return true;
     }
 

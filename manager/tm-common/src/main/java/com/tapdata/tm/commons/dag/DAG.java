@@ -119,7 +119,8 @@ public class DAG implements Serializable, Cloneable {
             nodeScanFailed = false;
         } catch (Throwable t) {
             nodeScanFailed = true;
-            logger.error("DAG node type scan failed during goInit, will be retried on first getClassByType access: {}", t.getMessage(), t);
+            logger.error("DAG node type scan failed during goInit and is not retried: tasks with node types that are not "
+                    + "registered cannot be read until TM is restarted after the cause is fixed: {}", t.getMessage(), t);
         }
     }
 

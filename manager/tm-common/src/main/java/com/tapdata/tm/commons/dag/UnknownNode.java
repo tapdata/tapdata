@@ -18,7 +18,8 @@ import java.util.TreeSet;
 
 /**
  * Placeholder for a DAG node whose type is not registered in the running version, e.g. a node
- * left behind by a development build.
+ * left behind by a development build, or whose properties the registered type cannot read, e.g. an
+ * enum constant added by a newer build.
  * <p>
  * It keeps the original type and every property it does not understand, so reading such a task
  * does not fail and writing it back does not lose data. It is intentionally not annotated with

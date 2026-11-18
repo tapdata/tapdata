@@ -31,8 +31,10 @@ public class NodeSerialize extends JsonSerializer<List<Node>> {
 
 	/**
 	 * Gson writes the properties kept by {@link UnknownNode} as one nested object; put them back at the
-	 * node level so the persisted node keeps its original shape. Kept values override what Gson wrote for the
-	 * same key from a field (e.g. {@code isTransformed}), because they are the original data of the node.
+	 * node level so every original property is persisted with its original value. Kept values override what
+	 * Gson wrote for the same key from a field (e.g. {@code isTransformed}), because they are the original data
+	 * of the node. Fields of {@link com.tapdata.tm.commons.dag.Node} that the original node did not have are still
+	 * written with their defaults (e.g. {@code elementType}, {@code disabled}), so the output is not byte-identical.
 	 */
 	private static void flattenUnknownNodes(List<Node> nodes, List<Map<String, Object>> objectMap) {
 		if (objectMap == null) {

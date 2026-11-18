@@ -9,9 +9,14 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.schedule.TaskRestartSchedule;
+import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.model.StateMachineResult;
+import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.impl.TaskDagCheckLogServiceImpl;
+import com.tapdata.tm.task.service.impl.TaskScheduleServiceImpl;
 import com.tapdata.tm.task.service.impl.dagcheckstrategy.DataInspectStrategyImpl;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
@@ -19,6 +24,7 @@ import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -33,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -159,5 +166,42 @@ class UnknownNodeGuardTest {
 
         assertEquals(Boolean.TRUE, skipped);
         verify(taskScheduleService).sendStartMsg(task.getId().toHexString(), "agent-1", user);
+    }
+
+    private static String rejectAndCaptureLog(StateMachineResult transition) {
+        TaskScheduleServiceImpl scheduler = new TaskScheduleServiceImpl();
+        StateMachineService stateMachine = mock(StateMachineService.class);
+        MonitoringLogsService monitoringLogs = mock(MonitoringLogsService.class);
+        scheduler.setStateMachineService(stateMachine);
+        scheduler.setMonitoringLogsService(monitoringLogs);
+        TaskDto task = task(dag(List.of(), unknownNode()));
+        task.setStatus(TaskDto.STATUS_SCHEDULING);
+        UserDetail user = user();
+        when(stateMachine.executeAboutTask(task, DataFlowEvent.ERROR, user)).thenReturn(transition);
+
+        assertTrue(scheduler.rejectUnknownNodes(task, user));
+
+        verify(stateMachine).executeAboutTask(task, DataFlowEvent.ERROR, user);
+        ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        verify(monitoringLogs).startTaskErrorLog(eq(task), eq(user), message.capture(), eq(Level.ERROR));
+        assertTrue(message.getValue().contains(UNKNOWN_TYPE), message.getValue());
+        return message.getValue();
+    }
+
+    @Test
+    @DisplayName("调度拦截：任务已转 ERROR 时，监控日志说明已转错误状态")
+    void rejectReportsErrorStatusWhenTransitionSucceeds() {
+        String message = rejectAndCaptureLog(StateMachineResult.ok(1));
+
+        assertTrue(message.contains("set to error"), message);
+    }
+
+    @Test
+    @DisplayName("调度拦截：ERROR 状态迁移失败（如并发改变状态）时，监控日志不声称已转错误状态")
+    void rejectDoesNotClaimErrorStatusWhenTransitionFails() {
+        String message = rejectAndCaptureLog(StateMachineResult.fail("status changed concurrently"));
+
+        assertFalse(message.contains("set to error"), message);
+        assertTrue(message.contains("not scheduled"), message);
     }
 }

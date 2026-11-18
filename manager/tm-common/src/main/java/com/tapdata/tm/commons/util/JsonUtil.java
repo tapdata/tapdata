@@ -149,6 +149,11 @@ public class JsonUtil {
 		}
 	}
 
+	/** Same as {@link #parseJsonUseJackson(String, Class)}, but lets the caller handle a parse failure instead of logging it. */
+	public static <T> T parseJsonUseJacksonOrThrow(String json, Class<T> clazz) throws JsonProcessingException {
+		return json == null ? null : buildObjectMapper().readValue(json, clazz);
+	}
+
 	public static String toJsonUseJackson(Object object) {
 		if (object == null) {
 			return "";
