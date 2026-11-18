@@ -555,9 +555,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
-        monitoringLogService.deleteLogs(testTaskId);
         DAG dtoDag = taskDto.getDag();
+        // Before clearing the logs of the previous test run: a rejected request must have no side effect.
         rejectUnknownNodesInTestRun(dtoDag, nodeId);
+        monitoringLogService.deleteLogs(testTaskId);
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
@@ -656,9 +657,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
-        monitoringLogService.deleteLogs(testTaskId);
         DAG dtoDag = taskDto.getDag();
+        // Before clearing the logs of the previous test run: a rejected request must have no side effect.
         rejectUnknownNodesInTestRun(dtoDag, nodeId);
+        monitoringLogService.deleteLogs(testTaskId);
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);

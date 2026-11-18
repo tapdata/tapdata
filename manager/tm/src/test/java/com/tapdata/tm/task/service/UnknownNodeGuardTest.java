@@ -254,11 +254,16 @@ class UnknownNodeGuardTest {
     }
 
     private static TaskNodeServiceImpl testRunService(TaskDto task, MessageQueueService messageQueue, WorkerService workers, AgentGroupService agentGroups) {
+        return testRunService(task, messageQueue, workers, agentGroups, mock(MonitoringLogsService.class));
+    }
+
+    private static TaskNodeServiceImpl testRunService(TaskDto task, MessageQueueService messageQueue, WorkerService workers,
+                                                      AgentGroupService agentGroups, MonitoringLogsService monitoringLogs) {
         TaskNodeServiceImpl service = new TaskNodeServiceImpl();
         TaskService taskService = mock(TaskService.class);
         when(taskService.findById(task.getId())).thenReturn(task);
         service.setTaskService(taskService);
-        service.setMonitoringLogService(mock(MonitoringLogsService.class));
+        service.setMonitoringLogService(monitoringLogs);
         service.setMessageQueueService(messageQueue);
         service.setWorkerService(workers);
         service.setAgentGroupService(agentGroups);
@@ -266,13 +271,14 @@ class UnknownNodeGuardTest {
     }
 
     @Test
-    @DisplayName("JS 试运行：上游含未注册类型节点时以 Task.TestRunUnknownNodeType 拒绝，旧版与 RPC 入口都不派发引擎")
+    @DisplayName("JS 试运行：上游含未注册类型节点时以 Task.TestRunUnknownNodeType 拒绝，旧版与 RPC 入口都不派发引擎、不清理旧试运行日志")
     void testRunRejectsUnknownUpstreamNode() {
         TaskDto task = syncJsTask(unknownNode(), jsNode());
         MessageQueueService messageQueue = mock(MessageQueueService.class);
         WorkerService workers = mock(WorkerService.class);
         AgentGroupService agentGroups = mock(AgentGroupService.class);
-        TaskNodeServiceImpl service = testRunService(task, messageQueue, workers, agentGroups);
+        MonitoringLogsService monitoringLogs = mock(MonitoringLogsService.class);
+        TaskNodeServiceImpl service = testRunService(task, messageQueue, workers, agentGroups, monitoringLogs);
 
         BizException legacy = assertThrows(BizException.class, () -> service.testRunJsNode(testRun(task), user()));
         BizException rpc = assertThrows(BizException.class, () -> service.testRunJsNodeRPC(testRun(task), user(), 1));
@@ -281,22 +287,27 @@ class UnknownNodeGuardTest {
             assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
             assertArrayEquals(new Object[]{UNKNOWN_TYPE}, error.getArgs());
         }
-        verifyNoInteractions(messageQueue, workers, agentGroups);
+        // A rejected request must not clear the logs of the previous test run.
+        verifyNoInteractions(messageQueue, workers, agentGroups, monitoringLogs);
     }
 
     @Test
-    @DisplayName("JS 试运行：被试运行的 js_processor 因字段值无法绑定而保留为 UnknownNode 时拒绝，不派发引擎")
+    @DisplayName("JS 试运行：被试运行的 js_processor 因字段值无法绑定而保留为 UnknownNode 时，两个入口都拒绝，不派发引擎、不清理旧试运行日志")
     void testRunRejectsUnbindableJsNodeUnderTest() {
         TaskDto task = syncJsTask(tableNode(), jsNode("catalog", "aiProcessor"));
         assertTrue(task.getDag().getNode("js-1") instanceof UnknownNode);
         MessageQueueService messageQueue = mock(MessageQueueService.class);
-        TaskNodeServiceImpl service = testRunService(task, messageQueue, mock(WorkerService.class), mock(AgentGroupService.class));
+        MonitoringLogsService monitoringLogs = mock(MonitoringLogsService.class);
+        TaskNodeServiceImpl service = testRunService(task, messageQueue, mock(WorkerService.class), mock(AgentGroupService.class), monitoringLogs);
 
-        BizException error = assertThrows(BizException.class, () -> service.testRunJsNode(testRun(task), user()));
+        BizException legacy = assertThrows(BizException.class, () -> service.testRunJsNode(testRun(task), user()));
+        BizException rpc = assertThrows(BizException.class, () -> service.testRunJsNodeRPC(testRun(task), user(), 1));
 
-        assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
-        assertArrayEquals(new Object[]{"js_processor"}, error.getArgs());
-        verifyNoInteractions(messageQueue);
+        for (BizException error : List.of(legacy, rpc)) {
+            assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
+            assertArrayEquals(new Object[]{"js_processor"}, error.getArgs());
+        }
+        verifyNoInteractions(messageQueue, monitoringLogs);
     }
 
     @Test
