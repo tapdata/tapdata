@@ -456,12 +456,22 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     /**
-     * Workers may hold stale duplicate records for one process_id; prefer the latest heartbeat.
+     * Workers may hold stale duplicate records for one process_id (including deleted history);
+     * prefer a non-deleted record, then the latest heartbeat.
      */
     static WorkerDto latestPing(WorkerDto current, WorkerDto candidate) {
+        boolean currentActive = isActiveWorker(current);
+        boolean candidateActive = isActiveWorker(candidate);
+        if (currentActive != candidateActive) {
+            return candidateActive ? candidate : current;
+        }
         long currentPing = Objects.isNull(current.getPingTime()) ? 0L : current.getPingTime();
         long candidatePing = Objects.isNull(candidate.getPingTime()) ? 0L : candidate.getPingTime();
         return candidatePing > currentPing ? candidate : current;
+    }
+
+    private static boolean isActiveWorker(WorkerDto worker) {
+        return !Boolean.TRUE.equals(worker.getDeleted()) && !Boolean.TRUE.equals(worker.getIsDeleted());
     }
 
     /**

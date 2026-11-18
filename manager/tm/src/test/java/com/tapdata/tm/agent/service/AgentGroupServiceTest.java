@@ -234,6 +234,24 @@ class AgentGroupServiceTest {
         Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, same));
     }
 
+    @Test
+    void latestPingPrefersActiveRecordOverDeletedHistoryWithNewerHeartbeat() {
+        WorkerDto active = new WorkerDto();
+        active.setPingTime(100L);
+        WorkerDto deleted = new WorkerDto();
+        deleted.setPingTime(200L);
+        deleted.setDeleted(true);
+        WorkerDto isDeleted = new WorkerDto();
+        isDeleted.setPingTime(300L);
+        isDeleted.setIsDeleted(true);
+
+        Assertions.assertSame(active, AgentGroupService.latestPing(active, deleted));
+        Assertions.assertSame(active, AgentGroupService.latestPing(deleted, active));
+        Assertions.assertSame(active, AgentGroupService.latestPing(isDeleted, active));
+        // Only deleted history left: keep the previous behaviour of returning one of them by heartbeat.
+        Assertions.assertSame(isDeleted, AgentGroupService.latestPing(deleted, isDeleted));
+    }
+
     @Nested
     class GetAllAgentIdTest {
         List<GroupDto> items;

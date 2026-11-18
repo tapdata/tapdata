@@ -338,6 +338,23 @@ class ClusterStateServiceTest {
         }
 
         @Test
+        void activeRecordWinsOverDeletedHistoryEvenIfHistoryLooksAlive() {
+            Worker deletedHistory = engineWorker("000000000000000000000009", "p", "deleted", 5_000L, true);
+            deletedHistory.setDeleted(true);
+            Worker active = engineWorker("000000000000000000000001", "p", "active", 500L, false);
+
+            Assertions.assertEquals(List.of(active),
+                    ClusterStateService.distinctByProcessId(List.of(deletedHistory, active), liveTime));
+
+            Worker isDeletedHistory = engineWorker("000000000000000000000008", "q", "isDeleted", 5_000L, true);
+            isDeletedHistory.setIsDeleted(true);
+            Worker deletedOnly = engineWorker("000000000000000000000007", "q", "deletedOnly", 4_000L, true);
+            deletedOnly.setDeleted(true);
+            Assertions.assertEquals(List.of(isDeletedHistory),
+                    ClusterStateService.distinctByProcessId(List.of(deletedOnly, isDeletedHistory), liveTime));
+        }
+
+        @Test
         void latestHeartbeatWinsAmongExpiredWorkers() {
             Worker older = engineWorker("000000000000000000000002", "p", "older", 100L, true);
             Worker newer = engineWorker("000000000000000000000001", "p", "newer", 200L, false);

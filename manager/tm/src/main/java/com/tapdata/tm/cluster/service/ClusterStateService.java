@@ -485,11 +485,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     /**
      * Workers may keep several active records for one process_id (e.g. stale rows left by an
      * earlier heartbeat upsert mismatch). Keep the record that best represents the live engine:
-     * alive first, then latest heartbeat, then license bound, then newest document.
+     * not deleted first, then alive, latest heartbeat, license bound, and newest document.
      */
     static List<Worker> distinctByProcessId(List<Worker> workers, long liveTime) {
         Comparator<Worker> preference = Comparator
-                .comparing((Worker w) -> isAliveWorker(w, liveTime))
+                .comparing((Worker w) -> !Boolean.TRUE.equals(w.getDeleted()) && !Boolean.TRUE.equals(w.getIsDeleted()))
+                .thenComparing(w -> isAliveWorker(w, liveTime))
                 .thenComparingLong(w -> Objects.isNull(w.getPingTime()) ? 0L : w.getPingTime())
                 .thenComparing(w -> Boolean.TRUE.equals(w.getLicenseBind()))
                 .thenComparing(Worker::getId, Comparator.nullsFirst(Comparator.naturalOrder()));
