@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.google.gson.annotations.SerializedName;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import lombok.EqualsAndHashCode;
@@ -12,6 +13,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Placeholder for a DAG node whose type is not registered in the running version, e.g. a node
@@ -27,29 +30,73 @@ public class UnknownNode extends Node<Schema> {
 
     /**
      * Key under which Gson (which ignores Jackson annotations) writes {@link #preservedProperties}.
-     * {@link com.tapdata.tm.base.convert.NodeSerialize} flattens it back for persistence.
+     * {@link com.tapdata.tm.base.convert.NodeSerialize} flattens it back for persistence. It is deliberately
+     * not a plausible business property name, so a node property called {@code preservedProperties} is kept as is.
      */
-    public static final String PRESERVED_PROPERTIES_FIELD = "preservedProperties";
+    public static final String GSON_PRESERVED_PROPERTIES_KEY = "__unknownNodePreservedProperties";
 
     /*
      * Deliberately neither @JsonIgnore (Jackson would propagate it to the same-named any-getter and drop
      * the data) nor transient (Java serialization deep copies would lose it). A private field without a
      * matching accessor is not auto-detected by Jackson, so it is only exposed through the any-getter.
      */
+    @SerializedName(GSON_PRESERVED_PROPERTIES_KEY)
     private final Map<String, Object> preservedProperties = new LinkedHashMap<>();
+
+    /** Set once the Gson nested form has been merged, so that it keeps priority over top-level duplicates. */
+    private transient boolean gsonPreservedMerged;
 
     public UnknownNode() {
         super(null, NodeCatalog.processor);
     }
 
+    /**
+     * Builds a placeholder straight from the raw node properties, without binding them to {@link Node} fields.
+     * Used when binding fails, e.g. a newer build stored a value (such as an enum constant) this version cannot read.
+     */
+    public static UnknownNode fromRawProperties(Map<String, ?> properties) {
+        UnknownNode node = new UnknownNode();
+        properties.forEach((name, value) -> {
+            if ("id".equals(name) && value instanceof String) {
+                node.setId((String) value);
+            } else if ("type".equals(name) && value instanceof String) {
+                node.setType((String) value);
+            } else if ("name".equals(name) && value instanceof String) {
+                node.setName((String) value);
+            } else {
+                node.preservedProperties.put(name, value);
+            }
+        });
+        return node;
+    }
+
+    /** Sorted types of the {@link UnknownNode}s among {@code nodes}; empty if there are none. */
+    public static Set<String> typesOf(Collection<? extends Node> nodes) {
+        Set<String> types = new TreeSet<>();
+        if (nodes != null) {
+            for (Node<?> node : nodes) {
+                if (node instanceof UnknownNode) {
+                    types.add(node.getType());
+                }
+            }
+        }
+        return types;
+    }
+
     @JsonAnySetter
     public void setUnknownProperty(String name, Object value) {
-        if (PRESERVED_PROPERTIES_FIELD.equals(name) && value instanceof Map) {
-            // Nested form produced by a Gson round trip: merge it back instead of nesting it again.
-            ((Map<?, ?>) value).forEach((k, v) -> preservedProperties.putIfAbsent(String.valueOf(k), v));
+        if (GSON_PRESERVED_PROPERTIES_KEY.equals(name) && value instanceof Map) {
+            // Nested form produced by a Gson round trip. It holds the original values, so it wins over
+            // top-level keys Gson wrote from fields with the current runtime value (e.g. isTransformed).
+            ((Map<?, ?>) value).forEach((k, v) -> preservedProperties.put(String.valueOf(k), v));
+            gsonPreservedMerged = true;
             return;
         }
-        preservedProperties.put(name, value);
+        if (gsonPreservedMerged) {
+            preservedProperties.putIfAbsent(name, value);
+        } else {
+            preservedProperties.put(name, value);
+        }
     }
 
     @JsonAnyGetter

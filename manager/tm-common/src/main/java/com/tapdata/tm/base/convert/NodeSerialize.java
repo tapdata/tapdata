@@ -31,7 +31,8 @@ public class NodeSerialize extends JsonSerializer<List<Node>> {
 
 	/**
 	 * Gson writes the properties kept by {@link UnknownNode} as one nested object; put them back at the
-	 * node level so the persisted node keeps its original shape.
+	 * node level so the persisted node keeps its original shape. Kept values override what Gson wrote for the
+	 * same key from a field (e.g. {@code isTransformed}), because they are the original data of the node.
 	 */
 	private static void flattenUnknownNodes(List<Node> nodes, List<Map<String, Object>> objectMap) {
 		if (objectMap == null) {
@@ -40,8 +41,8 @@ public class NodeSerialize extends JsonSerializer<List<Node>> {
 		for (int i = 0; i < nodes.size() && i < objectMap.size(); i++) {
 			Map<String, Object> nodeMap = objectMap.get(i);
 			if (nodes.get(i) instanceof UnknownNode && nodeMap != null) {
-				nodeMap.remove(UnknownNode.PRESERVED_PROPERTIES_FIELD);
-				((UnknownNode) nodes.get(i)).getUnknownProperties().forEach(nodeMap::putIfAbsent);
+				nodeMap.remove(UnknownNode.GSON_PRESERVED_PROPERTIES_KEY);
+				nodeMap.putAll(((UnknownNode) nodes.get(i)).getUnknownProperties());
 			}
 		}
 	}

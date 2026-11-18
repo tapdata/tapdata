@@ -4846,15 +4846,10 @@ public class TaskServiceImpl extends TaskService{
      * otherwise the engine would run such nodes as blank pass-through nodes.
      */
     protected void validateUnknownNodes(TaskDto taskDto) {
-        if (taskDto.getDag() == null || CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
+        if (taskDto.getDag() == null) {
             return;
         }
-        Set<String> types = new TreeSet<>();
-        for (Node<?> node : taskDto.getDag().getNodes()) {
-            if (node instanceof UnknownNode) {
-                types.add(node.getType());
-            }
-        }
+        Set<String> types = UnknownNode.typesOf(taskDto.getDag().getNodes());
         if (!types.isEmpty()) {
             throw new BizException("Task.UnknownNodeType", String.join(", ", types));
         }

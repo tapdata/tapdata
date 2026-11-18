@@ -95,7 +95,7 @@ class NodeDeserializeTest {
 
         assertNotNull(reparsed);
         UnknownNode unknown = assertInstanceOf(UnknownNode.class, reparsed.getNodes().get(1));
-        assertFalse(unknown.getUnknownProperties().containsKey(UnknownNode.PRESERVED_PROPERTIES_FIELD));
+        assertFalse(unknown.getUnknownProperties().containsKey(UnknownNode.GSON_PRESERVED_PROPERTIES_KEY));
         assertEquals("return record;", unknown.getUnknownProperties().get("devScript"));
         assertEquals(Map.of("batch", 10, "mode", "fast"), unknown.getUnknownProperties().get("devOptions"));
         assertEquals(List.of("a", "b"), unknown.getUnknownProperties().get("devFields"));
