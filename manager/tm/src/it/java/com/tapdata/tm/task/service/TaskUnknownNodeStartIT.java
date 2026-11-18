@@ -1,8 +1,10 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.alarm.Level;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -15,6 +17,7 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.impl.TaskNodeServiceImpl;
 import com.tapdata.tm.task.service.impl.TaskScheduleServiceImpl;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.entity.Worker;
@@ -38,7 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -149,5 +154,73 @@ class TaskUnknownNodeStartIT {
         verify(stateMachine, never()).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.SCHEDULE_SUCCESS), any(UserDetail.class));
         verifyNoInteractions(schedulerTasks, messageQueue);
         assertNull(task.getAgentId());
+    }
+
+    /** Sync task {@code table-1 -> unknown-1 -> js-1 -> table-2}, parsed by the production node deserializer. */
+    private static TaskDto syncTaskWithUnknownUpstream() {
+        String json = JsonUtil.toJsonUseJackson(Map.of(
+                "nodes", List.of(
+                        Map.of("id", "table-1", "type", "table", "tableName", "orders", "connectionId", "conn-1"),
+                        Map.of("id", "unknown-1", "type", "dev_a_processor", "devScript", "return record;"),
+                        Map.of("id", "js-1", "type", "js_processor", "script", "old script"),
+                        Map.of("id", "table-2", "type", "table", "tableName", "orders_copy", "connectionId", "conn-2")),
+                "edges", List.of(
+                        Map.of("source", "table-1", "target", "unknown-1"),
+                        Map.of("source", "unknown-1", "target", "js-1"),
+                        Map.of("source", "js-1", "target", "table-2"))));
+        TaskDto task = task(DAG.build(JsonUtil.parseJsonUseJackson(json, Dag.class)));
+        task.setId(new ObjectId());
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        task.setTestTaskId(new ObjectId().toHexString());
+        return task;
+    }
+
+    @Test
+    @DisplayName("L2：JS 试运行子图含未注册类型节点时，旧版与 RPC 入口都以 Task.TestRunUnknownNodeType 拒绝，不查找引擎、不发送消息")
+    void shouldRejectTestRunWhoseSubgraphContainsUnknownNode() {
+        TaskDto task = syncTaskWithUnknownUpstream();
+        TaskService tasks = mock(TaskService.class);
+        when(tasks.findById(task.getId())).thenReturn(task);
+        MessageQueueService messageQueue = mock(MessageQueueService.class);
+        WorkerService workers = mock(WorkerService.class);
+        AgentGroupService agentGroups = mock(AgentGroupService.class);
+        TaskNodeServiceImpl service = new TaskNodeServiceImpl();
+        service.setTaskService(tasks);
+        service.setMonitoringLogService(mock(MonitoringLogsService.class));
+        service.setMessageQueueService(messageQueue);
+        service.setWorkerService(workers);
+        service.setAgentGroupService(agentGroups);
+        TestRunDto dto = new TestRunDto();
+        dto.setTaskId(task.getId().toHexString());
+        dto.setJsNodeId("js-1");
+        dto.setScript("new script");
+        dto.setRows(1);
+        dto.setVersion(1L);
+
+        BizException legacy = assertThrows(BizException.class, () -> service.testRunJsNode(dto, mock(UserDetail.class)));
+        BizException rpc = assertThrows(BizException.class, () -> service.testRunJsNodeRPC(dto, mock(UserDetail.class), 1));
+
+        for (BizException error : List.of(legacy, rpc)) {
+            assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
+            assertArrayEquals(new Object[]{"dev_a_processor"}, error.getArgs());
+        }
+        verifyNoInteractions(messageQueue, workers, agentGroups);
+    }
+
+    @Test
+    @DisplayName("L2：复制含未注册类型节点的任务以 Task.CopyUnknownNodeType 拒绝，节点 ID 不被改写、不写库")
+    void shouldRejectCopyOfTaskWithUnknownNode() {
+        TaskRepository tasks = mock(TaskRepository.class);
+        TaskServiceImpl service = spy(new TaskServiceImpl(tasks));
+        TaskDto task = syncTaskWithUnknownUpstream();
+        UserDetail user = mock(UserDetail.class);
+        doReturn(task).when(service).checkExistById(task.getId(), user);
+
+        BizException error = assertThrows(BizException.class, () -> service.copy(task.getId(), user));
+
+        assertEquals("Task.CopyUnknownNodeType", error.getErrorCode());
+        assertArrayEquals(new Object[]{"dev_a_processor"}, error.getArgs());
+        assertEquals("unknown-1", task.getDag().getNode("unknown-1").getId());
+        verifyNoInteractions(tasks);
     }
 }
