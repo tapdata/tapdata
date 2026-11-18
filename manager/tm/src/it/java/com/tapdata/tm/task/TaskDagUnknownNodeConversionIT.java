@@ -66,6 +66,16 @@ class TaskDagUnknownNodeConversionIT {
                 .append("devOptions", new Document("batch", 10));
     }
 
+    /** A node of a registered type written by a newer build with a field value this version cannot bind. */
+    private static Document unbindableRegisteredNode() {
+        return new Document("id", "unknown-1")
+                .append("name", "ai js node")
+                .append("type", "js_processor")
+                .append("catalog", "aiProcessor")
+                .append("script", "function process(record){ return record; }")
+                .append("devOptions", new Document("batch", 10));
+    }
+
     private static Document taskDocument() {
         return taskDocument(unknownNode());
     }
@@ -123,5 +133,27 @@ class TaskDagUnknownNodeConversionIT {
         Map<String, Object> writtenUnknown = writtenNodes.stream()
                 .filter(node -> "unknown-1".equals(node.get("id"))).findFirst().orElseThrow();
         unbindableUnknownNode().forEach((key, value) -> assertEquals(value, writtenUnknown.get(key), "field " + key));
+    }
+
+    @Test
+    @DisplayName("L2：已注册类型节点含当前版本无法绑定的字段值（未知 catalog 枚举）时保留为 UnknownNode，任务文档可读取且不丢节点，写回原 type 与原值不变")
+    void shouldKeepRegisteredNodeWhoseFieldsCannotBeBound() {
+        MappingMongoConverter converter = productionConverter();
+
+        TaskEntity task = converter.read(TaskEntity.class, taskDocument(unbindableRegisteredNode()));
+
+        assertEquals(2, task.getDag().getNodes().size(), "the node must not be dropped");
+        UnknownNode kept = assertInstanceOf(UnknownNode.class, task.getDag().getNode("unknown-1"));
+        assertEquals("js_processor", kept.getType());
+        assertEquals(1, task.getDag().getEdges().size());
+
+        Document written = new Document();
+        converter.write(task, written);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> writtenNodes = (List<Map<String, Object>>) ((Map<String, Object>) written.get("dag")).get("nodes");
+        Map<String, Object> writtenNode = writtenNodes.stream()
+                .filter(node -> "unknown-1".equals(node.get("id"))).findFirst().orElseThrow();
+        unbindableRegisteredNode().forEach((key, value) -> assertEquals(value, writtenNode.get(key), "field " + key));
     }
 }
