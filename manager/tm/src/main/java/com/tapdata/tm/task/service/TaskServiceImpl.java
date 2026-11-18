@@ -1421,6 +1421,14 @@ public class TaskServiceImpl extends TaskService{
 
         TaskDto taskDto = checkExistById(id, user);
         DAG dag = taskDto.getDag();
+        if (dag != null) {
+            // Node references inside the kept properties of such nodes (e.g. a join's leftNodeId) cannot be told
+            // apart from other values, so they cannot be remapped to the new node ids: refuse rather than guess.
+            Set<String> unknownTypes = UnknownNode.typesOf(dag.getNodes());
+            if (!unknownTypes.isEmpty()) {
+                throw new BizException("Task.CopyUnknownNodeType", String.join(", ", unknownTypes));
+            }
+        }
 
         log.debug("old task = {}", taskDto);
         //将所有的node id置为空
@@ -3846,7 +3854,8 @@ public class TaskServiceImpl extends TaskService{
             DAG dag = task.getDag();
             List<Node> nodes = dag.getNodes();
             for (Node node : nodes) {
-                if (!node.getType().equals("js_processor")) {
+                // A js_processor kept as UnknownNode (properties this version cannot read) cannot be test run.
+                if (!"js_processor".equals(node.getType()) || !(node instanceof ScriptProcessNode)) {
                     continue;
                 }
                 TestRunDto testRunDto = new TestRunDto();

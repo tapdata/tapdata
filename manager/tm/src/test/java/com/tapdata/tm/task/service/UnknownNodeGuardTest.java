@@ -1,6 +1,17 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.commons.alarm.Level;
+import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.UnknownNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.impl.TaskNodeServiceImpl;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -37,12 +48,17 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -203,5 +219,136 @@ class UnknownNodeGuardTest {
 
         assertFalse(message.contains("set to error"), message);
         assertTrue(message.contains("not scheduled"), message);
+    }
+
+    private static Map<String, Object> jsNode(Object... extra) {
+        Map<String, Object> node = new java.util.LinkedHashMap<>(Map.of("id", "js-1", "name", "js", "type", "js_processor", "script", "old script"));
+        for (int i = 0; i < extra.length; i += 2) {
+            node.put((String) extra[i], extra[i + 1]);
+        }
+        return node;
+    }
+
+    private static Map<String, Object> targetTable() {
+        return Map.of("id", "table-2", "name", "orders_copy", "type", "table", "tableName", "orders_copy", "connectionId", "conn-2");
+    }
+
+    /** Sync task: {@code upstream -> js-1 -> table-2}. */
+    private static TaskDto syncJsTask(Map<String, Object> upstream, Map<String, Object> js) {
+        DAG dag = dag(List.of(Map.of("source", (String) upstream.get("id"), "target", "js-1"), Map.of("source", "js-1", "target", "table-2")),
+                upstream, js, targetTable());
+        TaskDto task = task(dag);
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        task.setTestTaskId(new ObjectId().toHexString());
+        return task;
+    }
+
+    private static TestRunDto testRun(TaskDto task) {
+        TestRunDto dto = new TestRunDto();
+        dto.setTaskId(task.getId().toHexString());
+        dto.setJsNodeId("js-1");
+        dto.setScript("new script");
+        dto.setRows(1);
+        dto.setVersion(1L);
+        return dto;
+    }
+
+    private static TaskNodeServiceImpl testRunService(TaskDto task, MessageQueueService messageQueue, WorkerService workers, AgentGroupService agentGroups) {
+        TaskNodeServiceImpl service = new TaskNodeServiceImpl();
+        TaskService taskService = mock(TaskService.class);
+        when(taskService.findById(task.getId())).thenReturn(task);
+        service.setTaskService(taskService);
+        service.setMonitoringLogService(mock(MonitoringLogsService.class));
+        service.setMessageQueueService(messageQueue);
+        service.setWorkerService(workers);
+        service.setAgentGroupService(agentGroups);
+        return service;
+    }
+
+    @Test
+    @DisplayName("JS 试运行：上游含未注册类型节点时以 Task.TestRunUnknownNodeType 拒绝，旧版与 RPC 入口都不派发引擎")
+    void testRunRejectsUnknownUpstreamNode() {
+        TaskDto task = syncJsTask(unknownNode(), jsNode());
+        MessageQueueService messageQueue = mock(MessageQueueService.class);
+        WorkerService workers = mock(WorkerService.class);
+        AgentGroupService agentGroups = mock(AgentGroupService.class);
+        TaskNodeServiceImpl service = testRunService(task, messageQueue, workers, agentGroups);
+
+        BizException legacy = assertThrows(BizException.class, () -> service.testRunJsNode(testRun(task), user()));
+        BizException rpc = assertThrows(BizException.class, () -> service.testRunJsNodeRPC(testRun(task), user(), 1));
+
+        for (BizException error : List.of(legacy, rpc)) {
+            assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
+            assertArrayEquals(new Object[]{UNKNOWN_TYPE}, error.getArgs());
+        }
+        verifyNoInteractions(messageQueue, workers, agentGroups);
+    }
+
+    @Test
+    @DisplayName("JS 试运行：被试运行的 js_processor 因字段值无法绑定而保留为 UnknownNode 时拒绝，不派发引擎")
+    void testRunRejectsUnbindableJsNodeUnderTest() {
+        TaskDto task = syncJsTask(tableNode(), jsNode("catalog", "aiProcessor"));
+        assertTrue(task.getDag().getNode("js-1") instanceof UnknownNode);
+        MessageQueueService messageQueue = mock(MessageQueueService.class);
+        TaskNodeServiceImpl service = testRunService(task, messageQueue, mock(WorkerService.class), mock(AgentGroupService.class));
+
+        BizException error = assertThrows(BizException.class, () -> service.testRunJsNode(testRun(task), user()));
+
+        assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
+        assertArrayEquals(new Object[]{"js_processor"}, error.getArgs());
+        verifyNoInteractions(messageQueue);
+    }
+
+    @Test
+    @DisplayName("JS 试运行：不含占位节点时照常派发，并应用本次提交的脚本")
+    void testRunStillAppliesSubmittedScriptForRegisteredNodes() {
+        TaskDto task = syncJsTask(tableNode(), jsNode());
+        MessageQueueService messageQueue = mock(MessageQueueService.class);
+        WorkerService workers = mock(WorkerService.class);
+        AgentGroupService agentGroups = mock(AgentGroupService.class);
+        Worker worker = new Worker();
+        worker.setProcessId("agent-1");
+        when(workers.findAvailableAgentByAccessNode(any(), any())).thenReturn(List.of(worker));
+        TaskNodeServiceImpl service = testRunService(task, messageQueue, workers, agentGroups);
+
+        service.testRunJsNode(testRun(task), user());
+
+        ArgumentCaptor<MessageQueueDto> sent = ArgumentCaptor.forClass(MessageQueueDto.class);
+        verify(messageQueue).sendMessage(sent.capture());
+        TaskDto testRunTask = (TaskDto) sent.getValue().getData();
+        Node<?> js = testRunTask.getDag().getNode("js-1");
+        assertTrue(js instanceof JsProcessorNode, String.valueOf(js));
+        assertEquals("new script", ((JsProcessorNode) js).getScript());
+    }
+
+    @Test
+    @DisplayName("复制任务：DAG 含 UnknownNode 时以 Task.CopyUnknownNodeType 拒绝，不改写节点 ID、不保存副本")
+    void copyRejectsTaskWithUnknownNode() {
+        TaskRepository repository = mock(TaskRepository.class);
+        TaskServiceImpl service = spy(new TaskServiceImpl(repository));
+        DAG dag = dag(List.of(Map.of("source", "table-1", "target", "unknown-1")), tableNode(), unknownNode());
+        TaskDto task = task(dag);
+        UserDetail user = user();
+        doReturn(task).when(service).checkExistById(task.getId(), user);
+
+        BizException error = assertThrows(BizException.class, () -> service.copy(task.getId(), user));
+
+        assertEquals("Task.CopyUnknownNodeType", error.getErrorCode());
+        assertArrayEquals(new Object[]{UNKNOWN_TYPE}, error.getArgs());
+        assertNotNull(task.getDag().getNode("unknown-1"), "node ids must not be rewritten");
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    @DisplayName("导入后的 JS 试运行检查：js_processor 保留为 UnknownNode 时跳过，不抛 ClassCastException")
+    void importTestRunCheckSkipsUnknownJsNode() {
+        TaskServiceImpl service = new TaskServiceImpl(mock(TaskRepository.class));
+        TaskNodeService taskNodeService = mock(TaskNodeService.class);
+        ReflectionTestUtils.setField(service, "taskNodeService", taskNodeService);
+        TaskDto task = syncJsTask(tableNode(), jsNode("catalog", "aiProcessor"));
+
+        assertDoesNotThrow(() -> service.checkJsProcessorTestRun(user(), List.of(task)));
+
+        verifyNoInteractions(taskNodeService);
     }
 }
