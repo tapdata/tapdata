@@ -842,6 +842,11 @@ public class WorkerServiceImpl extends WorkerService{
 //        }else{
             worker.setPingTime(System.currentTimeMillis());
 //        }
+        if (worker.getDeleted() == null) {
+            // A worker created by its first heartbeat must carry deleted=false so the active
+            // partial unique indexes on Workers apply from creation.
+            worker.setDeleted(false);
+        }
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         Criteria where = Criteria.where("process_id").is(worker.getProcessId())

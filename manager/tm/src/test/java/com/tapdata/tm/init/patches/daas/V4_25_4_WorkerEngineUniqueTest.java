@@ -156,10 +156,55 @@ class V4_25_4_WorkerEngineUniqueTest {
         Document live = new Document("_id", new ObjectId("6ae9795c885a7214937a8710")).append("ping_time", 300L);
         Document stale = new Document("_id", new ObjectId("6aebff69885a721493517b42")).append("ping_time", 100L);
 
-        Document canonical = V4_25_2_WorkerApiServerUnique.selectCanonical(List.of(stale, live));
+        Document canonical = V4_25_4_WorkerEngineUnique.selectCanonical(List.of(stale, live));
 
         assertEquals(live.getObjectId("_id"), canonical.getObjectId("_id"));
         assertNotEquals(stale.getObjectId("_id"), canonical.getObjectId("_id"));
+    }
+
+    @Test
+    void canonicalSelectionPrefersSchedulableRecordOverNewerStoppingRecord() {
+        Document schedulable = new Document("_id", new ObjectId("000000000000000000000001"))
+                .append("stopping", false).append("ping_time", 100L);
+        Document stopping = new Document("_id", new ObjectId("000000000000000000000002"))
+                .append("stopping", true).append("ping_time", 200L);
+        Document noFlag = new Document("_id", new ObjectId("000000000000000000000003")).append("ping_time", 50L);
+
+        assertEquals(schedulable.getObjectId("_id"),
+                V4_25_4_WorkerEngineUnique.selectCanonical(List.of(stopping, schedulable)).getObjectId("_id"));
+        // A missing stopping flag is schedulable as well; among schedulable records the latest heartbeat wins.
+        assertEquals(schedulable.getObjectId("_id"),
+                V4_25_4_WorkerEngineUnique.selectCanonical(List.of(noFlag, stopping, schedulable)).getObjectId("_id"));
+    }
+
+    @Test
+    void canonicalSelectionFallsBackToHeartbeatWhenAllRecordsAreStopping() {
+        Document older = new Document("_id", new ObjectId("000000000000000000000002"))
+                .append("stopping", true).append("ping_time", 100L);
+        Document newer = new Document("_id", new ObjectId("000000000000000000000001"))
+                .append("stopping", true).append("ping_time", 200L);
+
+        assertEquals(newer.getObjectId("_id"),
+                V4_25_4_WorkerEngineUnique.selectCanonical(List.of(older, newer)).getObjectId("_id"));
+    }
+
+    @Test
+    void runRemovesStoppingDuplicateAndKeepsSchedulableRecord() {
+        ObjectId schedulableId = new ObjectId("6ae9795c885a7214937a8710");
+        ObjectId stoppingId = new ObjectId("6aebff69885a721493517b42");
+        Document schedulable = new Document("_id", schedulableId).append("process_id", PROCESS_ID)
+                .append("worker_type", "connector").append("stopping", false).append("ping_time", 100L);
+        Document stopping = new Document("_id", stoppingId).append("process_id", PROCESS_ID)
+                .append("worker_type", "connector").append("stopping", true).append("ping_time", 200L);
+
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollection(mongoTemplate, List.of(stopping, schedulable), List.of());
+
+        runPatch(mongoTemplate);
+
+        ArgumentCaptor<Query> removed = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate, times(1)).remove(removed.capture(), eq("Workers"));
+        assertEquals(stoppingId, removed.getValue().getQueryObject().get("_id"));
     }
 
     private static void runPatch(MongoTemplate mongoTemplate) {

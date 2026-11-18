@@ -18,6 +18,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,8 +96,41 @@ public class V4_25_4_WorkerEngineUnique extends AbsPatch {
                 .and(PROCESS_ID_FIELD).gt(""));
     }
 
+    /**
+     * Heartbeats never clear {@code stopping}, so keeping a stopping record would leave the engine
+     * filtered from scheduling. Prefer schedulable records, then the API Server patch ordering.
+     */
+    static Document selectCanonical(List<Document> workers) {
+        return workers.stream()
+                .max(Comparator.comparing((Document worker) -> !Boolean.TRUE.equals(worker.get("stopping")))
+                        .thenComparingLong(V4_25_4_WorkerEngineUnique::pingTime)
+                        .thenComparingLong(V4_25_4_WorkerEngineUnique::lastUpdated)
+                        .thenComparing(V4_25_4_WorkerEngineUnique::hasWorkerStatus)
+                        .thenComparing(worker -> worker.getObjectId("_id"),
+                                Comparator.nullsFirst(Comparator.naturalOrder())))
+                .orElse(null);
+    }
+
+    private static long pingTime(Document worker) {
+        return numberValue(worker.get("ping_time"));
+    }
+
+    private static long lastUpdated(Document worker) {
+        Object value = worker.get("last_updated");
+        return value instanceof Date ? ((Date) value).getTime() : numberValue(value);
+    }
+
+    private static boolean hasWorkerStatus(Document worker) {
+        Object status = worker.get("worker_status");
+        return status instanceof Map && !((Map<?, ?>) status).isEmpty();
+    }
+
+    private static long numberValue(Object value) {
+        return value instanceof Number ? ((Number) value).longValue() : 0L;
+    }
+
     private static void removeDuplicates(MongoTemplate mongoTemplate, String workerType, List<Document> workers) {
-        Document canonical = V4_25_2_WorkerApiServerUnique.selectCanonical(workers);
+        Document canonical = selectCanonical(workers);
         workers.stream()
                 .filter(worker -> !worker.getObjectId("_id").equals(canonical.getObjectId("_id")))
                 .forEach(worker -> {
