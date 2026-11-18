@@ -89,7 +89,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         List<WorkerDto> all = getAllAgentId(items, equals, userDetail);
         Map<String, WorkerDto> map = equals ? all.stream()
                 .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
-                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : new HashMap<>();
+                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w, AgentGroupService::latestPing)) : new HashMap<>();
         return new Page<>(groupDtoPage.getTotal(), items.stream()
                 .filter(Objects::nonNull)
                 .map(item -> generateDto(item, equals, map))
@@ -456,6 +456,15 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     /**
+     * Workers may hold stale duplicate records for one process_id; prefer the latest heartbeat.
+     */
+    static WorkerDto latestPing(WorkerDto current, WorkerDto candidate) {
+        long currentPing = Objects.isNull(current.getPingTime()) ? 0L : current.getPingTime();
+        long candidatePing = Objects.isNull(candidate.getPingTime()) ? 0L : candidate.getPingTime();
+        return candidatePing > currentPing ? candidate : current;
+    }
+
+    /**
      * 在返回的引擎列表中增加引擎分组列表，其中引擎分组中包含对应的引擎列表
      * @param info 原来的引擎列表
      * */
@@ -466,7 +475,8 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (CollectionUtils.isEmpty(info)) return info;
         Map<String, AccessNodeInfo> infoMap = info.stream()
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getProcessId()))
-                .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
+                // Callers may still pass several nodes for one process; keep the first (preferred) one.
+                .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a, (first, second) -> first));
         Criteria criteria = findCriteria(null);
         List<AgentGroupEntity> entities = findAllEntity(Query.query(criteria));
         List<AccessNodeInfo> groupAgentList = entities.stream()

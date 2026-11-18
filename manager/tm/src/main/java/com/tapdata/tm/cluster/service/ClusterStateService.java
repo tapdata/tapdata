@@ -438,18 +438,19 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             return result;
         }
         boolean isCloud = settingsService.isCloud();
-        List<Worker> workerList = Optional.ofNullable(processIds == null
+        List<Worker> foundWorkers = Optional.ofNullable(processIds == null
                 ? workerService.findAllAgent(userDetail)
                 : workerService.findAllAgent(userDetail, processIds)).orElseGet(ArrayList::new);
-        if (CollectionUtils.isEmpty(workerList)) {
+        if (CollectionUtils.isEmpty(foundWorkers)) {
             return result;
         }
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        long liveTime = System.currentTimeMillis() - (overTime * 1000L);
+        List<Worker> workerList = distinctByProcessId(foundWorkers, liveTime);
         List<String> processIdList = workerList.stream().map(Worker::getProcessId).collect(Collectors.toList());
         List<ClusterStateDto> clusterStateDtos = findAll(Query.query(Criteria.where("systemInfo.process_id").in(processIdList)));
         Map<String, ClusterStateDto> processIdClusterStateMap = clusterStateDtos.stream()
                 .collect(Collectors.toMap(state -> state.getSystemInfo().getProcess_id(), Function.identity(), (e1, e2) -> e1));
-        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
-        long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 
         workerList.forEach(worker -> {
             AtomicReference<String> hostname = new AtomicReference<>(worker.getHostname());
@@ -479,6 +480,40 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             result.add(accessNodeInfo);
         });
         return agentGroupService.filterGroupList(result, userDetail);
+    }
+
+    /**
+     * Workers may keep several active records for one process_id (e.g. stale rows left by an
+     * earlier heartbeat upsert mismatch). Keep the record that best represents the live engine:
+     * alive first, then latest heartbeat, then license bound, then newest document.
+     */
+    static List<Worker> distinctByProcessId(List<Worker> workers, long liveTime) {
+        Comparator<Worker> preference = Comparator
+                .comparing((Worker w) -> isAliveWorker(w, liveTime))
+                .thenComparingLong(w -> Objects.isNull(w.getPingTime()) ? 0L : w.getPingTime())
+                .thenComparing(w -> Boolean.TRUE.equals(w.getLicenseBind()))
+                .thenComparing(Worker::getId, Comparator.nullsFirst(Comparator.naturalOrder()));
+        Map<String, Worker> byProcessId = new LinkedHashMap<>();
+        List<Worker> result = new ArrayList<>();
+        for (Worker worker : workers) {
+            if (Objects.isNull(worker)) {
+                continue;
+            }
+            String processId = worker.getProcessId();
+            if (Objects.isNull(processId)) {
+                result.add(worker);
+                continue;
+            }
+            byProcessId.merge(processId, worker,
+                    (current, candidate) -> preference.compare(candidate, current) > 0 ? candidate : current);
+        }
+        result.addAll(0, byProcessId.values());
+        return result;
+    }
+
+    private static boolean isAliveWorker(Worker worker, long liveTime) {
+        return !Boolean.TRUE.equals(worker.getStopping())
+                && Objects.nonNull(worker.getPingTime()) && worker.getPingTime() >= liveTime;
     }
 
     public void stopCluster() {

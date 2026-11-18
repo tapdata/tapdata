@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -197,6 +198,40 @@ class AgentGroupServiceTest {
             verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
             verify(workerDto, times(1)).getProcessId();
         }
+
+        @Test
+        void duplicateProcessIdKeepsLatestHeartbeat() {
+            WorkerDto stale = new WorkerDto();
+            stale.setProcessId("id");
+            stale.setPingTime(100L);
+            WorkerDto live = new WorkerDto();
+            live.setProcessId("id");
+            live.setPingTime(200L);
+            all.clear();
+            all.add(live);
+            all.add(stale);
+            ArgumentCaptor<Map<String, WorkerDto>> map = ArgumentCaptor.forClass(Map.class);
+            when(agentGroupService.generateDto(any(GroupDto.class), anyBoolean(), map.capture())).thenReturn(mock(AgentGroupDto.class));
+
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+
+            Assertions.assertEquals(1, map.getValue().size());
+            Assertions.assertSame(live, map.getValue().get("id"));
+        }
+    }
+
+    @Test
+    void latestPingPrefersNewerHeartbeatAndKeepsCurrentOnTie() {
+        WorkerDto current = new WorkerDto();
+        current.setPingTime(null);
+        WorkerDto candidate = new WorkerDto();
+        candidate.setPingTime(1L);
+        Assertions.assertSame(candidate, AgentGroupService.latestPing(current, candidate));
+        Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, current));
+
+        WorkerDto same = new WorkerDto();
+        same.setPingTime(1L);
+        Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, same));
     }
 
     @Nested
@@ -1510,6 +1545,21 @@ class AgentGroupServiceTest {
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
         }
 
+        @Test
+        void duplicateProcessIdKeepsFirstNodeInsteadOfThrowing() {
+            AccessNodeInfo preferred = new AccessNodeInfo("06eefee4", "fd3c58a70570", "06eefee4", "running");
+            AccessNodeInfo duplicate = new AccessNodeInfo("06eefee4", "8a45c2d3d682", "06eefee4", "stopped");
+            List<AccessNodeInfo> duplicated = new ArrayList<>(List.of(preferred, duplicate));
+            ArgumentCaptor<Map<String, AccessNodeInfo>> infoMap = ArgumentCaptor.forClass(Map.class);
+            when(agentGroupUtil.mappingAccessNodeInfo(any(AgentGroupEntity.class), infoMap.capture())).thenReturn(accessNodeInfo);
+            when(agentGroupService.filterGroupList(duplicated, userDetail)).thenCallRealMethod();
+
+            List<AccessNodeInfo> result = Assertions.assertDoesNotThrow(() -> agentGroupService.filterGroupList(duplicated, userDetail));
+
+            Assertions.assertEquals(1, infoMap.getValue().size());
+            Assertions.assertSame(preferred, infoMap.getValue().get("06eefee4"));
+            Assertions.assertEquals(3, result.size());
+        }
     }
 
     @Nested
