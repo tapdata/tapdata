@@ -176,7 +176,7 @@ class TaskUnknownNodeStartIT {
     }
 
     @Test
-    @DisplayName("L2：JS 试运行子图含未注册类型节点时，旧版与 RPC 入口都以 Task.TestRunUnknownNodeType 拒绝，不查找引擎、不发送消息")
+    @DisplayName("L2：JS 试运行子图含未注册类型节点时，旧版与 RPC 入口都以 Task.TestRunUnknownNodeType 拒绝，不清理旧试运行日志、不查找引擎、不发送消息")
     void shouldRejectTestRunWhoseSubgraphContainsUnknownNode() {
         TaskDto task = syncTaskWithUnknownUpstream();
         TaskService tasks = mock(TaskService.class);
@@ -184,9 +184,10 @@ class TaskUnknownNodeStartIT {
         MessageQueueService messageQueue = mock(MessageQueueService.class);
         WorkerService workers = mock(WorkerService.class);
         AgentGroupService agentGroups = mock(AgentGroupService.class);
+        MonitoringLogsService monitoringLogs = mock(MonitoringLogsService.class);
         TaskNodeServiceImpl service = new TaskNodeServiceImpl();
         service.setTaskService(tasks);
-        service.setMonitoringLogService(mock(MonitoringLogsService.class));
+        service.setMonitoringLogService(monitoringLogs);
         service.setMessageQueueService(messageQueue);
         service.setWorkerService(workers);
         service.setAgentGroupService(agentGroups);
@@ -204,7 +205,8 @@ class TaskUnknownNodeStartIT {
             assertEquals("Task.TestRunUnknownNodeType", error.getErrorCode());
             assertArrayEquals(new Object[]{"dev_a_processor"}, error.getArgs());
         }
-        verifyNoInteractions(messageQueue, workers, agentGroups);
+        // Rejected before anything else: the logs of the previous test run are not cleared either.
+        verifyNoInteractions(messageQueue, workers, agentGroups, monitoringLogs);
     }
 
     @Test
