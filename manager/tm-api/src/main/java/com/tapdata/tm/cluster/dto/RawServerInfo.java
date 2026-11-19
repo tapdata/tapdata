@@ -14,4 +14,5 @@ public class RawServerInfo {
     private Double memoryPercent;
     private String state;
     private String msg;
+    private String name;
 }

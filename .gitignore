@@ -147,3 +147,6 @@ ll
 **/.proxy-instance-id
 
 /apiserver-jars/
+
+/docs/proxy-process/
+**/zos-jcc-file

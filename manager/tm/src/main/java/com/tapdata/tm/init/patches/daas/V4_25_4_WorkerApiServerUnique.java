@@ -26,8 +26,8 @@ import java.util.Map;
 /**
  * Removes active API Server worker duplicates before enforcing the active worker key.
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.25-2")
-public class V4_25_2_WorkerApiServerUnique extends AbsPatch {
+@PatchAnnotation(appType = AppType.DAAS, version = "4.25-4")
+public class V4_25_4_WorkerApiServerUnique extends AbsPatch {
     static final String COLLECTION_NAME = "Workers";
     static final String WORKER_TYPE = WorkerType.API_SERVER.getType();
     static final String WORKER_TYPE_FIELD = WorkerField.WORKER_TYPE.field();
@@ -37,9 +37,9 @@ public class V4_25_2_WorkerApiServerUnique extends AbsPatch {
     // Compatibility-only input from the superseded Worker field; never used by normal Worker logic.
     static final String LEGACY_DELETE_FIELD = "delete";
     static final String DELETED_FIELD = WorkerField.DELETED.field();
-    private static final Logger logger = LogManager.getLogger(V4_25_2_WorkerApiServerUnique.class);
+    private static final Logger logger = LogManager.getLogger(V4_25_4_WorkerApiServerUnique.class);
 
-    public V4_25_2_WorkerApiServerUnique(PatchType type, PatchVersion version) {
+    public V4_25_4_WorkerApiServerUnique(PatchType type, PatchVersion version) {
         super(type, version);
     }
 
@@ -129,10 +129,10 @@ public class V4_25_2_WorkerApiServerUnique extends AbsPatch {
 
     static Document selectCanonical(List<Document> workers) {
         return workers.stream()
-                .max(Comparator.comparingLong(V4_25_2_WorkerApiServerUnique::pingTime)
-                        .thenComparingLong(V4_25_2_WorkerApiServerUnique::lastUpdated)
-                        .thenComparing(V4_25_2_WorkerApiServerUnique::hasWorkerStatus)
-                        .thenComparing(V4_25_2_WorkerApiServerUnique::objectId,
+                .max(Comparator.comparingLong(V4_25_4_WorkerApiServerUnique::pingTime)
+                        .thenComparingLong(V4_25_4_WorkerApiServerUnique::lastUpdated)
+                        .thenComparing(V4_25_4_WorkerApiServerUnique::hasWorkerStatus)
+                        .thenComparing(V4_25_4_WorkerApiServerUnique::objectId,
                                 Comparator.nullsFirst(Comparator.naturalOrder())))
                 .orElse(null);
     }
