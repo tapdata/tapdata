@@ -2006,7 +2006,11 @@ public class DataSourceServiceImpl extends DataSourceService{
 
             oldConnectionDto.setLoadSchemaField(loadSchemaField);
             List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user,partLoad);
-
+            if (CollectionUtils.isEmpty(newModelList)) {
+                log.info("本批无需更新, connection id = {}, connection name = {}",
+                        oldConnectionDto.getId().toHexString(), oldConnectionDto.getName());
+                return;
+            }
 
             List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
                     .filter(StringUtils::isNotBlank).collect(Collectors.toList());Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);

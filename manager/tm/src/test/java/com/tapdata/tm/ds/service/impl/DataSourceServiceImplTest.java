@@ -1,7 +1,11 @@
 package com.tapdata.tm.ds.service.impl;
 
-
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.utils.MetadataUtil;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapTable;
 import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
@@ -2912,6 +2916,57 @@ class DataSourceServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> dataSourceService.delete(user, id));
             assertEquals("Datasource.LinkJobs", exception.getErrorCode());
             verify(dataSourceService, never()).deleteById(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method loadSchema skips empty modelNext result")
+    class LoadSchemaSkipEmptyModelNextTest {
+        private DataSourceRepository dataSourceRepository;
+        private MetadataInstancesService metadataInstancesService;
+        private MetadataUtil metadataUtil;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            metadataInstancesService = mock(MetadataInstancesService.class);
+            metadataUtil = mock(MetadataUtil.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "metadataInstancesService", metadataInstancesService);
+            ReflectionTestUtils.setField(dataSourceService, "metadataUtil", metadataUtil);
+            userDetail = mock(UserDetail.class);
+        }
+
+        @Test
+        @DisplayName("loadSchema does not call bulkUpsetByWhere when modelNext returns empty list")
+        void skipBulkUpsetWhenModelNextEmpty() {
+            ObjectId connectionId = new ObjectId();
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(connectionId);
+            connectionDto.setName("CRM-DEV");
+            TapTable table = new TapTable("yts_rel_test");
+            List<TapTable> tables = List.of(table);
+            MetadataInstancesDto converted = new MetadataInstancesDto();
+            converted.setOriginalName("yts_rel_test");
+
+            try (MockedStatic<PdkSchemaConvert> pdkSchemaConvert = mockStatic(PdkSchemaConvert.class);
+                 MockedStatic<DefaultExpressionMatchingMap> expressionMap = mockStatic(DefaultExpressionMatchingMap.class)) {
+                TableFieldTypesGenerator generator = mock(TableFieldTypesGenerator.class);
+                DefaultExpressionMatchingMap mapped = mock(DefaultExpressionMatchingMap.class);
+                pdkSchemaConvert.when(PdkSchemaConvert::getTableFieldTypesGenerator).thenReturn(generator);
+                expressionMap.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mapped);
+                doNothing().when(generator).autoFill(any(LinkedHashMap.class), any(DefaultExpressionMatchingMap.class));
+                pdkSchemaConvert.when(() -> PdkSchemaConvert.fromPdk(table)).thenReturn(converted);
+                when(metadataUtil.modelNext(anyList(), eq(connectionDto), eq("db-1"), eq(userDetail), eq(false)))
+                        .thenReturn(Collections.emptyList());
+
+                assertDoesNotThrow(() -> dataSourceService.loadSchema(userDetail, tables, connectionDto, "expr", "db-1", true, false));
+
+                verify(metadataUtil, times(1)).modelNext(anyList(), eq(connectionDto), eq("db-1"), eq(userDetail), eq(false));
+                verify(metadataInstancesService, never()).bulkUpsetByWhere(anyList(), any());
+                verify(metadataInstancesService, never()).findAllDto(any(), any());
+            }
         }
     }
 }
