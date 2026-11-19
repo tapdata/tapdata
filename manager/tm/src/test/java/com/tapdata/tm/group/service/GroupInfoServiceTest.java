@@ -1550,6 +1550,18 @@ public class GroupInfoServiceTest {
         }
 
         @Test
+        void changedPrivateKeyIsMaskedInPreview() {
+            DataSourceConnectionDto file = buildConn("test", "source", "Oracle", Map.of("privateKey", "new-key"), null);
+            DataSourceConnectionDto target = buildConn("test", "source", "Oracle", Map.of("privateKey", "old-key"), null);
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", file, target);
+            assertEquals(1, changes.size());
+            assertEquals("config.privateKey", changes.get(0).getField());
+            assertEquals("******", changes.get(0).getFrom());
+            assertEquals("******", changes.get(0).getTo());
+        }
+
+        @Test
         @DisplayName("Config.database change should produce precise FieldChange")
         void testConfigDatabaseChange() {
             Map<String, Object> config1 = new HashMap<>();
@@ -1869,11 +1881,11 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Null definition should return empty maps")
+        @DisplayName("Null definition retains the schema-independent private key mask")
         void testNullDefinition() {
             assertTrue(ResourceHandler.buildConfigPathToApiKeyMap(null).isEmpty());
             assertTrue(ResourceHandler.buildConfigPathToLabelMap(null).isEmpty());
-            assertTrue(ResourceHandler.getMaskedConfigPaths(null).isEmpty());
+            assertEquals(Set.of("privateKey"), ResourceHandler.getMaskedConfigPaths(null));
         }
     }
 
