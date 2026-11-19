@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.UnknownNode;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -48,6 +49,11 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
             // 不能有处理节点
             List<String> filterNames = new ArrayList<>();
             for (Node<?> node : dag.getNodes()) {
+                if (node instanceof UnknownNode) {
+                    // Not a NodeEnum constant: report it as unsupported instead of failing the whole check.
+                    filterNames.add(MessageUtil.localizeDagNodeName(locale, node.getType(), node.getName()) + "(" + node.getType() + ")");
+                    continue;
+                }
                 switch (NodeEnum.valueOf(node.getType())) {
                     case table:
                     case database:

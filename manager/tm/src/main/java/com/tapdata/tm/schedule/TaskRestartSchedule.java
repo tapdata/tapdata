@@ -532,6 +532,10 @@ public class TaskRestartSchedule {
 
     private boolean restartInCloud(boolean isCloud, TaskDto taskDto, UserDetail user) {
         if (isCloud) {
+            // The online-engine branch sends the start message directly, without going through scheduling().
+            if (taskScheduleService.rejectUnknownNodes(taskDto, user)) {
+                return true;
+            }
             String status = workerService.checkUsedAgent(taskDto.getAgentId(), user);
             if ("offline".equals(status)) {
                 log.debug("The cloud version does not need this rescheduling");

@@ -640,7 +640,7 @@ public class DataFlowServiceImpl extends DataFlowService{
 
 			@Override
 			public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
-				if (DatabaseNode.SELF_TYPE.equals(node.getType())) {
+				if (DatabaseNode.SELF_TYPE.equals(node.getType()) && node instanceof DatabaseNode) {
 					DatabaseNode databaseNode = (DatabaseNode) node;
 					List<TableOperation> tableOperation = databaseNode.getTableOperations();
 					if (("vika".equals(databaseNode.getDatabaseType()) || "qingflow".equals(databaseNode.getDatabaseType())) && tableOperation != null) {

@@ -555,8 +555,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
-        monitoringLogService.deleteLogs(testTaskId);
         DAG dtoDag = taskDto.getDag();
+        // Before clearing the logs of the previous test run: a rejected request must have no side effect.
+        rejectUnknownNodesInTestRun(dtoDag, nodeId);
+        monitoringLogService.deleteLogs(testTaskId);
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
@@ -655,8 +657,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
-        monitoringLogService.deleteLogs(testTaskId);
         DAG dtoDag = taskDto.getDag();
+        // Before clearing the logs of the previous test run: a rejected request must have no side effect.
+        rejectUnknownNodesInTestRun(dtoDag, nodeId);
+        monitoringLogService.deleteLogs(testTaskId);
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
@@ -754,6 +758,31 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
         return rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString());
+    }
+
+    /**
+     * The test run DAG (the node under test and all its upstream nodes) is sent to an engine as is. A node whose
+     * type or properties this version does not support would run as a blank node there, and the submitted script
+     * would not be applied to it, so the test run is rejected before anything is built or sent.
+     */
+    protected void rejectUnknownNodesInTestRun(DAG dag, String nodeId) {
+        Node<?> node = dag == null ? null : dag.getNode(nodeId);
+        if (node == null) {
+            return;
+        }
+        Map<String, Node<?>> participants = new LinkedHashMap<>();
+        Deque<Node<?>> pending = new ArrayDeque<>();
+        pending.push(node);
+        while (!pending.isEmpty()) {
+            Node<?> current = pending.pop();
+            if (current != null && participants.putIfAbsent(current.getId(), current) == null) {
+                current.predecessors().forEach(pending::push);
+            }
+        }
+        Set<String> types = UnknownNode.typesOf(participants.values());
+        if (!types.isEmpty()) {
+            throw new BizException("Task.TestRunUnknownNodeType", String.join(", ", types));
+        }
     }
 
     void applyTestRunInputEvent(TaskDto taskDtoCopy, TestRunDto dto) {
