@@ -9,6 +9,14 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 public interface TaskScheduleService {
 
     void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart);
+
+    /**
+     * Rejects a task whose DAG contains node types unknown to this version before it reaches an engine:
+     * writes an error to the task log and moves the task to error.
+     *
+     * @return true if the task was rejected
+     */
+    boolean rejectUnknownNodes(TaskDto taskDto, UserDetail user);
     void sendStartMsg(String taskId, String agentId, UserDetail user);
     CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user, boolean limitNum);
     void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user);
