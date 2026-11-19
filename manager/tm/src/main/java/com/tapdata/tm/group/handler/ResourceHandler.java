@@ -39,6 +39,9 @@ public interface ResourceHandler {
 
     Logger log = LoggerFactory.getLogger(ResourceHandler.class);
 
+    // Uploaded key contents have a stable config name even when the connector definition is unavailable.
+    String PRIVATE_KEY_CONFIG_PATH = "privateKey";
+
     /**
      * 需要脱敏的标准化 apiServerKey 集合，跨所有数据源一致
      */
@@ -198,9 +201,7 @@ public interface ResourceHandler {
             DataSourceDefinitionDto definition = dataSourceDefinitionService
                     .findByPdkHash(entity.getPdkHash(), Integer.MAX_VALUE, user);
             if (maskSecrets) {
-                if (definition != null) {
-                    maskSensitiveConfigFields(entity, definition);
-                }
+                maskSensitiveConfigFields(entity, definition);
                 // config 之外还有一份顶层镜像，不抹等于没抹（[ADR-0034] D2）
                 maskMirroredSecretFields(entity);
             }
@@ -460,10 +461,11 @@ public interface ResourceHandler {
     }
 
     /**
-     * 返回 definition 中标记为敏感的 config path 集合（apiServerKey 在 SENSITIVE_API_KEYS 中的路径）。
+     * Config paths removed on masked export and preserved on import into an existing connection.
      */
     static Set<String> getMaskedConfigPaths(DataSourceDefinitionDto definition) {
         Set<String> paths = new HashSet<>();
+        paths.add(PRIVATE_KEY_CONFIG_PATH);
         Map<String, String> pathToApiKey = buildConfigPathToApiKeyMap(definition);
         for (Map.Entry<String, String> entry : pathToApiKey.entrySet()) {
             if (SENSITIVE_API_KEYS.contains(entry.getValue())) {
@@ -473,10 +475,6 @@ public interface ResourceHandler {
         return paths;
     }
 
-    /**
-     * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceEntity.config
-     * 里对应的路径并清空值。只处理 SENSITIVE_API_KEYS 中声明的标准化 apiServerKey。
-     */
     /**
      * 顶层凭据镜像字段：{@link #SENSITIVE_API_KEYS} 那一批 secret 在 {@code config} **之外**的第二处存放点。
      *
@@ -525,7 +523,7 @@ public interface ResourceHandler {
     private static void maskSensitiveConfigFields(DataSourceEntity conn,
             DataSourceDefinitionDto definition) {
         Map<String, Object> config = conn.getConfig();
-        if (MapUtils.isEmpty(config) || definition == null) {
+        if (MapUtils.isEmpty(config)) {
             return;
         }
         Set<String> maskedPaths = getMaskedConfigPaths(definition);

@@ -45,6 +45,19 @@ public class ResourceHandlerImportPreserveTest {
     }
 
     @Test
+    void missingUploadedKeyKeepsTargetKeyOnlyWhenIncomingKeyIsAbsent() {
+        DataSourceConnectionDto incoming = connection(new LinkedHashMap<>());
+        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of("privateKey", "target-key")));
+        assertEquals(List.of("privateKey"),
+                ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, null));
+        assertEquals("target-key", incoming.getConfig().get("privateKey"));
+
+        incoming.getConfig().put("privateKey", "replacement-key");
+        assertTrue(ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, null).isEmpty());
+        assertEquals("replacement-key", incoming.getConfig().get("privateKey"));
+    }
+
+    @Test
     @DisplayName("包里 uri 缺失时保留目标既有 uri，并报告该字段")
     void missingSensitiveField_keepsExistingValueAndReportsIt() {
         DataSourceConnectionDto incoming = connection(new LinkedHashMap<>(Map.of("isUri", true)));
