@@ -444,13 +444,15 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         if (CollectionUtils.isEmpty(foundWorkers)) {
             return result;
         }
-        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
-        long liveTime = System.currentTimeMillis() - (overTime * 1000L);
-        List<Worker> workerList = distinctByProcessId(foundWorkers, liveTime);
-        List<String> processIdList = workerList.stream().map(Worker::getProcessId).collect(Collectors.toList());
+        List<String> processIdList = foundWorkers.stream().filter(Objects::nonNull).map(Worker::getProcessId)
+                .distinct().collect(Collectors.toList());
         List<ClusterStateDto> clusterStateDtos = findAll(Query.query(Criteria.where("systemInfo.process_id").in(processIdList)));
         Map<String, ClusterStateDto> processIdClusterStateMap = clusterStateDtos.stream()
                 .collect(Collectors.toMap(state -> state.getSystemInfo().getProcess_id(), Function.identity(), (e1, e2) -> e1));
+        // Heartbeat cutoff is taken after the ClusterState query so the status reflects the time we return.
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        long liveTime = System.currentTimeMillis() - (overTime * 1000L);
+        List<Worker> workerList = distinctByProcessId(foundWorkers, liveTime);
 
         workerList.forEach(worker -> {
             AtomicReference<String> hostname = new AtomicReference<>(worker.getHostname());

@@ -34,6 +34,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.junit.jupiter.api.AfterEach;
+import com.tapdata.tm.Settings.constant.SettingUtil;
 import org.slf4j.Logger;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -126,9 +128,12 @@ class AgentGroupServiceTest {
 
         List<WorkerDto> all;
         WorkerDto workerDto;
+        MockedStatic<SettingUtil> settingUtil;
 
         @BeforeEach
         void init() {
+            // Heartbeat timeout setting falls back to the 30s default.
+            settingUtil = mockStatic(SettingUtil.class);
             filter = mock(Filter.class);
             containWorker = true;
 
@@ -151,6 +156,11 @@ class AgentGroupServiceTest {
             when(agentGroupService.generateDto(any(GroupDto.class), anyBoolean(), anyMap())).thenReturn(mock(AgentGroupDto.class));
 
             when(agentGroupService.groupAllAgent(filter, containWorker, userDetail)).thenCallRealMethod();
+        }
+
+        @AfterEach
+        void close() {
+            settingUtil.close();
         }
 
         @Test
@@ -218,6 +228,33 @@ class AgentGroupServiceTest {
             Assertions.assertEquals(1, map.getValue().size());
             Assertions.assertSame(live, map.getValue().get("id"));
         }
+
+        @Test
+        void duplicateProcessIdPrefersOnlineWorkerOverStoppingOneWithNewerHeartbeat() {
+            long now = System.currentTimeMillis();
+            WorkerDto online = new WorkerDto();
+            online.setProcessId("id");
+            online.setStopping(false);
+            online.setPingTime(now - 2_000L);
+            WorkerDto stopping = new WorkerDto();
+            stopping.setProcessId("id");
+            stopping.setStopping(true);
+            stopping.setPingTime(now - 1_000L);
+            all.clear();
+            all.add(online);
+            all.add(stopping);
+            ArgumentCaptor<Map<String, WorkerDto>> map = ArgumentCaptor.forClass(Map.class);
+            when(agentGroupService.generateDto(any(GroupDto.class), anyBoolean(), map.capture())).thenReturn(mock(AgentGroupDto.class));
+
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+            Assertions.assertSame(online, map.getValue().get("id"));
+
+            all.clear();
+            all.add(stopping);
+            all.add(online);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+            Assertions.assertSame(online, map.getValue().get("id"));
+        }
     }
 
     @Test
@@ -226,12 +263,14 @@ class AgentGroupServiceTest {
         current.setPingTime(null);
         WorkerDto candidate = new WorkerDto();
         candidate.setPingTime(1L);
-        Assertions.assertSame(candidate, AgentGroupService.latestPing(current, candidate));
-        Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, current));
+        // Neither is online at this cutoff, so the heartbeat decides.
+        long liveTime = Long.MAX_VALUE;
+        Assertions.assertSame(candidate, AgentGroupService.latestPing(current, candidate, liveTime));
+        Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, current, liveTime));
 
         WorkerDto same = new WorkerDto();
         same.setPingTime(1L);
-        Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, same));
+        Assertions.assertSame(candidate, AgentGroupService.latestPing(candidate, same, liveTime));
     }
 
     @Test
@@ -245,11 +284,30 @@ class AgentGroupServiceTest {
         isDeleted.setPingTime(300L);
         isDeleted.setIsDeleted(true);
 
-        Assertions.assertSame(active, AgentGroupService.latestPing(active, deleted));
-        Assertions.assertSame(active, AgentGroupService.latestPing(deleted, active));
-        Assertions.assertSame(active, AgentGroupService.latestPing(isDeleted, active));
+        long liveTime = 0L;
+        Assertions.assertSame(active, AgentGroupService.latestPing(active, deleted, liveTime));
+        Assertions.assertSame(active, AgentGroupService.latestPing(deleted, active, liveTime));
+        Assertions.assertSame(active, AgentGroupService.latestPing(isDeleted, active, liveTime));
         // Only deleted history left: keep the previous behaviour of returning one of them by heartbeat.
-        Assertions.assertSame(isDeleted, AgentGroupService.latestPing(deleted, isDeleted));
+        Assertions.assertSame(isDeleted, AgentGroupService.latestPing(deleted, isDeleted, liveTime));
+    }
+
+    @Test
+    void latestPingPrefersOnlineRecordBeforeHeartbeat() {
+        long liveTime = 1_000L;
+        WorkerDto online = new WorkerDto();
+        online.setPingTime(2_000L);
+        WorkerDto stopping = new WorkerDto();
+        stopping.setPingTime(3_000L);
+        stopping.setStopping(true);
+        WorkerDto expired = new WorkerDto();
+        expired.setPingTime(500L);
+
+        Assertions.assertSame(online, AgentGroupService.latestPing(online, stopping, liveTime));
+        Assertions.assertSame(online, AgentGroupService.latestPing(stopping, online, liveTime));
+        Assertions.assertSame(online, AgentGroupService.latestPing(expired, online, liveTime));
+        // Neither online: fall back to the newer heartbeat.
+        Assertions.assertSame(stopping, AgentGroupService.latestPing(expired, stopping, liveTime));
     }
 
     @Nested

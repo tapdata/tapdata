@@ -310,6 +310,35 @@ class ClusterStateServiceTest {
             Assertions.assertEquals(List.of(processId),
                     ((org.bson.Document) query.getValue().getQueryObject().get("systemInfo.process_id")).get("$in"));
         }
+
+        @Test
+        void heartbeatExpiringDuringClusterStateQueryIsReportedStopped() {
+            String processId = "p-expiring";
+            // Alive for ~200ms when the call starts; the ClusterState query takes longer than that.
+            Worker worker = engineWorker("6ae9795c885a7214937a8710", processId, "host",
+                    System.currentTimeMillis() - 1_000L + 200L, true);
+            when(workerService.findAllAgent(userDetail)).thenReturn(new ArrayList<>(List.of(worker)));
+            ClusterStateDto state = new ClusterStateDto();
+            SystemInfo info = mock(SystemInfo.class);
+            when(info.getProcess_id()).thenReturn(processId);
+            state.setSystemInfo(info);
+            when(clusterStateService.findAll(any(Query.class))).thenAnswer(invocation -> {
+                Thread.sleep(500L);
+                return List.of(state);
+            });
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> result;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("1");
+                result = clusterStateService.findAccessNodeInfo(userDetail);
+            }
+
+            Assertions.assertEquals(1, result.size());
+            Assertions.assertEquals("stopped", result.get(0).getStatus());
+        }
     }
 
     static Worker engineWorker(String id, String processId, String hostname, Long pingTime, Boolean licenseBind) {
