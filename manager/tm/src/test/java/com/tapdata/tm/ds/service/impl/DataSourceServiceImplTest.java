@@ -44,6 +44,8 @@ import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import io.tapdata.pdk.apis.entity.Capability;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Answers;
@@ -2453,6 +2455,36 @@ class DataSourceServiceImplTest {
             oldConnection.setId(updateDto.getId());
             oldConnection.setName("test-connection");
             oldConnection.setDatabase_type("mysql");
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {true, false})
+        void masksSchemaPasswordsInReloadedUpdateResponse(boolean definitionAvailable) {
+            String key = "rawRedoClientKeyPassword";
+            oldConnection.setPdkHash("oracle-hash");
+            oldConnection.setConfig(new HashMap<>(Map.of(key, "stored-value", "host", "db")));
+            DataSourceDefinitionService definitions = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitions);
+            DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+            definition.setProperties(new LinkedHashMap<>(Map.of("connection",
+                    Map.of("properties", Map.of(key, Map.of("x-component", "Password"))))));
+            when(definitions.findByPdkHash("oracle-hash", Integer.MAX_VALUE, user))
+                    .thenReturn(definitionAvailable ? definition : null);
+            doReturn(false).when(dataSourceService).isAgentReq();
+            doReturn(null).when(dataSourceService).updateCheck(user, updateDto);
+            doReturn(oldConnection).when(dataSourceService).findById(updateDto.getId());
+            doReturn(oldConnection).when(dataSourceService).findById(updateDto.getId(), user);
+            when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+            doNothing().when(dataSourceService).updateAfter(user, oldConnection, null, null);
+
+            DataSourceConnectionDto response = dataSourceService.update(user, updateDto, false);
+
+            if (definitionAvailable) {
+                assertNull(response.getConfig().get(key));
+                assertEquals("db", response.getConfig().get("host"));
+            } else {
+                assertNull(response.getConfig());
+            }
         }
 
         @Test
