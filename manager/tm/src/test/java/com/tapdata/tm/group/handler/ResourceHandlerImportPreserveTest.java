@@ -4,6 +4,8 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,17 +46,18 @@ public class ResourceHandlerImportPreserveTest {
         return conn;
     }
 
-    @Test
-    void missingUploadedKeyKeepsTargetKeyOnlyWhenIncomingKeyIsAbsent() {
+    @ParameterizedTest
+    @ValueSource(strings = {"privateKey", "rawRedoClientKeyPassword"})
+    void missingKeyCredentialKeepsTargetValue(String path) {
         DataSourceConnectionDto incoming = connection(new LinkedHashMap<>());
-        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of("privateKey", "target-key")));
-        assertEquals(List.of("privateKey"),
+        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of(path, "target-key")));
+        assertEquals(List.of(path),
                 ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, null));
-        assertEquals("target-key", incoming.getConfig().get("privateKey"));
+        assertEquals("target-key", incoming.getConfig().get(path));
 
-        incoming.getConfig().put("privateKey", "replacement-key");
+        incoming.getConfig().put(path, "replacement-key");
         assertTrue(ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, null).isEmpty());
-        assertEquals("replacement-key", incoming.getConfig().get("privateKey"));
+        assertEquals("replacement-key", incoming.getConfig().get(path));
     }
 
     @Test
