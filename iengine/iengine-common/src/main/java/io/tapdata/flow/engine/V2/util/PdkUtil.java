@@ -53,7 +53,7 @@ public class PdkUtil {
 	public static void populateConnectionInfo(TapConnectionContext context, Connections datasource) {
 		String id = datasource == null ? null : datasource.getId();
 		if (id != null && ObjectId.isValid(id)) {
-			context.getInfo().put(TapConnectionContext.INFO_CONNECTION_ID, new ObjectId(id).toHexString());
+			context.getInfo().put(TapConnectionContext.INFO_RESOURCE_ID, new ObjectId(id).toHexString());
 		}
 	}
 
