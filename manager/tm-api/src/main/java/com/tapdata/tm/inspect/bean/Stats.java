@@ -15,6 +15,11 @@ import java.util.Date;
 @Data
 public class Stats {
     private String taskId;
+    private long differentFields;
+    private boolean bothEmpty;
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig.SideSummary sourceQuery;
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig.SideSummary targetQuery;
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig customQueryConfig;
     private Source source;
     private Source target;
     private Date start;
