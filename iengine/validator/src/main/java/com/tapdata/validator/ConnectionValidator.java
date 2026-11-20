@@ -192,13 +192,14 @@ public class ConnectionValidator {
 				// Create connection node
 				connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 						.withJarFile(databaseType.getJarFile(), databaseType.getJarRid())
-						.withConnectionConfig(DataMap.create(PdkUtil.connectionConfigForPdk(connections, databaseType)))
+						.withConnectionConfig(DataMap.create(connections.getConfig()))
 						.withGroup(databaseType.getGroup())
 						.withPdkId(databaseType.getPdkId())
 						.withAssociateId(connections.getName() + "_" + ts)
 						.withVersion(databaseType.getVersion())
 						.withLog(new TapLog())
 						.build();
+				PdkUtil.populateConnectionInfo(connectionNode.getConnectionContext(), connections);
 				ConnectionNode finalConnectionNode = connectionNode;
 				List<ConnectionValidateResultDetail> resultDetails = new ArrayList<>();
 				AtomicBoolean anyErrorOccurred = new AtomicBoolean(false);

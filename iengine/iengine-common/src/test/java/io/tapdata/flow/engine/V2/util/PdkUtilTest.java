@@ -9,6 +9,8 @@ import com.tapdata.tm.utils.PdkSourceUtils;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
@@ -37,21 +39,22 @@ import static org.mockito.Mockito.*;
 
 public class PdkUtilTest {
     @Test
-    void oracleReaderUsesOnlyTheIdOfItsOwningDatasource() {
-        Connections connection = new Connections();
-        Map<String, Object> stored = java.util.Collections.singletonMap("rawRedoConnectionId", "stale");
-        connection.setConfig(stored);
-        DatabaseTypeEnum.DatabaseType type = new DatabaseTypeEnum.DatabaseType();
-        type.setPdkId("oracle");
+    void savedDatasourceIdIsAHexStringInContextInfo() {
+        Connections datasource = new Connections();
+        DataMap config = DataMap.create();
+        config.put("connectionId", "connector-defined-value");
+        TapConnectionContext test = new TapConnectionContext(null, config, null, null);
+        TapConnectorContext task = new TapConnectorContext(null, config, null, null);
 
-        assertFalse(PdkUtil.connectionConfigForPdk(connection, type).containsKey("rawRedoConnectionId"));
-        String id = "0123456789abcdef01234567";
-        connection.setId(id);
-        assertEquals(id, PdkUtil.connectionConfigForPdk(connection, type).get("rawRedoConnectionId"));
-        assertEquals("stale", stored.get("rawRedoConnectionId"));
+        PdkUtil.populateConnectionInfo(test, datasource);
+        assertFalse(test.getInfo().containsKey("connectionId"));
+        datasource.setId("0123456789ABCDEF01234567");
+        PdkUtil.populateConnectionInfo(test, datasource);
+        PdkUtil.populateConnectionInfo(task, datasource);
 
-        type.setPdkId("mongodb");
-        assertSame(stored, PdkUtil.connectionConfigForPdk(connection, type));
+        assertEquals("0123456789abcdef01234567", test.getInfo().get("connectionId"));
+        assertEquals(test.getInfo().get("connectionId"), task.getInfo().get("connectionId"));
+        assertEquals("connector-defined-value", config.get("connectionId"));
     }
 
     private HttpClientMongoOperator httpClientMongoOperator;

@@ -16,6 +16,7 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.pdk.apis.context.ConfigContext;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -24,6 +25,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.net.util.Base64;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -47,19 +49,12 @@ public class PdkUtil {
 		TAG = PdkUtil.class.getSimpleName();
 	}
 
-	/** Builds the Oracle Reader's runtime configuration from the owning datasource. */
-	public static Map<String, Object> connectionConfigForPdk(Connections connection, DatabaseTypeEnum.DatabaseType type) {
-		Map<String, Object> config = connection.getConfig();
-		if (type == null || !"oracle".equalsIgnoreCase(type.getPdkId()) || config == null) {
-			return config;
+	/** Exposes the saved datasource ID independently of both connection and task configuration. */
+	public static void populateConnectionInfo(TapConnectionContext context, Connections datasource) {
+		String id = datasource == null ? null : datasource.getId();
+		if (id != null && ObjectId.isValid(id)) {
+			context.getInfo().put(TapConnectionContext.INFO_CONNECTION_ID, new ObjectId(id).toHexString());
 		}
-		Map<String, Object> runtime = new HashMap<>(config);
-		if (StringUtils.isBlank(connection.getId())) {
-			runtime.remove("rawRedoConnectionId");
-		} else {
-			runtime.put("rawRedoConnectionId", connection.getId());
-		}
-		return runtime;
 	}
 
 	public static Object pdkDownloadLock(String pdkHash) {
