@@ -9,6 +9,7 @@ import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.entity.BaseConnectionValidateResultDetail;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -191,7 +192,7 @@ public class ConnectionValidator {
 				// Create connection node
 				connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 						.withJarFile(databaseType.getJarFile(), databaseType.getJarRid())
-						.withConnectionConfig(DataMap.create(connections.getConfig()))
+						.withConnectionConfig(DataMap.create(PdkUtil.connectionConfigForPdk(connections, databaseType)))
 						.withGroup(databaseType.getGroup())
 						.withPdkId(databaseType.getPdkId())
 						.withAssociateId(connections.getName() + "_" + ts)

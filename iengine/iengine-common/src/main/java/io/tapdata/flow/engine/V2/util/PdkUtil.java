@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -44,6 +45,21 @@ public class PdkUtil {
 
 	static {
 		TAG = PdkUtil.class.getSimpleName();
+	}
+
+	/** Builds the Oracle Reader's runtime configuration from the owning datasource. */
+	public static Map<String, Object> connectionConfigForPdk(Connections connection, DatabaseTypeEnum.DatabaseType type) {
+		Map<String, Object> config = connection.getConfig();
+		if (type == null || !"oracle".equalsIgnoreCase(type.getPdkId()) || config == null) {
+			return config;
+		}
+		Map<String, Object> runtime = new HashMap<>(config);
+		if (StringUtils.isBlank(connection.getId())) {
+			runtime.remove("rawRedoConnectionId");
+		} else {
+			runtime.put("rawRedoConnectionId", connection.getId());
+		}
+		return runtime;
 	}
 
 	public static Object pdkDownloadLock(String pdkHash) {

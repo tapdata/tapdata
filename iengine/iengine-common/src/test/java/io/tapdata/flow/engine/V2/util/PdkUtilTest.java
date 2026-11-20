@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
@@ -35,6 +36,24 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class PdkUtilTest {
+    @Test
+    void oracleReaderUsesOnlyTheIdOfItsOwningDatasource() {
+        Connections connection = new Connections();
+        Map<String, Object> stored = java.util.Collections.singletonMap("rawRedoConnectionId", "stale");
+        connection.setConfig(stored);
+        DatabaseTypeEnum.DatabaseType type = new DatabaseTypeEnum.DatabaseType();
+        type.setPdkId("oracle");
+
+        assertFalse(PdkUtil.connectionConfigForPdk(connection, type).containsKey("rawRedoConnectionId"));
+        String id = "0123456789abcdef01234567";
+        connection.setId(id);
+        assertEquals(id, PdkUtil.connectionConfigForPdk(connection, type).get("rawRedoConnectionId"));
+        assertEquals("stale", stored.get("rawRedoConnectionId"));
+
+        type.setPdkId("mongodb");
+        assertSame(stored, PdkUtil.connectionConfigForPdk(connection, type));
+    }
+
     private HttpClientMongoOperator httpClientMongoOperator;
     private String pdkHash;
     private String fileName;
