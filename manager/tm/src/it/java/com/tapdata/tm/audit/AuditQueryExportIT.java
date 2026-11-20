@@ -18,6 +18,7 @@ import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -79,6 +80,21 @@ class AuditQueryExportIT {
 	}
 
 	@Test
+	@DisplayName("关键词匹配页面展示的操作名（简繁英任一语言）时按对应 action 查询；只命中其它字段时不追加 action 条件")
+	void should_match_keyword_against_localized_action_names() throws Exception {
+		assertThat(keywordActions("登录 TapData")).containsExactly("auth.login");
+		assertThat(keywordActions("登入 TapData")).containsExactly("auth.login");
+		assertThat(keywordActions("log IN to tapdata")).containsExactly("auth.login");
+		assertThat(keywordActions("创建校验任务")).containsExactly("inspect.create");
+		assertThat(keywordActions("orders-no-such-action")).isNull();
+
+		String json = keywordCriteria("登录 TapData").toJson();
+		for (String field : new String[]{"sourceIp", "objectName", "objectId", "eventId", "operationId", "username", "parameter1", "summary"}) {
+			assertThat(json).as(field).contains("\"" + field + "\"");
+		}
+	}
+
+	@Test
 	@DisplayName("CSV 使用原始事件粒度并含 Event ID 与 Operation ID，公式注入被转义；超过上限拒绝导出")
 	void should_export_raw_events_csv_and_audit_export() throws Exception {
 		StringWriter out = new StringWriter();
@@ -110,6 +126,33 @@ class AuditQueryExportIT {
 		when(fixture.mongoTemplate.count(any(Query.class), anyString())).thenReturn(3L);
 		assertThat(service.count(new AuditQuery(), null)).isEqualTo(3L);
 		assertThat(fixture.events).isEmpty();
+	}
+
+	private Document keywordCriteria(String keyword) throws Exception {
+		AuditQuery q = new AuditQuery();
+		q.setKeyword(keyword);
+		Method criteria = AuditQueryService.class.getDeclaredMethod("criteria", AuditQuery.class, String.class);
+		criteria.setAccessible(true);
+		return ((org.springframework.data.mongodb.core.query.Criteria) criteria.invoke(service, q, null)).getCriteriaObject();
+	}
+
+	/** 关键词 OR 条件中 action $in 的取值；未追加时返回 null。 */
+	@SuppressWarnings("unchecked")
+	private List<String> keywordActions(String keyword) throws Exception {
+		List<Document> and = (List<Document>) keywordCriteria(keyword).get("$and");
+		for (Document clause : and) {
+			Object or = clause.get("$or");
+			if (!(or instanceof List)) {
+				continue;
+			}
+			for (Document option : (List<Document>) or) {
+				Object action = option.get("action");
+				if (action instanceof Document && ((Document) action).containsKey("$in")) {
+					return new ArrayList<>((Collection<String>) ((Document) action).get("$in"));
+				}
+			}
+		}
+		return null;
 	}
 
 	private static AuditEventVo vo(String id, String phase, String outcome, String user, Date ts) {
