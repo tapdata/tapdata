@@ -1728,7 +1728,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /** Config paths whose old and new values must be masked in the import preview. */
     private static final Set<String> MASKED_DISPLAY_CONFIG_PATHS = Set.of(
-            "database_password", ResourceHandler.PRIVATE_KEY_CONFIG_PATH
+            "database_password", ResourceHandler.PRIVATE_KEY_CONFIG_PATH, ResourceHandler.RAW_REDO_KEY_PASSWORD_CONFIG_PATH
     );
 
     /** 需要智能 mask 的 URI 类 apiServerKey：MongoDB URI 只 mask 密码部分，其他 URI 全部 mask */

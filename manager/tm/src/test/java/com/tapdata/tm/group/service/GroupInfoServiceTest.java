@@ -44,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -1549,14 +1551,15 @@ public class GroupInfoServiceTest {
             assertTrue(changes.isEmpty());
         }
 
-        @Test
-        void changedPrivateKeyIsMaskedInPreview() {
-            DataSourceConnectionDto file = buildConn("test", "source", "Oracle", Map.of("privateKey", "new-key"), null);
-            DataSourceConnectionDto target = buildConn("test", "source", "Oracle", Map.of("privateKey", "old-key"), null);
+        @ParameterizedTest
+        @ValueSource(strings = {"privateKey", "rawRedoClientKeyPassword"})
+        void changedKeyCredentialIsMaskedInPreview(String path) {
+            DataSourceConnectionDto file = buildConn("test", "source", "Oracle", Map.of(path, "new-key"), null);
+            DataSourceConnectionDto target = buildConn("test", "source", "Oracle", Map.of(path, "old-key"), null);
             List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
                     groupInfoService, "getConnectionChangedFields", file, target);
             assertEquals(1, changes.size());
-            assertEquals("config.privateKey", changes.get(0).getField());
+            assertEquals("config." + path, changes.get(0).getField());
             assertEquals("******", changes.get(0).getFrom());
             assertEquals("******", changes.get(0).getTo());
         }
@@ -1881,11 +1884,11 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Null definition retains the schema-independent private key mask")
+        @DisplayName("Null definition retains the key and password masks")
         void testNullDefinition() {
             assertTrue(ResourceHandler.buildConfigPathToApiKeyMap(null).isEmpty());
             assertTrue(ResourceHandler.buildConfigPathToLabelMap(null).isEmpty());
-            assertEquals(Set.of("privateKey"), ResourceHandler.getMaskedConfigPaths(null));
+            assertEquals(Set.of("privateKey", "rawRedoClientKeyPassword"), ResourceHandler.getMaskedConfigPaths(null));
         }
     }
 
