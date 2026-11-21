@@ -118,6 +118,7 @@ public class DatasourceMonitorHandler implements WebSocketEventHandler {
                     .withVersion(databaseType.getVersion())
                     .withLog(new TapLog())
                     .build();
+            PdkUtil.populateConnectionInfo(connectionNode.getConnectionContext(), connections);
             PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init PDK", TAG);
             JSONObject monitorApi = (JSONObject) connectionNode.getConnectionContext().getSpecification().getConfigOptions().get(MONITOR_API);
             //利用反射去访问连接器的具体方法
