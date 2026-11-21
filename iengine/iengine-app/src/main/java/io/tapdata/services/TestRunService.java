@@ -54,8 +54,18 @@ public class TestRunService {
 
 	public static final String TAG = TestRunService.class.getSimpleName();
 
+	private final boolean allowTarget;
+
+	public TestRunService() {
+		this(true);
+	}
+
+	TestRunService(boolean allowTarget) {
+		this.allowTarget = allowTarget;
+	}
+
 	@Data
-	private static class Request {
+	static class Request {
 //    private String connectionsId;
 
 
@@ -87,7 +97,7 @@ public class TestRunService {
 
 	@Data
 	@NoArgsConstructor
-	private static class Response {
+	static class Response {
 
 		private List<CollectLog.Log> logs;
 
@@ -207,7 +217,7 @@ public class TestRunService {
 								collectLog.info("is complete");
 							}
 
-						} else if (StringUtils.equals(type, "target")) {
+						} else if (allowTarget && StringUtils.equals(type, "target")) {
 							collectLog.info("The target starts processing the data");
 							List<TapRecordEvent> recordEvents = new ArrayList<>();
 							WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
@@ -226,7 +236,7 @@ public class TestRunService {
 									TAG);
 							collectLog.info("The target processing data is complete");
 						} else {
-							collectLog.error("Unsupported type: {}", type);
+							collectLog.error(allowTarget ? "Unsupported type: {}" : "Unsupported type: {}, HttpReceiver connector only support source", type);
 						}
 					} finally {
 						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, "Stop PDK", TAG);
