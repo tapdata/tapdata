@@ -11,6 +11,11 @@ import java.util.Map;
 
 @Data
 public class Source {
+    /** sql or mongoPipeline; null means SQL for legacy tasks. */
+    private String queryKind;
+    private String queryTimezone = "UTC";
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot querySnapshot;
+
 
     /** */
     private List<Field> fields;

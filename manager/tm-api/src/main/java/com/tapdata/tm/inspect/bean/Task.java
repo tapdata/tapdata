@@ -8,6 +8,8 @@ import lombok.Data;
 
 @Data
 public class Task {
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig customQueryConfig;
+
     private String taskId;
     /** */
     private Long batchSize;

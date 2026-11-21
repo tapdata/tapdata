@@ -21,6 +21,11 @@ import java.util.Map;
 @ToString
 @EqualsAndHashCode
 public class InspectDataSource implements Serializable {
+    /** sql or mongoPipeline; null means SQL for legacy tasks. */
+    private String queryKind;
+    private String queryTimezone = "UTC";
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot querySnapshot;
+
 
 	private String connectionId;  // "",  // 连接ID
 	private String connectionName;  // 连接名称

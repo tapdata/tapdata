@@ -20,6 +20,11 @@ import java.util.Date;
 public class InspectResultStats implements Serializable {
 
 	private String taskId;
+    private long differentFields;
+    private boolean bothEmpty;
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig.SideSummary sourceQuery;
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig.SideSummary targetQuery;
+    private com.tapdata.tm.commons.inspect.CustomQueryConfig customQueryConfig;
 	private InspectDataSource source;
 	private InspectDataSource target;
 	private Date start;

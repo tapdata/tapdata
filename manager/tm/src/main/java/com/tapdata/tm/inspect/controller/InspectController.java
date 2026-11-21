@@ -79,6 +79,15 @@ import java.util.function.Supplier;
 public class InspectController extends BaseController {
     private final InspectResultService inspectResultService;
     private InspectService inspectService;
+    private com.tapdata.tm.inspect.service.CustomQueryInspectSupport customQueryInspectSupport;
+
+    @PostMapping("/custom-query/test")
+    public ResponseMessage<com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot> testCustomQuery(
+            @RequestBody com.tapdata.tm.commons.inspect.CustomQueryRequest query) throws Throwable {
+        customQueryInspectSupport.authorize(query, getLoginUser());
+        return success(taskService.callEngineRpc(null, com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot.class,
+                "CustomQueryPreviewService", "test", query));
+    }
     private AlarmReceiverAccess alarmReceiverAccess;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
