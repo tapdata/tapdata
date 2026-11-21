@@ -50,6 +50,7 @@ public class AuditQueryService {
 	public static final int MAX_EXPORT = 100_000;
 	private static final String COLLECTION = "UserLogs";
 	private static final List<String> TYPES = List.of(AuditValues.SCHEMA_TYPE, UserLogType.USER_OPERATION.getValue());
+	private static final List<Locale> ACTION_NAME_LOCALES = List.of(Locale.SIMPLIFIED_CHINESE, Locale.TRADITIONAL_CHINESE, Locale.US);
 
 	private final MongoTemplate mongoTemplate;
 	private final UserLogServiceImpl userLogService;
@@ -254,10 +255,15 @@ public class AuditQueryService {
 		}
 		if (StringUtils.isNotBlank(q.getKeyword())) {
 			Pattern p = contains(q.getKeyword());
-			and.add(new Criteria().orOperator(Criteria.where("sourceIp").regex(p), Criteria.where("action").regex(p),
+			List<Criteria> keyword = new ArrayList<>(List.of(Criteria.where("sourceIp").regex(p), Criteria.where("action").regex(p),
 					Criteria.where("objectName").regex(p), Criteria.where("objectId").regex(p), Criteria.where("eventId").regex(p),
 					Criteria.where("operationId").regex(p), Criteria.where("username").regex(p), Criteria.where("parameter1").regex(p),
 					Criteria.where("summary").regex(p)));
+			List<String> actions = actionsNamed(p);
+			if (!actions.isEmpty()) {
+				keyword.add(Criteria.where("action").in(actions));
+			}
+			and.add(new Criteria().orOperator(keyword.toArray(new Criteria[0])));
 		}
 		return new Criteria().andOperator(and.toArray(new Criteria[0]));
 	}
@@ -565,6 +571,21 @@ public class AuditQueryService {
 		if (StringUtils.isNotBlank(value)) {
 			and.add(Criteria.where(field).is(value.trim()));
 		}
+	}
+
+	/** 页面展示的操作名来自三语 auditMessages；关键词命中任一语言的操作名时按对应 action 匹配。 */
+	static List<String> actionsNamed(Pattern keyword) {
+		List<String> actions = new ArrayList<>();
+		for (AuditAction action : AuditAction.values()) {
+			for (Locale locale : ACTION_NAME_LOCALES) {
+				String name = MessageUtil.getBundleMessageOrNull(locale, "auditMessages", action.messageKey());
+				if (name != null && keyword.matcher(name).find()) {
+					actions.add(action.getKey());
+					break;
+				}
+			}
+		}
+		return actions;
 	}
 
 	private static Pattern contains(String value) {
