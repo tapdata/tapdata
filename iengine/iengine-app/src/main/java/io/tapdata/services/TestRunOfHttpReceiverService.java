@@ -16,6 +16,7 @@ import io.tapdata.exception.ConnectionException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.CollectLog;
 import io.tapdata.modules.api.pdk.PDKUtils;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -175,6 +176,7 @@ public class TestRunOfHttpReceiverService {
                             .withGlobalStateMap(globalStateMap)
                             .build();
 
+                    PdkUtil.populateConnectionInfo(connectorNode.getConnectorContext(), connections);
                     PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
 
                     try {
