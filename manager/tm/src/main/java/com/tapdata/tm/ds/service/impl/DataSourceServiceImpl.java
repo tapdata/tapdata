@@ -366,6 +366,10 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         updateAfter(user, updateDto, oldName, submit);
 
+        if (!isAgentReq() && updateDto.getConfig() != null
+                && (StringUtils.isNotBlank(updateDto.getPdkHash()) || DataSourceDefinitionDto.PDK_TYPE.equals(updateDto.getPdkType()))) {
+            preparePasswordTagsForUpdateResponse(updateDto, user);
+        }
         hiddenMqPasswd(updateDto);
 
         return updateDto;
@@ -512,18 +516,37 @@ public class DataSourceServiceImpl extends DataSourceService{
         target.setPriorityProcessId(source.getPriorityProcessId());
     }
 
+    private void preparePasswordTagsForUpdateResponse(DataSourceConnectionDto saved, UserDetail user) {
+        DataSourceDefinitionDto definition = StringUtils.isNotBlank(saved.getPdkHash())
+                ? dataSourceDefinitionService.findByPdkHash(saved.getPdkHash(), Integer.MAX_VALUE, user)
+                : dataSourceDefinitionService.getByDataSourceType(saved.getDatabase_type(), user);
+        if (definition == null || definition.getProperties() == null
+                || !(definition.getProperties().get("connection") instanceof Map<?, ?> connection)
+                || !(connection.get("properties") instanceof Map<?, ?> properties)) {
+            // The write succeeded. Without the schema the response cannot distinguish passwords from ordinary settings.
+            saved.setConfig(null);
+            return;
+        }
+        saved.setPasswordTag(passwordFields(properties));
+    }
+
+    private static Set<String> passwordFields(Map<?, ?> properties) {
+        Set<String> fields = new HashSet<>();
+        properties.forEach((key, value) -> {
+            if (key instanceof String name && value instanceof Map<?, ?> field && "Password".equals(field.get("x-component"))) {
+                fields.add(name);
+            }
+        });
+        return fields;
+    }
+
     public void generatePasswordTag(DataSourceConnectionDto dto, UserDetail user) {
         DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(), user);
         Object connection = definitionDto.getProperties().get("connection");
         if (connection instanceof LinkedHashMap<?,?>) {
             modulesService.analyzeApiServerKey(dto, (LinkedHashMap) connection, null);
         }
-        dto.setPasswordTag(((LinkedHashMap<String, Object>)((LinkedHashMap) connection).get("properties")).entrySet().stream().filter(v -> {
-            if(v.getValue() instanceof LinkedHashMap map) {
-                return "Password".equals(map.get("x-component"));
-            }
-            return false;
-        }).map(Map.Entry::getKey).collect(Collectors.toSet()));
+        dto.setPasswordTag(passwordFields((Map<?, ?>) ((Map<?, ?>) connection).get("properties")));
     }
 
     protected void assertProcessNode(String nodeType, String accessProcessId, Collection<String> processNodeListWithGroup) {
@@ -819,12 +842,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                 if (connection instanceof LinkedHashMap<?,?>) {
                     modulesService.analyzeApiServerKey(item, (LinkedHashMap) connection, null);
                 }
-                item.setPasswordTag(((LinkedHashMap<String, Object>)((LinkedHashMap) connection).get("properties")).entrySet().stream().filter(v -> {
-                    if(v.getValue() instanceof LinkedHashMap map) {
-                        return "Password".equals(map.get("x-component"));
-                    }
-                    return false;
-                }).map(Map.Entry::getKey).collect(Collectors.toSet()));
+                item.setPasswordTag(passwordFields((Map<?, ?>) ((Map<?, ?>) connection).get("properties")));
             }}
 	}
 
