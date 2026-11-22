@@ -80,10 +80,12 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
             JSONObject jsonObjectTmp = new JSONObject();
             jsonObjectTmp.put("source", inspectDetailsDtoTmp.getSource());
             jsonObjectTmp.put("target", inspectDetailsDtoTmp.getTarget());
-            jsonObjectTmp.put("resultKey", inspectDetailsDtoTmp.getResultKey());
-            jsonObjectTmp.put("differenceType", inspectDetailsDtoTmp.getDifferenceType());
-            jsonObjectTmp.put("sourceField", inspectDetailsDtoTmp.getSourceField());
-            jsonObjectTmp.put("targetField", inspectDetailsDtoTmp.getTargetField());
+            if (inspectDetailsDtoTmp.getDifferenceType() != null) {
+                jsonObjectTmp.put("resultKey", inspectDetailsDtoTmp.getResultKey());
+                jsonObjectTmp.put("differenceType", inspectDetailsDtoTmp.getDifferenceType());
+                jsonObjectTmp.put("sourceField", inspectDetailsDtoTmp.getSourceField());
+                jsonObjectTmp.put("targetField", inspectDetailsDtoTmp.getTargetField());
+            }
             if (!map.containsKey(taskId)) {
                 map.put(taskId, jsonObject);
 
