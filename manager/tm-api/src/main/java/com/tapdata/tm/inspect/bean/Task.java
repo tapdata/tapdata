@@ -1,6 +1,8 @@
 
 package com.tapdata.tm.inspect.bean;
 
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+
 import java.util.List;
 import java.util.Map;
 
@@ -8,7 +10,7 @@ import lombok.Data;
 
 @Data
 public class Task {
-    private com.tapdata.tm.commons.inspect.CustomQueryConfig customQueryConfig;
+    private CustomQueryConfig customQueryConfig;
 
     private String taskId;
     /** */

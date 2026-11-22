@@ -1,5 +1,7 @@
 package com.tapdata.entity.inspect;
 
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,9 +24,9 @@ public class InspectResultStats implements Serializable {
 	private String taskId;
     private long differentFields;
     private boolean bothEmpty;
-    private com.tapdata.tm.commons.inspect.CustomQueryConfig.SideSummary sourceQuery;
-    private com.tapdata.tm.commons.inspect.CustomQueryConfig.SideSummary targetQuery;
-    private com.tapdata.tm.commons.inspect.CustomQueryConfig customQueryConfig;
+    private CustomQueryConfig.SideSummary sourceQuery;
+    private CustomQueryConfig.SideSummary targetQuery;
+    private CustomQueryConfig customQueryConfig;
 	private InspectDataSource source;
 	private InspectDataSource target;
 	private Date start;

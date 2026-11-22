@@ -1,5 +1,7 @@
 package com.tapdata.entity.inspect;
 
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+
 import com.tapdata.tm.commons.dag.EqField;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.EqualsAndHashCode;
@@ -24,7 +26,7 @@ public class InspectDataSource implements Serializable {
     /** sql or mongoPipeline; null means SQL for legacy tasks. */
     private String queryKind;
     private String queryTimezone;
-    private com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot querySnapshot;
+    private CustomQueryConfig.Snapshot querySnapshot;
 
 
 	private String connectionId;  // "",  // 连接ID

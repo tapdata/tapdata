@@ -66,7 +66,7 @@ public class CustomQueryConfig implements Serializable {
             }
             boolean hasSource = m.source != null && !m.source.isEmpty();
             boolean hasTarget = m.target != null && !m.target.isEmpty();
-            if ((!hasSource || !hasTarget) && !"ignore".equals(m.role) || !hasSource && !hasTarget) {
+            if (((!hasSource || !hasTarget) && !"ignore".equals(m.role)) || (!hasSource && !hasTarget)) {
                 throw new IllegalArgumentException("Map both sides or explicitly ignore a column");
             }
             if (hasSource && (!sources.contains(name(m.source)) || !usedSource.add(name(m.source)))) {
@@ -85,6 +85,7 @@ public class CustomQueryConfig implements Serializable {
 
     /** Without a result key the contract is at most one row on each side, including at runtime. */
     public void validateCardinality(long sourceRows, long targetRows) {
+        if (mappings == null) throw new IllegalArgumentException("Field mappings are required");
         if ((sourceRows > 1 || targetRows > 1) && mappings.stream().noneMatch(m -> "key".equals(m.getRole())))
             throw new IllegalArgumentException("Query returned multiple rows without a result key (source=" + sourceRows
                     + ", target=" + targetRows + "); test both queries again and configure a unique result key");

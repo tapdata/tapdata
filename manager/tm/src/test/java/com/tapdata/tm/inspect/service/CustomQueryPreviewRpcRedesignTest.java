@@ -35,4 +35,24 @@ class CustomQueryPreviewRpcRedesignTest {
         assertSame(failure,assertThrows(IllegalStateException.class,()->rpc(execution).test(request())));
         assertThrows(IllegalStateException.class,()->rpc(null).test(request()));
     }
+    @Test void asyncPreviewDoesNotBlockAndLimitsConcurrentRequestsPerUser() throws Exception {
+        EngineMessageExecutionService execution = mock(EngineMessageExecutionService.class);
+        BlockingQueue<BiConsumer<Object,Throwable>> callbacks = new LinkedBlockingQueue<>();
+        doAnswer(call -> { callbacks.add(call.getArgument(1)); return null; }).when(execution).call(any(),any());
+        CustomQueryPreviewRpc rpc = rpc(execution);
+        CompletableFuture<CustomQueryConfig.Snapshot> first = rpc.testAsync(request(), "alice");
+        CompletableFuture<CustomQueryConfig.Snapshot> second = rpc.testAsync(request(), "alice");
+        assertFalse(first.isDone()); assertFalse(second.isDone());
+        assertThrows(RejectedExecutionException.class, () -> rpc.testAsync(request(), "alice"));
+        CompletableFuture<CustomQueryConfig.Snapshot> otherUser = rpc.testAsync(request(), "bob");
+        for (int i=0; i<3; i++) {
+            BiConsumer<Object,Throwable> callback = callbacks.poll(2,TimeUnit.SECONDS);
+            assertNotNull(callback); callback.accept(new CustomQueryConfig.Snapshot(),null);
+        }
+        first.get(2,TimeUnit.SECONDS); second.get(2,TimeUnit.SECONDS); otherUser.get(2,TimeUnit.SECONDS);
+        CompletableFuture<CustomQueryConfig.Snapshot> retry = rpc.testAsync(request(), "alice");
+        callbacks.poll(2,TimeUnit.SECONDS).accept(new CustomQueryConfig.Snapshot(),null);
+        assertNotNull(retry.get(2,TimeUnit.SECONDS));
+    }
+
 }

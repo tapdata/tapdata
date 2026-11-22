@@ -28,6 +28,7 @@ public class CustomQueryPreviewService {
         request.validate();
         String associateId = "inspect_preview_" + UUID.randomUUID();
         ConnectorNode node = null;
+        boolean cleanupTransferred = false;
         try {
             ClientMongoOperator mongo = BeanUtil.getBean(ClientMongoOperator.class);
             Connections connection = HazelcastTaskService.taskService().getConnection(request.getConnectionId());
@@ -37,9 +38,14 @@ public class CustomQueryPreviewService {
                 Object timezone = connection.getConfig().get("timezone");
                 request.setTimezone(timezone == null || timezone.toString().isBlank() ? "UTC" : timezone.toString());
             }
+            if (!(mongo instanceof HttpClientMongoOperator))
+                throw new IllegalStateException("Custom query preview requires the HTTP Mongo operator");
             node = createConnectorNode(associateId, (HttpClientMongoOperator) mongo, type, connection.getConfig());
             PDKInvocationMonitor.invoke(node, PDKMethod.INIT, node::connectorInit, getClass().getSimpleName());
-            CustomQueryConfig.Snapshot snapshot = CustomQueryRunner.execute(node, request, 20, true, new CustomQueryConfig.SideSummary());
+            ConnectorNode previewNode = node;
+            cleanupTransferred = true;
+            CustomQueryConfig.Snapshot snapshot = CustomQueryRunner.execute(node, request, 20, true,
+                    new CustomQueryConfig.SideSummary(), () -> release(previewNode, associateId));
             if (snapshot.getColumns().isEmpty()) throw new IllegalArgumentException("This empty query result has no discoverable columns; test with representative data or use a connector with result metadata support");
             snapshot.setTimezone(request.getTimezone());
             for (Map<String, Object> row : snapshot.getRows()) row.replaceAll((key, value) ->
@@ -48,10 +54,24 @@ public class CustomQueryPreviewService {
             CustomQueryConfig schemaConfig = new CustomQueryConfig();
             schemaConfig.setIgnoreCase(request.isIgnoreCase()); schemaConfig.columnNames(snapshot);
             return snapshot;
-        } catch (Throwable e) {
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
             throw new IllegalStateException("Custom query test failed: " + e.getMessage(), e);
         } finally {
-            if (node != null) try { PDKInvocationMonitor.invoke(node, PDKMethod.STOP, node::connectorStop, getClass().getSimpleName()); } catch (Throwable ignored) { }
+            if (!cleanupTransferred) release(node, associateId);
+        }
+    }
+    private void release(ConnectorNode node, String associateId) {
+        try {
+            if (node != null) PDKInvocationMonitor.invoke(node, PDKMethod.STOP, node::connectorStop, getClass().getSimpleName());
+        } catch (Exception ignored) {
+            // Release the association even if the connector cannot stop cleanly.
+        } catch (Error e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new IllegalStateException("Cannot stop custom query connector", e);
+        } finally {
             PDKIntegration.releaseAssociateId(associateId);
         }
     }

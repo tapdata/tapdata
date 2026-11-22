@@ -17,6 +17,7 @@ class CustomQueryContractRedesignTest {
     }
     @Test void snapshotFingerprintChangesWithEveryExecutionInputAndRoundTrips() throws Exception {
         var r=request("select 1 v");String fingerprint=r.fingerprint();
+        r.setIgnoreCase(false);assertNotEquals(fingerprint,r.fingerprint());r.setIgnoreCase(true);
         r.setCollection("c");assertNotEquals(fingerprint,r.fingerprint());r.setCollection(null);
         r.setConnectionId("other");assertNotEquals(fingerprint,r.fingerprint());r.setConnectionId("connection");
         r.setQuery("select 2 v");assertNotEquals(fingerprint,r.fingerprint());r.setQuery("select 1 v");
@@ -37,7 +38,12 @@ class CustomQueryContractRedesignTest {
     }
 
     @Test void selectFunctionsCannotMutateSequencesSessionsOrRemoteDatabases() {
-        for (String sql : List.of("select nextval('s')", "select pg_catalog.\"setval\"('s',1)",
+        for (String sql : List.of("select load_file('/etc/passwd')", "select pg_read_file('/etc/passwd')",
+                "select pg_read_binary_file('/etc/passwd')", "select pg_ls_dir('.')", "select pg_stat_file('/etc/passwd')",
+                "select * from openrowset('SQLNCLI','Server=remote','select 1')",
+                "select * from openquery(remote,'select 1')", "select opendatasource('SQLNCLI','remote')",
+                "select /*!50000 load_file('/etc/passwd') */ 1", "select pg_catalog.\"pg_read_file\"('/etc/passwd')",
+                "select nextval('s')", "select pg_catalog.\"setval\"('s',1)",
                 "select pg_terminate_backend(1)", "select lo_export(1,'/tmp/file')", "select dblink_exec('c','delete from t')",
                 "select next value for s", "select s.nextval from dual", "select dbms_lock.request(1) from dual",
                 "select 1 from t order by nextval('s')", "select count(*) from t group by nextval('s')",

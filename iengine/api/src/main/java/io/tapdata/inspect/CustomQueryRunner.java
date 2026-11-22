@@ -13,9 +13,24 @@ import java.util.function.Consumer;
 
 /** One bounded, cancellable invocation. Callbacks cross connector classloaders using JDK types only. */
 public final class CustomQueryRunner {
+    private static final ExecutorService WORKERS = new ThreadPoolExecutor(0, 16, 60, TimeUnit.SECONDS,
+            new SynchronousQueue<>(), r -> { Thread t = new Thread(r, "inspect-custom-query"); t.setDaemon(true); return t; });
     private CustomQueryRunner() { }
     public static CustomQueryConfig.Snapshot execute(ConnectorNode node, CustomQueryRequest request,
             int maxRows, boolean preview, CustomQueryConfig.SideSummary summary) {
+        return execute(node, request, maxRows, preview, summary, () -> { });
+    }
+
+    /** Cleanup belongs to the executing worker, including when a driver ignores cancellation. */
+    public static CustomQueryConfig.Snapshot execute(ConnectorNode node, CustomQueryRequest request,
+            int maxRows, boolean preview, CustomQueryConfig.SideSummary summary, Runnable cleanup) {
+        AtomicBoolean submitted = new AtomicBoolean();
+        try { return executeInternal(node, request, maxRows, preview, summary, cleanup, submitted); }
+        finally { if (!submitted.get()) cleanup.run(); }
+    }
+
+    private static CustomQueryConfig.Snapshot executeInternal(ConnectorNode node, CustomQueryRequest request,
+            int maxRows, boolean preview, CustomQueryConfig.SideSummary summary, Runnable cleanup, AtomicBoolean submitted) {
         summary.setStatus("error");
         request.validate();
         String connectorId = node.getConnectorContext().getSpecification().getId().toLowerCase(Locale.ROOT);
@@ -50,8 +65,9 @@ public final class CustomQueryRunner {
             command = "aggregate"; params.put("collection", request.getCollection()); params.put("pipeline", request.pipeline());
         }
         TapExecuteCommand execute = TapExecuteCommand.create().command(command).params(params).batchSize((Integer) params.get("batchSize"));
-        ExecutorService worker = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "inspect-custom-query"); t.setDaemon(true); return t; });
-        Future<?> future = worker.submit(() -> {
+        AtomicReference<Thread> executingThread = new AtomicReference<>();
+        Future<?> future = WORKERS.submit(() -> {
+            synchronized (executingThread) { executingThread.set(Thread.currentThread()); }
             try {
                 PDKInvocationMonitor.invoke(node, PDKMethod.EXECUTE_COMMAND, () -> node.getConnectorFunctions().getExecuteCommandFunction().execute(node.getConnectorContext(), execute, result -> {
                     if (failure.get() != null) throw failure.get();
@@ -69,20 +85,27 @@ public final class CustomQueryRunner {
                     }
                     for (Object row : (List<?>) data) {
                         if (!(row instanceof Map)) { failure.set(new IllegalArgumentException("Query returned a non-row result")); throw failure.get(); }
-                        summary.setRows(summary.getRows() + 1);
                         if (rows.size() == maxRows) {
                             if (preview) { snapshot.setHasMore(true); throw new PreviewComplete(); }
                             failure.set(new IllegalArgumentException("Custom query exceeds maximum " + maxRows + " rows")); throw failure.get();
                         }
                         rows.add(new LinkedHashMap<>((Map<String, Object>) row));
+                        summary.setRows(rows.size());
                     }
                 }), "CustomQueryRunner");
                 if (failure.get() != null) throw failure.get();
             } catch (Throwable e) {
+                if (e instanceof Error) throw (Error) e;
                 if (preview && snapshot.isHasMore() && failure.get() == null) return;
                 throw new CompletionException(failure.get() == null ? e : failure.get());
+            } finally {
+                synchronized (executingThread) { executingThread.set(null); }
+                // Cancellation may have interrupted this thread. Cleanup must still be able to perform I/O.
+                Thread.interrupted();
+                cleanup.run();
             }
         });
+        submitted.set(true);
         try {
             future.get(request.getTimeoutSeconds(), TimeUnit.SECONDS);
             // Document stores and older connectors have no declared schema: infer union from observed rows.
@@ -102,6 +125,7 @@ public final class CustomQueryRunner {
             summary.setStatus("timeout"); throw new IllegalStateException("Custom query timed out after " + request.getTimeoutSeconds() + " seconds", e);
         } catch (ExecutionException e) {
             summary.setStatus("error"); Throwable cause = e.getCause(); while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
+            if (cause instanceof Error) throw (Error) cause;
             if (cause instanceof RuntimeException) throw (RuntimeException) cause;
             throw new IllegalStateException("Custom query failed", cause);
         } catch (RuntimeException e) {
@@ -109,8 +133,8 @@ public final class CustomQueryRunner {
             throw e;
         } finally {
             stopped.set(true);
-            if (!future.isDone()) { Runnable action = cancel.get(); if (action != null) try { action.run(); } catch (Exception ignored) { } future.cancel(true); }
-            worker.shutdownNow(); summary.setEndedAt(System.currentTimeMillis()); summary.setDurationMillis(summary.getEndedAt() - summary.getStartedAt());
+            if (!future.isDone()) { Runnable action = cancel.get(); if (action != null) try { action.run(); } catch (Exception ignored) { } synchronized (executingThread) { Thread thread = executingThread.get(); if (thread != null) thread.interrupt(); } }
+            summary.setEndedAt(System.currentTimeMillis()); summary.setDurationMillis(summary.getEndedAt() - summary.getStartedAt());
         }
     }
     private static final class PreviewComplete extends RuntimeException { }

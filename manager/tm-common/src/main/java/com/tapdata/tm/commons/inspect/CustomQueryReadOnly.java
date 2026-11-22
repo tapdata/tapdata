@@ -20,9 +20,12 @@ import java.util.Arrays;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.NextValExpression;
 import net.sf.jsqlparser.schema.Column;
+/** Rejects writes and known unsafe built-ins; database privileges must also restrict user-defined functions. */
 public final class CustomQueryReadOnly {
     public static void validateReadOnlyQuery(String sql, String connectionName) {
         try {
+            // MySQL executable comments may contain syntax the generic parser treats as comments.
+            if (sql.contains("/*!")) throw new IllegalArgumentException("Executable SQL comments are not allowed");
             Statements statements = CCJSqlParserUtil.parseStatements(sql);
             if (statements == null || statements.getStatements() == null || statements.getStatements().size() != 1) {
                 throw new IllegalArgumentException("Exactly one SQL statement is required");
@@ -51,7 +54,9 @@ public final class CustomQueryReadOnly {
                 String name = part.replace("\"", "").replace("`", "").replace("[", "").replace("]", "").toLowerCase(Locale.ROOT);
                 if (Arrays.asList("nextval", "setval", "set_config", "pg_terminate_backend", "pg_cancel_backend",
                         "pg_reload_conf", "pg_rotate_logfile", "pg_log_backend_memory_contexts", "pg_promote",
-                        "get_lock", "release_lock", "release_all_locks", "sys_exec", "sys_eval").contains(name)
+                        "get_lock", "release_lock", "release_all_locks", "sys_exec", "sys_eval",
+                        "load_file", "pg_read_file", "pg_read_binary_file", "pg_ls_dir", "pg_stat_file",
+                        "openrowset", "openquery", "opendatasource").contains(name)
                         || name.startsWith("dblink") || name.startsWith("lo_") || name.startsWith("pg_advisory_")
                         || name.startsWith("pg_try_advisory_") || name.startsWith("pg_write_")
                         || name.startsWith("dbms_") || name.startsWith("utl_") || name.startsWith("xp_")) {

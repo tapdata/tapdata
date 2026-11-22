@@ -48,6 +48,7 @@ class CustomQuerySaveRedesignTest {
         };
         assertDoesNotThrow(()->support.validate(inspect,null));
         assertEquals(List.of("Asia/Shanghai","Asia/Shanghai"),authorizedZones);
+        config.setIgnoreCase(false);assertThrows(IllegalArgumentException.class,()->support.validate(inspect,null));config.setIgnoreCase(true);
         side.setQueryTimezone("UTC"); assertThrows(IllegalArgumentException.class,()->support.validate(inspect,null));
     }
 

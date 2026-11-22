@@ -73,7 +73,7 @@ public class CustomQueryRequest implements Serializable {
     public String fingerprint() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            for (String v : Arrays.asList(connectionId, kind == null ? "sql" : kind, query, collection, timezone)) {
+            for (String v : Arrays.asList(connectionId, kind == null ? "sql" : kind, query, collection, timezone, Boolean.toString(ignoreCase))) {
                 String text = v == null ? "" : v;
                 digest.update((text.length() + ":" + text).getBytes(StandardCharsets.UTF_8));
             }
