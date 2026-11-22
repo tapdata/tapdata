@@ -13,7 +13,7 @@ import java.util.Map;
 public class Source {
     /** sql or mongoPipeline; null means SQL for legacy tasks. */
     private String queryKind;
-    private String queryTimezone = "UTC";
+    private String queryTimezone;
     private com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot querySnapshot;
 
 

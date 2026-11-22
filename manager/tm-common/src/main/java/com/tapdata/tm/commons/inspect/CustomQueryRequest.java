@@ -21,6 +21,13 @@ public class CustomQueryRequest implements Serializable {
         return java.time.ZoneId.of(timezone == null || timezone.trim().isEmpty() ? "UTC" : timezone);
     }
 
+    /** Reuse the timezone resolved by preview unless the caller explicitly selects another one. */
+    public static String effectiveTimezone(String timezone, CustomQueryConfig.Snapshot snapshot) {
+        String resolved = timezone == null || timezone.trim().isEmpty()
+                ? (snapshot == null ? null : snapshot.getTimezone()) : timezone;
+        return zoneId(resolved).getId();
+    }
+
     public void validate() {
         if (connectionId == null || connectionId.trim().isEmpty() || query == null || query.trim().isEmpty()
                 || timeoutSeconds < 1 || timeoutSeconds > 3600) throw new IllegalArgumentException("Connection, query and valid timeout are required");

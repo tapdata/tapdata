@@ -15,6 +15,11 @@ import net.sf.jsqlparser.statement.select.SubJoin;
 import net.sf.jsqlparser.statement.select.TableFunction;
 import net.sf.jsqlparser.util.TablesNamesFinder;
 import java.util.List;
+import java.util.Locale;
+import java.util.Arrays;
+import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.NextValExpression;
+import net.sf.jsqlparser.schema.Column;
 public final class CustomQueryReadOnly {
     public static void validateReadOnlyQuery(String sql, String connectionName) {
         try {
@@ -39,6 +44,38 @@ public final class CustomQueryReadOnly {
     }
 
     private static class ReadOnlySelectValidator extends TablesNamesFinder {
+        @Override
+        public void visit(Function function) {
+            // Include quoted and schema-qualified built-ins. SQL statement kind alone is insufficient.
+            for (String part : function.getMultipartName()) {
+                String name = part.replace("\"", "").replace("`", "").replace("[", "").replace("]", "").toLowerCase(Locale.ROOT);
+                if (Arrays.asList("nextval", "setval", "set_config", "pg_terminate_backend", "pg_cancel_backend",
+                        "pg_reload_conf", "pg_rotate_logfile", "pg_log_backend_memory_contexts", "pg_promote",
+                        "get_lock", "release_lock", "release_all_locks", "sys_exec", "sys_eval").contains(name)
+                        || name.startsWith("dblink") || name.startsWith("lo_") || name.startsWith("pg_advisory_")
+                        || name.startsWith("pg_try_advisory_") || name.startsWith("pg_write_")
+                        || name.startsWith("dbms_") || name.startsWith("utl_") || name.startsWith("xp_")) {
+                    throw new IllegalArgumentException("Side-effecting SQL function is not allowed: " + function.getName());
+                }
+            }
+            super.visit(function);
+            visitOrderBy(function.getOrderByElements());
+            if (function.getNamedParameters() != null) function.getNamedParameters().getExpressions().forEach(e -> e.accept(this));
+            if (function.getAttribute() != null) function.getAttribute().accept(this);
+        }
+
+        @Override
+        public void visit(NextValExpression expression) {
+            throw new IllegalArgumentException("Sequence mutation is not allowed");
+        }
+
+        @Override
+        public void visit(Column column) {
+            if ("nextval".equalsIgnoreCase(column.getColumnName().replace("\"", "")))
+                throw new IllegalArgumentException("Sequence mutation is not allowed");
+            super.visit(column);
+        }
+
         @Override
         public void visit(PlainSelect plainSelect) {
             if (CollectionUtils.isNotEmpty(plainSelect.getIntoTables()) || plainSelect.isForUpdate()) {

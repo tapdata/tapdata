@@ -27,6 +27,8 @@ public class CustomQueryInspectSupport {
     }
     public void validate(InspectDto inspect, UserDetail user) {
         if (!"custom_query".equals(inspect.getInspectMethod())) return;
+        // An absent task list on an existing task is an unchanged PATCH field, not an empty replacement.
+        if (inspect.getTasks() == null && inspect.getId() != null) return;
         if (inspect.getTasks() == null || inspect.getTasks().isEmpty()) throw new IllegalArgumentException("Custom query tasks are required");
         for (Task task : inspect.getTasks()) {
             CustomQueryConfig config = task.getCustomQueryConfig();
@@ -41,7 +43,7 @@ public class CustomQueryInspectSupport {
     private void validateSide(Source side, CustomQueryConfig config, UserDetail user) {
         CustomQueryRequest request = new CustomQueryRequest();
         request.setConnectionId(side.getConnectionId()); request.setQuery(side.getCustomQuery()); request.setKind(side.getQueryKind());
-        request.setCollection(side.getTable()); request.setTimezone(side.getQueryTimezone()); request.setTimeoutSeconds(config.getTimeoutSeconds());
+        request.setCollection(side.getTable()); request.setTimezone(CustomQueryRequest.effectiveTimezone(side.getQueryTimezone(), side.getQuerySnapshot())); request.setTimeoutSeconds(config.getTimeoutSeconds());
         authorize(request, user);
         if (side.getQuerySnapshot() == null || !request.fingerprint().equals(side.getQuerySnapshot().getFingerprint()))
             throw new IllegalArgumentException("Query or connection changed; test again before saving");

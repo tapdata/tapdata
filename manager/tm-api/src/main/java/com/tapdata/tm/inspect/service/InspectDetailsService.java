@@ -117,7 +117,20 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
     }
 
     protected void compareDifferenceFields(InspectDetailsDto inspectDetailsDtoTmp,InspectResultDto inspectResultDto){
-        if (inspectDetailsDtoTmp.getDifferenceType() != null) return;
+        if (inspectDetailsDtoTmp.getDifferenceType() != null) {
+            // A one-sided row differs in all fields. A value mismatch identifies one field per side.
+            if ("VALUE_MISMATCH".equals(inspectDetailsDtoTmp.getDifferenceType())) {
+                Map<String, Object> sourceFields = new HashMap<>(), targetFields = new HashMap<>();
+                String sourceField = inspectDetailsDtoTmp.getSourceField(), targetField = inspectDetailsDtoTmp.getTargetField();
+                if (sourceField != null && inspectDetailsDtoTmp.getSource() != null)
+                    sourceFields.put(sourceField, inspectDetailsDtoTmp.getSource().get(sourceField));
+                if (targetField != null && inspectDetailsDtoTmp.getTarget() != null)
+                    targetFields.put(targetField, inspectDetailsDtoTmp.getTarget().get(targetField));
+                inspectDetailsDtoTmp.setSource(sourceFields);
+                inspectDetailsDtoTmp.setTarget(targetFields);
+            }
+            return;
+        }
         Map<String,Object> source = inspectDetailsDtoTmp.getSource();
         Map<String,Object> target = inspectDetailsDtoTmp.getTarget();
         Map<String,Object> resultSource = new HashMap<>();

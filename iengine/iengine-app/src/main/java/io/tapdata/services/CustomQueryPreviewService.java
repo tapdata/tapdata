@@ -11,6 +11,8 @@ import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.EmptyTapTableMap;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import java.util.Map;
@@ -36,7 +38,7 @@ public class CustomQueryPreviewService {
                 request.setTimezone(timezone == null || timezone.toString().isBlank() ? "UTC" : timezone.toString());
             }
             node = createConnectorNode(associateId, (HttpClientMongoOperator) mongo, type, connection.getConfig());
-            node.connectorInit();
+            PDKInvocationMonitor.invoke(node, PDKMethod.INIT, node::connectorInit, getClass().getSimpleName());
             CustomQueryConfig.Snapshot snapshot = CustomQueryRunner.execute(node, request, 20, true, new CustomQueryConfig.SideSummary());
             if (snapshot.getColumns().isEmpty()) throw new IllegalArgumentException("This empty query result has no discoverable columns; test with representative data or use a connector with result metadata support");
             snapshot.setTimezone(request.getTimezone());
@@ -49,7 +51,7 @@ public class CustomQueryPreviewService {
         } catch (Throwable e) {
             throw new IllegalStateException("Custom query test failed: " + e.getMessage(), e);
         } finally {
-            if (node != null) try { node.connectorStop(); } catch (Throwable ignored) { }
+            if (node != null) try { PDKInvocationMonitor.invoke(node, PDKMethod.STOP, node::connectorStop, getClass().getSimpleName()); } catch (Throwable ignored) { }
             PDKIntegration.releaseAssociateId(associateId);
         }
     }

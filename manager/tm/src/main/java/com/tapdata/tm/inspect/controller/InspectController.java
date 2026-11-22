@@ -85,9 +85,9 @@ public class InspectController extends BaseController {
     public ResponseMessage<com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot> testCustomQuery(
             @RequestBody com.tapdata.tm.commons.inspect.CustomQueryRequest query) throws Throwable {
         customQueryInspectSupport.authorize(query, getLoginUser());
-        return success(taskService.callEngineRpc(null, com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot.class,
-                "CustomQueryPreviewService", "test", query));
+        return success(customQueryPreviewRpc.test(query));
     }
+    private com.tapdata.tm.inspect.service.CustomQueryPreviewRpc customQueryPreviewRpc;
     private AlarmReceiverAccess alarmReceiverAccess;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;

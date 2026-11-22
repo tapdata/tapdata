@@ -35,4 +35,26 @@ class CustomQueryContractRedesignTest {
         r.setTimeoutSeconds(1);r.setTimezone(" ");assertDoesNotThrow(r::validate);
         assertEquals(java.time.ZoneId.of("UTC"),CustomQueryRequest.zoneId(r.getTimezone()));
     }
+
+    @Test void selectFunctionsCannotMutateSequencesSessionsOrRemoteDatabases() {
+        for (String sql : List.of("select nextval('s')", "select pg_catalog.\"setval\"('s',1)",
+                "select pg_terminate_backend(1)", "select lo_export(1,'/tmp/file')", "select dblink_exec('c','delete from t')",
+                "select next value for s", "select s.nextval from dual", "select dbms_lock.request(1) from dual",
+                "select 1 from t order by nextval('s')", "select count(*) from t group by nextval('s')",
+                "with c as (select set_config('x','y',false)) select * from c",
+                "select coalesce((select nextval('s')),0)", "select sum(nextval('s')) from t")) {
+            assertThrows(IllegalArgumentException.class, () -> request(sql).validate(), sql);
+        }
+        for (String sql : List.of("select sum(v),count(*) from t", "select coalesce(v,0) from t", "select 'nextval' as v"))
+            assertDoesNotThrow(() -> request(sql).validate(), sql);
+    }
+
+    @Test void resolvedPreviewTimezoneIsFallbackButExplicitUtcWins() {
+        CustomQueryConfig.Snapshot snapshot = new CustomQueryConfig.Snapshot(); snapshot.setTimezone("Asia/Shanghai");
+        assertEquals("Asia/Shanghai",CustomQueryRequest.effectiveTimezone(null,snapshot));
+        assertEquals("Asia/Shanghai",CustomQueryRequest.effectiveTimezone("  ",snapshot));
+        assertEquals("UTC",CustomQueryRequest.effectiveTimezone("UTC",snapshot));
+        assertEquals("UTC",CustomQueryRequest.effectiveTimezone(null,null));
+    }
+
 }
