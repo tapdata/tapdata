@@ -81,6 +81,7 @@ public class InspectController extends BaseController {
     private InspectService inspectService;
     private com.tapdata.tm.inspect.service.CustomQueryInspectSupport customQueryInspectSupport;
 
+    @Audited(value = AuditAction.INSPECT_TEST_QUERY, objectId = "#query.connectionId")
     @PostMapping("/custom-query/test")
     public ResponseMessage<com.tapdata.tm.commons.inspect.CustomQueryConfig.Snapshot> testCustomQuery(
             @RequestBody com.tapdata.tm.commons.inspect.CustomQueryRequest query) throws Throwable {
