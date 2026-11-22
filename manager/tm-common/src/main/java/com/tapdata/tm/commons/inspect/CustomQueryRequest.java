@@ -25,7 +25,8 @@ public class CustomQueryRequest implements Serializable {
     public static String effectiveTimezone(String timezone, CustomQueryConfig.Snapshot snapshot) {
         String resolved = timezone == null || timezone.trim().isEmpty()
                 ? (snapshot == null ? null : snapshot.getTimezone()) : timezone;
-        return zoneId(resolved).getId();
+        // Fingerprints retain the exact tested spelling (e.g. +8 versus +08:00).
+        return resolved == null || resolved.trim().isEmpty() ? "UTC" : resolved;
     }
 
     public void validate() {

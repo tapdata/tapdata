@@ -55,6 +55,9 @@ class CustomQueryContractRedesignTest {
         assertEquals("Asia/Shanghai",CustomQueryRequest.effectiveTimezone("  ",snapshot));
         assertEquals("UTC",CustomQueryRequest.effectiveTimezone("UTC",snapshot));
         assertEquals("UTC",CustomQueryRequest.effectiveTimezone(null,null));
+        snapshot.setTimezone("+8");
+        assertEquals("+8",CustomQueryRequest.effectiveTimezone(null,snapshot));
+        assertEquals("+8",CustomQueryRequest.effectiveTimezone("+8",snapshot));
     }
 
 }
