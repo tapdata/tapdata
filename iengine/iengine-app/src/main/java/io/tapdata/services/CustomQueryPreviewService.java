@@ -34,10 +34,7 @@ public class CustomQueryPreviewService {
             Connections connection = HazelcastTaskService.taskService().getConnection(request.getConnectionId());
             if (connection == null) throw new IllegalArgumentException("Connection is unavailable");
             DatabaseTypeEnum.DatabaseType type = ConnectionUtil.getDatabaseType(mongo, connection.getPdkHash());
-            if (request.getTimezone() == null || request.getTimezone().isBlank()) {
-                Object timezone = connection.getConfig().get("timezone");
-                request.setTimezone(timezone == null || timezone.toString().isBlank() ? "UTC" : timezone.toString());
-            }
+            resolveTimezone(request, connection);
             if (!(mongo instanceof HttpClientMongoOperator))
                 throw new IllegalStateException("Custom query preview requires the HTTP Mongo operator");
             node = createConnectorNode(associateId, (HttpClientMongoOperator) mongo, type, connection.getConfig());
@@ -60,6 +57,12 @@ public class CustomQueryPreviewService {
             throw new IllegalStateException("Custom query test failed: " + e.getMessage(), e);
         } finally {
             if (!cleanupTransferred) release(node, associateId);
+        }
+    }
+    static void resolveTimezone(CustomQueryRequest request, Connections connection) {
+        if (request.getTimezone() == null || request.getTimezone().isBlank()) {
+            Object timezone = connection.getConfig() == null ? null : connection.getConfig().get("timezone");
+            request.setTimezone(timezone == null || timezone.toString().isBlank() ? "UTC" : timezone.toString());
         }
     }
     private void release(ConnectorNode node, String associateId) {

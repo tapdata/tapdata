@@ -66,47 +66,48 @@ public final class CustomQueryRunner {
         }
         TapExecuteCommand execute = TapExecuteCommand.create().command(command).params(params).batchSize((Integer) params.get("batchSize"));
         AtomicReference<Thread> executingThread = new AtomicReference<>();
-        Future<?> future = WORKERS.submit(() -> {
-            synchronized (executingThread) { executingThread.set(Thread.currentThread()); }
-            try {
-                PDKInvocationMonitor.invoke(node, PDKMethod.EXECUTE_COMMAND, () -> node.getConnectorFunctions().getExecuteCommandFunction().execute(node.getConnectorContext(), execute, result -> {
-                    if (failure.get() != null) throw failure.get();
-                    if (preview && snapshot.isHasMore()) throw new PreviewComplete();
-                    if (stopped.get()) throw new CancellationException("Query cancelled");
-                    if (result == null) return;
-                    if (result.getError() != null) {
-                        failure.set(new IllegalStateException("Custom query execution failed", result.getError())); throw failure.get();
-                    }
-                    Object data = result.getResult();
-                    // Existing Paimon COUNT returns a scalar; JDBC update counts are rejected by the opt-in path.
-                    if (data instanceof Number && connectorId.contains("paimon")) data = Collections.singletonList(Collections.singletonMap("value", data));
-                    if (!(data instanceof List)) {
-                        failure.set(new IllegalArgumentException("Query did not return a row set")); throw failure.get();
-                    }
-                    for (Object row : (List<?>) data) {
-                        if (!(row instanceof Map)) { failure.set(new IllegalArgumentException("Query returned a non-row result")); throw failure.get(); }
-                        if (rows.size() == maxRows) {
-                            if (preview) { snapshot.setHasMore(true); throw new PreviewComplete(); }
-                            failure.set(new IllegalArgumentException("Custom query exceeds maximum " + maxRows + " rows")); throw failure.get();
-                        }
-                        rows.add(new LinkedHashMap<>((Map<String, Object>) row));
-                        summary.setRows(rows.size());
-                    }
-                }), "CustomQueryRunner");
-                if (failure.get() != null) throw failure.get();
-            } catch (Throwable e) {
-                if (e instanceof Error) throw (Error) e;
-                if (preview && snapshot.isHasMore() && failure.get() == null) return;
-                throw new CompletionException(failure.get() == null ? e : failure.get());
-            } finally {
-                synchronized (executingThread) { executingThread.set(null); }
-                // Cancellation may have interrupted this thread. Cleanup must still be able to perform I/O.
-                Thread.interrupted();
-                cleanup.run();
-            }
-        });
-        submitted.set(true);
+        Future<?> future = null;
         try {
+            future = WORKERS.submit(() -> {
+                synchronized (executingThread) { executingThread.set(Thread.currentThread()); }
+                try {
+                    PDKInvocationMonitor.invoke(node, PDKMethod.EXECUTE_COMMAND, () -> node.getConnectorFunctions().getExecuteCommandFunction().execute(node.getConnectorContext(), execute, result -> {
+                        if (failure.get() != null) throw failure.get();
+                        if (preview && snapshot.isHasMore()) throw new PreviewComplete();
+                        if (stopped.get()) throw new CancellationException("Query cancelled");
+                        if (result == null) return;
+                        if (result.getError() != null) {
+                            failure.set(new IllegalStateException("Custom query execution failed", result.getError())); throw failure.get();
+                        }
+                        Object data = result.getResult();
+                        // Existing Paimon COUNT returns a scalar; JDBC update counts are rejected by the opt-in path.
+                        if (data instanceof Number && connectorId.contains("paimon")) data = Collections.singletonList(Collections.singletonMap("value", data));
+                        if (!(data instanceof List)) {
+                            failure.set(new IllegalArgumentException("Query did not return a row set")); throw failure.get();
+                        }
+                        for (Object row : (List<?>) data) {
+                            if (!(row instanceof Map)) { failure.set(new IllegalArgumentException("Query returned a non-row result")); throw failure.get(); }
+                            if (rows.size() == maxRows) {
+                                if (preview) { snapshot.setHasMore(true); throw new PreviewComplete(); }
+                                failure.set(new IllegalArgumentException("Custom query exceeds maximum " + maxRows + " rows")); throw failure.get();
+                            }
+                            rows.add(new LinkedHashMap<>((Map<String, Object>) row));
+                            summary.setRows(rows.size());
+                        }
+                    }), "CustomQueryRunner");
+                    if (failure.get() != null) throw failure.get();
+                } catch (Throwable e) {
+                    if (e instanceof Error) throw (Error) e;
+                    if (preview && snapshot.isHasMore() && failure.get() == null) return;
+                    throw new CompletionException(failure.get() == null ? e : failure.get());
+                } finally {
+                    synchronized (executingThread) { executingThread.set(null); }
+                    // Cancellation may have interrupted this thread. Cleanup must still be able to perform I/O.
+                    Thread.interrupted();
+                    cleanup.run();
+                }
+            });
+            submitted.set(true);
             future.get(request.getTimeoutSeconds(), TimeUnit.SECONDS);
             // Document stores and older connectors have no declared schema: infer union from observed rows.
             if (columns.isEmpty()) {
@@ -128,12 +129,16 @@ public final class CustomQueryRunner {
             if (cause instanceof Error) throw (Error) cause;
             if (cause instanceof RuntimeException) throw (RuntimeException) cause;
             throw new IllegalStateException("Custom query failed", cause);
+        } catch (RejectedExecutionException e) {
+            summary.setStatus("error");
+            // Preserve this type: formal jobs retry submission within their admission deadline.
+            throw new RejectedExecutionException("Custom query capacity is exhausted; retry later", e);
         } catch (RuntimeException e) {
             if ("running".equals(summary.getStatus())) summary.setStatus("error");
             throw e;
         } finally {
             stopped.set(true);
-            if (!future.isDone()) { Runnable action = cancel.get(); if (action != null) try { action.run(); } catch (Exception ignored) { } synchronized (executingThread) { Thread thread = executingThread.get(); if (thread != null) thread.interrupt(); } }
+            if (future != null && !future.isDone()) { Runnable action = cancel.get(); if (action != null) try { action.run(); } catch (Exception ignored) { } synchronized (executingThread) { Thread thread = executingThread.get(); if (thread != null) thread.interrupt(); } }
             summary.setEndedAt(System.currentTimeMillis()); summary.setDurationMillis(summary.getEndedAt() - summary.getStartedAt());
         }
     }
