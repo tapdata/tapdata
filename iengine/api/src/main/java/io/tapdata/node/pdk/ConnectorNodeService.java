@@ -150,6 +150,7 @@ public class ConnectorNodeService {
 				);
 				long currentTimeMillis = System.currentTimeMillis();
 				try {
+					PdkUtil.populateConnectionInfo(connectorNode.getConnectorContext(), connection);
 					connectorNode.connectorLightInit();
 				} catch (Throwable e) {
 					PDKIntegration.releaseAssociateId(associateId);

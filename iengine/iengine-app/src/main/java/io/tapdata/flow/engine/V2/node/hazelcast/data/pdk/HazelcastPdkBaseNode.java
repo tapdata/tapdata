@@ -308,6 +308,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this),
 				taskDto
 		);
+		PdkUtil.populateConnectionInfo(connectorNode.getConnectorContext(), dataProcessorContext.getConnections());
 		connectorNode.getConnectorContext().setIsomorphism(dataProcessorContext.getTaskConfig().isomorphism());
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));

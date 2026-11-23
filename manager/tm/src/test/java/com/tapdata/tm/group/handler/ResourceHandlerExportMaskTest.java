@@ -72,6 +72,7 @@ public class ResourceHandlerExportMaskTest {
         config.put("isUri", true);
         config.put("uri", REAL_URI);
         config.put("privateKey", "synthetic-key-content");
+        config.put("rawRedoClientKeyPassword", "synthetic-key-password");
         config.put("rawRedoServerCertificatePem", "public-cert-content");
         entity.setConfig(config);
         return entity;
@@ -99,16 +100,18 @@ public class ResourceHandlerExportMaskTest {
     }
 
     @Test
-    void masksUploadedPrivateKeyAndKeepsPublicCertificate() {
+    void masksKeyAndPasswordAndKeepsPublicCertificate() {
         String json = exportedConnectionJson(connectionWithRealUri(), true);
         assertFalse(json.contains("synthetic-key-content"));
+        assertFalse(json.contains("synthetic-key-password"));
         assertTrue(json.contains("public-cert-content"));
     }
 
     @Test
-    void masksUploadedPrivateKeyWhenDefinitionIsUnavailable() {
+    void masksKeyAndPasswordWhenDefinitionIsUnavailable() {
         String json = exportedConnectionJson(connectionWithRealUri(), true, null);
         assertFalse(json.contains("synthetic-key-content"));
+        assertFalse(json.contains("synthetic-key-password"));
         assertTrue(json.contains("public-cert-content"));
     }
 
@@ -117,6 +120,7 @@ public class ResourceHandlerExportMaskTest {
     void keepsSecretsWhenMaskDisabled() {
         String json = exportedConnectionJson(connectionWithRealUri(), false);
         assertTrue(json.contains("synthetic-key-content"));
+        assertTrue(json.contains("synthetic-key-password"));
         assertTrue(json.contains(REAL_URI),
                 "本地导出默认保真（ADR-0034 D1），凭据被抹掉的包搬到另一个环境就是不可用的：" + json);
     }

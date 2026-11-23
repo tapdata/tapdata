@@ -39,8 +39,9 @@ public interface ResourceHandler {
 
     Logger log = LoggerFactory.getLogger(ResourceHandler.class);
 
-    // Uploaded key contents have a stable config name even when the connector definition is unavailable.
+    // The uploaded key and its PKCS#12 password must also be masked without a connector definition.
     String PRIVATE_KEY_CONFIG_PATH = "privateKey";
+    String RAW_REDO_KEY_PASSWORD_CONFIG_PATH = "rawRedoClientKeyPassword";
 
     /**
      * 需要脱敏的标准化 apiServerKey 集合，跨所有数据源一致
@@ -466,6 +467,7 @@ public interface ResourceHandler {
     static Set<String> getMaskedConfigPaths(DataSourceDefinitionDto definition) {
         Set<String> paths = new HashSet<>();
         paths.add(PRIVATE_KEY_CONFIG_PATH);
+        paths.add(RAW_REDO_KEY_PASSWORD_CONFIG_PATH);
         Map<String, String> pathToApiKey = buildConfigPathToApiKeyMap(definition);
         for (Map.Entry<String, String> entry : pathToApiKey.entrySet()) {
             if (SENSITIVE_API_KEYS.contains(entry.getValue())) {
