@@ -33,6 +33,7 @@ public class CustomQueryInspectSupport {
         if (connection.getCapabilities() == null || connection.getCapabilities().stream().noneMatch(c -> "execute_command_function".equals(c.getId())))
             throw new IllegalArgumentException("Connection does not support executeCommand queries");
     }
+    /** Called by the enterprise InspectServiceImpl save hook and update validation before persistence. */
     public void validate(InspectDto inspect, UserDetail user) {
         if (!"custom_query".equals(inspect.getInspectMethod())) return;
         // An absent task list on an existing task is an unchanged PATCH field, not an empty replacement.
