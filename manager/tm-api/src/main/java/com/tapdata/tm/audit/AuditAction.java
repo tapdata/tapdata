@@ -76,6 +76,7 @@ public enum AuditAction {
 	DATA_PREVIEW("data.preview", AuditEventType.TASK, "table", false, BASIC),
 
 	// 数据校验
+	INSPECT_TEST_QUERY("inspect.test_query", AuditEventType.INSPECT, "datasource", false, BASIC),
 	INSPECT_CREATE("inspect.create", AuditEventType.INSPECT, "inspect", false, BASIC),
 	INSPECT_UPDATE("inspect.update", AuditEventType.INSPECT, "inspect", false, BASIC),
 	INSPECT_DELETE("inspect.delete", AuditEventType.INSPECT, "inspect", false, BASIC),

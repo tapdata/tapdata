@@ -1,6 +1,8 @@
 
 package com.tapdata.tm.inspect.bean;
 
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+
 
 import com.tapdata.tm.commons.schema.Field;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -11,6 +13,11 @@ import java.util.Map;
 
 @Data
 public class Source {
+    /** sql or mongoPipeline; null means SQL for legacy tasks. */
+    private String queryKind;
+    private String queryTimezone;
+    private CustomQueryConfig.Snapshot querySnapshot;
+
 
     /** */
     private List<Field> fields;
