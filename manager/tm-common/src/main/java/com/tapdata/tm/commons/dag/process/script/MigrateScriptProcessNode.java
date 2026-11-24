@@ -1,8 +1,10 @@
 package com.tapdata.tm.commons.dag.process.script;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
@@ -11,6 +13,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.schema.TableIndex;
@@ -19,9 +22,11 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +68,22 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
 
     @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */
     protected Integer jsType;
+
+    /**
+     * 当前推演服务无法试运行 JS（getJsResult 返回 null，如引擎增量 DDL 推演使用的 DAGDataServiceImpl），仅保存在内存中
+     */
+    @JsonIgnore
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private transient boolean jsResultUnavailable;
+
+    /**
+     * 本次推演待叠加的字段级 DDL 事件，由 {@link #fieldDdlEvent(TapDDLEvent)} 记录，仅保存在内存中
+     */
+    @JsonIgnore
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private transient TapDDLEvent pendingFieldDdlEvent;
 
     /**
      * 创建处理器节点
@@ -138,6 +159,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        jsResultUnavailable = null == jsResult;
         if (CollectionUtils.isEmpty(jsResult)) {
             result = Lists.newArrayList();
         } else {
@@ -290,6 +312,8 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
+        TapDDLEvent ddlEvent = pendingFieldDdlEvent;
+        pendingFieldDdlEvent = null;
         if (CollectionUtils.isNotEmpty(schemas)) {
             return schemas;
         }
@@ -300,9 +324,66 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
                 result.addAll(inputSchema);
             }
         }
+        if (jsResultUnavailable && null != ddlEvent) {
+            // 无法试运行时不能用输入模型代替 JS 输出，否则 JS 新增/删除/转换的字段会丢失；基于上次输出模型叠加本次 DDL
+            return mergeWithPreviousOutput(result, ddlEvent);
+        }
         return result;
     }
 
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        if (ScriptDdlSchemaMerger.isFieldDdl(event)) {
+            pendingFieldDdlEvent = event;
+        }
+    }
+
+    protected List<Schema> mergeWithPreviousOutput(List<Schema> inputSchemas, TapDDLEvent ddlEvent) {
+        boolean ddlTableMatched = inputSchemas.stream().anyMatch(input -> ScriptDdlSchemaMerger.isDdlTable(input, ddlEvent));
+        if (!ddlTableMatched) {
+            log.warn("Js node {}({}) can not match ddl table {}, use input schema", getId(), getName(), ddlEvent.getTableId());
+            return inputSchemas;
+        }
+        List<Schema> result = new ArrayList<>(inputSchemas.size());
+        for (Schema input : inputSchemas) {
+            Schema previous = findPreviousOutput(input);
+            if (null == previous) {
+                result.add(input);
+                continue;
+            }
+            Schema merged = ScriptDdlSchemaMerger.applyDdlOnPrevious(input, previous, ScriptDdlSchemaMerger.isDdlTable(input, ddlEvent) ? ddlEvent : null);
+            if (null == merged) {
+                log.warn("Js node {}({}) can not apply ddl {} on previous output of table {}, use input schema",
+                        getId(), getName(), ddlEvent.getClass().getSimpleName(), input.getOriginalName());
+                result.add(input);
+            } else {
+                result.add(merged);
+            }
+        }
+        return result;
+    }
+
+    protected Schema findPreviousOutput(Schema input) {
+        String tableName = input.getOriginalName();
+        if (null == tableName) {
+            return null;
+        }
+        List<Schema> lastOutput = getOutputSchema();
+        if (CollectionUtils.isNotEmpty(lastOutput)) {
+            for (Schema schema : lastOutput) {
+                if (null != schema && tableName.equals(schema.getOriginalName()) && CollectionUtils.isNotEmpty(schema.getFields())) {
+                    return schema;
+                }
+            }
+        }
+        if (service instanceof DAGDataServiceImpl) {
+            MetadataInstancesDto metadata = ((DAGDataServiceImpl) service).getSchemaByNodeAndTableName(getId(), tableName);
+            if (null != metadata && CollectionUtils.isNotEmpty(metadata.getFields())) {
+                return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadata), Schema.class);
+            }
+        }
+        return null;
+    }
 
     @Override
     public boolean equals(Object o) {
