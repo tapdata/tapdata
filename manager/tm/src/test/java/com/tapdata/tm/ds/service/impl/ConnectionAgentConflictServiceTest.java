@@ -113,10 +113,34 @@ class ConnectionAgentConflictServiceTest {
         when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
         ConnectionAgentConflictReport.Item item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
         assertEquals(List.of(List.of(), List.of("agent-b")), item.getAllowedAgentProcessIdSets());
-        assertEquals("connection_conflict", item.getBlockedReason());
-        assertFalse(item.isEditable());
-        assertFalse(item.isAutoResolvable());
-        assertEquals(2, item.getConnections().size());
+        assertNull(item.getBlockedReason());
+        assertTrue(item.isEditable());
+        assertTrue(item.isAutoResolvable());
+
+        doReturn(false).when(service).canViewConnection(target.getId().toHexString(), user);
+        item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
+        assertNull(item.getAllowedAgentProcessIdSets());
+        assertTrue(item.isAutoResolvable());
+    }
+
+    @Test
+    void writesAutomaticPolicyOnlyWhenProposedConnectionsCanRunIt() {
+        target.setAccessNodeProcessId("agent-c");
+        TaskDto task = task("manual", "stop", "agent-a");
+        when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        service.setMongoTemplate(mongo);
+        ConnectionTaskAgentRequest request = edits(task, null);
+        request.getTaskSettings().setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
+        ConnectionTaskAgentResult rejected = service.updateTaskAgents(Map.of(source.getId().toHexString(), both("agent-b").get(source.getId().toHexString())), request, user);
+        assertEquals("Task.SourceAgentConflict", rejected.getFailures().get(0).getCode());
+        verifyNoInteractions(mongo);
+
+        when(mongo.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+        ConnectionTaskAgentResult updated = service.updateTaskAgents(both("agent-b"), request, user);
+        assertEquals(List.of(task.getId().toHexString()), updated.getUpdatedTaskIds());
     }
 
     private ConnectionTaskAgentRequest edits(TaskDto task, String agent) {

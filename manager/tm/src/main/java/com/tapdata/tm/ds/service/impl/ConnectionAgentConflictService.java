@@ -209,16 +209,16 @@ public class ConnectionAgentConflictService {
             item.setCanEdit(permission);
             item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && permission);
             boolean connectionConflict = "Task.SourceAgentConflict".equals(e.getErrorCode());
-            if (item.isEditable()) {
+            if (item.isEditable() && referencedConnections(task).stream().allMatch(id -> canViewConnection(id, user))) {
                 List<List<String>> allowedAgentSets = new ArrayList<>(2);
                 Set<String> currentAgents = taskScheduleService.connectionAllowedAgents(task, user, Collections.emptyMap());
                 Set<String> proposedAgents = taskScheduleService.connectionAllowedAgents(task, user, overrides);
                 if (currentAgents != null) allowedAgentSets.add(new ArrayList<>(currentAgents));
                 if (proposedAgents != null) allowedAgentSets.add(new ArrayList<>(proposedAgents));
                 item.setAllowedAgentProcessIdSets(allowedAgentSets);
-                connectionConflict |= allowedAgentSets.stream().anyMatch(List::isEmpty);
-                item.setEditable(!connectionConflict);
+
             }
+            if (connectionConflict) item.setEditable(false);
             item.setAutoResolvable(item.isEditable() && automaticResolves(task, overrides, user));
             item.setBlockedReason(!permission ? "no_edit_permission"
                     : connectionConflict ? "connection_conflict"
@@ -250,7 +250,13 @@ public class ConnectionAgentConflictService {
 
     private void validateTaskAgentPolicy(TaskDto task, UserDetail user,
                                          Map<String, DataSourceConnectionDto> overrides) {
-        taskScheduleService.validateConnectionAgentPolicy(task, user, Collections.emptyMap());
+        try {
+            taskScheduleService.validateConnectionAgentPolicy(task, user, Collections.emptyMap());
+        } catch (BizException e) {
+            // Automatic allocation can repair an already unusable current policy.
+            if (!AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(task.getAccessNodeType())
+                    || !"Task.SourceAgentConflict".equals(e.getErrorCode())) throw e;
+        }
         taskScheduleService.validateConnectionAgentPolicy(task, user, overrides);
     }
 
@@ -304,13 +310,7 @@ public class ConnectionAgentConflictService {
 
     private List<ConnectionAgentConflictReport.Connection> affectedConnections(TaskDto task,
                                                                               Map<String, DataSourceConnectionDto> overrides) {
-        Set<String> referenced = new HashSet<>();
-        if (task.getDag() != null && task.getDag().getNodes() != null) {
-            for (Node node : task.getDag().getNodes()) {
-                if (node instanceof DataParentNode<?> data) referenced.add(data.getConnectionId());
-                if (node instanceof LogCollectorNode log && log.getConnectionIds() != null) referenced.addAll(log.getConnectionIds());
-            }
-        }
+        Set<String> referenced = referencedConnections(task);
         List<ConnectionAgentConflictReport.Connection> result = new ArrayList<>();
         overrides.forEach((id, dto) -> {
             if (referenced.contains(id)) {
@@ -321,6 +321,18 @@ public class ConnectionAgentConflictService {
             }
         });
         return result;
+    }
+
+    private Set<String> referencedConnections(TaskDto task) {
+        Set<String> referenced = new HashSet<>();
+        if (task.getDag() != null && task.getDag().getNodes() != null) {
+            for (Node node : task.getDag().getNodes()) {
+                if (node instanceof DataParentNode<?> data) referenced.add(data.getConnectionId());
+                if (node instanceof LogCollectorNode log && log.getConnectionIds() != null) referenced.addAll(log.getConnectionIds());
+            }
+        }
+        referenced.removeIf(id -> id == null || id.isBlank());
+        return referenced;
     }
 
     private TaskDto inspectionTask(InspectDto inspect) {
