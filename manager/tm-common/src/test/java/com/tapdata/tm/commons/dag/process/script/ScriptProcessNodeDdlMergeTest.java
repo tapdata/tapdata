@@ -108,6 +108,7 @@ class ScriptProcessNodeDdlMergeTest {
                 .dataType(ValueChange.create("VARCHAR(20)", "VARCHAR(30)"))), schema(field("id", "INT"), field("name", "VARCHAR(30)")));
         assertEquals(Arrays.asList("id", "name", "cdc_create_time", "cdc_update_time", "is_delete"), names(altered));
         assertEquals("VARCHAR(30)", altered.getFields().get(1).getDataType());
+        assertEquals("VARCHAR(30)", altered.getFields().get(1).getDataTypeTemp());
 
         node.setOutputSchema(altered);
         Schema dropped = merge(table(new TapDropFieldEvent().fieldName("name")), schema(field("id", "INT")));

@@ -155,16 +155,23 @@ public class MigrateScriptProcessNodeTest {
         }
 
         @Test
-        @DisplayName("U2 修改字段属性后更新字段定义并保留 JS 字段")
+        @DisplayName("U2 修改字段属性后更新字段定义及 dataTypeTemp 并保留 JS 字段")
         void testAlterFieldAttributesKeepsJsFields() throws Exception {
-            node.setOutputSchema(Collections.singletonList(previousOutput()));
-            Schema input = schema(field("id", "INT"), field("name", "VARCHAR(30)"));
+            Schema previous = previousOutput();
+            fieldOf(previous, "name").setDataTypeTemp("VARCHAR(20)");
+            node.setOutputSchema(Collections.singletonList(previous));
+            // 源节点模型更新类型时 dataTypeTemp 仍可能是旧值
+            Field inputName = field("name", "VARCHAR(30)");
+            inputName.setDataTypeTemp("VARCHAR(20)");
+            Schema input = schema(field("id", "INT"), inputName);
 
             Schema result = merge(table(new TapAlterFieldAttributesEvent().fieldName("name")
-                    .dataType(ValueChange.create("VARCHAR(20)", "VARCHAR(30)"))), input);
+                    .dataType(ValueChange.create(null, "VARCHAR(30)"))), input);
 
             assertEquals(Arrays.asList("id", "name", "cdc_create_time", "cdc_update_time", "is_delete"), fieldNames(result));
             assertEquals("VARCHAR(30)", fieldOf(result, "name").getDataType());
+            // 同库类型保存模型时按 dataTypeTemp 回填类型，必须随本次类型变更更新
+            assertEquals("VARCHAR(30)", fieldOf(result, "name").getDataTypeTemp());
         }
 
         @Test

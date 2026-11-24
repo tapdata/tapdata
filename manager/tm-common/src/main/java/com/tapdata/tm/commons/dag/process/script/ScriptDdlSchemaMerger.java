@@ -130,6 +130,8 @@ public final class ScriptDdlSchemaMerger {
         ValueChange<String> dataTypeChange = event.getDataTypeChange();
         if (null != dataTypeChange && !convertedByScript(output, dataTypeChange)) {
             output.setDataType(input.getDataType());
+            // 与可试运行路径一致，dataTypeTemp 取当前类型；同库类型保存模型时按 dataTypeTemp 回填类型，保留旧值会把本次类型变更回滚
+            output.setDataTypeTemp(input.getDataType());
             output.setDataType1(input.getDataType1());
             output.setTapType(input.getTapType());
             output.setSimpleTypeName(input.getSimpleTypeName());
