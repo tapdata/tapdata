@@ -88,12 +88,13 @@ class ScriptNodeDdlSchemaTransformIT {
     }
 
     @Test
-    @DisplayName("迁移任务连续加字段、删字段 DDL 推演后目标模型始终保留 JS 新增字段")
+    @DisplayName("迁移任务连续加字段、删字段 DDL（中间经快照清空节点模型）推演后目标模型始终保留 JS 新增字段及上一次 DDL 的字段")
     void should_keep_js_fields_across_consecutive_ddl() throws Exception {
         useMigrateTask();
 
         applyFieldDdl(addField("col1"));
         assertTrue(targetFieldNames().containsAll(JS_FIELDS), "第一次 DDL 后缺少 JS 字段: " + targetFieldNames());
+        snapshotClearsNodeSchemas();
 
         applyFieldDdl(addField("col2"));
         List<String> afterSecond = targetFieldNames();
@@ -108,7 +109,7 @@ class ScriptNodeDdlSchemaTransformIT {
     }
 
     @Test
-    @DisplayName("开发任务增量加字段、删字段 DDL 推演后目标模型保留 JS 新增字段")
+    @DisplayName("开发任务增量加字段、删字段 DDL（中间经快照清空节点模型）推演后目标模型保留 JS 新增字段及上一次 DDL 的字段")
     void should_keep_js_fields_in_sync_task_across_ddl() throws Exception {
         useSyncTask();
 
@@ -116,11 +117,24 @@ class ScriptNodeDdlSchemaTransformIT {
         List<String> afterAdd = targetFieldNames();
         assertTrue(afterAdd.containsAll(JS_FIELDS), "加字段 DDL 后缺少 JS 字段: " + afterAdd);
         assertTrue(afterAdd.containsAll(Arrays.asList("id", "name", "col1")), "加字段 DDL 后缺少源字段: " + afterAdd);
+        snapshotClearsNodeSchemas();
 
         applyFieldDdl(dropField("name"));
         List<String> afterDrop = targetFieldNames();
         assertTrue(afterDrop.containsAll(JS_FIELDS), "删字段 DDL 后缺少 JS 字段: " + afterDrop);
+        assertTrue(afterDrop.contains("col1"), "快照清空模型后的下一次 DDL 丢失上一次新增的 col1: " + afterDrop);
         assertFalse(afterDrop.contains("name"), "删字段 DDL 后仍保留 name: " + afterDrop);
+    }
+
+    /**
+     * 与引擎目标节点 saveToSnapshot 上传 DDL 元数据时一致：清空同一 DAG 所有节点的 schema 与 outputSchema
+     * （HazelcastTargetPdkBaseNode），源节点下一次 DDL 推演仍使用这个 DAG
+     */
+    private void snapshotClearsNodeSchemas() {
+        for (Node node : dag.getNodes()) {
+            node.setSchema(null);
+            node.setOutputSchema(null);
+        }
     }
 
     /** 与引擎 DDL 分支一致：先按 DDL 更新源表模型，再 filedDdlEvent，最后整 DAG 推演 */
