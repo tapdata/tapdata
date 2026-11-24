@@ -179,7 +179,9 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
                     number = 1;
                 } else {
-                    number = dag.getSourceNode().getFirst().getTableNames().size();
+                    // The source may be a node that is not a DatabaseNode, e.g. an UnknownNode.
+                    LinkedList<DatabaseNode> sourceNodes = dag.getSourceNode();
+                    number = sourceNodes.isEmpty() ? 0 : sourceNodes.getFirst().getTableNames().size();
                 }
                 TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, locale, template, number, number);
                 assert checkLogs != null;

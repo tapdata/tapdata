@@ -4,6 +4,8 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +44,20 @@ public class ResourceHandlerImportPreserveTest {
         conn.setName("MDM_CUSTOMER");
         conn.setConfig(config);
         return conn;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"privateKey", "rawRedoClientKeyPassword"})
+    void missingKeyCredentialKeepsTargetValue(String path) {
+        DataSourceConnectionDto incoming = connection(new LinkedHashMap<>());
+        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of(path, "target-key")));
+        assertEquals(List.of(path),
+                ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, null));
+        assertEquals("target-key", incoming.getConfig().get(path));
+
+        incoming.getConfig().put(path, "replacement-key");
+        assertTrue(ResourceHandler.restoreMissingSecretsFromExisting(incoming, existing, null).isEmpty());
+        assertEquals("replacement-key", incoming.getConfig().get(path));
     }
 
     @Test

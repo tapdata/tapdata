@@ -43,7 +43,9 @@ public final class ConnectionNodeUtil {
             if (MapUtils.isNotEmpty(connections.getConfig())) {
                 connectorBuilder.withConnectionConfig(DataMap.create(connections.getConfig()));
             }
-            return connectorBuilder.build();
+            ConnectionNode node = connectorBuilder.build();
+            PdkUtil.populateConnectionInfo(node.getConnectionContext(), connections);
+            return node;
         } catch (Exception e) {
             throw new RuntimeException("Failed to create pdk connection node, database type: " + databaseType + ", message: " + e.getMessage(), e);
         }

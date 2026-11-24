@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
@@ -8,6 +9,8 @@ import com.tapdata.tm.utils.PdkSourceUtils;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
@@ -35,6 +38,25 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class PdkUtilTest {
+    @Test
+    void savedDatasourceIdIsAHexStringInContextInfo() {
+        Connections datasource = new Connections();
+        DataMap config = DataMap.create();
+        config.put("resourceId", "connector-defined-value");
+        TapConnectionContext test = new TapConnectionContext(null, config, null, null);
+        TapConnectorContext task = new TapConnectorContext(null, config, null, null);
+
+        PdkUtil.populateConnectionInfo(test, datasource);
+        assertFalse(test.getInfo().containsKey("resourceId"));
+        datasource.setId("0123456789ABCDEF01234567");
+        PdkUtil.populateConnectionInfo(test, datasource);
+        PdkUtil.populateConnectionInfo(task, datasource);
+
+        assertEquals("0123456789abcdef01234567", test.getInfo().get("resourceId"));
+        assertEquals(test.getInfo().get("resourceId"), task.getInfo().get("resourceId"));
+        assertEquals("connector-defined-value", config.get("resourceId"));
+    }
+
     private HttpClientMongoOperator httpClientMongoOperator;
     private String pdkHash;
     private String fileName;

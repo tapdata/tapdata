@@ -1709,7 +1709,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Object to = fileConfig != null ? fileConfig.get(configPath) : null;
             if (jsonEqual(from, to)) continue;
 
-            if (MASKED_DISPLAY_API_KEYS.contains(configPath)) {
+            if (MASKED_DISPLAY_CONFIG_PATHS.contains(configPath)) {
                 changes.add(new FieldChange("config." + configPath, "******", "******"));
             } else if (URI_DISPLAY_API_KEYS.contains(configPath)) {
                 changes.add(new FieldChange("config." + configPath, maskUriValue(from), maskUriValue(to)));
@@ -1726,9 +1726,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         if (!Objects.equals(from, to)) changes.add(new FieldChange(field, from, to));
     }
 
-    /** 需要完全 mask 展示值的 apiServerKey（密码类字段） */
-    private static final Set<String> MASKED_DISPLAY_API_KEYS = Set.of(
-            "database_password"
+    /** Config paths whose old and new values must be masked in the import preview. */
+    private static final Set<String> MASKED_DISPLAY_CONFIG_PATHS = Set.of(
+            "database_password", ResourceHandler.PRIVATE_KEY_CONFIG_PATH, ResourceHandler.RAW_REDO_KEY_PASSWORD_CONFIG_PATH
     );
 
     /** 需要智能 mask 的 URI 类 apiServerKey：MongoDB URI 只 mask 密码部分，其他 URI 全部 mask */

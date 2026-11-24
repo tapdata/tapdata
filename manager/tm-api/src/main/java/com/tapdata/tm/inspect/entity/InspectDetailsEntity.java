@@ -18,6 +18,10 @@ import java.util.Map;
 public class InspectDetailsEntity extends BaseEntity {
     private String inspect_id;
     private String taskId;
+    private Map<String, Object> resultKey;
+    private String differenceType;
+    private String sourceField;
+    private String targetField;
     private String type;
     private Map<String, Object> source;
     private Map<String, Object> target;

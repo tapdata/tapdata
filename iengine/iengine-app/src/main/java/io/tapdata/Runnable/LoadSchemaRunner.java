@@ -24,6 +24,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.exception.ConvertException;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
@@ -159,6 +160,7 @@ public class LoadSchemaRunner implements Runnable {
 								.withVersion(databaseType.getVersion())
 								.withLog(new TapLog())
 								.build();
+						PdkUtil.populateConnectionInfo(connectionNode.getConnectionContext(), connections);
 						PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init PDK", TAG);
 						if (loadSchemaProgress.getTableCount() <= 0) {
 							loadSchemaProgress.setTableCount(getPdkTableCount(connectionNode));

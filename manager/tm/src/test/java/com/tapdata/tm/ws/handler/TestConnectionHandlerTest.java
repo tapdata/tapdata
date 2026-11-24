@@ -17,6 +17,8 @@ import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.map.HashedMap;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -126,33 +128,34 @@ public class TestConnectionHandlerTest {
             Map config1 = (Map)data.get("config");
             assertEquals(dataSourceConfig.get("uri"),config1.get("uri"));
         }
-        @Test
+        @ParameterizedTest
+        @CsvSource({
+                "true,  ,            saved-value",
+                "true,  '',          saved-value",
+                "true,  replacement, replacement",
+                "false, '',          ''"
+        })
         @SneakyThrows
-        @DisplayName("test handle message for mysql")
-        void test4(){
+        void resolvesPasswordForSavedConnection(boolean editTest, String submitted, String expected) {
             when(context.getUserId()).thenReturn("111");
             when(userService.loadUserById(toObjectId("111"))).thenReturn(mock(UserDetail.class));
-            Map<String, Object> data = new HashedMap();
-            Map config = new LinkedHashMap();
-            config.put("host","localhost");
-            config.put("port",3306);
-            config.put("database","test");
-            config.put("username","root");
-            data.put("id","111");
-            data.put("name","mongo");
-            data.put("config",config);
-            data.put("database_type","Mysql");
+            Map<String, Object> config = new LinkedHashMap<>();
+            config.put("rawRedoClientKeyPassword", submitted);
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", "111");
+            data.put("database_type", "Oracle");
+            data.put("editTest", editTest);
+            data.put("config", config);
             messageInfo.setData(data);
-            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
-            dataSourceConnectionDto.setPasswordTag(Collections.singleton("password"));
-            Map dataSourceConfig = new HashMap();
-            dataSourceConfig.put("password","123456");
-            dataSourceConnectionDto.setConfig(dataSourceConfig);
-            when(dataSourceService.findById(toObjectId("111"))).thenReturn(dataSourceConnectionDto);
+            DataSourceConnectionDto stored = new DataSourceConnectionDto();
+            stored.setPasswordTag(Set.of("rawRedoClientKeyPassword"));
+            stored.setConfig(Map.of("rawRedoClientKeyPassword", "saved-value"));
+            when(dataSourceService.findById(toObjectId("111"))).thenReturn(stored);
             doCallRealMethod().when(testConnectionHandler).handleMessage(context);
+
             testConnectionHandler.handleMessage(context);
-            Map config1 = (Map)data.get("config");
-            assertEquals(dataSourceConfig.get("password"),config1.get("password"));
+
+            assertEquals(expected, ((Map<?, ?>) data.get("config")).get("rawRedoClientKeyPassword"));
         }
         @Test
         @SneakyThrows

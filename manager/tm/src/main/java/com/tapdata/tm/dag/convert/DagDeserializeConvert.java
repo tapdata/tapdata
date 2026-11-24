@@ -19,6 +19,10 @@ public class DagDeserializeConvert implements Converter<Document, DAG> {
     public DAG convert(Document document) {
         String json = JsonUtil.toJsonUseJackson(document);
         Dag dag = JsonUtil.parseJsonUseJackson(json, Dag.class);
+        if (dag == null) {
+            // Fail loudly instead of returning an empty DAG: an empty DAG written back would erase the stored nodes.
+            throw new IllegalStateException("Unable to deserialize task DAG, see the previous JsonUtil error log for the cause");
+        }
         return DAG.build(dag);
     }
 }

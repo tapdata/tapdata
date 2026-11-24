@@ -143,10 +143,15 @@ public class JsonUtil {
 			try {
 				return objectMapper.readValue(json, clazz);
 			} catch (JsonProcessingException var4) {
-				var4.printStackTrace();
+				log.error("Failed to parse json to {}: {}", clazz, var4.getMessage(), var4);
 				return null;
 			}
 		}
+	}
+
+	/** Same as {@link #parseJsonUseJackson(String, Class)}, but lets the caller handle a parse failure instead of logging it. */
+	public static <T> T parseJsonUseJacksonOrThrow(String json, Class<T> clazz) throws JsonProcessingException {
+		return json == null ? null : buildObjectMapper().readValue(json, clazz);
 	}
 
 	public static String toJsonUseJackson(Object object) {

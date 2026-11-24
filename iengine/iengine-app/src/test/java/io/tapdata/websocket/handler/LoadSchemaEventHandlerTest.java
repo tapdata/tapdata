@@ -6,6 +6,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -200,6 +201,7 @@ class LoadSchemaEventHandlerTest extends BaseTest {
 		@BeforeEach
 		void beforeEach() {
 			connections = new Connections();
+			connections.setId("0123456789ABCDEF01234567");
 			connections.setName("name");
 			connections.setUser_id("user id");
 			databaseType = mock(DatabaseTypeEnum.DatabaseType.class);
@@ -214,12 +216,15 @@ class LoadSchemaEventHandlerTest extends BaseTest {
 			PDKIntegration.ConnectionConnectorBuilder connectionConnectorBuilder = new PDKIntegration.ConnectionConnectorBuilder();
 			connectionConnectorBuilder = spy(connectionConnectorBuilder);
 			ConnectionNode connectionNode = mock(ConnectionNode.class);
+			TapConnectionContext context = new TapConnectionContext(null, null, null, null);
+			when(connectionNode.getConnectionContext()).thenReturn(context);
 			doReturn(connectionNode).when(connectionConnectorBuilder).build();
 			try (MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)) {
 				pdkIntegrationMockedStatic.when(PDKIntegration::createConnectionConnectorBuilder).thenReturn(connectionConnectorBuilder);
 				ConnectionNode actual = loadSchemaEventHandler.getConnectionNode(connections, databaseType);
 				assertNotNull(actual);
 				assertEquals(connectionNode, actual);
+				assertEquals("0123456789abcdef01234567", context.getInfo().getString(TapConnectionContext.INFO_RESOURCE_ID));
 			}
 		}
 	}

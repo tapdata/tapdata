@@ -123,7 +123,7 @@ public class AuthAop {
 
   @Around("execution(public * com.tapdata.tm.metadatainstance.service.MetadataInstancesService.bulkUpsetByWhere(..)) && args(metadataInstancesDtos, userDetail)")
   public Object metadataInstancesService_bulkUpsetByWhere(ProceedingJoinPoint pjp, List<MetadataInstancesDto> metadataInstancesDtos, UserDetail userDetail) throws Throwable {
-    if (productComponent.isCloud()) {
+    if (productComponent.isCloud() || metadataInstancesDtos == null || metadataInstancesDtos.isEmpty()) {
       return pjp.proceed();
     }
     return setUserId(pjp, metadataInstancesDtos.get(0), userDetail);

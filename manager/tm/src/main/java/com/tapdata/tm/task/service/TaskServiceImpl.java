@@ -68,6 +68,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.UnknownNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -1420,6 +1421,14 @@ public class TaskServiceImpl extends TaskService{
 
         TaskDto taskDto = checkExistById(id, user);
         DAG dag = taskDto.getDag();
+        if (dag != null) {
+            // Node references inside the kept properties of such nodes (e.g. a join's leftNodeId) cannot be told
+            // apart from other values, so they cannot be remapped to the new node ids: refuse rather than guess.
+            Set<String> unknownTypes = UnknownNode.typesOf(dag.getNodes());
+            if (!unknownTypes.isEmpty()) {
+                throw new BizException("Task.CopyUnknownNodeType", String.join(", ", unknownTypes));
+            }
+        }
 
         log.debug("old task = {}", taskDto);
         //将所有的node id置为空
@@ -3845,7 +3854,8 @@ public class TaskServiceImpl extends TaskService{
             DAG dag = task.getDag();
             List<Node> nodes = dag.getNodes();
             for (Node node : nodes) {
-                if (!node.getType().equals("js_processor")) {
+                // A js_processor kept as UnknownNode (properties this version cannot read) cannot be test run.
+                if (!"js_processor".equals(node.getType()) || !(node instanceof ScriptProcessNode)) {
                     continue;
                 }
                 TestRunDto testRunDto = new TestRunDto();
@@ -4840,6 +4850,20 @@ public class TaskServiceImpl extends TaskService{
         start(taskDto, user, startFlag);
     }
 
+    /**
+     * Reject tasks whose DAG contains node types not registered in this version (kept as {@link UnknownNode}),
+     * otherwise the engine would run such nodes as blank pass-through nodes.
+     */
+    protected void validateUnknownNodes(TaskDto taskDto) {
+        if (taskDto.getDag() == null) {
+            return;
+        }
+        Set<String> types = UnknownNode.typesOf(taskDto.getDag().getNodes());
+        if (!types.isEmpty()) {
+            throw new BizException("Task.UnknownNodeType", String.join(", ", types));
+        }
+    }
+
     protected void validateViewCdc(TaskDto taskDto, UserDetail user) {
         if ((!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())
                 && !TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType()))
@@ -4945,6 +4969,7 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException("Task.StartStatusInvalid");
         }
 
+        validateUnknownNodes(taskDto);
         validateViewCdc(taskDto, user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
