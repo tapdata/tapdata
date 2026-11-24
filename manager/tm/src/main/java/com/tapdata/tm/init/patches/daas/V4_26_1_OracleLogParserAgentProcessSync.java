@@ -11,9 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 
 /** Synchronizes the latest historical OracleLogParser states into AgentProcess. */
 @Slf4j
-@PatchAnnotation(appType = AppType.DAAS, version = "4.25-2")
-public class V4_25_2_OracleLogParserAgentProcessSync extends AbsPatch {
-    public V4_25_2_OracleLogParserAgentProcessSync(PatchType type, PatchVersion version) {
+@PatchAnnotation(appType = AppType.DAAS, version = "4.26-1")
+public class V4_26_1_OracleLogParserAgentProcessSync extends AbsPatch {
+    public V4_26_1_OracleLogParserAgentProcessSync(PatchType type, PatchVersion version) {
         super(type, version);
     }
 
