@@ -99,6 +99,24 @@ class ConnectionAgentConflictServiceTest {
         assertFalse(item.isEditable());
         assertFalse(item.isAutoResolvable());
         assertEquals("task_active", item.getBlockedReason());
+        task.setStatus("complete");
+        item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
+        assertFalse(item.isEditable());
+        assertTrue(item.isCanEdit());
+        assertEquals("policy_conflict", item.getBlockedReason());
+    }
+
+    @Test
+    void reportsWhenCurrentConnectionsRejectEveryTaskPolicy() {
+        target.setAccessNodeProcessId("agent-c");
+        TaskDto task = task("manual", "stop", "agent-a");
+        when(tasks.findAll(any(Query.class))).thenReturn(List.of(task));
+        ConnectionAgentConflictReport.Item item = service.findConflicts(both("agent-b"), user, 0, 20).getItems().get(0);
+        assertEquals(List.of(List.of(), List.of("agent-b")), item.getAllowedAgentProcessIdSets());
+        assertEquals("connection_conflict", item.getBlockedReason());
+        assertFalse(item.isEditable());
+        assertFalse(item.isAutoResolvable());
+        assertEquals(2, item.getConnections().size());
     }
 
     private ConnectionTaskAgentRequest edits(TaskDto task, String agent) {
@@ -268,7 +286,8 @@ class ConnectionAgentConflictServiceTest {
         assertEquals("stopped-task", report.getItems().get(0).getName());
         assertEquals("Task.AgentConflict", report.getItems().get(0).getCode());
         assertEquals(2, report.getItems().get(0).getConnections().size());
-        assertEquals(List.of("agent-b"), report.getItems().get(0).getAllowedAgentProcessIds());
+        assertEquals(List.of(List.of("agent-a"), List.of("agent-b")),
+                report.getItems().get(0).getAllowedAgentProcessIdSets());
         assertEquals("agent-a", stopped.getAccessNodeProcessId());
         assertEquals("agent-a", source.getAccessNodeProcessId());
         ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);

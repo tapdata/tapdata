@@ -125,8 +125,7 @@ public class ConnectionAgentConflictService {
                 candidate.setPriorityProcessId(policy.priority);
                 // Tasks are persisted before the connection update. Keep the new policy
                 // valid if the user cancels or the subsequent connection write fails.
-                taskScheduleService.validateConnectionAgentPolicy(candidate, user, Collections.emptyMap());
-                taskScheduleService.validateConnectionAgentPolicy(candidate, user, overrides);
+                validateTaskAgentPolicy(candidate, user, overrides);
                 query.addCriteria(Criteria.where("status").is(task.getStatus()).and("lastUpdAt").is(task.getLastUpdAt())
                         .and("accessNodeType").is(task.getAccessNodeType())
                         .and("accessNodeProcessId").is(task.getAccessNodeProcessId())
@@ -209,19 +208,26 @@ public class ConnectionAgentConflictService {
             boolean permission = "inspect".equals(type) ? canEditInspection(task, user) : canEdit(task, user);
             item.setCanEdit(permission);
             item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && permission);
+            boolean connectionConflict = "Task.SourceAgentConflict".equals(e.getErrorCode());
             if (item.isEditable()) {
-                Set<String> allowedAgents = taskScheduleService.connectionAllowedAgents(task, user, overrides);
-                item.setAllowedAgentProcessIds(allowedAgents == null ? null : new ArrayList<>(allowedAgents));
+                List<List<String>> allowedAgentSets = new ArrayList<>(2);
+                Set<String> currentAgents = taskScheduleService.connectionAllowedAgents(task, user, Collections.emptyMap());
+                Set<String> proposedAgents = taskScheduleService.connectionAllowedAgents(task, user, overrides);
+                if (currentAgents != null) allowedAgentSets.add(new ArrayList<>(currentAgents));
+                if (proposedAgents != null) allowedAgentSets.add(new ArrayList<>(proposedAgents));
+                item.setAllowedAgentProcessIdSets(allowedAgentSets);
+                connectionConflict |= allowedAgentSets.stream().anyMatch(List::isEmpty);
+                item.setEditable(!connectionConflict);
             }
             item.setAutoResolvable(item.isEditable() && automaticResolves(task, overrides, user));
             item.setBlockedReason(!permission ? "no_edit_permission"
-                    : !editableStatus(task.getStatus()) ? "task_active"
-                    : "Task.SourceAgentConflict".equals(e.getErrorCode()) ? "connection_conflict"
+                    : connectionConflict ? "connection_conflict"
                     : "inspect".equals(type) ? "unsupported_policy"
+                    : isActiveStatus(task.getStatus()) ? "task_active"
                     : item.isAutoResolvable() ? null : "policy_conflict");
             item.setCode(e.getErrorCode());
             item.setReason(MessageUtil.getMessage("Task.AgentConflict"));
-            item.setConnections("Task.SourceAgentConflict".equals(e.getErrorCode())
+            item.setConnections(connectionConflict
                     ? conflictConnections(task, overrides, user) : affectedConnections(task, overrides));
             report.getItems().add(item);
         }
@@ -234,12 +240,22 @@ public class ConnectionAgentConflictService {
         automatic.setAccessNodeProcessId(null);
         automatic.setPriorityProcessId(null);
         try {
-            taskScheduleService.validateConnectionAgentPolicy(automatic, user, overrides);
+            validateTaskAgentPolicy(automatic, user, overrides);
             return true;
         } catch (BizException e) {
             if ("Task.SourceAgentConflict".equals(e.getErrorCode()) || "Task.AgentConflict".equals(e.getErrorCode())) return false;
             throw e;
         }
+    }
+
+    private void validateTaskAgentPolicy(TaskDto task, UserDetail user,
+                                         Map<String, DataSourceConnectionDto> overrides) {
+        taskScheduleService.validateConnectionAgentPolicy(task, user, Collections.emptyMap());
+        taskScheduleService.validateConnectionAgentPolicy(task, user, overrides);
+    }
+
+    private boolean isActiveStatus(String status) {
+        return Arrays.asList("preparing", "scheduling", "wait_run", "starting", "running", "stopping", "renewing").contains(status);
     }
 
     protected boolean canEditInspection(TaskDto task, UserDetail user) {

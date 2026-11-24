@@ -25,7 +25,7 @@ public class ConnectionAgentConflictReport {
         private String code;
         private String reason;
         private List<Connection> connections;
-        private List<String> allowedAgentProcessIds;
+        private List<List<String>> allowedAgentProcessIdSets;
     }
 
     @Data
