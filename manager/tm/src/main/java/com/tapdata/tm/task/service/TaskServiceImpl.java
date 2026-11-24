@@ -679,34 +679,6 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
                 TaskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto);
-
-                if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
-                    DAG newDag = taskDto.getDag();
-                    if (newDag != null) {
-                        List<String> runTables = measurementServiceV2.findRunTable(taskDto.getId().toHexString(), oldTaskDto.getTaskRecordId());
-                        if (CollectionUtils.isNotEmpty(runTables)) {
-                            LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
-                            if (CollectionUtils.isNotEmpty(newSourceNode)) {
-                                DatabaseNode newFirst = newSourceNode.getFirst();
-                                if (newFirst.getTableNames() != null) {
-                                    List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
-                                    newTableNames.removeAll(runTables);
-                                    taskDto.setLdpNewTables(newTableNames);
-                                }
-
-                            }
-                        } else {
-                            if (null != taskDto.getAttrs() && taskDto.getAttrs().get("syncProgress") instanceof Map) {
-                                buildLdpNewTablesFromBatchOffset(taskDto, newDag);
-                            } else {
-                                List<String> ldpNewTables = taskDto.getLdpNewTables();
-                                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
-                                    taskDto.setLdpNewTables(null);
-                                }
-                            }
-                        }
-                    }
-                }
                 log.debug("old task = {}", oldTaskDto);
             }
         }
@@ -736,6 +708,8 @@ public class TaskServiceImpl extends TaskService{
         // supplement migrate_field_rename_processor fieldMapping data
         //supplementMigrateFieldMapping(taskDto, user);
         taskSaveService.syncTaskSetting(taskDto, user);
+        // 正则选表的最新匹配表由 syncTaskSetting 写回 tableNames，新增表必须在其之后计算
+        buildLdpNewTables(taskDto, oldTaskDto);
 
         //校验dag
         DAG dag = taskDto.getDag();
@@ -919,6 +893,32 @@ public class TaskServiceImpl extends TaskService{
             return result;
         }
         return save(taskDto, user);
+    }
+
+    protected void buildLdpNewTables(TaskDto taskDto, TaskDto oldTaskDto) {
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
+            return;
+        }
+        DAG newDag = taskDto.getDag();
+        if (newDag == null) {
+            return;
+        }
+        List<String> runTables = measurementServiceV2.findRunTable(taskDto.getId().toHexString(), oldTaskDto.getTaskRecordId());
+        if (CollectionUtils.isNotEmpty(runTables)) {
+            LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
+            if (CollectionUtils.isNotEmpty(newSourceNode)) {
+                DatabaseNode newFirst = newSourceNode.getFirst();
+                if (newFirst.getTableNames() != null) {
+                    List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                    newTableNames.removeAll(runTables);
+                    taskDto.setLdpNewTables(newTableNames);
+                }
+            }
+        } else if (null != taskDto.getAttrs() && taskDto.getAttrs().get("syncProgress") instanceof Map) {
+            buildLdpNewTablesFromBatchOffset(taskDto, newDag);
+        } else if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+            taskDto.setLdpNewTables(null);
+        }
     }
 
     protected void buildLdpNewTablesFromBatchOffset(TaskDto taskDto, DAG newDag) {
