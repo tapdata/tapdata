@@ -123,7 +123,9 @@ public class ConnectionAgentConflictService {
                 candidate.setAccessNodeType(policy.type);
                 candidate.setAccessNodeProcessId(policy.processId);
                 candidate.setPriorityProcessId(policy.priority);
-                taskScheduleService.validateConnectionAgentPolicy(candidate, user, overrides);
+                // Tasks are persisted before the connection update. Keep the new policy
+                // valid if the user cancels or the subsequent connection write fails.
+                validateTaskAgentPolicy(candidate, user, overrides);
                 query.addCriteria(Criteria.where("status").is(task.getStatus()).and("lastUpdAt").is(task.getLastUpdAt())
                         .and("accessNodeType").is(task.getAccessNodeType())
                         .and("accessNodeProcessId").is(task.getAccessNodeProcessId())
@@ -206,15 +208,26 @@ public class ConnectionAgentConflictService {
             boolean permission = "inspect".equals(type) ? canEditInspection(task, user) : canEdit(task, user);
             item.setCanEdit(permission);
             item.setEditable(!"inspect".equals(type) && editableStatus(task.getStatus()) && permission);
+            boolean connectionConflict = "Task.SourceAgentConflict".equals(e.getErrorCode());
+            if (item.isEditable() && referencedConnections(task).stream().allMatch(id -> canViewConnection(id, user))) {
+                List<List<String>> allowedAgentSets = new ArrayList<>(2);
+                Set<String> currentAgents = taskScheduleService.connectionAllowedAgents(task, user, Collections.emptyMap());
+                Set<String> proposedAgents = taskScheduleService.connectionAllowedAgents(task, user, overrides);
+                if (currentAgents != null) allowedAgentSets.add(new ArrayList<>(currentAgents));
+                if (proposedAgents != null) allowedAgentSets.add(new ArrayList<>(proposedAgents));
+                item.setAllowedAgentProcessIdSets(allowedAgentSets);
+
+            }
+            if (connectionConflict) item.setEditable(false);
             item.setAutoResolvable(item.isEditable() && automaticResolves(task, overrides, user));
             item.setBlockedReason(!permission ? "no_edit_permission"
-                    : !editableStatus(task.getStatus()) ? "task_active"
-                    : "Task.SourceAgentConflict".equals(e.getErrorCode()) ? "connection_conflict"
+                    : connectionConflict ? "connection_conflict"
                     : "inspect".equals(type) ? "unsupported_policy"
+                    : isActiveStatus(task.getStatus()) ? "task_active"
                     : item.isAutoResolvable() ? null : "policy_conflict");
             item.setCode(e.getErrorCode());
             item.setReason(MessageUtil.getMessage("Task.AgentConflict"));
-            item.setConnections("Task.SourceAgentConflict".equals(e.getErrorCode())
+            item.setConnections(connectionConflict
                     ? conflictConnections(task, overrides, user) : affectedConnections(task, overrides));
             report.getItems().add(item);
         }
@@ -227,12 +240,28 @@ public class ConnectionAgentConflictService {
         automatic.setAccessNodeProcessId(null);
         automatic.setPriorityProcessId(null);
         try {
-            taskScheduleService.validateConnectionAgentPolicy(automatic, user, overrides);
+            validateTaskAgentPolicy(automatic, user, overrides);
             return true;
         } catch (BizException e) {
             if ("Task.SourceAgentConflict".equals(e.getErrorCode()) || "Task.AgentConflict".equals(e.getErrorCode())) return false;
             throw e;
         }
+    }
+
+    private void validateTaskAgentPolicy(TaskDto task, UserDetail user,
+                                         Map<String, DataSourceConnectionDto> overrides) {
+        try {
+            taskScheduleService.validateConnectionAgentPolicy(task, user, Collections.emptyMap());
+        } catch (BizException e) {
+            // Automatic allocation can repair an already unusable current policy.
+            if (!AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(task.getAccessNodeType())
+                    || !"Task.SourceAgentConflict".equals(e.getErrorCode())) throw e;
+        }
+        taskScheduleService.validateConnectionAgentPolicy(task, user, overrides);
+    }
+
+    private boolean isActiveStatus(String status) {
+        return Arrays.asList("preparing", "scheduling", "wait_run", "starting", "running", "stopping", "renewing").contains(status);
     }
 
     protected boolean canEditInspection(TaskDto task, UserDetail user) {
@@ -281,13 +310,7 @@ public class ConnectionAgentConflictService {
 
     private List<ConnectionAgentConflictReport.Connection> affectedConnections(TaskDto task,
                                                                               Map<String, DataSourceConnectionDto> overrides) {
-        Set<String> referenced = new HashSet<>();
-        if (task.getDag() != null && task.getDag().getNodes() != null) {
-            for (Node node : task.getDag().getNodes()) {
-                if (node instanceof DataParentNode<?> data) referenced.add(data.getConnectionId());
-                if (node instanceof LogCollectorNode log && log.getConnectionIds() != null) referenced.addAll(log.getConnectionIds());
-            }
-        }
+        Set<String> referenced = referencedConnections(task);
         List<ConnectionAgentConflictReport.Connection> result = new ArrayList<>();
         overrides.forEach((id, dto) -> {
             if (referenced.contains(id)) {
@@ -298,6 +321,18 @@ public class ConnectionAgentConflictService {
             }
         });
         return result;
+    }
+
+    private Set<String> referencedConnections(TaskDto task) {
+        Set<String> referenced = new HashSet<>();
+        if (task.getDag() != null && task.getDag().getNodes() != null) {
+            for (Node node : task.getDag().getNodes()) {
+                if (node instanceof DataParentNode<?> data) referenced.add(data.getConnectionId());
+                if (node instanceof LogCollectorNode log && log.getConnectionIds() != null) referenced.addAll(log.getConnectionIds());
+            }
+        }
+        referenced.removeIf(id -> id == null || id.isBlank());
+        return referenced;
     }
 
     private TaskDto inspectionTask(InspectDto inspect) {

@@ -346,6 +346,14 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         resolveEffectiveAgents(taskDto, resolveConnectionAgentPolicy(taskDto, user, overrides), user);
     }
 
+    @Override
+    public Set<String> connectionAllowedAgents(TaskDto taskDto, UserDetail user,
+                                                Map<String, DataSourceConnectionDto> overrides) {
+        ConnectionAgentPolicy policy = resolveConnectionAgentPolicy(taskDto, user, overrides);
+        return policy == null || policy.allowedAgents == null
+                ? null : new LinkedHashSet<>(policy.allowedAgents);
+    }
+
     private Set<String> resolveEffectiveAgents(TaskDto taskDto, ConnectionAgentPolicy policy, UserDetail user) {
         if (policy == null || policy.allowedAgents == null) {
             return null;
