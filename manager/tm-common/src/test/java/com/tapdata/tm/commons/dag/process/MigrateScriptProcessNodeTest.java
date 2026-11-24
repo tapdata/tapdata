@@ -179,14 +179,14 @@ public class MigrateScriptProcessNodeTest {
         }
 
         @Test
-        @DisplayName("U4 字段改名后替换为新字段并保留 JS 字段")
+        @DisplayName("U4 字段改名后在原位置替换为新字段并保留 JS 字段")
         void testRenameFieldKeepsJsFields() throws Exception {
             node.setOutputSchema(Collections.singletonList(previousOutput()));
             Schema input = schema(field("id", "INT"), field("full_name", "VARCHAR(20)"));
 
             Schema result = merge(table(new TapAlterFieldNameEvent().nameChange(ValueChange.create("name", "full_name"))), input);
 
-            assertEquals(Arrays.asList("id", "cdc_create_time", "cdc_update_time", "is_delete", "full_name"), fieldNames(result));
+            assertEquals(Arrays.asList("id", "full_name", "cdc_create_time", "cdc_update_time", "is_delete"), fieldNames(result));
         }
 
         @Test
@@ -297,6 +297,84 @@ public class MigrateScriptProcessNodeTest {
                     schema(field("id", "INT"), field("name", "VARCHAR(20)"), field("col1", "VARCHAR(20)"), field("col2", "VARCHAR(20)")));
 
             assertEquals(Arrays.asList("id", "name", "cdc_create_time", "cdc_update_time", "is_delete", "col1", "col2"), fieldNames(second));
+        }
+
+        @Test
+        @DisplayName("U9 快照清空 outputSchema 后连续 DDL 仍基于上一次 DDL 的输出叠加")
+        void testConsecutiveDdlAfterOutputSchemaCleared() throws Exception {
+            node.setOutputSchema(Collections.singletonList(previousOutput()));
+            Schema first = merge(table(new TapNewFieldEvent().field(new TapField("col1", "VARCHAR(20)"))),
+                    schema(field("id", "INT"), field("name", "VARCHAR(20)"), field("col1", "VARCHAR(20)")));
+            ReflectionTestUtils.setField(node, "lastSavedOutputSchema", Collections.singletonList(first));
+            // 引擎保存快照时清空同一 DAG 各节点的 outputSchema；元数据中只有任务启动时的模型
+            node.setOutputSchema(null);
+            DAGDataServiceImpl service = mock(DAGDataServiceImpl.class);
+            MetadataInstancesDto startup = new MetadataInstancesDto();
+            startup.setOriginalName(RENAMED_TABLE);
+            startup.setFields(previousOutput().getFields());
+            when(service.getSchemaByNodeAndTableName(eq("js-node"), eq(RENAMED_TABLE))).thenReturn(startup);
+            node.setService(service);
+
+            Schema second = merge(table(new TapNewFieldEvent().field(new TapField("col2", "VARCHAR(20)"))),
+                    schema(field("id", "INT"), field("name", "VARCHAR(20)"), field("col1", "VARCHAR(20)"), field("col2", "VARCHAR(20)")));
+
+            assertEquals(Arrays.asList("id", "name", "cdc_create_time", "cdc_update_time", "is_delete", "col1", "col2"), fieldNames(second));
+        }
+
+        @Test
+        @DisplayName("U10 类型变更不回退 JS 的类型转换，其它属性按 DDL 更新")
+        void testAlterKeepsJsTypeConversion() throws Exception {
+            Field id = field("id", "STRING");
+            id.setOriginalDataType("INT");
+            Field name = field("name", "VARCHAR(20)");
+            name.setIsNullable(true);
+            node.setOutputSchema(Collections.singletonList(schema(id, name, jsField("is_delete", "INT"))));
+            Field inputName = field("name", "VARCHAR(20)");
+            inputName.setIsNullable(false);
+
+            Schema typeChanged = merge(table(new TapAlterFieldAttributesEvent().fieldName("id")
+                    .dataType(ValueChange.create("INT", "BIGINT"))), schema(field("id", "BIGINT"), inputName));
+            assertEquals("STRING", fieldOf(typeChanged, "id").getDataType());
+
+            node.setOutputSchema(Collections.singletonList(typeChanged));
+            Schema nullableChanged = merge(table(new TapAlterFieldAttributesEvent().fieldName("name")
+                    .nullable(ValueChange.create(true, false))), schema(field("id", "BIGINT"), inputName));
+            assertEquals(false, fieldOf(nullableChanged, "name").getIsNullable());
+            assertEquals("STRING", fieldOf(nullableChanged, "id").getDataType());
+            assertEquals(Arrays.asList("id", "name", "is_delete"), fieldNames(nullableChanged));
+        }
+
+        @Test
+        @DisplayName("U11 JS 改名的字段在属性变更后不产生重复列")
+        void testAlterOnJsRenamedFieldNoDuplicate() throws Exception {
+            Field custName = jsField("cust_name", "VARCHAR(20)");
+            custName.setOriginalFieldName("name");
+            node.setOutputSchema(Collections.singletonList(schema(field("id", "INT"), custName, jsField("is_delete", "INT"))));
+
+            Schema result = merge(table(new TapAlterFieldAttributesEvent().fieldName("name")
+                    .dataType(ValueChange.create("VARCHAR(20)", "VARCHAR(30)"))), schema(field("id", "INT"), field("name", "VARCHAR(30)")));
+
+            assertEquals(Arrays.asList("id", "cust_name", "is_delete"), fieldNames(result));
+            assertEquals("VARCHAR(30)", fieldOf(result, "cust_name").getDataType());
+        }
+
+        @Test
+        @DisplayName("U12 字段改名后保留该列索引并更新列名")
+        void testRenameKeepsIndex() throws Exception {
+            Schema previous = previousOutput();
+            TableIndex index = new TableIndex();
+            index.setIndexName("idx_name");
+            TableIndexColumn column = new TableIndexColumn();
+            column.setColumnName("name");
+            index.setColumns(new ArrayList<>(Collections.singletonList(column)));
+            previous.setIndices(new ArrayList<>(Collections.singletonList(index)));
+            node.setOutputSchema(Collections.singletonList(previous));
+
+            Schema result = merge(table(new TapAlterFieldNameEvent().nameChange(ValueChange.create("name", "full_name"))),
+                    schema(field("id", "INT"), field("full_name", "VARCHAR(20)")));
+
+            assertEquals(1, result.getIndices().size());
+            assertEquals("full_name", result.getIndices().get(0).getColumns().get(0).getColumnName());
         }
 
         @Test

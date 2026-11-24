@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process.script;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -24,6 +25,8 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -154,5 +157,50 @@ class ScriptProcessNodeDdlMergeTest {
         ReflectionTestUtils.setField(node, "trialRunUnavailable", true);
         assertEquals(Arrays.asList("id", "col1"), names(merge(new TapCreateTableEvent(), input)));
         assertEquals(Arrays.asList("id", "col1"), names(node.mergeSchema(Collections.singletonList(input), null, null)));
+    }
+    @Test
+    @DisplayName("S6 保存的输出模型在快照清空 outputSchema 后仍用于连续 DDL")
+    @SuppressWarnings("unchecked")
+    void testSavedOutputUsedAfterOutputSchemaCleared() throws Exception {
+        DAGDataServiceImpl service = mock(DAGDataServiceImpl.class);
+        when(service.createOrUpdateSchema(any(), any(), anyList(), any(), any()))
+                .thenAnswer(invocation -> new ArrayList<>((List<Schema>) invocation.getArgument(2)));
+        MetadataInstancesDto startup = new MetadataInstancesDto();
+        startup.setOriginalName(TABLE);
+        startup.setFields(previousOutput().getFields());
+        when(service.getMetadata(eq("PN_js-node"))).thenReturn(startup);
+        node.setService(service);
+        DAG dag = mock(DAG.class);
+        when(dag.getOwnerId()).thenReturn("owner");
+        ReflectionTestUtils.setField(node, "dag", dag);
+        node.setOutputSchema(previousOutput());
+
+        Schema first = merge(addCol1(), schema(field("id", "INT"), field("name", "VARCHAR(20)"), field("col1", "VARCHAR(20)")));
+        ReflectionTestUtils.invokeMethod(node, "saveSchema", Collections.emptyList(), "js-node", first, null);
+        node.setOutputSchema(null);
+
+        Schema second = merge(table(new TapNewFieldEvent().field(new TapField("col2", "VARCHAR(20)"))),
+                schema(field("id", "INT"), field("name", "VARCHAR(20)"), field("col1", "VARCHAR(20)"), field("col2", "VARCHAR(20)")));
+
+        assertEquals(Arrays.asList("id", "name", "cdc_create_time", "cdc_update_time", "is_delete", "col1", "col2"), names(second));
+    }
+
+    @Test
+    @DisplayName("S7 属性变更保留脚本改名与类型转换，不产生重复列")
+    void testAlterKeepsScriptRenameAndConversion() throws Exception {
+        Field custName = jsField("cust_name", "VARCHAR(20)");
+        custName.setOriginalFieldName("name");
+        Field id = field("id", "STRING");
+        node.setOutputSchema(schema(id, custName, jsField("is_delete", "INT")));
+
+        Schema renamed = merge(table(new TapAlterFieldAttributesEvent().fieldName("name")
+                .dataType(ValueChange.create("VARCHAR(20)", "VARCHAR(30)"))), schema(field("id", "INT"), field("name", "VARCHAR(30)")));
+        assertEquals(Arrays.asList("id", "cust_name", "is_delete"), names(renamed));
+        assertEquals("VARCHAR(30)", renamed.getFields().get(1).getDataType());
+
+        node.setOutputSchema(renamed);
+        Schema converted = merge(table(new TapAlterFieldAttributesEvent().fieldName("id")
+                .dataType(ValueChange.create("INT", "BIGINT"))), schema(field("id", "BIGINT"), field("name", "VARCHAR(30)")));
+        assertEquals("STRING", converted.getFields().get(0).getDataType());
     }
 }

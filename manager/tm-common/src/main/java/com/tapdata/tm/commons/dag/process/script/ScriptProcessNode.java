@@ -34,6 +34,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -77,6 +78,15 @@ public class ScriptProcessNode extends ProcessorNode {
     @Setter(AccessLevel.NONE)
     private transient TapDDLEvent pendingFieldDdlEvent;
 
+    /**
+     * 本节点最近一次推演保存的输出模型，仅保存在内存中。引擎保存快照时会清空同一 DAG 各节点的 outputSchema，
+     * 连续 DDL 推演需依赖此副本取得上一次 DDL 后的输出，而不是退回任务启动时的元数据模型
+     */
+    @JsonIgnore
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private transient Schema lastSavedOutputSchema;
+
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
         return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
     }
@@ -108,6 +118,15 @@ public class ScriptProcessNode extends ProcessorNode {
         }
     }
 
+    @Override
+    protected Schema saveSchema(Collection<String> predecessors, String nodeId, Schema schema, DAG.Options options) {
+        Schema saved = super.saveSchema(predecessors, nodeId, schema, options);
+        if (null != saved && CollectionUtils.isNotEmpty(saved.getFields())) {
+            lastSavedOutputSchema = saved;
+        }
+        return saved;
+    }
+
     protected Schema mergeWithPreviousOutput(Schema inputSchema, TapDDLEvent ddlEvent) {
         if (!ScriptDdlSchemaMerger.isDdlTable(inputSchema, ddlEvent)) {
             log.warn("Script node {}({}) can not match ddl table {}, use input schema", getId(), getName(), ddlEvent.getTableId());
@@ -129,6 +148,9 @@ public class ScriptProcessNode extends ProcessorNode {
         Schema lastOutput = getOutputSchema();
         if (null != lastOutput && CollectionUtils.isNotEmpty(lastOutput.getFields())) {
             return lastOutput;
+        }
+        if (null != lastSavedOutputSchema && CollectionUtils.isNotEmpty(lastSavedOutputSchema.getFields())) {
+            return lastSavedOutputSchema;
         }
         if (service instanceof DAGDataServiceImpl) {
             String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId(), null);

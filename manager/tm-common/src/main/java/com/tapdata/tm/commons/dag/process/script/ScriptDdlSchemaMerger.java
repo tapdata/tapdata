@@ -61,6 +61,7 @@ public final class ScriptDdlSchemaMerger {
                 fields.add(field);
             }
         }
+        List<TableIndex> previousIndices = Optional.ofNullable(previousCopy.getIndices()).orElse(new ArrayList<>());
         if (ddlEvent instanceof TapNewFieldEvent) {
             List<TapField> newFields = ((TapNewFieldEvent) ddlEvent).getNewFields();
             if (CollectionUtils.isEmpty(newFields)) {
@@ -71,16 +72,18 @@ public final class ScriptDdlSchemaMerger {
                 if (null == inputField) {
                     return null;
                 }
-                replaceOrAppend(fields, inputField);
+                replaceOrAppend(fields, newField.getName(), inputField);
             }
         } else if (ddlEvent instanceof TapAlterFieldAttributesEvent) {
-            Field inputField = findField(input.getFields(), ((TapAlterFieldAttributesEvent) ddlEvent).getFieldName());
+            TapAlterFieldAttributesEvent alterEvent = (TapAlterFieldAttributesEvent) ddlEvent;
+            Field inputField = findField(input.getFields(), alterEvent.getFieldName());
             if (null == inputField) {
                 return null;
             }
-            // 脚本已删除的字段不因属性变更而恢复
-            if (null != findField(fields, inputField.getFieldName())) {
-                replaceOrAppend(fields, inputField);
+            // 脚本已删除的字段不因属性变更而恢复；仍存在的字段只叠加本次 DDL 实际改变的属性，保留脚本的改名与类型转换
+            int index = indexOfField(fields, alterEvent.getFieldName());
+            if (index >= 0) {
+                applyAttributeChange(fields.get(index), inputField, alterEvent);
             }
         } else if (ddlEvent instanceof TapAlterFieldNameEvent) {
             ValueChange<String> nameChange = ((TapAlterFieldNameEvent) ddlEvent).getNameChange();
@@ -91,8 +94,13 @@ public final class ScriptDdlSchemaMerger {
             if (null == inputField) {
                 return null;
             }
-            removeField(fields, nameChange.getBefore());
-            replaceOrAppend(fields, inputField);
+            int index = indexOfField(fields, nameChange.getBefore());
+            if (index >= 0) {
+                fields.set(index, inputField);
+            } else {
+                replaceOrAppend(fields, nameChange.getAfter(), inputField);
+            }
+            renameIndexColumn(previousIndices, nameChange.getBefore(), inputField.getFieldName());
         } else if (ddlEvent instanceof TapDropFieldEvent) {
             removeField(fields, ((TapDropFieldEvent) ddlEvent).getFieldName());
         }
@@ -101,7 +109,7 @@ public final class ScriptDdlSchemaMerger {
         merged.setFields(fields);
         Set<String> fieldNames = fields.stream().map(Field::getFieldName).filter(Objects::nonNull).collect(Collectors.toSet());
         List<TableIndex> indices = new ArrayList<>();
-        for (TableIndex index : Optional.ofNullable(previousCopy.getIndices()).orElse(new ArrayList<>())) {
+        for (TableIndex index : previousIndices) {
             if (null == index || CollectionUtils.isEmpty(index.getColumns())) {
                 continue;
             }
@@ -116,39 +124,110 @@ public final class ScriptDdlSchemaMerger {
     }
 
     /**
-     * DDL 字段名为源字段名：优先按 originalFieldName 对应（兼容上游字段改名），否则按字段名
+     * 属性变更只覆盖本次 DDL 改变的属性。类型变更时，若上次输出类型与变更前的源类型不同，说明脚本做过类型转换，保留脚本类型。
      */
-    static Field findField(List<Field> fields, String name) {
-        if (null == fields || null == name) {
-            return null;
+    static void applyAttributeChange(Field output, Field input, TapAlterFieldAttributesEvent event) {
+        ValueChange<String> dataTypeChange = event.getDataTypeChange();
+        if (null != dataTypeChange && !convertedByScript(output, dataTypeChange)) {
+            output.setDataType(input.getDataType());
+            output.setDataType1(input.getDataType1());
+            output.setTapType(input.getTapType());
+            output.setSimpleTypeName(input.getSimpleTypeName());
+            output.setPureDataType(input.getPureDataType());
+            output.setLength(input.getLength());
+            output.setColumnSize(input.getColumnSize());
+            output.setPrecision(input.getPrecision());
+            output.setScale(input.getScale());
+            output.setOriPrecision(input.getOriPrecision());
+            output.setOriScale(input.getOriScale());
+            output.setDataCode(input.getDataCode());
+            output.setJavaType(input.getJavaType());
+            output.setJavaType1(input.getJavaType1());
+            output.setOriginalDataType(input.getOriginalDataType());
+            output.setFixed(input.getFixed());
+            output.setDataTypeSupport(input.getDataTypeSupport());
         }
-        for (Field field : fields) {
-            if (null != field && name.equals(field.getOriginalFieldName())) {
-                return field;
-            }
+        if (null != event.getNullableChange()) {
+            output.setIsNullable(input.getIsNullable());
         }
-        for (Field field : fields) {
-            if (null != field && name.equals(field.getFieldName())) {
-                return field;
-            }
+        if (null != event.getDefaultChange()) {
+            output.setDefaultValue(input.getDefaultValue());
+            output.setDefaultFunction(input.getDefaultFunction());
+            output.setOriginalDefaultValue(input.getOriginalDefaultValue());
         }
-        return null;
+        if (null != event.getCommentChange()) {
+            output.setComment(input.getComment());
+        }
+        if (null != event.getPrimaryChange()) {
+            output.setPrimaryKey(input.getPrimaryKey());
+            output.setPrimaryKeyPosition(input.getPrimaryKeyPosition());
+        }
     }
 
-    static void replaceOrAppend(List<Field> fields, Field field) {
-        for (int i = 0; i < fields.size(); i++) {
-            if (Objects.equals(fields.get(i).getFieldName(), field.getFieldName())) {
-                fields.set(i, field);
-                return;
+    static boolean convertedByScript(Field output, ValueChange<String> dataTypeChange) {
+        String before = dataTypeChange.getBefore();
+        return null != before && null != output.getDataType() && !before.equalsIgnoreCase(output.getDataType());
+    }
+
+    static void renameIndexColumn(List<TableIndex> indices, String before, String after) {
+        if (null == before || null == after) {
+            return;
+        }
+        for (TableIndex index : indices) {
+            if (null == index || null == index.getColumns()) {
+                continue;
+            }
+            for (TableIndexColumn column : index.getColumns()) {
+                if (null != column && before.equals(column.getColumnName())) {
+                    column.setColumnName(after);
+                }
             }
         }
-        fields.add(field);
+    }
+
+    /**
+     * DDL 字段名为源字段名：优先按 originalFieldName 对应（兼容上游或脚本对字段改名），否则按字段名
+     */
+    static int indexOfField(List<Field> fields, String name) {
+        if (null == fields || null == name) {
+            return -1;
+        }
+        for (int i = 0; i < fields.size(); i++) {
+            Field field = fields.get(i);
+            if (null != field && name.equals(field.getOriginalFieldName())) {
+                return i;
+            }
+        }
+        for (int i = 0; i < fields.size(); i++) {
+            Field field = fields.get(i);
+            if (null != field && name.equals(field.getFieldName())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static Field findField(List<Field> fields, String name) {
+        int index = indexOfField(fields, name);
+        return index < 0 ? null : fields.get(index);
+    }
+
+    /**
+     * 与 {@link #indexOfField} 使用同一对应规则，避免脚本改名字段与源字段同时出现
+     */
+    static void replaceOrAppend(List<Field> fields, String name, Field field) {
+        int index = indexOfField(fields, name);
+        if (index >= 0) {
+            fields.set(index, field);
+        } else {
+            fields.add(field);
+        }
     }
 
     static void removeField(List<Field> fields, String name) {
-        Field field = findField(fields, name);
-        if (null != field) {
-            fields.remove(field);
+        int index = indexOfField(fields, name);
+        if (index >= 0) {
+            fields.remove(index);
         }
     }
 }

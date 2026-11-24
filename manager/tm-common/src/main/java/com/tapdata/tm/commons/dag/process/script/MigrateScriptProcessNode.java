@@ -86,6 +86,15 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
     private transient TapDDLEvent pendingFieldDdlEvent;
 
     /**
+     * 本节点最近一次推演保存的输出模型，仅保存在内存中。引擎保存快照时会清空同一 DAG 各节点的 outputSchema，
+     * 连续 DDL 推演需依赖此副本取得上一次 DDL 后的输出，而不是退回任务启动时的元数据模型
+     */
+    @JsonIgnore
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private transient List<Schema> lastSavedOutputSchema;
+
+    /**
      * 创建处理器节点
      *
      * @param type
@@ -368,7 +377,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
         if (null == tableName) {
             return null;
         }
-        List<Schema> lastOutput = getOutputSchema();
+        List<Schema> lastOutput = CollectionUtils.isNotEmpty(getOutputSchema()) ? getOutputSchema() : lastSavedOutputSchema;
         if (CollectionUtils.isNotEmpty(lastOutput)) {
             for (Schema schema : lastOutput) {
                 if (null != schema && tableName.equals(schema.getOriginalName()) && CollectionUtils.isNotEmpty(schema.getFields())) {
@@ -420,7 +429,11 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
             //s.setTaskId(taskId);
             s.setNodeId(nodeId);
         });
-        return service.createOrUpdateSchema(ownerId(), toObjectId(getConnectId()), schema, options, this);
+        List<Schema> saved = service.createOrUpdateSchema(ownerId(), toObjectId(getConnectId()), schema, options, this);
+        if (CollectionUtils.isNotEmpty(saved)) {
+            lastSavedOutputSchema = saved;
+        }
+        return saved;
     }
 
     @Override
