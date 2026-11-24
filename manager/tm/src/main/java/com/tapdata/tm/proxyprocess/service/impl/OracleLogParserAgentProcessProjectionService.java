@@ -20,7 +20,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OracleLogParserAgentProcessProjectionService {
     private static final String AGENT_TYPE = AgentProcessType.ORACLE_LOG_PARSER.getValue();
-    private static final String AGENT_ID_PREFIX = AGENT_TYPE + ":";
 
     private final AgentProcessRepository agentProcessRepository;
     private final RawServerStateService rawServerStateService;
@@ -62,7 +61,8 @@ public class OracleLogParserAgentProcessProjectionService {
         }
         List<RawServerStateDto> latestStates = rawServerStateService.getLatestOracleLogParserState(serviceId);
         if (latestStates.isEmpty()) {
-            agentProcessRepository.deleteOracleLogParser(agentId(serviceId));
+            // MUST use the bare serviceId: upsert() persists agentId = state.getServiceId().
+            agentProcessRepository.deleteOracleLogParser(serviceId);
             return;
         }
         upsert(latestStates.get(0));
@@ -109,9 +109,5 @@ public class OracleLogParserAgentProcessProjectionService {
             return AgentProcessStatus.OFFLINE;
         }
         return AgentProcessStatus.FAILED;
-    }
-
-    private String agentId(String serviceId) {
-        return AGENT_ID_PREFIX + serviceId;
     }
 }
