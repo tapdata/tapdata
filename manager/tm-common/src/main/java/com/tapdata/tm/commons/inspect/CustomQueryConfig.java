@@ -1,6 +1,8 @@
 package com.tapdata.tm.commons.inspect;
 
 import lombok.Data;
+import java.math.BigDecimal;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.io.Serializable;
 import java.util.*;
 
@@ -20,6 +22,23 @@ public class CustomQueryConfig implements Serializable {
         private String target;
         /** key, compare, or ignore; ignore can describe a column on either side independently. */
         private String role = "compare";
+        /** Optional nonnegative tolerances for comparison fields only; absent means exact. */
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
+        private BigDecimal absoluteTolerance;
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
+        private BigDecimal relativeTolerance;
+
+        public void validateTolerances() {
+            if ((absoluteTolerance != null || relativeTolerance != null) && !"compare".equals(role)) {
+                throw new IllegalArgumentException("Numeric tolerances are only allowed on comparison fields");
+            }
+            for (BigDecimal tolerance : Arrays.asList(absoluteTolerance, relativeTolerance)) {
+                if (tolerance != null && (tolerance.signum() < 0 || tolerance.precision() > 100
+                        || tolerance.scale() < -100 || tolerance.scale() > 100)) {
+                    throw new IllegalArgumentException("Tolerance must be nonnegative with at most 100 significant digits and scale between -100 and 100");
+                }
+            }
+        }
     }
 
     @Data
@@ -64,6 +83,7 @@ public class CustomQueryConfig implements Serializable {
             if (m == null || !Arrays.asList("key", "compare", "ignore").contains(m.role)) {
                 throw new IllegalArgumentException("Invalid field role");
             }
+            m.validateTolerances();
             boolean hasSource = m.source != null && !m.source.isEmpty();
             boolean hasTarget = m.target != null && !m.target.isEmpty();
             if (((!hasSource || !hasTarget) && !"ignore".equals(m.role)) || (!hasSource && !hasTarget)) {
