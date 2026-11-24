@@ -186,10 +186,11 @@ public final class ScriptDdlSchemaMerger {
     }
 
     /**
-     * DDL 字段名为源字段名：优先按 originalFieldName 对应（兼容上游或脚本对字段改名），否则按字段名
+     * DDL 字段名为源字段名：优先按 originalFieldName 对应（兼容上游或脚本对字段改名），否则按字段名。
+     * fields 必须非 null，可能为 null 的模型字段列表经 {@link #findField} 处理
      */
     static int indexOfField(List<Field> fields, String name) {
-        if (null == fields || null == name) {
+        if (null == name) {
             return -1;
         }
         for (int i = 0; i < fields.size(); i++) {
@@ -208,6 +209,9 @@ public final class ScriptDdlSchemaMerger {
     }
 
     static Field findField(List<Field> fields, String name) {
+        if (null == fields) {
+            return null;
+        }
         int index = indexOfField(fields, name);
         return index < 0 ? null : fields.get(index);
     }
