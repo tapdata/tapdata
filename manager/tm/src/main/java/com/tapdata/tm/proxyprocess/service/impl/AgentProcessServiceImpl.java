@@ -176,12 +176,16 @@ public class AgentProcessServiceImpl implements AgentProcessService {
             throw new IllegalArgumentException("Unsupported agent process status");
         }
         if (request.getStatusReportTime() == null) {
-            throw new IllegalArgumentException("statusReportTime is required");
+            request.setStatusReportTime(new Date());
+        }
+        long reportedAt = request.getStatusReportTime().getTime();
+        if (entity.getStatusReportTime() != null && reportedAt < entity.getStatusReportTime()) {
+            request.setStatusReportTime(new Date());
         }
 
         entity.setPid(request.getPid());
         entity.setStatus(request.getStatus());
-        entity.setStatusReportTime(System.currentTimeMillis());
+        entity.setStatusReportTime(request.getStatusReportTime().getTime());
         entity.setCpuUsage(request.getCpuUsage());
         entity.setMemoryUsage(request.getMemoryUsage());
         entity.setErrorReason(request.getErrorReason());
