@@ -55,6 +55,9 @@ public class ExcelUtil {
     private static final String DEPLOYMENT_MODE_KEY = "deploymentMode";
     private static final String MASTER_SLAVE_ADDRESS_KEY = "masterSlaveAddress";
     private static final String DEPLOYMENT_MODE_MASTER_SLAVE = "master-slave";
+    private static final int MIN_COLUMN_WIDTH = 16;
+    private static final int MAX_COLUMN_WIDTH = 255;
+    private static final int COLUMN_WIDTH_UNITS = 256;
     /**
      * 需要填写的敏感数据
      */
@@ -340,10 +343,7 @@ public class ExcelUtil {
             }
         }
 
-        for (int i = 0; i < colIndex; i++) {
-            sheet.autoSizeColumn(i);
-        }
-        adjustHeaderColumnWidth(sheet, headerRow, colIndex);
+        setConnectionColumnWidths(sheet, colIndex);
         applyDataValidations(sheet, apiKeyColumnIndex, layout.enumOptions, connections.size());
         sheet.protectSheet(SHEET_PROTECT);
     }
@@ -603,25 +603,21 @@ public class ExcelUtil {
                 && databaseType.toLowerCase(Locale.ROOT).contains("mongo");
     }
 
-    private static void adjustHeaderColumnWidth(Sheet sheet, Row headerRow, int columnCount) {
-        if (headerRow == null) {
-            return;
+    private static void setConnectionColumnWidths(Sheet sheet, int columnCount) {
+        // Keep connection exports independent of the Java2D system font manager.
+        int[] estimatedWidths = new int[columnCount];
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                int column = cell.getColumnIndex();
+                int width = cell.getStringCellValue().lines()
+                        .mapToInt(line -> line.codePoints().map(codePoint -> codePoint < 0x2E80 ? 1 : 2).sum())
+                        .max().orElse(0);
+                estimatedWidths[column] = Math.max(estimatedWidths[column], width);
+            }
         }
-        for (int i = 0; i < columnCount; i++) {
-            Cell cell = headerRow.getCell(i);
-            if (cell == null) {
-                continue;
-            }
-            String value = cell.getStringCellValue();
-            if (StringUtils.isBlank(value)) {
-                continue;
-            }
-            int minWidth = Math.min(255, value.length() + 2) * 256;
-            int expandedWidth = (int) Math.min(255 * 256L, Math.round(sheet.getColumnWidth(i) * 1.5));
-            int targetWidth = Math.max(minWidth, expandedWidth);
-            if (sheet.getColumnWidth(i) < targetWidth) {
-                sheet.setColumnWidth(i, targetWidth);
-            }
+        for (int column = 0; column < columnCount; column++) {
+            int width = Math.max(MIN_COLUMN_WIDTH, estimatedWidths[column] + 2);
+            sheet.setColumnWidth(column, Math.min(MAX_COLUMN_WIDTH, width) * COLUMN_WIDTH_UNITS);
         }
     }
 
