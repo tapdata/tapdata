@@ -59,7 +59,6 @@ class PdkReleaseCatalogServiceTest {
         });
         server.start();
         service = new PdkReleaseCatalogService();
-        ReflectionTestUtils.setField(service, "trustedSha256", "unapproved-test-digest");
         ReflectionTestUtils.setField(service, "repositoryUrl",
                 "http://127.0.0.1:" + server.getAddress().getPort());
     }
@@ -245,13 +244,12 @@ class PdkReleaseCatalogServiceTest {
     }
 
     @Test
-    void downloadJarVerifiesSha256() throws Exception {
+    void downloadJarAcceptsMatchingNexusChecksumWithoutDeploymentApproval() throws Exception {
         byte[] jar = "jar-content".getBytes(StandardCharsets.UTF_8);
         String sha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(jar));
         String path = "/io/tapdata/mysql-connector/1.0.3/mysql-connector-1.0.3.jar";
         responses.put(path, jar);
         respond(path + ".sha256", sha.toUpperCase() + "  mysql-connector-1.0.3.jar\n");
-        ReflectionTestUtils.setField(service, "trustedSha256", "0".repeat(64) + ",\n" + sha.toUpperCase());
 
         Path target = directory.resolve("connector.jar");
         java.util.List<Integer> progress = new java.util.ArrayList<>();
@@ -261,24 +259,14 @@ class PdkReleaseCatalogServiceTest {
     }
 
     @Test
-    void downloadJarFailsClosedWithoutDeploymentApproval() {
-        ReflectionTestUtils.setField(service, "trustedSha256", "");
-        Path target = directory.resolve("unapproved.jar");
-        IllegalStateException failure = assertThrows(IllegalStateException.class,
-                () -> service.downloadJar(RELEASE, target, ignored -> {}));
-        assertTrue(failure.getMessage().contains("configure pdk.release.trusted-sha256"));
-        assertFalse(Files.exists(target));
-    }
+    void downloadJarRejectsMissingNexusChecksumAndDeletesArtifact() {
+        respond(ARTIFACT, "jar-content");
+        Path target = directory.resolve("connector.jar");
 
-    @Test
-    void matchingNexusChecksumCannotApproveAnUntrustedArtifact() throws Exception {
-        byte[] jar = "unapproved-code".getBytes(StandardCharsets.UTF_8);
-        responses.put(ARTIFACT, jar);
-        respond(ARTIFACT + ".sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(jar)));
-        Path target = directory.resolve("unapproved.jar");
         IllegalStateException failure = assertThrows(IllegalStateException.class,
                 () -> service.downloadJar(RELEASE, target, ignored -> {}));
-        assertTrue(failure.getMessage().contains("absent from pdk.release.trusted-sha256"));
+
+        assertTrue(failure.getMessage().contains("Nexus returned HTTP 404"));
         assertFalse(Files.exists(target));
     }
 
@@ -290,7 +278,9 @@ class PdkReleaseCatalogServiceTest {
         Map<String, Object> release = Map.of("artifactId", "mysql-connector", "version", "1.0.3");
 
         Path target = directory.resolve("connector.jar");
-        assertThrows(IllegalStateException.class, () -> service.downloadJar(release, target, ignored -> {}));
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> service.downloadJar(release, target, ignored -> {}));
+        assertTrue(failure.getMessage().contains("checksum does not match Nexus SHA-256"));
         assertFalse(Files.exists(target));
     }
     private static final String ARTIFACT = "/io/tapdata/mysql-connector/1.0.3/mysql-connector-1.0.3.jar";

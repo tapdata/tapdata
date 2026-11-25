@@ -21,6 +21,7 @@ import io.tapdata.entity.LoadSchemaResult;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -271,13 +272,15 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 	}
 
 	protected ConnectionNode getConnectionNode(Connections connection, DatabaseTypeEnum.DatabaseType databaseType) {
-		return PDKIntegration.createConnectionConnectorBuilder().withConnectionConfig(DataMap.create(connection.getConfig()))
+		ConnectionNode node = PDKIntegration.createConnectionConnectorBuilder().withConnectionConfig(DataMap.create(connection.getConfig()))
 				.withGroup(databaseType.getGroup())
 				.withPdkId(databaseType.getPdkId())
 				.withAssociateId(connection.getName() + "_" + connection.getUser_id())
 				.withVersion(databaseType.getVersion())
 				.withLog(new TapLog())
 				.build();
+		PdkUtil.populateConnectionInfo(node.getConnectionContext(), connection);
+		return node;
 	}
 
 	private <T> void wrapConnection(LoadSchemaEvent<T> loadSchemaEvent, Connections connections) {

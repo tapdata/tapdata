@@ -30,6 +30,7 @@ public enum ApiCallField implements CollectionField {
     API_WORKER_PORT("api_worker_port"),
     API_WORKER_UUID("api_worker_uuid"),
     API_GATEWAY_UUID("api_gateway_uuid"),
+    PHYSICAL_NODE_ID("physicalNodeId"),
     REQ_HEADERS("req_headers"),
     REQ_BYTES("req_bytes"),
     CODE("code"),

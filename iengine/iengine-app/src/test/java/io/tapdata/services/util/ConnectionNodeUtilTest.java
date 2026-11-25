@@ -7,6 +7,7 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.junit.jupiter.api.Assertions;
@@ -69,6 +70,7 @@ class ConnectionNodeUtilTest {
         HazelcastTaskService taskService = mock(HazelcastTaskService.class);
 
         Connections connections = mock(Connections.class);
+        when(connections.getId()).thenReturn("0123456789ABCDEF01234567");
         when(connections.getPdkHash()).thenReturn("hash");
         Map<String, Object> cfg = new HashMap<>();
         cfg.put("k", "v");
@@ -83,6 +85,8 @@ class ConnectionNodeUtilTest {
         when(databaseType.getPdkId()).thenReturn("pdkId");
 
         ConnectionNode node = mock(ConnectionNode.class);
+        TapConnectionContext context = new TapConnectionContext(null, null, null, null);
+        when(node.getConnectionContext()).thenReturn(context);
         PDKIntegration.ConnectionConnectorBuilder builder = mock(PDKIntegration.ConnectionConnectorBuilder.class, RETURNS_SELF);
         when(builder.build()).thenReturn(node);
 
@@ -96,8 +100,10 @@ class ConnectionNodeUtilTest {
             pdkUtilMockedStatic.when(() -> PdkUtil.downloadPdkFileIfNeed(eq(clientMongoOperator), eq("pdkHash"), eq("jarFile"), eq("jarRid"))).thenAnswer(inv -> null);
             pdkIntegrationMockedStatic.when(PDKIntegration::createConnectionConnectorBuilder).thenReturn(builder);
 
+            pdkUtilMockedStatic.when(() -> PdkUtil.populateConnectionInfo(context, connections)).thenCallRealMethod();
             ConnectionNode result = ConnectionNodeUtil.createConnectionNode(clientMongoOperator, "connId", "associate");
             assertEquals(node, result);
+            assertEquals("0123456789abcdef01234567", context.getInfo().getString(TapConnectionContext.INFO_RESOURCE_ID));
             verify(builder, times(1)).withAssociateId("associate");
             verify(builder, times(1)).withGroup("group");
             verify(builder, times(1)).withVersion("version");

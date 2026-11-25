@@ -1,8 +1,6 @@
 package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.TypeReference;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
@@ -38,6 +36,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -50,6 +50,8 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Service
 @Slf4j
 public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService{
+    private static final Pattern MESSAGE_PLACEHOLDER = Pattern.compile("\\$\\{([^{}]+)}");
+
     public DataSourceDefinitionServiceImpl(@NonNull DataSourceDefinitionRepository repository) {
         super(repository);
     }
@@ -208,33 +210,43 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
      * @param dataSourceDefinition dataSourceDefinition
      */
     protected void updateConfigPropertiesTitle(DataSourceDefinitionDto dataSourceDefinition) {
-        if (!Objects.isNull(dataSourceDefinition)
-                && !Objects.isNull(dataSourceDefinition.getProperties())) {
-            LinkedHashMap<String, Object> properties = dataSourceDefinition.getProperties();
-            if (properties == null) {
-                return;
-            }
-
-            final String[] content = {JSON.toJSONString(properties)};
-
-            LinkedHashMap<String, Object> messages = dataSourceDefinition.getMessages();
-            String language = MessageUtil.getLanguage();
-
-            //如果message为空，或者语言为空，不能影响主流程
-            if (messages == null || StringUtils.isBlank(language)) {
-                return;
-            }
-
-            Object o = messages.get(language);
-            LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
-
-            if (msgJson != null && content.length > 0 && content[0] != null) {
-                msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
-            }
-            LinkedHashMap<String, Object> temp = JSON.parseObject(content[0], new TypeReference<LinkedHashMap<String, Object>>(){});
-
-            dataSourceDefinition.setProperties(temp);
+        if (dataSourceDefinition == null || dataSourceDefinition.getProperties() == null
+                || dataSourceDefinition.getMessages() == null) {
+            return;
         }
+        Object translations = dataSourceDefinition.getMessages().get(MessageUtil.getLanguage());
+        if (translations instanceof Map<?, ?> messages && !messages.isEmpty()) {
+            dataSourceDefinition.setProperties(localizeProperties(dataSourceDefinition.getProperties(), messages));
+        }
+    }
+
+    private static LinkedHashMap<String, Object> localizeProperties(Map<?, ?> properties, Map<?, ?> messages) {
+        LinkedHashMap<String, Object> localized = new LinkedHashMap<>();
+        properties.forEach((key, value) ->
+                localized.put(localizeText(key.toString(), messages), localizeValue(value, messages)));
+        return localized;
+    }
+
+    private static Object localizeValue(Object value, Map<?, ?> messages) {
+        if (value instanceof Map<?, ?> properties) {
+            return localizeProperties(properties, messages);
+        }
+        if (value instanceof List<?> items) {
+            return items.stream().map(item -> localizeValue(item, messages)).collect(Collectors.toList());
+        }
+        return value instanceof String text ? localizeText(text, messages) : value;
+    }
+
+    private static String localizeText(String text, Map<?, ?> messages) {
+        return MESSAGE_PLACEHOLDER.matcher(text).replaceAll(match -> {
+            Object translation = messages.get(match.group(1));
+            if (translation == null) {
+                return Matcher.quoteReplacement(match.group());
+            }
+            // Older specs escaped quotes and dollar signs for both replaceAll and JSON parsing.
+            String literal = translation.toString().replace("\\\\\"", "\"").replace("\\${", "${");
+            return Matcher.quoteReplacement(literal);
+        });
     }
 
     /**

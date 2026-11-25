@@ -21,6 +21,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -91,10 +92,39 @@ public class AuditAspect {
 				context.setAuditedDepth(context.getAuditedDepth() - 1);
 			}
 		}
+		if (action == AuditAction.INSPECT_TEST_QUERY && result instanceof DeferredResult<?> deferred) {
+			recordPreviewOnCompletion(deferred, action, ids, names, context);
+			return result;
+		}
 		safeRecord(() -> recordResult(action, joinPoint, audited, ids, names, claimed, result));
 		// 预登记未被完成路径取走（业务返回了校验失败等）时撤销，避免留下无法完成的登记
 		unregisterStale(action, claimed, operationId, result);
 		return result;
+	}
+
+	/** Preview stays a single final audit event even though its HTTP response is asynchronous. */
+	private void recordPreviewOnCompletion(DeferredResult<?> deferred, AuditAction action, List<String> ids,
+			Map<String, String> names, AuditRequestContext requestContext) {
+		UserDetail user = loginUser();
+		String operationId = auditEventService.currentOperationId();
+		deferred.onCompletion(() -> {
+			AuditRequestContext previous = AuditRequestContext.current();
+			try {
+				AuditRequestContext.set(requestContext);
+				safeRecord(() -> {
+					Object value = deferred.getResult();
+					boolean failed = !deferred.hasResult() || value instanceof Throwable
+							|| (value instanceof ResponseMessage<?> rm && !ResponseMessage.OK.equals(rm.getCode()));
+					AuditEvent event = AuditEvent.of(action, failed ? AuditOutcome.FAILED : AuditOutcome.SUCCESS);
+					event.setOperationId(operationId);
+					applyObject(event, ids, names);
+					if (failed) event.setReason(value instanceof Throwable error ? reasonOf(error) : "Preview request failed");
+					auditEventService.record(event, user);
+				});
+			} finally {
+				if (previous == null) AuditRequestContext.clear(); else AuditRequestContext.set(previous);
+			}
+		});
 	}
 
 	/** 业务返回后仍未取走的预登记：说明这次调用最终没有受理该对象。 */
@@ -362,7 +392,8 @@ public class AuditAspect {
 				}
 			}
 			for (String id : ids) {
-				names.computeIfAbsent(id, key -> resolveName(action.getObjectType(), key));
+				names.computeIfAbsent(id, key -> resolveName(
+						action == AuditAction.USER_VIEW_ACCESS_CODE ? "user" : action.getObjectType(), key));
 			}
 			names.values().removeIf(v -> v == null);
 		} catch (Exception e) {

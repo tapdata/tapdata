@@ -161,8 +161,10 @@ public class TestConnectionHandler implements WebSocketHandler {
 					dataSourceService.generatePasswordTag(dataSourceConnectionDto, userDetail);
 					Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
 					if (CollectionUtils.isNotEmpty(dataSourceConnectionDto.getPasswordTag())) {
+						boolean editTest = Boolean.TRUE.equals(data.get("editTest"));
 						dataSourceConnectionDto.getPasswordTag().forEach(tag -> {
-							if (config1.get(tag) == null && dataSourceConfig.containsKey(tag)) {
+							Object submitted = config1.get(tag);
+							if ((submitted == null || (editTest && "".equals(submitted))) && dataSourceConfig.containsKey(tag)) {
 								config1.put(tag, dataSourceConfig.get(tag));
 							}
 						});

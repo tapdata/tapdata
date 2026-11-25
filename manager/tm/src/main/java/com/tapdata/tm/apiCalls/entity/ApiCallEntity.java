@@ -67,6 +67,7 @@ public class ApiCallEntity extends BaseEntity {
     private String api_worker_port;
     private String api_worker_uuid;
     private String api_gateway_uuid;
+    private String physicalNodeId;
 
     @Field("req_headers")
     private Map<String, Object> reqHeaders;

@@ -1,6 +1,7 @@
 package com.tapdata.tm.agent.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
 import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
@@ -87,9 +88,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         }
         final boolean equals = Boolean.TRUE.equals(containWorker);
         List<WorkerDto> all = getAllAgentId(items, equals, userDetail);
-        Map<String, WorkerDto> map = equals ? all.stream()
-                .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
-                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : new HashMap<>();
+        Map<String, WorkerDto> map = equals ? preferredWorkerByProcessId(all) : new HashMap<>();
         return new Page<>(groupDtoPage.getTotal(), items.stream()
                 .filter(Objects::nonNull)
                 .map(item -> generateDto(item, equals, map))
@@ -455,6 +454,44 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return workerServiceImpl.findAll(Query.query(criteria));
     }
 
+    static Map<String, WorkerDto> preferredWorkerByProcessId(List<WorkerDto> workers) {
+        long liveTime = System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1000L);
+        return workers.stream()
+                .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
+                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w,
+                        (current, candidate) -> latestPing(current, candidate, liveTime)));
+    }
+
+    /**
+     * Workers may hold stale duplicate records for one process_id (including deleted history);
+     * same preference as ClusterStateService.distinctByProcessId: non-deleted first, then online
+     * (not stopping and heartbeat within liveTime), then the latest heartbeat.
+     */
+    static WorkerDto latestPing(WorkerDto current, WorkerDto candidate, long liveTime) {
+        boolean currentActive = isActiveWorker(current);
+        boolean candidateActive = isActiveWorker(candidate);
+        if (currentActive != candidateActive) {
+            return candidateActive ? candidate : current;
+        }
+        boolean currentOnline = isOnlineWorker(current, liveTime);
+        boolean candidateOnline = isOnlineWorker(candidate, liveTime);
+        if (currentOnline != candidateOnline) {
+            return candidateOnline ? candidate : current;
+        }
+        long currentPing = Objects.isNull(current.getPingTime()) ? 0L : current.getPingTime();
+        long candidatePing = Objects.isNull(candidate.getPingTime()) ? 0L : candidate.getPingTime();
+        return candidatePing > currentPing ? candidate : current;
+    }
+
+    private static boolean isActiveWorker(WorkerDto worker) {
+        return !Boolean.TRUE.equals(worker.getDeleted()) && !Boolean.TRUE.equals(worker.getIsDeleted());
+    }
+
+    private static boolean isOnlineWorker(WorkerDto worker, long liveTime) {
+        return !Boolean.TRUE.equals(worker.getStopping())
+                && Objects.nonNull(worker.getPingTime()) && worker.getPingTime() >= liveTime;
+    }
+
     /**
      * 在返回的引擎列表中增加引擎分组列表，其中引擎分组中包含对应的引擎列表
      * @param info 原来的引擎列表
@@ -466,7 +503,8 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (CollectionUtils.isEmpty(info)) return info;
         Map<String, AccessNodeInfo> infoMap = info.stream()
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getProcessId()))
-                .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
+                // Callers may still pass several nodes for one process; keep the first (preferred) one.
+                .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a, (first, second) -> first));
         Criteria criteria = findCriteria(null);
         List<AgentGroupEntity> entities = findAllEntity(Query.query(criteria));
         List<AccessNodeInfo> groupAgentList = entities.stream()

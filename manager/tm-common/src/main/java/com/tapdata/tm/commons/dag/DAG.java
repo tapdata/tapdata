@@ -37,6 +37,7 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -59,6 +60,10 @@ public class DAG implements Serializable, Cloneable {
 
     private static Logger logger = LoggerFactory.getLogger(DAG.class);
     public static Map<String, Class<? extends Node>> nodeMapping = new ConcurrentHashMap<>();
+    /** Node types whose class was found by the scan but could not be loaded. */
+    private static final Set<String> failedNodeTypes = ConcurrentHashMap.newKeySet();
+    /** Whether the last node type scan aborted, leaving {@link #nodeMapping} incomplete. */
+    private static volatile boolean nodeScanFailed;
 
     private final transient Graph<Node, Edge> graph;
 
@@ -101,14 +106,44 @@ public class DAG implements Serializable, Cloneable {
                     NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
                     if (nodeType != null) {
                         nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
+                        failedNodeTypes.remove(nodeType.value());
                     }
                 } catch (Exception e) {
-                    logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
+                    String failedType = declaredNodeType(beanDefinition);
+                    if (failedType != null) {
+                        failedNodeTypes.add(failedType);
+                    }
+                    logger.error("Unable to load class: {} (node type: {}), NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), failedType, e);
                 }
             });
+            nodeScanFailed = false;
         } catch (Throwable t) {
-            logger.error("DAG node type scan failed during goInit, will be retried on first getClassByType access: {}", t.getMessage(), t);
+            nodeScanFailed = true;
+            logger.error("DAG node type scan failed during goInit and is not retried: tasks with node types that are not "
+                    + "registered cannot be read until TM is restarted after the cause is fixed: {}", t.getMessage(), t);
         }
+    }
+
+    /** Reads the {@link NodeType} value from the scanned class metadata, without loading the class. */
+    private static String declaredNodeType(BeanDefinition beanDefinition) {
+        if (beanDefinition instanceof AnnotatedBeanDefinition) {
+            Map<String, Object> attributes = ((AnnotatedBeanDefinition) beanDefinition).getMetadata()
+                    .getAnnotationAttributes(NodeType.class.getName());
+            Object value = attributes == null ? null : attributes.get("value");
+            if (value instanceof String) {
+                return (String) value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code type} may be missing from {@link #nodeMapping} because node type registration failed
+     * (scan aborted, nothing registered, or the class of this type could not be loaded), as opposed to the
+     * type simply not existing in this version.
+     */
+    public static boolean isNodeTypeRegistrationFailed(String type) {
+        return nodeScanFailed || nodeMapping.isEmpty() || failedNodeTypes.contains(type);
     }
 
     public DAG(Graph<Node, Edge> graph) {

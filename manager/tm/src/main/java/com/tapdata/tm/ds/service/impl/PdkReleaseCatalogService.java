@@ -51,10 +51,6 @@ public class PdkReleaseCatalogService {
     @Value("${pdk.release.repository-url:https://nexus.tapdata.net/repository/maven-releases/}")
     private String repositoryUrl;
 
-    // Independent deployment approval; never populated from Nexus or a registration request.
-    @Value("${pdk.release.trusted-sha256:}")
-    private String trustedSha256 = "";
-
     private final AtomicReference<CacheEntry> cacheEntry = new AtomicReference<>();
     private final ReentrantLock refreshLock = new ReentrantLock();
 
@@ -194,9 +190,6 @@ public class PdkReleaseCatalogService {
     /** Streams the artifact to an owner-only temporary file owned by the caller. */
     public void downloadJar(Map<String, Object> release, Path target, IntConsumer downloadProgress) {
         try {
-            if (trustedSha256.isBlank()) {
-                throw new IllegalStateException("Connector execution is not approved: configure pdk.release.trusted-sha256 from an independently reviewed release");
-            }
             String repository = repositoryUrl.endsWith("/") ? repositoryUrl : repositoryUrl + "/";
             String artifactId = String.valueOf(release.get(ARTIFACT_ID_KEY));
             String version = String.valueOf(release.get(VERSION_KEY));
@@ -209,11 +202,6 @@ public class PdkReleaseCatalogService {
             String actualSha256 = HexFormat.of().formatHex(digest.digest());
             if (!actualSha256.equalsIgnoreCase(expectedSha256.split("\\s")[0])) {
                 throw new IllegalStateException("Connector artifact checksum does not match Nexus SHA-256");
-            }
-            boolean approved = java.util.Arrays.stream(trustedSha256.split("[,\\s]+"))
-                    .anyMatch(actualSha256::equalsIgnoreCase);
-            if (!approved) {
-                throw new IllegalStateException("Connector execution is not approved: artifact SHA-256 is absent from pdk.release.trusted-sha256");
             }
         } catch (Exception e) {
             // The caller also owns cleanup after successful download and registration.

@@ -1,7 +1,11 @@
 package com.tapdata.tm.ds.service.impl;
 
-
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.utils.MetadataUtil;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapTable;
 import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
@@ -40,6 +44,8 @@ import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import io.tapdata.pdk.apis.entity.Capability;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Answers;
@@ -2452,6 +2458,36 @@ class DataSourceServiceImplTest {
             oldConnection.setDatabase_type("mysql");
         }
 
+        @ParameterizedTest
+        @ValueSource(booleans = {true, false})
+        void masksSchemaPasswordsInReloadedUpdateResponse(boolean definitionAvailable) {
+            String key = "rawRedoClientKeyPassword";
+            oldConnection.setPdkHash("oracle-hash");
+            oldConnection.setConfig(new HashMap<>(Map.of(key, "stored-value", "host", "db")));
+            DataSourceDefinitionService definitions = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", definitions);
+            DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+            definition.setProperties(new LinkedHashMap<>(Map.of("connection",
+                    Map.of("properties", Map.of(key, Map.of("x-component", "Password"))))));
+            when(definitions.findByPdkHash("oracle-hash", Integer.MAX_VALUE, user))
+                    .thenReturn(definitionAvailable ? definition : null);
+            doReturn(false).when(dataSourceService).isAgentReq();
+            doReturn(null).when(dataSourceService).updateCheck(user, updateDto);
+            doReturn(oldConnection).when(dataSourceService).findById(updateDto.getId());
+            doReturn(oldConnection).when(dataSourceService).findById(updateDto.getId(), user);
+            when(dataSourceRepository.buildUpdateSet(any(), eq(user))).thenReturn(mock(Update.class));
+            doNothing().when(dataSourceService).updateAfter(user, oldConnection, null, null);
+
+            DataSourceConnectionDto response = dataSourceService.update(user, updateDto, false);
+
+            if (definitionAvailable) {
+                assertNull(response.getConfig().get(key));
+                assertEquals("db", response.getConfig().get("host"));
+            } else {
+                assertNull(response.getConfig());
+            }
+        }
+
         @Test
         @DisplayName("test update preserves password from old config when missing in new config - using passwordTag")
         void testPreservesPasswordFromOldConfigUsingPasswordTag() {
@@ -2913,6 +2949,57 @@ class DataSourceServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> dataSourceService.delete(user, id));
             assertEquals("Datasource.LinkJobs", exception.getErrorCode());
             verify(dataSourceService, never()).deleteById(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method loadSchema skips empty modelNext result")
+    class LoadSchemaSkipEmptyModelNextTest {
+        private DataSourceRepository dataSourceRepository;
+        private MetadataInstancesService metadataInstancesService;
+        private MetadataUtil metadataUtil;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            metadataInstancesService = mock(MetadataInstancesService.class);
+            metadataUtil = mock(MetadataUtil.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "metadataInstancesService", metadataInstancesService);
+            ReflectionTestUtils.setField(dataSourceService, "metadataUtil", metadataUtil);
+            userDetail = mock(UserDetail.class);
+        }
+
+        @Test
+        @DisplayName("loadSchema does not call bulkUpsetByWhere when modelNext returns empty list")
+        void skipBulkUpsetWhenModelNextEmpty() {
+            ObjectId connectionId = new ObjectId();
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(connectionId);
+            connectionDto.setName("CRM-DEV");
+            TapTable table = new TapTable("yts_rel_test");
+            List<TapTable> tables = List.of(table);
+            MetadataInstancesDto converted = new MetadataInstancesDto();
+            converted.setOriginalName("yts_rel_test");
+
+            try (MockedStatic<PdkSchemaConvert> pdkSchemaConvert = mockStatic(PdkSchemaConvert.class);
+                 MockedStatic<DefaultExpressionMatchingMap> expressionMap = mockStatic(DefaultExpressionMatchingMap.class)) {
+                TableFieldTypesGenerator generator = mock(TableFieldTypesGenerator.class);
+                DefaultExpressionMatchingMap mapped = mock(DefaultExpressionMatchingMap.class);
+                pdkSchemaConvert.when(PdkSchemaConvert::getTableFieldTypesGenerator).thenReturn(generator);
+                expressionMap.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mapped);
+                doNothing().when(generator).autoFill(any(LinkedHashMap.class), any(DefaultExpressionMatchingMap.class));
+                pdkSchemaConvert.when(() -> PdkSchemaConvert.fromPdk(table)).thenReturn(converted);
+                when(metadataUtil.modelNext(anyList(), eq(connectionDto), eq("db-1"), eq(userDetail), eq(false)))
+                        .thenReturn(Collections.emptyList());
+
+                assertDoesNotThrow(() -> dataSourceService.loadSchema(userDetail, tables, connectionDto, "expr", "db-1", true, false));
+
+                verify(metadataUtil, times(1)).modelNext(anyList(), eq(connectionDto), eq("db-1"), eq(userDetail), eq(false));
+                verify(metadataInstancesService, never()).bulkUpsetByWhere(anyList(), any());
+                verify(metadataInstancesService, never()).findAllDto(any(), any());
+            }
         }
     }
 }

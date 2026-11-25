@@ -11,8 +11,12 @@ import lombok.NoArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.codecs.pojo.annotations.BsonId;
+import org.bson.types.Decimal128;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.MathContext;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -20,6 +24,11 @@ import java.util.*;
 @NoArgsConstructor
 public class MeasurementEntity {
     public static final String COLLECTION_NAME = "AgentMeasurementV2";
+    public static final String FIELD_DASHBOARD_OUTPUT_QPS_SUM = "dashboardOutputQpsSum";
+    public static final String FIELD_DASHBOARD_OUTPUT_QPS_COUNT = "dashboardOutputQpsCount";
+    public static final String FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM = "dashboardOutputSizeQpsSum";
+    public static final String FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT = "dashboardOutputSizeQpsCount";
+    public static final String FIELD_DASHBOARD_ROLLUP_DIRTY = "dashboardRollupDirty";
 
     @BsonId
     private String id;
@@ -42,6 +51,29 @@ public class MeasurementEntity {
 
     @Field(MetricCons.F_DIGEST)
     private List<TDigestEntity> digest;
+
+    @Field(FIELD_DASHBOARD_OUTPUT_QPS_SUM)
+    private Double dashboardOutputQpsSum;
+    @Field(FIELD_DASHBOARD_OUTPUT_QPS_COUNT)
+    private Long dashboardOutputQpsCount;
+    @Field(FIELD_DASHBOARD_OUTPUT_SIZE_QPS_SUM)
+    private Double dashboardOutputSizeQpsSum;
+    @Field(FIELD_DASHBOARD_OUTPUT_SIZE_QPS_COUNT)
+    private Long dashboardOutputSizeQpsCount;
+    @Field(FIELD_DASHBOARD_ROLLUP_DIRTY)
+    private Boolean dashboardRollupDirty;
+    @Field("dashboardMinuteSummaries")
+    private List<DashboardMinuteSummary> dashboardMinuteSummaries;
+
+    @Data
+    @NoArgsConstructor
+    public static class DashboardMinuteSummary {
+        private Date date;
+        private Double outputQpsSum;
+        private Long outputQpsCount;
+        private Double outputSizeQpsSum;
+        private Long outputSizeQpsCount;
+    }
 
     public MeasurementEntity(List<Sample> samples,List<TDigestEntity> digest) {
         this.samples = samples;
@@ -68,14 +100,14 @@ public class MeasurementEntity {
 
             for (Map.Entry<String, Number> entry : sampleValues.entrySet()) {
                 String key = entry.getKey();
-                Number value = entry.getValue();
+                Number value = normalizeAggregateNumber(entry.getValue());
 
                 // 处理特殊指标（最大值和分位数）
                 tracker.processMetric(key, value, isMinuteGranularity, keyDigestMap);
 
                 // 累计值用于平均值计算
                 if (value != null) {
-                    keyValueMap.merge(key, value, NumberUtils::addNumbers);
+                    keyValueMap.merge(key, value, MeasurementEntity::addAggregateNumbers);
                     keyCounterMap.merge(key, 1, Integer::sum);
                 }
             }
@@ -105,11 +137,57 @@ public class MeasurementEntity {
             Integer counter = keyCounterMap.get(key);
 
             if (counter != null && value != null && counter > 0) {
-                finalKeyValueMap.put(key, NumberUtils.divideNumbers(value, counter));
+                finalKeyValueMap.put(key, divideAggregateNumber(value, counter));
             } else {
                 finalKeyValueMap.put(key, null);
             }
         }
+    }
+
+    private static Number normalizeAggregateNumber(Number value) {
+        if (!(value instanceof Decimal128 decimal128)) {
+            return value;
+        }
+        BigDecimal decimal = decimal128.bigDecimalValue();
+        try {
+            return decimal.toBigIntegerExact();
+        } catch (ArithmeticException nonInteger) {
+            return decimal;
+        }
+    }
+
+    private static Number addAggregateNumbers(Number left, Number right) {
+        if (left instanceof Double || right instanceof Double || left instanceof Float || right instanceof Float) {
+            return NumberUtils.addNumbers(left, right);
+        }
+        if (left instanceof BigDecimal || right instanceof BigDecimal) {
+            return asBigDecimal(left).add(asBigDecimal(right));
+        }
+        if (left instanceof BigInteger || right instanceof BigInteger) {
+            return asBigInteger(left).add(asBigInteger(right));
+        }
+        return NumberUtils.addNumbers(left, right);
+    }
+
+    private static Number divideAggregateNumber(Number value, int divisor) {
+        if (value instanceof Double || value instanceof Float) {
+            return NumberUtils.divideNumbers(value, divisor);
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal.divide(BigDecimal.valueOf(divisor), MathContext.DECIMAL128);
+        }
+        if (value instanceof BigInteger integer) {
+            return integer.divide(BigInteger.valueOf(divisor));
+        }
+        return NumberUtils.divideNumbers(value, divisor);
+    }
+
+    private static BigDecimal asBigDecimal(Number value) {
+        return value instanceof BigDecimal decimal ? decimal : new BigDecimal(value.toString());
+    }
+
+    private static BigInteger asBigInteger(Number value) {
+        return value instanceof BigInteger integer ? integer : new BigInteger(value.toString());
     }
 
     private class MetricsTracker {

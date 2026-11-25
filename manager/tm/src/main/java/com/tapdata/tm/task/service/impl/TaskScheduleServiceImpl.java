@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.commons.alarm.Level;
+import com.tapdata.tm.commons.dag.UnknownNode;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -85,6 +86,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart) {
+        // Automatic re-scheduling (engine restart, scheduling/wait-run timeout, scheduling-failed retry, agent offline)
+        // does not go through TaskServiceImpl.start(), so unknown nodes are checked here as well.
+        if (rejectUnknownNodes(taskDto, user)) {
+            return;
+        }
         FunctionUtils.ignoreAnyError(() -> {
             CheckTaskMemoryResult checkTaskMemoryResult = taskService.checkTaskMemoryHeap(taskDto, isReStart, user);
             if (null != checkTaskMemoryResult && !checkTaskMemoryResult.getIsSafe()) {
@@ -145,6 +151,29 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())),
                     Update.update("scheduleDate", System.currentTimeMillis()));
         }
+    }
+
+    @Override
+    public boolean rejectUnknownNodes(TaskDto taskDto, UserDetail user) {
+        Set<String> types = taskDto.getDag() == null ? Collections.emptySet() : UnknownNode.typesOf(taskDto.getDag().getNodes());
+        if (types.isEmpty()) {
+            return false;
+        }
+        // An engine would run such nodes as blank pass-through nodes. Move to error rather than scheduling failed:
+        // scheduling failed tasks are retried automatically, which would repeat this every minute.
+        StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
+        boolean movedToError = result != null && result.isOk();
+        if (!movedToError) {
+            // E.g. the status was changed concurrently; the next scheduling round rejects the task again.
+            log.warn("Task {} contains unsupported nodes {} but could not be set to error from status {}: {}", taskDto.getName(),
+                    types, taskDto.getStatus(), result == null ? null : result.getMessage());
+        }
+        String message = MessageFormat.format("Task contains nodes whose type or properties are not supported by this version: "
+                + "{0}. The task is not scheduled{1}; remove or replace these nodes, then start the task again.",
+                String.join(", ", types), movedToError ? " and is set to error" : "");
+        log.warn("{} task = {}", message, taskDto.getName());
+        monitoringLogsService.startTaskErrorLog(taskDto, user, message, Level.ERROR);
+        return true;
     }
 
     public void sendStartMsg(String taskId, String agentId, UserDetail user) {
@@ -315,6 +344,14 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     @Override
     public void validateConnectionAgentPolicy(TaskDto taskDto, UserDetail user, Map<String, DataSourceConnectionDto> overrides) {
         resolveEffectiveAgents(taskDto, resolveConnectionAgentPolicy(taskDto, user, overrides), user);
+    }
+
+    @Override
+    public Set<String> connectionAllowedAgents(TaskDto taskDto, UserDetail user,
+                                                Map<String, DataSourceConnectionDto> overrides) {
+        ConnectionAgentPolicy policy = resolveConnectionAgentPolicy(taskDto, user, overrides);
+        return policy == null || policy.allowedAgents == null
+                ? null : new LinkedHashSet<>(policy.allowedAgents);
     }
 
     private Set<String> resolveEffectiveAgents(TaskDto taskDto, ConnectionAgentPolicy policy, UserDetail user) {

@@ -64,6 +64,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.nullable;
 import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -121,6 +122,7 @@ class ApiMetricsChartQueryTest {
         when(apiMetricsChartQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.homepageRequestTrend(any(QueryBase.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.homepageRequestTrendV2(any(QueryBase.class), nullable(String.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.extractIndex(anyString())).thenCallRealMethod();
         when(apiMetricsChartQuery.topWorkerInServer(anyList(), any(ServerDetail.class))).thenCallRealMethod();
         doCallRealMethod().when(apiMetricsChartQuery).handler(any(ServerChart.Item.class));
@@ -139,6 +141,34 @@ class ApiMetricsChartQueryTest {
         workers.add(e);
         when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
         when(metricsRawMergeService.getDelay()).thenReturn(0L);
+    }
+
+    @Test
+    void v2AllNodeTraceabilityDistinguishesOldNewAndMixedData() {
+        QueryBase query = new QueryBase();
+        query.setStartAt(0L);
+        query.setEndAt(5L);
+        query.setGranularity(TimeGranularity.SECOND_FIVE);
+        when(service.dashboardRequestData(0L, 5L, TimeGranularity.SECOND_FIVE, MetricTypes.ALL, null))
+                .thenReturn(new ApiMetricsRawService.DashboardRequestData(Map.of(0L, 5L), true, false));
+
+        Assertions.assertEquals("untraceable", apiMetricsChartQuery.homepageRequestTrendV2(query, null).getTraceability());
+
+        when(service.dashboardRequestData(0L, 5L, TimeGranularity.SECOND_FIVE, MetricTypes.ALL, null))
+                .thenReturn(new ApiMetricsRawService.DashboardRequestData(Map.of(0L, 5L), false, true));
+        Assertions.assertEquals("complete", apiMetricsChartQuery.homepageRequestTrendV2(query, null).getTraceability());
+
+        when(service.dashboardRequestData(0L, 5L, TimeGranularity.SECOND_FIVE, MetricTypes.ALL, null))
+                .thenReturn(new ApiMetricsRawService.DashboardRequestData(Map.of(0L, 5L), true, true));
+        Assertions.assertEquals("partial", apiMetricsChartQuery.homepageRequestTrendV2(query, null).getTraceability());
+
+        query.setPhysicalNodeId("node-a");
+        when(service.dashboardRequestData(0L, 5L, TimeGranularity.SECOND_FIVE, MetricTypes.SERER, "node-a"))
+                .thenReturn(new ApiMetricsRawService.DashboardRequestData(Map.of(), true, true));
+        Assertions.assertEquals("untraceable", apiMetricsChartQuery.homepageRequestTrendV2(query, "node-a").getTraceability());
+        when(service.dashboardRequestData(0L, 5L, TimeGranularity.SECOND_FIVE, MetricTypes.SERER, "node-a"))
+                .thenReturn(new ApiMetricsRawService.DashboardRequestData(Map.of(0L, 5L), true, true));
+        Assertions.assertEquals("partial", apiMetricsChartQuery.homepageRequestTrendV2(query, "node-a").getTraceability());
     }
 
     @Nested

@@ -10,6 +10,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +21,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +47,44 @@ class DataSourceDefinitionServiceImplTest {
         ReflectionTestUtils.setField(dataSourceDefinitionService, "repository", repository);
     }
 
+
+    @Test
+    void shouldLocalizeNestedTooltipWithoutChangingItsText() {
+        String english = "Where the connector reads HANA's log. \"Log backup folder\" or \"Log shipper\".";
+        String chinese = "连接器读取 HANA 日志的位置。“日志备份目录”或“日志传送服务”。";
+        DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+        var properties = new LinkedHashMap<String, Object>(Map.of(
+                "logSource", Map.of("x-decorator-props", Map.of("tooltip", "${logSourceTip}"))));
+        definition.setMessages(new LinkedHashMap<>(Map.of(
+                "en_US", Map.of("logSourceTip", english), "zh_CN", Map.of("logSourceTip", chinese))));
+        var service = new DataSourceDefinitionServiceImpl(repository);
+        try (MockedStatic<MessageUtil> locale = mockStatic(MessageUtil.class)) {
+            for (var translation : Map.of("en_US", english, "zh_CN", chinese).entrySet()) {
+                definition.setProperties(properties);
+                locale.when(MessageUtil::getLanguage).thenReturn(translation.getKey());
+                service.updateConfigPropertiesTitle(definition);
+                Assertions.assertEquals(Map.of("logSource", Map.of("x-decorator-props",
+                        Map.of("tooltip", translation.getValue()))), definition.getProperties());
+            }
+        }
+    }
+
+    @Test
+    void shouldPreserveLiteralExamplesInConnectorMessages() {
+        DataSourceDefinitionDto definition = new DataSourceDefinitionDto();
+        definition.setProperties(new LinkedHashMap<>(Map.of("options",
+                List.of("Example: ${tip.sql} / ${missing}", "${tipXsql}", 3))));
+        // Older specs escaped quotes and dollar signs for the former regex/JSON round trip.
+        String legacy = "Run \\\\\"show databases\\\\\" for \\${record.id}";
+        definition.setMessages(new LinkedHashMap<>(Map.of("en_US", Map.of(
+                "tip.sql", legacy + "\n$5 at C:\\logs", "record.id", "unwanted substitution"))));
+        try (MockedStatic<MessageUtil> locale = mockStatic(MessageUtil.class)) {
+            locale.when(MessageUtil::getLanguage).thenReturn("en_US");
+            new DataSourceDefinitionServiceImpl(repository).updateConfigPropertiesTitle(definition);
+        }
+        Assertions.assertEquals(List.of("Example: Run \"show databases\" for ${record.id}\n$5 at C:\\logs / ${missing}",
+                "${tipXsql}", 3), definition.getProperties().get("options"));
+    }
 
     @Nested
     class NameAsRealNameTest {

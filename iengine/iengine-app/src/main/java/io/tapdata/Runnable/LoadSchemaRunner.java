@@ -24,6 +24,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.exception.ConvertException;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
@@ -159,6 +160,7 @@ public class LoadSchemaRunner implements Runnable {
 								.withVersion(databaseType.getVersion())
 								.withLog(new TapLog())
 								.build();
+						PdkUtil.populateConnectionInfo(connectionNode.getConnectionContext(), connections);
 						PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init PDK", TAG);
 						if (loadSchemaProgress.getTableCount() <= 0) {
 							loadSchemaProgress.setTableCount(getPdkTableCount(connectionNode));
@@ -209,7 +211,9 @@ public class LoadSchemaRunner implements Runnable {
 			TableFilter tableFilter = TableFilter.create(connections.getTable_filter(), connections.getIfOpenTableExcludeFilter());
 			GetTableNamesFunction getTableNamesFunction = connectionNode.getConnectionFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
-				pdkDiscoverSchema(connectionNode, new ArrayList<>(), tableConsumer);
+				// Without GetTableNamesFunction the table filter cannot be applied to listed names,
+				// so a partial refresh passes its exact table names to discoverSchema instead of loading all tables.
+				pdkDiscoverSchema(connectionNode, partialUpdateTables(connections), tableConsumer);
 			} else {
 				List<String> tempList = new ArrayList<>();
 				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.GET_TABLE_NAMES,
@@ -233,6 +237,25 @@ public class LoadSchemaRunner implements Runnable {
 		} catch (Throwable throwable) {
 			throw new Exception("Load pdk schema failed, message: " + throwable.getMessage(), throwable);
 		}
+	}
+
+	/**
+	 * Exact table names of a partial schema refresh; an empty list means load all tables.
+	 */
+	protected static List<String> partialUpdateTables(Connections connections) {
+		List<String> tables = new ArrayList<>();
+		String partialUpdateFilter = connections.getPartialUpdateFilter();
+		if (null == connections.getPartialUpdateWithSchemaVersion() || StringUtils.isBlank(partialUpdateFilter)) {
+			return tables;
+		}
+		Set<String> names = new LinkedHashSet<>();
+		for (String name : partialUpdateFilter.split(",")) {
+			if (StringUtils.isNotBlank(name)) {
+				names.add(name.trim());
+			}
+		}
+		tables.addAll(names);
+		return tables;
 	}
 
     public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {

@@ -18,6 +18,10 @@ public class InspectDetailsDto extends BaseDto {
     private String inspect_id;
     /**  */
     private String taskId;
+    private Map<String, Object> resultKey;
+    private String differenceType;
+    private String sourceField;
+    private String targetField;
     /**  */
     private String type;
 

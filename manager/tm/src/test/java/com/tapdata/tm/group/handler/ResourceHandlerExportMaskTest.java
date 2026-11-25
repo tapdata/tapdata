@@ -53,6 +53,7 @@ public class ResourceHandlerExportMaskTest {
         uriMeta.put("apiServerKey", "database_uri");
         Map<String, Object> connProps = new LinkedHashMap<>();
         connProps.put("uri", uriMeta);
+        connProps.put("privateKey", Map.of("x-component", "Password"));
         Map<String, Object> connection = new LinkedHashMap<>();
         connection.put("properties", connProps);
         LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
@@ -70,14 +71,21 @@ public class ResourceHandlerExportMaskTest {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("isUri", true);
         config.put("uri", REAL_URI);
+        config.put("privateKey", "synthetic-key-content");
+        config.put("rawRedoClientKeyPassword", "synthetic-key-password");
+        config.put("rawRedoServerCertificatePem", "public-cert-content");
         entity.setConfig(config);
         return entity;
     }
 
     /** 跑一次导出 payload 构建，返回连接文档的 JSON */
     private String exportedConnectionJson(DataSourceEntity entity, boolean maskSecrets) {
+        return exportedConnectionJson(entity, maskSecrets, definitionWithUri());
+    }
+
+    private String exportedConnectionJson(DataSourceEntity entity, boolean maskSecrets, DataSourceDefinitionDto definition) {
         DataSourceDefinitionService definitionService = mock(DataSourceDefinitionService.class);
-        when(definitionService.findByPdkHash(any(), anyInt(), any())).thenReturn(definitionWithUri());
+        when(definitionService.findByPdkHash(any(), anyInt(), any())).thenReturn(definition);
         MetadataInstancesService metadataInstancesService = mock(MetadataInstancesService.class);
         ResourceHandler handler = mock(ResourceHandler.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
 
@@ -92,9 +100,27 @@ public class ResourceHandlerExportMaskTest {
     }
 
     @Test
+    void masksKeyAndPasswordAndKeepsPublicCertificate() {
+        String json = exportedConnectionJson(connectionWithRealUri(), true);
+        assertFalse(json.contains("synthetic-key-content"));
+        assertFalse(json.contains("synthetic-key-password"));
+        assertTrue(json.contains("public-cert-content"));
+    }
+
+    @Test
+    void masksKeyAndPasswordWhenDefinitionIsUnavailable() {
+        String json = exportedConnectionJson(connectionWithRealUri(), true, null);
+        assertFalse(json.contains("synthetic-key-content"));
+        assertFalse(json.contains("synthetic-key-password"));
+        assertTrue(json.contains("public-cert-content"));
+    }
+
+    @Test
     @DisplayName("保真：包里留着真实 uri —— 本地导出的包要能直接用")
     void keepsSecretsWhenMaskDisabled() {
         String json = exportedConnectionJson(connectionWithRealUri(), false);
+        assertTrue(json.contains("synthetic-key-content"));
+        assertTrue(json.contains("synthetic-key-password"));
         assertTrue(json.contains(REAL_URI),
                 "本地导出默认保真（ADR-0034 D1），凭据被抹掉的包搬到另一个环境就是不可用的：" + json);
     }

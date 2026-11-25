@@ -8,6 +8,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.AccessNodeInfo;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
@@ -40,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 class ClusterStateServiceTest {
@@ -105,6 +108,7 @@ class ClusterStateServiceTest {
             when(agentGroupService.filterGroupList(anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
 
             when(clusterStateService.findAccessNodeInfo(userDetail)).thenCallRealMethod();
+            when(clusterStateService.findAccessNodeInfo(eq(userDetail), isNull())).thenCallRealMethod();
         }
 
         void assertVerify(int getHostnameTimes, int getTcmInfoTimes,
@@ -138,7 +142,7 @@ class ClusterStateServiceTest {
             when(worker.getTcmInfo()).thenReturn(null);
             assertVerify(1, 1,
                     0,
-                    2, 0, 5,
+                    2, 0, 6,
                     1);
         }
         @Test
@@ -146,7 +150,7 @@ class ClusterStateServiceTest {
             when(settingsService.isCloud()).thenReturn(true);
             assertVerify(1, 1,
                     1,
-                    2, 0, 5,
+                    2, 0, 6,
                     1);
         }
 
@@ -155,7 +159,7 @@ class ClusterStateServiceTest {
             when(worker.getStopping()).thenReturn(null);
             assertVerify(1, 0,
                     0,
-                    1, 2, 5,
+                    1, 2, 6,
                     1);
         }
         @Test
@@ -163,7 +167,7 @@ class ClusterStateServiceTest {
             when(worker.getStopping()).thenReturn(false);
             assertVerify(1, 0,
                     0,
-                    2, 2, 5,
+                    2, 2, 6,
                     1);
         }
 
@@ -173,7 +177,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(null);
             assertVerify(1, 0,
                     0,
-                    1, 1, 5,
+                    1, 1, 6,
                     1);
         }
         @Test
@@ -182,7 +186,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(2L);
             assertVerify(1, 0,
                     0,
-                    1, 2, 5,
+                    1, 2, 6,
                     1);
         }
         @Test
@@ -191,7 +195,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(Long.MAX_VALUE);
             assertVerify(1, 0,
                     0,
-                    1, 2, 5,
+                    1, 2, 6,
                     1);
         }
 
@@ -205,6 +209,213 @@ class ClusterStateServiceTest {
                 clusterStateService.findAccessNodeInfo(userDetail);
             }
             Assertions.assertTrue(captor.getValue().isEmpty());
+        }
+
+        @Test
+        void filteredAccessUsesOnlyRequestedProcessIdsAndStillFiltersGroups() {
+            List<String> processIds = List.of("id");
+            when(clusterStateService.findAccessNodeInfo(userDetail, processIds)).thenCallRealMethod();
+            when(workerService.findAllAgent(userDetail, processIds)).thenReturn(workerList);
+            ClusterStateDto state = new ClusterStateDto();
+            SystemInfo info = mock(SystemInfo.class);
+            when(info.getProcess_id()).thenReturn("id");
+            state.setSystemInfo(info);
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(state));
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> result;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("30");
+                result = clusterStateService.findAccessNodeInfo(userDetail, processIds);
+            }
+
+            Assertions.assertEquals(1, result.size());
+            Assertions.assertEquals("id", result.get(0).getProcessId());
+            Assertions.assertEquals("stopped", result.get(0).getStatus());
+            verify(workerService).findAllAgent(userDetail, processIds);
+            verify(workerService, never()).findAllAgent(userDetail);
+            ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+            verify(clusterStateService).findAll(query.capture());
+            Assertions.assertEquals(processIds,
+                    ((org.bson.Document) query.getValue().getQueryObject().get("systemInfo.process_id")).get("$in"));
+            verify(agentGroupService).filterGroupList(anyList(), eq(userDetail));
+        }
+
+        @Test
+        void nullProcessFilterRetainsUnfilteredAccessBehavior() {
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> original;
+            List<AccessNodeInfo> filteredNull;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("30");
+                original = clusterStateService.findAccessNodeInfo(userDetail);
+                filteredNull = clusterStateService.findAccessNodeInfo(userDetail, null);
+            }
+
+            Assertions.assertEquals(original.size(), filteredNull.size());
+            Assertions.assertEquals(original.get(0).getProcessId(), filteredNull.get(0).getProcessId());
+            Assertions.assertEquals(original.get(0).getStatus(), filteredNull.get(0).getStatus());
+            verify(workerService, times(2)).findAllAgent(userDetail);
+            verify(agentGroupService, times(2)).filterGroupList(anyList(), eq(userDetail));
+        }
+
+        @Test
+        void apiOnlyClusterStateIsNotExposedAsAnEngineAccessNode() {
+            when(workerService.findAllAgent(userDetail)).thenReturn(new ArrayList<>());
+            ClusterStateDto apiOnlyState = new ClusterStateDto();
+            apiOnlyState.setApiServer(new com.tapdata.tm.cluster.dto.Component());
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(apiOnlyState));
+
+            List<AccessNodeInfo> result = clusterStateService.findAccessNodeInfo(userDetail);
+
+            Assertions.assertTrue(result.isEmpty());
+            verify(clusterStateService, never()).findAll(any(Query.class));
+            verify(agentGroupService, never()).filterGroupList(anyList(), any(UserDetail.class));
+        }
+
+        @Test
+        void duplicateWorkersOfOneProcessProduceSingleRunningAccessNode() {
+            String processId = "06eefee4-8154-44a1-afc6-a5bd68d0c8c8";
+            Worker live = engineWorker("6ae9795c885a7214937a8710", processId, "fd3c58a70570",
+                    System.currentTimeMillis(), true);
+            Worker stale = engineWorker("6aebff69885a721493517b42", processId, "8a45c2d3d682",
+                    System.currentTimeMillis() - 9L * 24 * 3600 * 1000, false);
+            when(workerService.findAllAgent(userDetail)).thenReturn(new ArrayList<>(List.of(stale, live)));
+            ClusterStateDto state = new ClusterStateDto();
+            SystemInfo info = mock(SystemInfo.class);
+            when(info.getProcess_id()).thenReturn(processId);
+            state.setSystemInfo(info);
+            when(clusterStateService.findAll(any(Query.class))).thenReturn(List.of(state));
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> result;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("30");
+                result = clusterStateService.findAccessNodeInfo(userDetail);
+            }
+
+            Assertions.assertEquals(1, result.size());
+            Assertions.assertEquals(processId, result.get(0).getProcessId());
+            Assertions.assertEquals("fd3c58a70570", result.get(0).getHostName());
+            Assertions.assertEquals("running", result.get(0).getStatus());
+            ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+            verify(clusterStateService).findAll(query.capture());
+            Assertions.assertEquals(List.of(processId),
+                    ((org.bson.Document) query.getValue().getQueryObject().get("systemInfo.process_id")).get("$in"));
+        }
+
+        @Test
+        void heartbeatExpiringDuringClusterStateQueryIsReportedStopped() {
+            String processId = "p-expiring";
+            // Alive for ~200ms when the call starts; the ClusterState query takes longer than that.
+            Worker worker = engineWorker("6ae9795c885a7214937a8710", processId, "host",
+                    System.currentTimeMillis() - 1_000L + 200L, true);
+            when(workerService.findAllAgent(userDetail)).thenReturn(new ArrayList<>(List.of(worker)));
+            ClusterStateDto state = new ClusterStateDto();
+            SystemInfo info = mock(SystemInfo.class);
+            when(info.getProcess_id()).thenReturn(processId);
+            state.setSystemInfo(info);
+            when(clusterStateService.findAll(any(Query.class))).thenAnswer(invocation -> {
+                Thread.sleep(500L);
+                return List.of(state);
+            });
+            when(agentGroupService.filterGroupList(anyList(), eq(userDetail)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccessNodeInfo> result;
+            try (MockedStatic<SettingUtil> su = mockStatic(SettingUtil.class)) {
+                su.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(),
+                        KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("1");
+                result = clusterStateService.findAccessNodeInfo(userDetail);
+            }
+
+            Assertions.assertEquals(1, result.size());
+            Assertions.assertEquals("stopped", result.get(0).getStatus());
+        }
+    }
+
+    static Worker engineWorker(String id, String processId, String hostname, Long pingTime, Boolean licenseBind) {
+        Worker worker = new Worker();
+        worker.setId(new ObjectId(id));
+        worker.setProcessId(processId);
+        worker.setHostname(hostname);
+        worker.setPingTime(pingTime);
+        worker.setLicenseBind(licenseBind);
+        return worker;
+    }
+
+    @Nested
+    class DistinctByProcessIdTest {
+        final long liveTime = 1_000L;
+
+        @Test
+        void aliveWorkerWinsOverNewerStoppedWorker() {
+            Worker alive = engineWorker("000000000000000000000001", "p", "alive", 2_000L, false);
+            Worker stopping = engineWorker("000000000000000000000002", "p", "stopping", 3_000L, true);
+            stopping.setStopping(true);
+
+            List<Worker> result = ClusterStateService.distinctByProcessId(List.of(stopping, alive), liveTime);
+
+            Assertions.assertEquals(List.of(alive), result);
+        }
+
+        @Test
+        void activeRecordWinsOverDeletedHistoryEvenIfHistoryLooksAlive() {
+            Worker deletedHistory = engineWorker("000000000000000000000009", "p", "deleted", 5_000L, true);
+            deletedHistory.setDeleted(true);
+            Worker active = engineWorker("000000000000000000000001", "p", "active", 500L, false);
+
+            Assertions.assertEquals(List.of(active),
+                    ClusterStateService.distinctByProcessId(List.of(deletedHistory, active), liveTime));
+
+            Worker isDeletedHistory = engineWorker("000000000000000000000008", "q", "isDeleted", 5_000L, true);
+            isDeletedHistory.setIsDeleted(true);
+            Worker deletedOnly = engineWorker("000000000000000000000007", "q", "deletedOnly", 4_000L, true);
+            deletedOnly.setDeleted(true);
+            Assertions.assertEquals(List.of(isDeletedHistory),
+                    ClusterStateService.distinctByProcessId(List.of(deletedOnly, isDeletedHistory), liveTime));
+        }
+
+        @Test
+        void latestHeartbeatWinsAmongExpiredWorkers() {
+            Worker older = engineWorker("000000000000000000000002", "p", "older", 100L, true);
+            Worker newer = engineWorker("000000000000000000000001", "p", "newer", 200L, false);
+
+            List<Worker> result = ClusterStateService.distinctByProcessId(List.of(older, newer), liveTime);
+
+            Assertions.assertEquals(List.of(newer), result);
+        }
+
+        @Test
+        void licenseBindThenNewestDocumentBreakTies() {
+            Worker unbound = engineWorker("000000000000000000000003", "p", "unbound", 2_000L, false);
+            Worker bound = engineWorker("000000000000000000000001", "p", "bound", 2_000L, true);
+            Assertions.assertEquals(List.of(bound),
+                    ClusterStateService.distinctByProcessId(List.of(unbound, bound), liveTime));
+
+            Worker oldDoc = engineWorker("000000000000000000000001", "q", "old", null, null);
+            Worker newDoc = engineWorker("000000000000000000000009", "q", "new", null, null);
+            Assertions.assertEquals(List.of(newDoc),
+                    ClusterStateService.distinctByProcessId(List.of(newDoc, oldDoc), liveTime));
+        }
+
+        @Test
+        void distinctProcessesAndWorkersWithoutProcessIdArePreserved() {
+            Worker a = engineWorker("000000000000000000000001", "a", "a", 2_000L, true);
+            Worker b = engineWorker("000000000000000000000002", "b", "b", 2_000L, true);
+            Worker noProcess = engineWorker("000000000000000000000003", null, "none", 2_000L, true);
+            List<Worker> input = new ArrayList<>(Arrays.asList(a, null, noProcess, b));
+
+            List<Worker> result = ClusterStateService.distinctByProcessId(input, liveTime);
+
+            Assertions.assertEquals(List.of(a, b, noProcess), result);
         }
     }
     @Nested

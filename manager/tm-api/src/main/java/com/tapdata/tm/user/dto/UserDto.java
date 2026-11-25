@@ -24,6 +24,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 public class UserDto extends BaseDto implements IDataPermissionDto {
 
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String accessCode;
     private String username;
     private String email;

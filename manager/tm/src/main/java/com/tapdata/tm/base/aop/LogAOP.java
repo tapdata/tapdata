@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.tapdata.tm.commons.util.ThrowableUtils;
+import com.tapdata.tm.base.dto.SensitiveResponseMessage;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.*;
@@ -101,6 +102,10 @@ public class LogAOP {
 	public void afterReturn(JoinPoint joinPoint, Object result){
 		Logger logger = getLogger(joinPoint.getTarget().getClass());
 		if (logger.isDebugEnabled()) {
+			if (result instanceof SensitiveResponseMessage<?>) {
+				logger.debug("{}, result:[omitted sensitive response]", joinPoint.getSignature().getName());
+				return;
+			}
 			try {
 				logger.debug("{}, result:{}",
 					//这里改成Jackson的避免数据模型定义都是Jackson的转义注解，这边用gson会转义失败，甚至报错

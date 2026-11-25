@@ -1,5 +1,7 @@
 package com.tapdata.tm.inspect.bean;
 
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.inspect.dto.InspectCdcRunProfiles;
 import lombok.Data;
@@ -15,6 +17,11 @@ import java.util.Date;
 @Data
 public class Stats {
     private String taskId;
+    private long differentFields;
+    private boolean bothEmpty;
+    private CustomQueryConfig.SideSummary sourceQuery;
+    private CustomQueryConfig.SideSummary targetQuery;
+    private CustomQueryConfig customQueryConfig;
     private Source source;
     private Source target;
     private Date start;

@@ -14,11 +14,28 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Query;
+import java.util.Optional;
+import com.mongodb.client.MongoClient;
+import com.tapdata.tm.base.reporitory.BaseRepository;
+import org.bson.Document;
+import org.junit.jupiter.api.AfterEach;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
+import org.springframework.data.mongodb.core.convert.QueryMapper;
+import org.springframework.data.mongodb.core.query.UpdateDefinition;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.List;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mockStatic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -113,6 +130,18 @@ class ApplicationServiceTest {
             id = new ObjectId();
             applicationDto = new ApplicationDto();
             applicationDto.setId(id);
+            when(repository.findById(eq(id), any(Field.class)))
+                    .thenAnswer(invocation -> Optional.of(persistedApplication()));
+            when(repository.findById(eq(id), same(userDetail)))
+                    .thenAnswer(invocation -> Optional.of(persistedApplication()));
+        }
+
+        private ApplicationEntity persistedApplication() {
+            ApplicationEntity entity = new ApplicationEntity();
+            entity.setId(id);
+            entity.setClientId(applicationDto.getClientId());
+            entity.setClientSecret("retained-secret");
+            return entity;
         }
 
         @Test
@@ -160,7 +189,9 @@ class ApplicationServiceTest {
 
             assertNotNull(result);
             assertEquals(id, result.getId());
+            assertTrue(result.isClientSecretConfigured());
             verify(repository, times(1)).update(any(Query.class), any(ApplicationEntity.class));
+            verify(repository).findById(eq(id), any(Field.class));
         }
 
         @Test
@@ -194,7 +225,9 @@ class ApplicationServiceTest {
 
             assertNotNull(result);
             assertEquals(id, result.getId());
+            assertTrue(result.isClientSecretConfigured());
             verify(repository, times(1)).updateByWhere(any(Query.class), any(), any(UserDetail.class));
+            verify(repository).findById(id, userDetail);
         }
 
         @Test
@@ -294,6 +327,60 @@ class ApplicationServiceTest {
 
             assertNotNull(result);
             assertEquals("unique-client-id", result.getClientId());
+        }
+
+        @Test
+        void testUpdateByIdReturnsNullWhenRecordIsNotVisible() {
+            when(repository.findById(id, userDetail)).thenReturn(Optional.empty());
+            when(repository.updateByWhere(any(Query.class), any(), same(userDetail)))
+                    .thenReturn(UpdateResult.acknowledged(0, 0L, null));
+
+            assertNull(service.updateById(applicationDto, userDetail));
+        }
+    }
+
+    @Nested
+    class NonAdminUpdateByIdMappingTest {
+        private Object previousFactory;
+
+        @BeforeEach
+        void saveFactory() {
+            previousFactory = ReflectionTestUtils.getField(BaseRepository.class, "repositoryFactory");
+            ReflectionTestUtils.setField(BaseRepository.class, "repositoryFactory", null);
+        }
+
+        @AfterEach
+        void restoreFactory() {
+            ReflectionTestUtils.setField(BaseRepository.class, "repositoryFactory", previousFactory);
+        }
+
+        @Test
+        void nonAdmin_updateById_targets_only_this_application() {
+            MongoTemplate mongo = spy(new MongoTemplate(new SimpleMongoClientDatabaseFactory(mock(MongoClient.class), "test")));
+            ApplicationService realService = new ApplicationService(new ApplicationRepository(mongo));
+            ObjectId id = new ObjectId();
+            ApplicationDto dto = new ApplicationDto();
+            dto.setId(id);
+            dto.setClientId(id.toHexString());
+            UserDetail nonAdmin = new UserDetail("user-a", "tenant-a", "new-user", "", List.of());
+            nonAdmin.setAuth();
+            doReturn(0L).when(mongo).count(any(Query.class), eq(ApplicationEntity.class), anyString());
+            doReturn(UpdateResult.acknowledged(1, 1L, null)).when(mongo)
+                    .updateMulti(any(Query.class), any(UpdateDefinition.class), eq(ApplicationEntity.class));
+            doReturn(null).when(mongo).findOne(any(Query.class), eq(ApplicationEntity.class), anyString());
+
+            try (MockedStatic<DataPermissionHelper> ignored = mockStatic(DataPermissionHelper.class)) {
+                realService.updateById(dto, nonAdmin);
+            }
+
+            ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+            verify(mongo).updateMulti(captor.capture(), any(UpdateDefinition.class), eq(ApplicationEntity.class));
+            Document mapped = new QueryMapper(mongo.getConverter()).getMappedObject(captor.getValue().getQueryObject(),
+                    mongo.getConverter().getMappingContext().getPersistentEntity(ApplicationEntity.class));
+            assertEquals(id, mapped.get("_id"));
+            assertEquals("tenant-a", mapped.get("customId"));
+            assertEquals(List.of(new Document("user_id", "user-a"), new Document("user_id", new Document("$exists", false))),
+                    mapped.getList("$or", Document.class));
         }
     }
 }

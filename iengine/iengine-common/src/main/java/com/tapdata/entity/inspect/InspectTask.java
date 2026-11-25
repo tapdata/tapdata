@@ -1,5 +1,7 @@
 package com.tapdata.entity.inspect;
 
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,6 +21,8 @@ import java.util.Map;
 @ToString
 @EqualsAndHashCode
 public class InspectTask implements Serializable {
+    private CustomQueryConfig customQueryConfig;
+
 
 	private String taskId; // "1",  // 子任务id，可以objectid/uuid/数字，任务内唯一
 	private boolean fullMatch = false; // false,  // 是否执行行匹配

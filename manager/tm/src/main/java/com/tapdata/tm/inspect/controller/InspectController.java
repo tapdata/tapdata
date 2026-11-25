@@ -1,6 +1,11 @@
 package com.tapdata.tm.inspect.controller;
 
 import com.tapdata.tm.audit.Audited;
+import com.tapdata.tm.commons.inspect.CustomQueryConfig;
+import com.tapdata.tm.commons.inspect.CustomQueryRequest;
+import com.tapdata.tm.inspect.service.CustomQueryInspectSupport;
+import com.tapdata.tm.inspect.service.CustomQueryPreviewRpc;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import com.tapdata.tm.audit.AuditAction;
 
@@ -79,6 +84,23 @@ import java.util.function.Supplier;
 public class InspectController extends BaseController {
     private final InspectResultService inspectResultService;
     private InspectService inspectService;
+    private CustomQueryInspectSupport customQueryInspectSupport;
+    private CustomQueryPreviewRpc customQueryPreviewRpc;
+
+    @Audited(value = AuditAction.INSPECT_TEST_QUERY, objectId = "#query.connectionId")
+    @PostMapping("/custom-query/test")
+    public DeferredResult<ResponseMessage<CustomQueryConfig.Snapshot>> testCustomQuery(
+            @RequestBody CustomQueryRequest query) {
+        UserDetail user = getLoginUser();
+        customQueryInspectSupport.authorize(query, user);
+        DeferredResult<ResponseMessage<CustomQueryConfig.Snapshot>> response =
+                new DeferredResult<>((query.getTimeoutSeconds() + 35L) * 1000);
+        customQueryPreviewRpc.testAsync(query, user.getUserId()).whenComplete((snapshot, failure) -> {
+            if (failure != null) response.setErrorResult(failure);
+            else response.setResult(success(snapshot));
+        });
+        return response;
+    }
     private AlarmReceiverAccess alarmReceiverAccess;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;

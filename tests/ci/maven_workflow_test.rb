@@ -193,7 +193,7 @@ class MavenWorkflowTest < Minitest::Test
   end
 
   def test_api_snapshot_cache_is_refreshed_before_build
-    cleanup = 'rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.11-SNAPSHOT'
+    cleanup = 'rm -rf /root/.m2/repository/io/tapdata/tapdata-api/2.0.12-SNAPSHOT'
     count = 0
     %w[mr-ci.yaml build.yml].each do |name|
       workflow(name).fetch('jobs').each_value do |job|

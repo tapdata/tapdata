@@ -44,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -1549,6 +1551,19 @@ public class GroupInfoServiceTest {
             assertTrue(changes.isEmpty());
         }
 
+        @ParameterizedTest
+        @ValueSource(strings = {"privateKey", "rawRedoClientKeyPassword"})
+        void changedKeyCredentialIsMaskedInPreview(String path) {
+            DataSourceConnectionDto file = buildConn("test", "source", "Oracle", Map.of(path, "new-key"), null);
+            DataSourceConnectionDto target = buildConn("test", "source", "Oracle", Map.of(path, "old-key"), null);
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", file, target);
+            assertEquals(1, changes.size());
+            assertEquals("config." + path, changes.get(0).getField());
+            assertEquals("******", changes.get(0).getFrom());
+            assertEquals("******", changes.get(0).getTo());
+        }
+
         @Test
         @DisplayName("Config.database change should produce precise FieldChange")
         void testConfigDatabaseChange() {
@@ -1869,11 +1884,11 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Null definition should return empty maps")
+        @DisplayName("Null definition retains the key and password masks")
         void testNullDefinition() {
             assertTrue(ResourceHandler.buildConfigPathToApiKeyMap(null).isEmpty());
             assertTrue(ResourceHandler.buildConfigPathToLabelMap(null).isEmpty());
-            assertTrue(ResourceHandler.getMaskedConfigPaths(null).isEmpty());
+            assertEquals(Set.of("privateKey", "rawRedoClientKeyPassword"), ResourceHandler.getMaskedConfigPaths(null));
         }
     }
 

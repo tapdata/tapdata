@@ -1572,6 +1572,61 @@ class MilestoneAspectTaskTest {
 
 			verify(milestoneAspectTask, times(1)).taskRetryAlarm(1L);
 		}
+
+		@Test
+		void testHandleRetryStopClearsAllStaleRetryingMilestones() {
+			MilestoneEntity snapshotEntity = new MilestoneEntity();
+			snapshotEntity.setCode(MilestoneAspectTask.KPI_SNAPSHOT);
+			snapshotEntity.setStatus(MilestoneStatus.RUNNING);
+			milestones.put(MilestoneAspectTask.KPI_SNAPSHOT, snapshotEntity);
+
+			MilestoneEntity cdcEntity = new MilestoneEntity();
+			cdcEntity.setCode(MilestoneAspectTask.KPI_CDC);
+			cdcEntity.setStatus(MilestoneStatus.FINISH);
+			cdcEntity.setRetrying(true);
+			cdcEntity.setRetryTimes(1L);
+			cdcEntity.setNextRetryTs(3000L);
+			milestones.put(MilestoneAspectTask.KPI_CDC, cdcEntity);
+
+			aspect.setRetrying(false);
+			aspect.setRetryTimes(11L);
+			aspect.setSuccess(true);
+			aspect.setRetryOp("SOURCE_STREAM_READ");
+
+			milestoneAspectTask.handleRetry(aspect);
+
+			Assertions.assertFalse(Boolean.TRUE.equals(snapshotEntity.getRetrying()));
+			Assertions.assertFalse(Boolean.TRUE.equals(cdcEntity.getRetrying()));
+			Assertions.assertNull(cdcEntity.getNextRetryTs());
+		}
+
+		@Test
+		void testHandleRetryStartClearsStaleRetryingOnFinishedMilestones() {
+			MilestoneEntity runningEntity = new MilestoneEntity();
+			runningEntity.setCode("running_milestone");
+			runningEntity.setStatus(MilestoneStatus.RUNNING);
+			milestones.put("running_milestone", runningEntity);
+
+			MilestoneEntity cdcEntity = new MilestoneEntity();
+			cdcEntity.setCode(MilestoneAspectTask.KPI_CDC);
+			cdcEntity.setStatus(MilestoneStatus.FINISH);
+			cdcEntity.setRetrying(true);
+			cdcEntity.setRetryTimes(1L);
+			cdcEntity.setNextRetryTs(3000L);
+			milestones.put(MilestoneAspectTask.KPI_CDC, cdcEntity);
+
+			aspect.setRetrying(true);
+			aspect.setRetryTimes(2L);
+			aspect.setNextRetryTs(6000L);
+			aspect.setRetryOp("SOURCE_STREAM_READ");
+
+			milestoneAspectTask.handleRetry(aspect);
+
+			Assertions.assertTrue(Boolean.TRUE.equals(runningEntity.getRetrying()));
+			Assertions.assertEquals(2L, runningEntity.getRetryTimes());
+			Assertions.assertFalse(Boolean.TRUE.equals(cdcEntity.getRetrying()));
+			Assertions.assertNull(cdcEntity.getNextRetryTs());
+		}
 	}
 
 	@Nested
@@ -2114,6 +2169,113 @@ class MilestoneAspectTaskTest {
 				Assertions.assertNotNull(milestones.get("SNAPSHOT"));
 				Assertions.assertNotEquals("SKIP", milestones.get("SNAPSHOT").getStatus().name());
 			}
+		}
+	}
+
+	@Nested
+	class PureCdcRetryMilestoneTest {
+		private MilestoneAspectTask taskInstance;
+		private TaskDto taskDto;
+		private ClientMongoOperator mongoOperator;
+		private ScheduledExecutorService executorService;
+		private TypeHandlers<Aspect, Void> observerHandlers;
+		private DataProcessorContext sourceContext;
+		private DataProcessorContext targetContext;
+
+		@BeforeEach
+		void setUp() {
+			taskInstance = new MilestoneAspectTask();
+			ReflectionTestUtils.setField(taskInstance, "log", mock(Log.class));
+
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId("507f1f77bcf86cd7994390bb"));
+			taskDto.setName("PGSQLToMSSQL-CMAccount-SIT");
+			taskDto.setType(TaskDto.TYPE_CDC);
+			taskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			DAG dag = mock(DAG.class);
+			when(dag.getNodes()).thenReturn(new ArrayList<>());
+			taskDto.setDag(dag);
+			taskInstance.setTask(taskDto);
+
+			ReflectionTestUtils.setField(taskInstance, "milestones", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskInstance, "nodeMilestones", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskInstance, "dataNodeInitMap", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(taskInstance, "milestoneOrder", new ConcurrentHashMap<>());
+
+			mongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(taskInstance, "clientMongoOperator", mongoOperator);
+
+			executorService = mock(ScheduledExecutorService.class);
+			ReflectionTestUtils.setField(taskInstance, "executorService", executorService);
+			when(executorService.scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(mock());
+
+			observerHandlers = (TypeHandlers<Aspect, Void>) ReflectionTestUtils.getField(taskInstance, "observerHandlers");
+
+			sourceContext = mock(DataProcessorContext.class);
+			Node sourceNode = mock(Node.class);
+			when(sourceNode.getId()).thenReturn("source-node-1");
+			when(sourceContext.getNode()).thenReturn(sourceNode);
+
+			targetContext = mock(DataProcessorContext.class);
+			Node targetNode = mock(Node.class);
+			when(targetNode.getId()).thenReturn("target-node-1");
+			when(targetContext.getNode()).thenReturn(targetNode);
+		}
+
+		private RetryLifeCycleAspect newRetryAspect(boolean retrying, long retryTimes, long totalRetries, Long nextRetryTs, Boolean success) {
+			RetryLifeCycleAspect aspect = new RetryLifeCycleAspect().dataProcessorContext(sourceContext);
+			aspect.setRetrying(retrying);
+			aspect.setRetryTimes(retryTimes);
+			aspect.setTotalRetries(totalRetries);
+			aspect.setRetryOp("SOURCE_STREAM_READ");
+			aspect.setNextRetryTs(nextRetryTs);
+			aspect.setSuccess(success);
+			return aspect;
+		}
+
+		@Test
+		void testPureCdcRetryRecoveryClearsCdcRetryingWithoutGhostSnapshot() {
+			try (MockedStatic<BeanUtil> bu = mockStatic(BeanUtil.class)) {
+				bu.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(mongoOperator);
+				taskInstance.onStart(mock(TaskStartAspect.class));
+			}
+
+			observerHandlers.handle(new Snapshot2CDCAspect().dataProcessorContext(sourceContext));
+			observerHandlers.handle(new CDCReadBeginAspect().dataProcessorContext(sourceContext));
+			observerHandlers.handle(newRetryAspect(true, 1L, 30L, 1794799043000L, null));
+
+			observerHandlers.handle(new CDCWriteBeginAspect().dataProcessorContext(targetContext));
+			observerHandlers.handle(newRetryAspect(true, 2L, 30L, 1794799073000L, null));
+
+			Map<String, MilestoneEntity> milestones = (Map<String, MilestoneEntity>) ReflectionTestUtils.getField(taskInstance, "milestones");
+			Assertions.assertNull(milestones.get(MilestoneAspectTask.KPI_SNAPSHOT));
+			MilestoneEntity cdc = milestones.get(MilestoneAspectTask.KPI_CDC);
+			Assertions.assertNotNull(cdc);
+			Assertions.assertEquals(MilestoneStatus.FINISH, cdc.getStatus());
+			Assertions.assertEquals(2L, cdc.getRetryTimes());
+			Assertions.assertTrue(Boolean.TRUE.equals(cdc.getRetrying()));
+
+			observerHandlers.handle(newRetryAspect(false, 11L, 30L, null, true));
+
+			Assertions.assertFalse(Boolean.TRUE.equals(cdc.getRetrying()));
+			Assertions.assertEquals(11L, cdc.getRetryTimes());
+			Assertions.assertEquals(Boolean.TRUE, cdc.getRetrySuccess());
+		}
+
+		@Test
+		void testInitialSyncWithSnapshot2CdcKeepsSnapshotRunning() {
+			taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+			try (MockedStatic<BeanUtil> bu = mockStatic(BeanUtil.class)) {
+				bu.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(mongoOperator);
+				taskInstance.onStart(mock(TaskStartAspect.class));
+			}
+
+			observerHandlers.handle(new Snapshot2CDCAspect().dataProcessorContext(sourceContext));
+
+			Map<String, MilestoneEntity> milestones = (Map<String, MilestoneEntity>) ReflectionTestUtils.getField(taskInstance, "milestones");
+			MilestoneEntity snapshot = milestones.get(MilestoneAspectTask.KPI_SNAPSHOT);
+			Assertions.assertNotNull(snapshot);
+			Assertions.assertEquals(MilestoneStatus.RUNNING, snapshot.getStatus());
 		}
 	}
 }
