@@ -33,6 +33,15 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		this.processorNode=new TapTargetShareCDCNode(dataProcessorContext);
 	}
 
+	/**
+	 * Allows subclasses and unit tests on OSS classpath to supply a delegate {@link TapProcessorNode}
+	 * without triggering the OSS stub constructor.
+	 */
+	protected HazelcastTargetPdkShareCDCNode(DataProcessorContext dataProcessorContext, TapProcessorNode processorNode) {
+		super(dataProcessorContext);
+		this.processorNode = processorNode;
+	}
+
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);

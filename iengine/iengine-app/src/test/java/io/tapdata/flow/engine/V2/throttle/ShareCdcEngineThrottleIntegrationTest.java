@@ -68,9 +68,9 @@ class ShareCdcEngineThrottleIntegrationTest {
                 .withNode(node)
                 .build();
 
-        HazelcastTargetPdkShareCDCNode targetNode = new HazelcastTargetPdkShareCDCNode(ctx);
         TapProcessorNode mockDelegate = mock(TapProcessorNode.class);
-        ReflectionTestUtils.setField(targetNode, "processorNode", mockDelegate);
+        HazelcastTargetPdkShareCDCNode targetNode = new HazelcastTargetPdkShareCDCNode(ctx, mockDelegate) {
+        };
         ReflectionTestUtils.setField(targetNode, "running", new AtomicBoolean(true));
         ExternalStorageDto ext = new ExternalStorageDto();
         ext.setId(new ObjectId());
