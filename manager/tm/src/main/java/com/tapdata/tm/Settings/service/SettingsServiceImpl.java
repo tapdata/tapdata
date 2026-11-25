@@ -24,7 +24,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.throttle.ThrottleConstants;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.throttle.service.TaskThrottleSampleConfigService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import lombok.Setter;
@@ -59,6 +61,9 @@ public class SettingsServiceImpl implements SettingsService {
 
     @Qualifier("caffeineCache")
     private CaffeineCacheManager caffeineCacheManager;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private TaskThrottleSampleConfigService taskThrottleSampleConfigService;
 
     /**
      * 有value 则返回value, 没有则返回default_value
@@ -253,8 +258,25 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public long updateByWhere(Where where, Document body) {
+        boolean isSampleSetting = taskThrottleSampleConfigService != null
+                && where != null
+                && ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL.equals(where.get("key"));
+        boolean hasSampleValue = false;
+        Object sampleValue = null;
+        if (isSampleSetting && body != null) {
+            if (body.containsKey("value")) {
+                hasSampleValue = true;
+                sampleValue = body.get("value");
+            } else if (body.get("$set") instanceof Document setDoc && setDoc.containsKey("value")) {
+                hasSampleValue = true;
+                sampleValue = setDoc.get("value");
+            }
+            if (hasSampleValue) {
+                taskThrottleSampleConfigService.validateIntervalValue(sampleValue);
+            }
+        }
         Document doc = new Document(where);
-        return mongoTemplate.updateFirst(Query.query(Criteria.matchingDocumentStructure(new MongoJsonSchema() {
+        long modified = mongoTemplate.updateFirst(Query.query(Criteria.matchingDocumentStructure(new MongoJsonSchema() {
             @Override
             public Document schemaDocument() {
                 return doc;
@@ -265,14 +287,34 @@ public class SettingsServiceImpl implements SettingsService {
             }
 
         })), Update.fromDocument(body), "Settings").getModifiedCount();
+        if (hasSampleValue) {
+            taskThrottleSampleConfigService.validateAndAdvanceVersion(sampleValue);
+        }
+        return modified;
     }
 
     public long enterpriseUpdate(Where where, String value) {
-        String id = (String) where.get("_id");
+        String id = where == null ? null : (String) where.get("_id");
+        boolean isSampleSetting = false;
+        if (taskThrottleSampleConfigService != null && where != null) {
+            if (ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL.equals(where.get("key"))) {
+                isSampleSetting = true;
+            } else if (id != null && settingsRepository != null) {
+                Settings existing = settingsRepository.findById(id).orElse(null);
+                isSampleSetting = existing != null
+                        && ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL.equals(existing.getKey());
+            }
+            if (isSampleSetting) {
+                taskThrottleSampleConfigService.validateIntervalValue(value);
+            }
+        }
         Query query = Query.query(Criteria.where("id").is(id));
         Update update = new Update();
         update.set("value", value);
         UpdateResult updateResult = mongoTemplate.updateFirst(query, update, Settings.class);
+        if (isSampleSetting) {
+            taskThrottleSampleConfigService.validateAndAdvanceVersion(value);
+        }
         return updateResult.getModifiedCount();
     }
 
@@ -288,11 +330,25 @@ public class SettingsServiceImpl implements SettingsService {
         if (CollectionUtils.isEmpty(validSettings)) {
             return;
         }
+        List<SettingsDto> sampleUpdates = new ArrayList<>();
+        if (taskThrottleSampleConfigService != null) {
+            for (SettingsDto dto : validSettings) {
+                if (ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL.equals(dto.getKey())) {
+                    taskThrottleSampleConfigService.validateIntervalValue(dto.getValue());
+                    sampleUpdates.add(dto);
+                }
+            }
+        }
         BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class);
         for (SettingsDto dto : validSettings) {
             bulkOperations.updateOne(Query.query(Criteria.where(CATEGORY).is(dto.getCategory()).and("key").is(dto.getKey())), buildSettingsUpdate(dto));
         }
         bulkOperations.execute();
+        if (taskThrottleSampleConfigService != null) {
+            for (SettingsDto dto : sampleUpdates) {
+                taskThrottleSampleConfigService.validateAndAdvanceVersion(dto.getValue());
+            }
+        }
     }
 
     private boolean isMaskedPassword(SettingsDto dto) {

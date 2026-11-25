@@ -3,6 +3,11 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import cn.hutool.crypto.digest.MD5;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.ThrottlePhase;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
@@ -154,32 +159,69 @@ public class PartitionFieldParentHandler {
 		if (sourcePdkDataNode.logger.isDebugEnabled()) {
 			sourcePdkDataNode.logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(sourcePdkDataNode.getConnectorNode()));
 		}
-//					((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
-//		time = System.currentTimeMillis();
-		List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(events);
-//		sourcePdkDataNode.getObsLogger().trace("wrapTapdataEvent events {} takes {}", events.size(), (System.currentTimeMillis() - time));
 
-		if (batchReadFuncAspect != null)
-			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
+		DataProcessorContext ctx = sourcePdkDataNode.getDataProcessorContext();
+		TaskDto taskDto = ctx != null ? ctx.getTaskDto() : null;
+		String taskId = (taskDto != null && taskDto.getId() != null) ? taskDto.getId().toHexString() : null;
+		TaskThrottleRuntime throttleRuntime = taskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(taskId);
+		if (throttleRuntime == null) {
+			List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(events);
 
-		if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-//			long time = System.currentTimeMillis();
-			tapdataEvents.forEach(tapdataEvent -> {
-				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
-					String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
-					if (sourcePdkDataNode.removeTables() != null && sourcePdkDataNode.removeTables().contains(tableId)) {
-						return;
+			if (batchReadFuncAspect != null)
+				AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
+
+			if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+				tapdataEvents.forEach(tapdataEvent -> {
+					if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+						String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
+						if (sourcePdkDataNode.removeTables() != null && sourcePdkDataNode.removeTables().contains(tableId)) {
+							return;
+						}
+					}
+					sourcePdkDataNode.enqueue(tapdataEvent);
+				});
+				if (batchReadFuncAspect != null)
+					AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
+			}
+			return;
+		}
+
+		List<String> removed = sourcePdkDataNode.removeTables();
+		List<TapEvent> filtered = new ArrayList<>(events.size());
+		for (TapEvent ev : events) {
+			if (ev instanceof TapRecordEvent rec && removed != null && removed.contains(rec.getTableId())) {
+				continue;
+			}
+			filtered.add(ev);
+		}
+		if (filtered.isEmpty()) {
+			return;
+		}
+		String sourceNodeId = sourcePdkDataNode.getNode() != null ? sourcePdkDataNode.getNode().getId() : "";
+		String endpointId = (ctx != null && ctx.getConnections() != null && ctx.getConnections().getId() != null)
+				? String.valueOf(ctx.getConnections().getId()) : sourceNodeId;
+		throttleRuntime.admitSourceBatch(
+				sourceNodeId,
+				endpointId,
+				ThrottlePhase.FULL,
+				filtered,
+				e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : "",
+				() -> !sourcePdkDataNode.isNodeRunning(),
+				slice -> {
+					List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(slice.events());
+					if (batchReadFuncAspect != null)
+						AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
+					if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+						String leaseId = slice.lease() != null ? slice.lease().getLeaseId() : null;
+						for (TapdataEvent tapdataEvent : tapdataEvents) {
+							TaskThrottleRuntime.attachLeaseInfo(tapdataEvent, leaseId, slice.sourceNodeId(), slice.batchSeq());
+							sourcePdkDataNode.enqueue(tapdataEvent);
+						}
+						if (batchReadFuncAspect != null)
+							AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
 					}
 				}
-				sourcePdkDataNode.enqueue(tapdataEvent);
-			});
-//			sourcePdkDataNode.getObsLogger().trace("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
-
-//			time = System.currentTimeMillis();
-			if (batchReadFuncAspect != null)
-				AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-//			sourcePdkDataNode.getObsLogger().trace("STATE_ENQUEUED events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
-		}
+		);
 	}
 
 }

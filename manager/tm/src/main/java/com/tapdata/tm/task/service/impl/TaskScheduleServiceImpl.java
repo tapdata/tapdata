@@ -29,6 +29,8 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.throttle.entity.TaskThrottlePolicyEntity;
+import com.tapdata.tm.throttle.service.TaskThrottleExecutionGuardService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
@@ -71,6 +73,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private UserService userService;
     private AgentGroupService agentGroupService;
     private DataSourceService dataSourceService;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private TaskThrottleExecutionGuardService taskThrottleExecutionGuardService;
 
     private static final class ConnectionAgentPolicy {
         private final Set<String> allowedAgents;
@@ -117,6 +122,19 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             return; // Keep task in SCHEDULING state, will be retried by TaskRestartSchedule
         }
 
+        TaskThrottleExecutionGuardService.AuthorizationDecision throttleDecision = null;
+        if (taskThrottleExecutionGuardService != null) {
+            throttleDecision = taskThrottleExecutionGuardService.authorizeStartOrTakeover(taskDto, taskDto.getAgentId());
+            if (!throttleDecision.allowed()) {
+                log.warn("Task throttle guard blocked scheduling for task [{}]: code={}, reason={}",
+                        taskDto.getName(), throttleDecision.errorCode(), throttleDecision.reason());
+                final String blockMsg = throttleDecision.reason();
+                FunctionUtils.ignoreAnyError(() -> monitoringLogsService.startTaskErrorLog(
+                        taskDto, finalUser, blockMsg, Level.WARN));
+                return;
+            }
+        }
+
         Date now = new Date();
         monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getProcessName(), calculationEngineVo.getAvailable(), calculationEngineVo.isManually(), user, now);
 
@@ -128,6 +146,27 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
         if(Boolean.TRUE.equals(taskDto.getCheckMemoryHeap())){
             waitRunUpdate.set("checkMemoryHeap", false);
+        }
+        if (throttleDecision != null && throttleDecision.protectedRun()) {
+            waitRunUpdate.set("attrs.throttleRunEpoch", throttleDecision.runEpoch())
+                    .set("attrs.throttleProtected", true)
+                    .set("attrs.throttlePolicy", throttleDecision.policy());
+            if (taskDto.getAttrs() == null) {
+                taskDto.setAttrs(new HashMap<>());
+            }
+            taskDto.getAttrs().put("throttleRunEpoch", throttleDecision.runEpoch());
+            taskDto.getAttrs().put("throttleProtected", true);
+            taskDto.getAttrs().put("throttlePolicy", throttleDecision.policy());
+        } else if (throttleDecision != null && !throttleDecision.protectedRun() && taskDto.getAttrs() != null
+                && (taskDto.getAttrs().containsKey("throttleRunEpoch")
+                || taskDto.getAttrs().containsKey("throttleProtected")
+                || taskDto.getAttrs().containsKey("throttlePolicy"))) {
+            waitRunUpdate.unset("attrs.throttleRunEpoch")
+                    .unset("attrs.throttleProtected")
+                    .unset("attrs.throttlePolicy");
+            taskDto.getAttrs().remove("throttleRunEpoch");
+            taskDto.getAttrs().remove("throttleProtected");
+            taskDto.getAttrs().remove("throttlePolicy");
         }
         taskService.update(agentIdQuery, waitRunUpdate, user);
 
@@ -275,6 +314,16 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                     return noAvailableAgentResult();
                 }
                 List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+                if (taskThrottleExecutionGuardService != null && taskDto.getId() != null && CollectionUtils.isNotEmpty(processIds)) {
+                    TaskThrottlePolicyEntity throttlePolicy = taskThrottleExecutionGuardService.findPolicyByTaskId(taskDto.getId().toHexString());
+                    if (TaskThrottleExecutionGuardService.hasEnabledPhase(throttlePolicy)) {
+                        String kind = throttlePolicy.getTaskKind() != null ? throttlePolicy.getTaskKind() : taskDto.getSyncType();
+                        List<String> compatibleIds = taskThrottleExecutionGuardService.filterCompatibleAgentIds(processIds, kind);
+                        if (CollectionUtils.isNotEmpty(compatibleIds)) {
+                            processIds = compatibleIds;
+                        }
+                    }
+                }
                 String finalAgentId = null;
                 if(StringUtils.isNotEmpty(schedulingTaskDto.getPriorityProcessId()) && processIds.contains(schedulingTaskDto.getPriorityProcessId())){
                     finalAgentId = schedulingTaskDto.getPriorityProcessId();

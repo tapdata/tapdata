@@ -12,6 +12,7 @@ import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
+import io.tapdata.observable.metric.throttle.ThrottleMetricsWindowAggregator;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.firedome.MultiTaggedGauge;
@@ -83,6 +84,8 @@ public class TaskSampleHandler extends AbstractHandler {
 
     protected AtomicReference<Double> taskCpuUsage = new AtomicReference<>(null);
     protected AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
+    private volatile ThrottleMetricsWindowAggregator throttleAggregator;
+    private final AtomicBoolean throttleSamplersRegistered = new AtomicBoolean(false);
 
     public TaskSampleHandler(TaskDto task) {
         super(task);
@@ -345,6 +348,46 @@ public class TaskSampleHandler extends AbstractHandler {
         });
         collector.addSampler(MetricCons.SS.VS.F_CPU_USAGE, () -> taskCpuUsage.get());
         collector.addSampler(MetricCons.SS.VS.F_MEMORY_USAGE, this::getTaskMem);
+        registerThrottleSamplersIfReady();
+    }
+
+    public void attachThrottleAggregator(ThrottleMetricsWindowAggregator aggregator) {
+        this.throttleAggregator = aggregator;
+        registerThrottleSamplersIfReady();
+    }
+
+    public ThrottleMetricsWindowAggregator getThrottleAggregator() {
+        return throttleAggregator;
+    }
+
+    private void registerThrottleSamplersIfReady() {
+        ThrottleMetricsWindowAggregator aggregator = this.throttleAggregator;
+        if (aggregator == null || collector == null) {
+            return;
+        }
+        if (!throttleSamplersRegistered.compareAndSet(false, true)) {
+            return;
+        }
+        for (String metricKey : List.of(
+                MetricCons.SS.VS.F_ESTIMATED_INPUT_BYTES_RATE,
+                MetricCons.SS.VS.F_ESTIMATED_OUTPUT_BYTES_RATE,
+                MetricCons.SS.VS.F_THROTTLE_APPLIED_VERSION,
+                MetricCons.SS.VS.F_SAMPLE_CONFIG_VERSION,
+                MetricCons.SS.VS.F_CDC_SAMPLE_INTERVAL_SEC,
+                MetricCons.SS.VS.F_THROTTLE_RUN_EPOCH,
+                MetricCons.SS.VS.F_THROTTLE_SAMPLE_SEQ,
+                MetricCons.SS.VS.F_THROTTLE_WAIT_REASON_CODE,
+                MetricCons.SS.VS.F_THROTTLE_WAITING_DIM_MASK,
+                MetricCons.SS.VS.F_THROTTLE_BUFFER_WATERMARK,
+                MetricCons.SS.VS.F_THROTTLE_SAMPLE_QUALITY_CODE,
+                MetricCons.SS.VS.F_THROTTLE_LOG_POSITION_STATUS_CODE,
+                MetricCons.SS.VS.F_CANCELLED_AFTER_DEBIT_EVENTS,
+                MetricCons.SS.VS.F_CANCELLED_ESTIMATED_BYTES)) {
+            collector.addSampler(metricKey, () -> {
+                ThrottleMetricsWindowAggregator current = this.throttleAggregator;
+                return current == null ? null : current.latestNumericMetrics().get(metricKey);
+            });
+        }
     }
 
     protected Long getTaskMem() {

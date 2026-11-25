@@ -1,0 +1,246 @@
+package com.tapdata.tm.throttle;
+
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.AgentThrottleCapabilities;
+import com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto;
+import com.tapdata.tm.commons.throttle.ThrottleConstants;
+import com.tapdata.tm.commons.throttle.ThrottleDimension;
+import com.tapdata.tm.commons.throttle.ThrottlePhase;
+import com.tapdata.tm.commons.throttle.ThrottlePhaseLimit;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.controller.TaskController;
+import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.throttle.controller.AgentThrottleController;
+import com.tapdata.tm.throttle.dto.TaskThrottlePolicyUpdateRequest;
+import com.tapdata.tm.throttle.entity.TaskThrottlePolicyEntity;
+import com.tapdata.tm.throttle.entity.TaskThrottleStopEvidenceEntity;
+import com.tapdata.tm.throttle.service.TaskThrottleExecutionGuardService;
+import com.tapdata.tm.throttle.service.TaskThrottlePolicyService;
+import com.tapdata.tm.throttle.service.TaskThrottleSampleConfigService;
+import com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService;
+import com.tapdata.tm.utils.MongoUtils;
+import org.bson.types.ObjectId;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+class TaskThrottleExecutionGuardServiceTest {
+
+    private InMemoryMongoOperations mongo;
+    private TaskThrottleExecutionGuardService guardService;
+    private TaskThrottlePolicyService policyService;
+    private TaskThrottleTelemetryAndRankingService telemetryService;
+    private AgentThrottleController agentController;
+    private ObjectId taskOid;
+    private String taskId;
+
+    @BeforeEach
+    void setUp() {
+        mongo = new InMemoryMongoOperations();
+        Clock clock = Clock.fixed(Instant.ofEpochMilli(1_700_000_000_000L), ZoneOffset.UTC);
+        guardService = new TaskThrottleExecutionGuardService(mongo.ops(), clock);
+        policyService = new TaskThrottlePolicyService(mongo.ops(), clock);
+        policyService.setExecutionGuardService(guardService);
+        TaskThrottleSampleConfigService sampleConfigService = new TaskThrottleSampleConfigService(mongo.ops(), clock);
+        telemetryService = new TaskThrottleTelemetryAndRankingService(mongo.ops(), sampleConfigService, clock);
+        agentController = new AgentThrottleController(guardService, telemetryService);
+        taskOid = MongoUtils.toObjectId("65f000000000000000000101");
+        taskId = taskOid.toHexString();
+    }
+
+    @Test
+    void registersCapabilitiesFiltersCompatibleAgentsAndUpdatesWaitingGate() {
+        agentController.registerCapabilities(AgentThrottleCapabilities.builder()
+                .agentId("agent-compatible")
+                .throttleSupported(true)
+                .meterVersion(ThrottleConstants.METER_VERSION)
+                .supportedTaskKinds(Set.of("sync", "migrate", "logCollector"))
+                .supportedDimensions(Set.of(ThrottleDimension.BYTES, ThrottleDimension.QPS))
+                .build());
+        agentController.registerCapabilities(AgentThrottleCapabilities.builder()
+                .agentId("agent-legacy")
+                .throttleSupported(false)
+                .meterVersion("legacy-v0")
+                .build());
+
+        assertTrue(guardService.isAgentCompatible("agent-compatible", "sync"));
+        assertFalse(guardService.isAgentCompatible("agent-legacy", "sync"));
+        assertFalse(guardService.isAgentCompatible("agent-unknown", "sync"));
+        assertEquals(List.of("agent-compatible"),
+                guardService.filterCompatibleAgentIds(List.of("agent-legacy", "agent-compatible", "agent-unknown"), "migrate"));
+
+        UserDetail user = mock(UserDetail.class);
+        policyService.updatePolicy("sync", taskId, TaskThrottlePolicyUpdateRequest.builder()
+                .expectedVersion(0L)
+                .phases(Map.of(ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(500_000L).build()))
+                .build(), user);
+
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(taskOid);
+        taskDto.setSyncType("sync");
+
+        // Incompatible agent blocked with WAITING_COMPATIBLE_AGENT gate
+        TaskThrottleExecutionGuardService.AuthorizationDecision blocked =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-legacy");
+        assertFalse(blocked.allowed());
+        assertEquals(ThrottleConstants.ERR_UNSUPPORTED_PATH, blocked.errorCode());
+        TaskThrottlePolicyEntity gated = guardService.findPolicyByTaskId(taskId);
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT, gated.getStopGateStatus());
+
+        // Compatible agent gets first runEpoch = 1
+        TaskThrottleExecutionGuardService.AuthorizationDecision allowed =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-compatible");
+        assertTrue(allowed.allowed());
+        assertTrue(allowed.protectedRun());
+        assertEquals(1L, allowed.runEpoch());
+        assertNotNull(allowed.policy());
+    }
+
+    @Test
+    void requiresVerifiableStopEvidenceBlocksTimeoutRescheduleAndConsumesEvidenceOnce() {
+        registerCompatibleAgent("agent-a");
+        registerCompatibleAgent("agent-b");
+
+        UserDetail user = mock(UserDetail.class);
+        policyService.updatePolicy("sync", taskId, TaskThrottlePolicyUpdateRequest.builder()
+                .expectedVersion(0L)
+                .phases(Map.of(ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).eventsPerSec(200L).build()))
+                .build(), user);
+
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(taskOid);
+        taskDto.setSyncType("sync");
+
+        TaskThrottleExecutionGuardService.AuthorizationDecision run1 =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-a");
+        assertEquals(1L, run1.runEpoch());
+
+        // Timeout reschedule must be blocked without verified stop evidence
+        assertTrue(guardService.shouldBlockTimeoutReschedule(taskDto));
+        TaskThrottleExecutionGuardService.AuthorizationDecision blockedTakeover =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-b");
+        assertFalse(blockedTakeover.allowed());
+        assertEquals(ThrottleConstants.ERR_STOP_EVIDENCE_REQUIRED, blockedTakeover.errorCode());
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_WAITING_EVIDENCE,
+                guardService.findPolicyByTaskId(taskId).getStopGateStatus());
+
+        // Manual stop evidence requires writeSettled=true && processExited=true
+        BizException missingExit = assertThrows(BizException.class, () -> guardService.submitStopEvidence(
+                TaskThrottleStopEvidenceDto.builder()
+                        .taskId(taskId)
+                        .oldAgentId("agent-a")
+                        .oldRunEpoch(1L)
+                        .evidenceRef("manual-1")
+                        .processExited(false)
+                        .writeSettled(true)
+                        .build(), true));
+        assertEquals(ThrottleConstants.ERR_STOP_EVIDENCE_REQUIRED, missingExit.getErrorCode());
+
+        // Stale epoch evidence rejected
+        BizException staleEpoch = assertThrows(BizException.class, () -> guardService.submitStopEvidence(
+                TaskThrottleStopEvidenceDto.builder()
+                        .taskId(taskId)
+                        .oldAgentId("agent-a")
+                        .oldRunEpoch(99L)
+                        .evidenceRef("manual-stale")
+                        .processExited(true)
+                        .writeSettled(true)
+                        .build(), true));
+        assertEquals(ThrottleConstants.ERR_STALE_RUN_EPOCH, staleEpoch.getErrorCode());
+
+        // Submit valid manual stop evidence -> timeout reschedule block lifts and takeover consumes once
+        TaskThrottleStopEvidenceEntity saved = guardService.submitStopEvidence(
+                TaskThrottleStopEvidenceDto.builder()
+                        .taskId(taskId)
+                        .oldAgentId("agent-a")
+                        .oldRunEpoch(1L)
+                        .evidenceRef("manual-ok")
+                        .processExited(true)
+                        .writeSettled(true)
+                        .submittedBy("ops-admin")
+                        .note("Confirmed process exited")
+                        .build(), true);
+        assertFalse(saved.isConsumed());
+        assertFalse(guardService.shouldBlockTimeoutReschedule(taskDto));
+
+        TaskThrottleExecutionGuardService.AuthorizationDecision run2 =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-b");
+        assertTrue(run2.allowed());
+        assertEquals(2L, run2.runEpoch());
+
+        TaskThrottleStopEvidenceEntity consumedEv = mongo.ops().findOne(
+                Query.query(Criteria.where("_id").is(saved.getId())), TaskThrottleStopEvidenceEntity.class);
+        assertNotNull(consumedEv);
+        assertTrue(consumedEv.isConsumed());
+        assertEquals(2L, consumedEv.getConsumedByRunEpoch());
+
+        // Subsequent restart attempt without new epoch evidence must fail
+        TaskThrottleExecutionGuardService.AuthorizationDecision blockedAgain =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-a");
+        assertFalse(blockedAgain.allowed());
+        assertEquals(ThrottleConstants.ERR_STOP_EVIDENCE_REQUIRED, blockedAgain.errorCode());
+    }
+
+    @Test
+    void enforcesCheckpointFencingAndIntegratesWithTaskControllerUpdateSyncProgress() {
+        registerCompatibleAgent("agent-curr");
+
+        // Unprotected task bypasses fencing
+        guardService.validateCheckpointWrite(taskId, null, null);
+
+        UserDetail user = mock(UserDetail.class);
+        policyService.updatePolicy("sync", taskId, TaskThrottlePolicyUpdateRequest.builder()
+                .expectedVersion(0L)
+                .phases(Map.of(ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(1_000_000L).build()))
+                .build(), user);
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(taskOid);
+        taskDto.setSyncType("sync");
+        assertEquals(1L, guardService.authorizeStartOrTakeover(taskDto, "agent-curr").runEpoch());
+
+        TaskController controller = new TaskController();
+        TaskService mockTaskService = mock(TaskService.class);
+        ReflectionTestUtils.setField(controller, "taskService", mockTaskService);
+        ReflectionTestUtils.setField(controller, "taskThrottleExecutionGuardService", guardService);
+
+        // Stale epoch rejected before touching taskService
+        BizException staleCp = assertThrows(BizException.class,
+                () -> controller.updateSyncProgress(taskId, 0L, "agent-curr", "{\"offset\":1}"));
+        assertEquals(ThrottleConstants.ERR_STALE_RUN_EPOCH, staleCp.getErrorCode());
+
+        // Wrong agentId rejected
+        BizException wrongAgentCp = assertThrows(BizException.class,
+                () -> controller.updateSyncProgress(taskId, 1L, "agent-stale", "{\"offset\":1}"));
+        assertEquals(ThrottleConstants.ERR_STALE_RUN_EPOCH, wrongAgentCp.getErrorCode());
+
+        // Matching epoch & agentId succeeds and forwards runEpoch to atomic checkpoint update
+        controller.updateSyncProgress(taskId, 1L, "agent-curr", "{\"offset\":42}");
+        verify(mockTaskService).updateSyncProgress(
+                org.mockito.ArgumentMatchers.eq(taskOid),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(1L));
+    }
+
+    private void registerCompatibleAgent(String agentId) {
+        guardService.registerCapabilities(AgentThrottleCapabilities.builder()
+                .agentId(agentId)
+                .throttleSupported(true)
+                .meterVersion(ThrottleConstants.METER_VERSION)
+                .supportedTaskKinds(Set.of("sync", "migrate", "logCollector"))
+                .build());
+    }
+}

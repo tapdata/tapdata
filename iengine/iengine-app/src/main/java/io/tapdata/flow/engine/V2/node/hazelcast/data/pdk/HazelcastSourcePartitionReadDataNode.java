@@ -25,6 +25,11 @@ import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.ThrottlePhase;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -581,6 +586,10 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //        return cast;
 //    }
 
+	public boolean isNodeRunning() {
+		return super.isRunning();
+	}
+
 	public void handleStreamEventsReceived(List<TapEvent> tapEvents, Object offsetObj) {
 		try {
 //			while (isRunning()) {
@@ -605,19 +614,53 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapEvents);
 				}
 
-				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(tapEvents, SyncStage.CDC, offsetObj);
-				if (logger.isDebugEnabled()) {
-					logger.debug("Stream read {} of events, {}", tapEvents.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-				}
+				TaskDto taskDto = dataProcessorContext != null ? dataProcessorContext.getTaskDto() : null;
+				String taskId = (taskDto != null && taskDto.getId() != null) ? taskDto.getId().toHexString() : null;
+				TaskThrottleRuntime throttleRuntime = taskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(taskId);
+				if (throttleRuntime == null) {
+					List<TapdataEvent> tapdataEvents = wrapTapdataEvent(tapEvents, SyncStage.CDC, offsetObj);
+					if (logger.isDebugEnabled()) {
+						logger.debug("Stream read {} of events, {}", tapEvents.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+					}
 
-				if (streamReadFuncAspect != null)
-					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-
-				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-					tapdataEvents.forEach(this::enqueue);
-					//syncProgress.setStreamOffsetObj(offsetObj);
 					if (streamReadFuncAspect != null)
-						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+
+					if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+						tapdataEvents.forEach(this::enqueue);
+						//syncProgress.setStreamOffsetObj(offsetObj);
+						if (streamReadFuncAspect != null)
+							AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+					}
+				} else {
+					String sourceNodeId = getNode() != null ? getNode().getId() : "";
+					String endpointId = (dataProcessorContext != null && dataProcessorContext.getConnections() != null && dataProcessorContext.getConnections().getId() != null)
+							? String.valueOf(dataProcessorContext.getConnections().getId()) : sourceNodeId;
+					throttleRuntime.admitSourceBatch(
+							sourceNodeId,
+							endpointId,
+							ThrottlePhase.CDC,
+							tapEvents,
+							e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : "",
+							() -> !isRunning(),
+							slice -> {
+								List<TapdataEvent> tapdataEvents = wrapTapdataEvent(slice.events(), SyncStage.CDC, offsetObj);
+								if (logger.isDebugEnabled()) {
+									logger.debug("Stream read {} of events, {}", slice.events().size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+								}
+								if (streamReadFuncAspect != null)
+									AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+								if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+									String leaseId = slice.lease() != null ? slice.lease().getLeaseId() : null;
+									for (TapdataEvent ev : tapdataEvents) {
+										TaskThrottleRuntime.attachLeaseInfo(ev, leaseId, slice.sourceNodeId(), slice.batchSeq());
+										this.enqueue(ev);
+									}
+									if (streamReadFuncAspect != null)
+										AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+								}
+							}
+					);
 				}
 			}
 		} catch (Throwable throwable) {

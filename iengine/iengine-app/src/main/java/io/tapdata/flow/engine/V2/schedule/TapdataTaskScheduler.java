@@ -13,6 +13,11 @@ import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.TaskThrottlePolicyDto;
+import com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto;
+import io.tapdata.flow.engine.V2.throttle.AgentThrottleSyncClient;
+import io.tapdata.flow.engine.V2.throttle.TaskRunKey;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import java.util.concurrent.CompletableFuture;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.commons.task.heartbeat.HeartbeatRecoveryProtocol;
@@ -99,6 +104,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private SettingService settingService;
 	@Autowired
 	private TaskService<TaskDto> hazelcastTaskService;
+	@Autowired(required = false)
+	private AgentThrottleSyncClient agentThrottleSyncClient;
 	@Autowired
 	private MessageDao messageDao;
 	@Qualifier("taskControlScheduler")
@@ -170,6 +177,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@PostConstruct
 	public void init() {
 		instanceNo = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
+		TaskThrottleRuntimeRegistry.getInstance().setAgentId(instanceNo);
 		logger.info("[Task scheduler] instance no: {}", instanceNo);
 
 		TmStatusService.registeredTmAvailableHandler(() -> {
@@ -661,8 +669,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			permitAcquired = true;
 
 			// 使用 computeIfAbsent 防止创建重复的 TaskClient
-			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
+			taskClientMap.computeIfAbsent(taskId, id -> {
+				openThrottleRuntimeIfConfigured(taskDto);
+				return hazelcastTaskService.startTask(taskDto);
+			});
 		} catch (Throwable e) {
+			closeThrottleRuntimeOnStop(taskDto, false, "Start task failed: " + e.getMessage());
 			if (TmUnavailableException.isInstance(e)) {
 				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
 			} else {
@@ -861,6 +873,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 						continue;
 					}
 					clearTaskRetryCache(taskId);
+					closeThrottleRuntimeOnStop(taskClient.getTask(), true, "Task internally stopped");
 					ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskClient.getTask());
 					iterator.remove();
 				}
@@ -1146,7 +1159,57 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
+			closeThrottleRuntimeOnStop(taskDtoTaskClient.getTask(), true, "Task stopped cleanly: " + stopped);
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDtoTaskClient.getTask());
+		}
+	}
+
+	private void openThrottleRuntimeIfConfigured(TaskDto taskDto) {
+		if (taskDto == null || taskDto.getId() == null) {
+			return;
+		}
+		Map<String, Object> attrs = taskDto.getAttrs();
+		if (attrs == null || (!attrs.containsKey("throttlePolicy") && !attrs.containsKey("throttleRunEpoch") && !attrs.containsKey("throttleProtected"))) {
+			return;
+		}
+		long runEpoch = 1L;
+		Object epochObj = attrs.get("throttleRunEpoch");
+		if (epochObj instanceof Number num && num.longValue() >= 0L) {
+			runEpoch = num.longValue();
+		}
+		boolean protectedRun = Boolean.TRUE.equals(attrs.get("throttleProtected"));
+		TaskThrottlePolicyDto policyDto = null;
+		Object policyObj = attrs.get("throttlePolicy");
+		if (policyObj instanceof TaskThrottlePolicyDto dto) {
+			policyDto = dto;
+		} else if (policyObj instanceof Map<?, ?> policyMap) {
+			try {
+				com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+						.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+				policyDto = mapper.convertValue(policyMap, TaskThrottlePolicyDto.class);
+			} catch (Exception e) {
+				logger.warn("Parse throttlePolicy from task attrs failed for task {}: {}", taskDto.getId(), e.getMessage());
+			}
+		}
+		String taskId = taskDto.getId().toHexString();
+		String tenantId = taskDto.getCustomId() != null ? taskDto.getCustomId() : "";
+		String taskKind = taskDto.getSyncType();
+		TaskRunKey runKey = new TaskRunKey(tenantId, taskKind, taskId, runEpoch);
+		TaskThrottleRuntimeRegistry.getInstance().openRuntime(runKey, policyDto, protectedRun || policyDto != null);
+	}
+
+	private void closeThrottleRuntimeOnStop(TaskDto taskDto, boolean writesSettled, String note) {
+		if (taskDto == null || taskDto.getId() == null) {
+			return;
+		}
+		String taskId = taskDto.getId().toHexString();
+		TaskThrottleStopEvidenceDto evidence = TaskThrottleRuntimeRegistry.getInstance().closeRuntime(taskId, writesSettled, note);
+		if (evidence != null && agentThrottleSyncClient != null) {
+			try {
+				agentThrottleSyncClient.reportStopEvidence(evidence);
+			} catch (Exception e) {
+				logger.warn("Report throttle stop evidence failed for task {}: {}", taskId, e.getMessage());
+			}
 		}
 	}
 

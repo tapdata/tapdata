@@ -168,6 +168,7 @@ import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.throttle.service.TaskThrottlePolicyService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.worker.entity.Worker;
@@ -408,6 +409,9 @@ public class TaskServiceImpl extends TaskService{
     private AgentGroupService agentGroupService;
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private TaskThrottlePolicyService taskThrottlePolicyService;
     private ChartViewService chartViewService;
     private TaskDashboardService taskDashboardService;
     private UserDataReportService userDataReportService;
@@ -1388,6 +1392,9 @@ public class TaskServiceImpl extends TaskService{
         //删除收集的对象
         taskCollectionObjService.deleteById(taskDto.getId());
         taskRecordService.cleanTaskRecord(taskDto.getId().toHexString());
+        if (taskThrottlePolicyService != null && taskDto.getId() != null) {
+            taskThrottlePolicyService.onTaskDeleted(taskDto.getId().toHexString());
+        }
     }
 
     /**
@@ -1540,6 +1547,9 @@ public class TaskServiceImpl extends TaskService{
             attrs.remove(HeartbeatWatchdog.CONFIG);
             attrs.remove(HeartbeatWatchdog.HEALTH);
             attrs.remove(HeartbeatWatchdog.RECOVERY);
+            attrs.remove("throttleRunEpoch");
+            attrs.remove("throttleProtected");
+            attrs.remove("throttlePolicy");
         }
         //taskDto.setTemp(null);
         if(!checkCloudTaskLimit(id,user,false)){
@@ -1552,6 +1562,9 @@ public class TaskServiceImpl extends TaskService{
         log.info("create new task, task = {}", taskDto);
         taskDto = taskService.confirmById(taskDto, user, true);
         //taskService.flushStatus(taskDto, user);
+        if (taskThrottlePolicyService != null) {
+            taskThrottlePolicyService.copyPolicy(id.toHexString(), taskDto, user);
+        }
 
         try {
             Modular modular = Modular.ofTaskSyncType(taskDto.getSyncType());
@@ -5626,6 +5639,19 @@ public class TaskServiceImpl extends TaskService{
     public void updateSyncProgress(ObjectId taskId, Document document) {
         document.forEach((k, v) -> {
             Criteria criteria = Criteria.where("_id").is(taskId);
+            Update update = new Update().set("attrs.syncProgress." + k, v);
+            update(new Query(criteria), update);
+        });
+    }
+
+    @Override
+    public void updateSyncProgress(ObjectId taskId, Document document, Long runEpoch) {
+        if (runEpoch == null) {
+            updateSyncProgress(taskId, document);
+            return;
+        }
+        document.forEach((k, v) -> {
+            Criteria criteria = Criteria.where("_id").is(taskId).and("attrs.throttleRunEpoch").is(runEpoch);
             Update update = new Update().set("attrs.syncProgress." + k, v);
             update(new Query(criteria), update);
         });

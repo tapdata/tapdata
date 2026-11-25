@@ -16,6 +16,9 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.ThrottlePhase;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import com.tapdata.tm.commons.util.ErrorUtil;
 import com.tapdata.tm.skiperrortable.vo.SkipErrorTableReportVo;
 import io.tapdata.ErrorCodeConfig;
@@ -1186,16 +1189,58 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													}));
 											if (pdkMethodInvoker == null || !pdkMethodInvoker.isEnableSkipErrorEvent()) {
 												try {
-													writeRecordWithPolicyControl(
-															currentWritePolicyService,
-															connectorNode,
-															tapTable.getId(),
-															tapRecordEvents,
-															writeRecords -> {
-																writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
-																return null;
-															}
-													);
+													TaskDto taskDto = dataProcessorContext != null ? dataProcessorContext.getTaskDto() : null;
+													String throttleTaskId = (taskDto != null && taskDto.getId() != null) ? taskDto.getId().toHexString() : null;
+													TaskThrottleRuntime throttleRuntime = throttleTaskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(throttleTaskId);
+													if (throttleRuntime == null) {
+														writeRecordWithPolicyControl(
+																currentWritePolicyService,
+																connectorNode,
+																tapTable.getId(),
+																tapRecordEvents,
+																writeRecords -> {
+																	writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+																	return null;
+																}
+														);
+													} else {
+														Object stageObj = firstEvent.getInfo(TapRecordEvent.INFO_KEY_SYNC_STAGE);
+														ThrottlePhase phase = "CDC".equalsIgnoreCase(String.valueOf(stageObj))
+																? ThrottlePhase.CDC
+																: (isInCdc() ? ThrottlePhase.CDC : ThrottlePhase.FULL);
+														String targetNodeId = getNode() != null ? getNode().getId() : "";
+														String targetEndpointId = (dataProcessorContext != null && dataProcessorContext.getConnections() != null
+																&& dataProcessorContext.getConnections().getId() != null)
+																? String.valueOf(dataProcessorContext.getConnections().getId()) : targetNodeId;
+														throttleRuntime.executeTargetWriteChunked(
+																targetNodeId,
+																targetEndpointId,
+																phase,
+																tapRecordEvents,
+																e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : tapTable.getId(),
+																!isRetry,
+																() -> !isRunning(),
+																chunk -> {
+																	try {
+																		writeRecordWithPolicyControl(
+																				currentWritePolicyService,
+																				connectorNode,
+																				tapTable.getId(),
+																				chunk,
+																				writeRecords -> {
+																					writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), writeRecords, tapTable, resultConsumer);
+																					return null;
+																				}
+																		);
+																	} catch (Throwable t) {
+																		if (t instanceof Exception ex) {
+																			throw ex;
+																		}
+																		throw new RuntimeException(t);
+																	}
+																}
+														);
+													}
 												} catch (Exception e) {
                                                     if (skipErrorTable.skipTable(tapTable.getAncestorsName(), e, () -> SkipErrorTableReportVo.create()
                                                         .sourceTableName(tapTable.getAncestorsName())
