@@ -17,7 +17,6 @@ import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -188,7 +187,6 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     private String custom_initial_script;
     private String custom_ondata_script;
     private String clusterName;
-
     private String kafkaBootstrapServers;
     private Set<String> kafkaRawTopics;
     private String kafkaPatternTopics;
