@@ -6,13 +6,23 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.LoadSchemaProgress;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.functions.ConnectionFunctions;
+import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.utils.UnitTestUtils;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -111,6 +121,66 @@ class LoadSchemaRunnerTest {
 
             assertTrue(runner.updateConnections2Loading(connections));
             verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("loadPdkSchema without GetTableNamesFunction")
+    class LoadPdkSchemaWithoutTableNamesFunctionTest {
+        ConnectionNode connectionNode;
+
+        @BeforeEach
+        void setUp() {
+            connectionNode = mock(ConnectionNode.class);
+            ConnectionFunctions<?> connectionFunctions = mock(ConnectionFunctions.class);
+            when(connectionFunctions.getGetTableNamesFunction()).thenReturn(null);
+            doReturn(connectionFunctions).when(connectionNode).getConnectionFunctions();
+        }
+
+        List<String> discoverTables(Connections conn) throws Exception {
+            List<List<String>> discovered = new ArrayList<>();
+            Consumer<TapTable> tableConsumer = mock(Consumer.class);
+            try (MockedStatic<LoadSchemaRunner> mocked = mockStatic(LoadSchemaRunner.class)) {
+                mocked.when(() -> LoadSchemaRunner.loadPdkSchema(any(Connections.class), any(ConnectionNode.class), any(Consumer.class))).thenCallRealMethod();
+                mocked.when(() -> LoadSchemaRunner.partialUpdateTables(any(Connections.class))).thenCallRealMethod();
+                mocked.when(() -> LoadSchemaRunner.pdkDiscoverSchema(any(ConnectionNode.class), anyList(), any(Consumer.class)))
+                        .thenAnswer(invocation -> {
+                            discovered.add(new ArrayList<>(invocation.<List<String>>getArgument(1)));
+                            return null;
+                        });
+                LoadSchemaRunner.loadPdkSchema(conn, connectionNode, tableConsumer);
+            }
+            verify(tableConsumer, times(1)).accept(null);
+            assertEquals(1, discovered.size());
+            return discovered.get(0);
+        }
+
+        @Test
+        @DisplayName("partial refresh discovers only the requested tables")
+        void testPartialUpdateDiscoversRequestedTables() throws Exception {
+            when(connections.getPartialUpdateWithSchemaVersion()).thenReturn("old-schema-version");
+            when(connections.getPartialUpdateFilter()).thenReturn(" t1, t2 ,,t1 ");
+            when(connections.getTable_filter()).thenReturn(" t1, t2 ,,t1 ");
+
+            assertEquals(Arrays.asList("t1", "t2"), discoverTables(connections));
+        }
+
+        @Test
+        @DisplayName("full refresh keeps discovering all tables")
+        void testFullUpdateDiscoversAllTables() throws Exception {
+            when(connections.getPartialUpdateWithSchemaVersion()).thenReturn(null);
+            when(connections.getTable_filter()).thenReturn("t1,t2");
+
+            assertTrue(discoverTables(connections).isEmpty());
+        }
+
+        @Test
+        @DisplayName("partial refresh without table names keeps discovering all tables")
+        void testPartialUpdateWithBlankFilterDiscoversAllTables() throws Exception {
+            when(connections.getPartialUpdateWithSchemaVersion()).thenReturn("old-schema-version");
+            when(connections.getPartialUpdateFilter()).thenReturn(" , ");
+
+            assertTrue(discoverTables(connections).isEmpty());
         }
     }
 }
