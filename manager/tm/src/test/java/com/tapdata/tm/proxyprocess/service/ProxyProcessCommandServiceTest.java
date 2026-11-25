@@ -6,9 +6,11 @@ import com.tapdata.tm.proxyprocess.dto.ProxyProcessCommandResult;
 import com.tapdata.tm.proxyprocess.dto.ProxyProcessHttpRequest;
 import com.tapdata.tm.proxyprocess.entity.AgentProcessEntity;
 import com.tapdata.tm.proxyprocess.repository.AgentProcessRepository;
+import com.tapdata.tm.proxyprocess.service.auth.AgentAccessTokenIssuer;
 import com.tapdata.tm.proxyprocess.service.impl.ProxyProcessCommandServiceImpl;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 import java.util.Optional;
@@ -29,16 +31,21 @@ class ProxyProcessCommandServiceTest {
         AgentProcessRepository agentProcessRepository = mock(AgentProcessRepository.class);
         AgentProcessService agentProcessService = mock(AgentProcessService.class);
         ProxyProcessHttpClient httpClient = mock(ProxyProcessHttpClient.class);
+        AgentAccessTokenIssuer accessTokenIssuer = mock(AgentAccessTokenIssuer.class);
         String proxyProcessId = new ObjectId().toHexString();
         AgentProcessEntity agent = agent(proxyProcessId);
         when(agentProcessRepository.findById(new ObjectId(proxyProcessId))).thenReturn(Optional.of(agent));
         when(agentProcessService.effectiveStatus(agent)).thenReturn(AgentProcessStatus.RUNNING);
+        when(accessTokenIssuer.tokenFor(agent)).thenReturn("access-token");
         ProxyProcessCommandResult expected = new ProxyProcessCommandResult();
         expected.setStatusCode(200);
         expected.setBody("ok");
-        when(httpClient.execute(anyString(), eq("agent-token"), any(ProxyProcessHttpRequest.class))).thenReturn(expected);
-        ProxyProcessCommandService service = new ProxyProcessCommandServiceImpl(
-                agentProcessRepository, agentProcessService, httpClient);
+        when(httpClient.execute(anyString(), eq("access-token"), any(ProxyProcessHttpRequest.class))).thenReturn(expected);
+        ProxyProcessCommandService service = new ProxyProcessCommandServiceImpl();
+        ReflectionTestUtils.setField(service, "agentProcessRepository", agentProcessRepository);
+        ReflectionTestUtils.setField(service, "agentProcessService", agentProcessService);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        ReflectionTestUtils.setField(service, "accessTokenIssuer", accessTokenIssuer);
 
         ProxyProcessHttpRequest request = new ProxyProcessHttpRequest();
         request.setMethod("POST");
@@ -50,7 +57,7 @@ class ProxyProcessCommandServiceTest {
 
         assertEquals(expected, result);
         verify(httpClient).execute(eq("http://10.0.0.1:8080/api/db2-z/cdc/start?slot=cdc-1"),
-                eq("agent-token"), eq(request));
+                eq("access-token"), eq(request));
     }
 
     @Test
@@ -58,8 +65,10 @@ class ProxyProcessCommandServiceTest {
         AgentProcessRepository agentProcessRepository = mock(AgentProcessRepository.class);
         AgentProcessService agentProcessService = mock(AgentProcessService.class);
         ProxyProcessHttpClient httpClient = mock(ProxyProcessHttpClient.class);
-        ProxyProcessCommandService service = new ProxyProcessCommandServiceImpl(
-                agentProcessRepository, agentProcessService, httpClient);
+        ProxyProcessCommandService service = new ProxyProcessCommandServiceImpl();
+        ReflectionTestUtils.setField(service, "agentProcessRepository", agentProcessRepository);
+        ReflectionTestUtils.setField(service, "agentProcessService", agentProcessService);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
         ProxyProcessHttpRequest request = new ProxyProcessHttpRequest();
         request.setMethod("GET");
         request.setPath("http://untrusted.example/api");
@@ -78,8 +87,10 @@ class ProxyProcessCommandServiceTest {
         AgentProcessEntity agent = agent(proxyProcessId);
         when(agentProcessRepository.findById(new ObjectId(proxyProcessId))).thenReturn(Optional.of(agent));
         when(agentProcessService.effectiveStatus(agent)).thenReturn(AgentProcessStatus.OFFLINE);
-        ProxyProcessCommandService service = new ProxyProcessCommandServiceImpl(
-                agentProcessRepository, agentProcessService, httpClient);
+        ProxyProcessCommandService service = new ProxyProcessCommandServiceImpl();
+        ReflectionTestUtils.setField(service, "agentProcessRepository", agentProcessRepository);
+        ReflectionTestUtils.setField(service, "agentProcessService", agentProcessService);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
         ProxyProcessHttpRequest request = new ProxyProcessHttpRequest();
         request.setMethod("GET");
         request.setPath("/api/health");
@@ -95,7 +106,7 @@ class ProxyProcessCommandServiceTest {
         agent.setAgentType("Db2 for z cdc reader");
         agent.setAdvertiseIp("10.0.0.1");
         agent.setAdvertisePort(8080);
-        agent.setToken("agent-token");
+        agent.setClientId("client-1");
         return agent;
     }
 }

@@ -52,6 +52,7 @@ com.tapdata.tm.ds.controller.DataSourceController#updatePartialSchema  # 引擎�
 com.tapdata.tm.ds.controller.DataSourceController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
 com.tapdata.tm.ds.controller.DataSourceController#validateTable  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.ds.controller.DataSourceDefinitionController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
+com.tapdata.tm.ds.controller.PdkController#registerRelease  # Connector release 注册由持久化注册作业跟踪进度与结果，当前审计范围排除此接口
 com.tapdata.tm.events.controller.EventsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
 com.tapdata.tm.externalStorage.controller.ExternalStorageController#checkConnectionSharedCDCEnable  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.externalStorage.controller.ExternalStorageController#updateByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
@@ -108,6 +109,10 @@ com.tapdata.tm.proxy.controller.ProxyController#generateTokenForEngineToProxy  #
 com.tapdata.tm.proxy.controller.ProxyController#memory  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.proxy.controller.ProxyController#proxyCallNew  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.proxy.controller.ProxyController#rawDataCallback  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.proxyprocess.controller.AgentProcessController#command  # Agent 代理命令控制接口，当前审计范围排除此类内部代理调用
+com.tapdata.tm.proxyprocess.controller.AgentProcessController#delete  # Agent 进程登记清理接口，当前审计范围不记录代理运行登记维护
+com.tapdata.tm.proxyprocess.controller.AgentProcessController#register  # Agent 内部注册与重连接口，属于运行生命周期通信而非用户操作
+com.tapdata.tm.proxyprocess.controller.AgentProcessController#reportStatus  # Agent 内部状态与运行指标上报，属于高频遥测而非用户操作
 com.tapdata.tm.role.controller.RoleController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
 com.tapdata.tm.roleMapping.controller.RoleMappingController#upsertByWhere  # 通用回写接口（where/upsert/replace），由引擎与内部服务调用；用户操作经已审计的专用接口
 com.tapdata.tm.scheduleTasks.controller.ScheduleTaskController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审

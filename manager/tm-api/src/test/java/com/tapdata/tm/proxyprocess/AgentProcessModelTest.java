@@ -1,16 +1,13 @@
 package com.tapdata.tm.proxyprocess;
 
 import com.tapdata.tm.proxyprocess.constant.AgentProcessStatus;
-import com.tapdata.tm.proxyprocess.dto.AgentProcessDto;
 import com.tapdata.tm.proxyprocess.entity.AgentProcessEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.lang.reflect.Field;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class AgentProcessModelTest {
 
@@ -33,7 +30,6 @@ class AgentProcessModelTest {
         entity.setCpuUsage(12.5D);
         entity.setMemoryUsage(35.2D);
         entity.setErrorReason(null);
-        entity.setToken("internal-token");
         entity.setLastRegisterTime(lastRegisterTime.getTime());
 
         assertEquals("AgentProcess", AgentProcessEntity.class.getAnnotation(Document.class).value());
@@ -48,24 +44,10 @@ class AgentProcessModelTest {
         assertEquals(12345L, entity.getPid());
         assertEquals(12.5D, entity.getCpuUsage());
         assertEquals(35.2D, entity.getMemoryUsage());
-        assertEquals("internal-token", entity.getToken());
         assertEquals(lastRegisterTime.getTime(), entity.getLastRegisterTime());
         assertEquals(Long.class, AgentProcessEntity.class.getDeclaredField("startTime").getType());
         assertEquals(Long.class, AgentProcessEntity.class.getDeclaredField("statusReportTime").getType());
         assertEquals(Long.class, AgentProcessEntity.class.getDeclaredField("lastRegisterTime").getType());
-    }
-
-    @Test
-    void frontEndDtoDoesNotExposeToken() {
-        boolean hasToken = false;
-        for (Field field : AgentProcessDto.class.getDeclaredFields()) {
-            if ("token".equals(field.getName())) {
-                hasToken = true;
-                break;
-            }
-        }
-
-        assertFalse(hasToken);
     }
 
     @Test

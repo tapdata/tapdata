@@ -31,7 +31,29 @@ public class AgentProcessEntity extends BaseEntity {
     private Double memoryUsage;
     private String errorReason;
 
-    private String token;
+    /**
+     * OAuth2 client id the Reader generated for itself and reported in {@code register}.
+     *
+     * <p>External callers (TM command forwarding, db2z-connector) use this with
+     * {@link #clientSecretHash} against {@code /oauth/token} to obtain an access token for
+     * {@code /api/db2-z/cdc/**}. The Reader owns this value; TM only records it.
+     */
+    private String clientId;
+
+    /**
+     * Hash of the client secret the Reader generated, used only to detect a changed secret on
+     * re-register without decrypting.
+     */
+    private String clientSecretHash;
+
+    /**
+     * The client secret, reversible-encrypted, because TM must hand it back when an operator
+     * configures a connection to this Reader. Never returned by the listing endpoints; only
+     * {@code GET /api/agent-process/{id}/client-secret} reveals it.
+     */
+    private String clientSecretCipher;
+
+
     /** Latest registration timestamp in milliseconds. */
     private Long lastRegisterTime;
 

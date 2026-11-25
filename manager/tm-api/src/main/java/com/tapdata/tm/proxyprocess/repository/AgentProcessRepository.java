@@ -38,8 +38,26 @@ public class AgentProcessRepository extends BaseRepository<AgentProcessEntity, O
         return findOne(Query.query(Criteria.where("_id").is(id)));
     }
 
-    public Optional<AgentProcessEntity> findByToken(String token) {
-        return findOne(Query.query(Criteria.where("token").is(token)));
+    /**
+     * Whether some <em>other</em> registration of the same agent type already owns this client id.
+     *
+     * <p>Scoped to the agent type and excluding the registering agent on purpose: a Reader that
+     * restarts re-registers with the client id it generated for itself, and that is the normal
+     * path - the same agent id keeping the same client id must never look like a conflict.
+     *
+     * @param agentType the agent type being registered
+     * @param clientId  the client id it reports
+     * @param agentId   the agent id registering, excluded from the count
+     * @return true when another registration of this type uses the client id
+     */
+    public boolean clientIdUsedByAnotherAgent(String agentType, String clientId, String agentId) {
+        if (clientId == null || clientId.isBlank()) {
+            return false;
+        }
+        Query query = Query.query(Criteria.where("agentType").is(agentType)
+                .and("clientId").is(clientId)
+                .and("agentId").ne(agentId));
+        return mongoTemplate.exists(query, AgentProcessEntity.class);
     }
 
     public AgentProcessEntity saveAgentProcess(AgentProcessEntity entity) {
@@ -85,7 +103,6 @@ public class AgentProcessRepository extends BaseRepository<AgentProcessEntity, O
                 .set("memoryUsage", entity.getMemoryUsage())
                 .set("errorReason", entity.getErrorReason())
                 .set("lastRegisterTime", entity.getLastRegisterTime())
-                .set("token", "")
                 .set("sourceServiceId", entity.getSourceServiceId())
                 .set("sourceState", entity.getSourceState())
                 .set("_class", "oracleLogParserAgentProcess")

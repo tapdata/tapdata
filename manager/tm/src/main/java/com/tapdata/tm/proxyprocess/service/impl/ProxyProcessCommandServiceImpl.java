@@ -9,8 +9,10 @@ import com.tapdata.tm.proxyprocess.entity.AgentProcessEntity;
 import com.tapdata.tm.proxyprocess.repository.AgentProcessRepository;
 import com.tapdata.tm.proxyprocess.service.AgentProcessService;
 import com.tapdata.tm.proxyprocess.service.ProxyProcessCommandService;
+import com.tapdata.tm.proxyprocess.service.auth.AgentAccessTokenIssuer;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -19,18 +21,15 @@ import java.util.Map;
 
 @Service
 public class ProxyProcessCommandServiceImpl implements ProxyProcessCommandService {
-    private final AgentProcessRepository agentProcessRepository;
-    private final AgentProcessService agentProcessService;
-    private final ProxyProcessHttpClient httpClient;
+    @Autowired
+    private AgentProcessRepository agentProcessRepository;
+    @Autowired
+    private AgentProcessService agentProcessService;
+    @Autowired
+    private ProxyProcessHttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    public ProxyProcessCommandServiceImpl(AgentProcessRepository agentProcessRepository,
-                                          AgentProcessService agentProcessService,
-                                          ProxyProcessHttpClient httpClient) {
-        this.agentProcessRepository = agentProcessRepository;
-        this.agentProcessService = agentProcessService;
-        this.httpClient = httpClient;
-    }
+    @Autowired
+    private AgentAccessTokenIssuer accessTokenIssuer;
 
     @Override
     public ProxyProcessCommandResult execute(String proxyProcessId, String type, Object value) {
@@ -47,14 +46,39 @@ public class ProxyProcessCommandServiceImpl implements ProxyProcessCommandServic
             throw new IllegalStateException("Agent process is not running");
         }
         if (StringUtils.isBlank(agentProcess.getAdvertiseIp()) || agentProcess.getAdvertisePort() == null
-                || agentProcess.getAdvertisePort() <= 0 || StringUtils.isBlank(agentProcess.getToken())) {
+                || agentProcess.getAdvertisePort() <= 0) {
             throw new IllegalStateException("Agent process network information is incomplete");
         }
 
         ProxyProcessHttpRequest request = toHttpRequest(value);
         validateHttpRequest(request);
         String targetUrl = buildTargetUrl(agentProcess, request);
-        return httpClient.execute(targetUrl, agentProcess.getToken(), request);
+        return httpClient.execute(targetUrl, tokenFor(agentProcess), request);
+    }
+
+    /**
+     * Token TM presents when calling into the Reader.
+     *
+     * <p>The only credential a Reader accepts is an access token minted against its owning user, so
+     * that is the only one TM issues. There is no second path: a Reader that has not reported its
+     * client credentials cannot be driven by TM at all, and it is told so here rather than being
+     * sent a credential the Reader would reject with a 401.
+     *
+     * @throws IllegalStateException when the Reader has no client credentials, rather than sending
+     *     an unauthenticated command that would be rejected with a confusing 401 at the Reader
+     */
+    private String tokenFor(AgentProcessEntity agentProcess) {
+        if (StringUtils.isBlank(agentProcess.getClientId()) || accessTokenIssuer == null) {
+            throw new IllegalStateException(
+                    "Agent process has no usable credential; upgrade the Reader or re-register it");
+        }
+        try {
+            return accessTokenIssuer.tokenFor(agentProcess);
+        } catch (RuntimeException e) {
+            accessTokenIssuer.invalidate(agentProcess);
+            throw new IllegalStateException(
+                    "Unable to issue an access token for the Reader: " + e.getMessage(), e);
+        }
     }
 
     private ProxyProcessHttpRequest toHttpRequest(Object value) {

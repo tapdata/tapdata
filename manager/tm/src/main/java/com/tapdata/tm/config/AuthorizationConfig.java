@@ -43,6 +43,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationGrantAuthenticationToken;
+import com.tapdata.tm.config.security.AgentTypeClientCredentialsConverter;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
@@ -122,6 +124,27 @@ public class AuthorizationConfig {
                     .claim("roles", roles)
                     .claim("expiredate", expireDate));
 
+            /*
+             * The service type the caller asked for, when it asked for one.
+             *
+             * A token identifies the deployment that signed it and the client it
+             * was minted for; neither says what the token is *for*.  A proxied
+             * service such as the z/OS CDC Reader needs that third fact: it
+             * must tell a token meant for it apart from any other token this
+             * authorization server issues.  The caller states the service type
+             * on the token request and it is echoed here as its own claim.
+             *
+             * Omitted entirely when the request carried none, so tokens for
+             * callers that never send it look exactly as they did before.
+             */
+            describeAgentType(context).ifPresent(agentType -> {
+                context.getClaims().claim(AGENT_TYPE_CLAIM, agentType);
+                if (log.isDebugEnabled()) {
+                    log.debug("Access token minted for client {} carries agentType={}",
+                            registeredClient.getClientId(), agentType);
+                }
+            });
+
             // authorization code 方式认证时，可以拿到用户信息, client impl
             if (oAuth2ClientAuthenticationToken instanceof UsernamePasswordAuthenticationToken) {
                 UserDetail userDetail = (UserDetail) oAuth2ClientAuthenticationToken.getPrincipal();
@@ -129,6 +152,32 @@ public class AuthorizationConfig {
                         .claim("email", userDetail.getEmail());
             }
         };
+    }
+
+    /** Claim naming the service a token was requested for, e.g. the CDC Reader type. */
+    static final String AGENT_TYPE_CLAIM = "agentType";
+
+    /**
+     * The {@code agent_type} the token request carried, if any.
+     *
+     * <p>Reads the additional parameters the token request converter placed on
+     * the authorization grant.  Absent for every grant that does not carry one,
+     * including authorization-code flows, which is why this returns an empty
+     * optional rather than a placeholder: an empty claim and no claim at all
+     * must not be confused by whoever checks it.
+     */
+    private Optional<String> describeAgentType(JwtEncodingContext context) {
+        Authentication grant = context.getAuthorizationGrant();
+        if (!(grant instanceof OAuth2AuthorizationGrantAuthenticationToken grantToken)) {
+            return Optional.empty();
+        }
+        Object value = grantToken.getAdditionalParameters()
+                .get(AgentTypeClientCredentialsConverter.AGENT_TYPE_PARAMETER);
+        if (value == null) {
+            return Optional.empty();
+        }
+        String agentType = value.toString().trim();
+        return agentType.isEmpty() ? Optional.empty() : Optional.of(agentType);
     }
 
     protected void useClusterId(JwtClaimsSet.Builder claim) {
@@ -160,7 +209,17 @@ public class AuthorizationConfig {
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .anyRequest().authenticated())
                 .with(authorizationServerConfigurer, configurer -> configurer
-                        .tokenEndpoint(tokenEndpoint -> tokenEndpoint.errorResponseHandler(new LoggingOAuth2ErrorResponseHandler())))
+                        .tokenEndpoint(tokenEndpoint -> tokenEndpoint
+                                /*
+                                 * Run before the stock converters so a client
+                                 * credentials request keeps its agent_type
+                                 * parameter; the customizer turns it into a
+                                 * claim.  Requests this converter does not
+                                 * handle fall through untouched.
+                                 */
+                                .accessTokenRequestConverters(converters ->
+                                        converters.add(0, new AgentTypeClientCredentialsConverter()))
+                                .errorResponseHandler(new LoggingOAuth2ErrorResponseHandler())))
                 .headers(headers -> {
                     headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
                 })
