@@ -2,15 +2,13 @@
 
 The catalog is public: enterprise release artifacts are publicly readable, and catalog refreshes are cached and serialized. Download, impact inspection, and job status endpoints remain enterprise operations. Opening the catalog never loads connector classes.
 
-## Approving connector execution
+## Release source and integrity
 
-Registration uses the same PDK loader and metadata builder as the manual CLI. It instantiates connector code to obtain capabilities, codecs, and node types. This is code execution inside the manager JVM, not a sandbox.
+Registration trusts the Nexus repository configured by `pdk.release.repository-url`, which defaults to `https://nexus.tapdata.net/repository/maven-releases/`. The BOM selects the published connector versions. Online updates do not require a separate artifact digest allowlist or a Manager configuration change for each release.
 
-Before registration, administrators must configure `pdk.release.trusted-sha256` with a comma- or whitespace-separated list of approved artifact SHA-256 digests. The value defaults to empty, which rejects registration. Catalog browsing and existing connections continue to work.
+Before registration, the downloaded JAR must match the repository's `.sha256` checksum. The checksum covers the **published artifact bytes before decryption**. Missing or mismatched checksums reject the download and delete the temporary file. This verifies download integrity; trust in executable connector code comes from the configured repository and its release process.
 
-Approve the **published artifact bytes before decryption**, using an independent release review or trusted build output. Do not automatically import checksums from Nexus into this configuration: a compromised publisher could replace both the JAR and its checksum. Add the independently approved digest when upgrading a connector. The Nexus `.sha256` integrity check is still required in addition to deployment approval. Neither HTTP requests nor catalog responses can modify the approval list.
-
-Approving a digest trusts that exact artifact's executable code. This does not isolate approved code from the manager or bound its runtime memory use.
+Registration uses the same PDK loader and metadata builder as the manual CLI. It instantiates connector code to obtain capabilities, codecs, and node types inside the manager JVM.
 
 ## Download and lifecycle
 
