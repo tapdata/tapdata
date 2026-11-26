@@ -180,4 +180,43 @@ class InFlightBudgetAndLeaseTest {
         pool.release(800L, 10L, 1L, false);
         assertTrue(pool.tryReserve("task-A", 500L, 5L, 1L, false, true));
     }
+
+    @Test
+    void agentMemoryPoolBoundsReconfigurePrefetchSettleAndWaitControlsWorkProperly() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+                () -> new AgentMemoryBudgetPool(0L, 10L, 10L, 0L, MonotonicClock.SYSTEM));
+        AgentMemoryBudgetPool defaultPool = new AgentMemoryBudgetPool();
+        assertTrue(defaultPool.snapshot().maxMemoryBytes() > 0L);
+
+        AgentMemoryBudgetPool pool = new AgentMemoryBudgetPool(2_000L, 20L, 5L, 200L, MonotonicClock.SYSTEM);
+        assertThrows(IllegalArgumentException.class, () -> pool.tryReserve("t1", -1L, 0L, 0L, false, false));
+        assertTrue(pool.canPotentiallyFit(1_800L, 20L, 5L));
+        assertFalse(pool.canPotentiallyFit(1_900L, 20L, 5L));
+
+        // Prefetch settle exceeds limit -> rejected; within limit -> committed prefetch converts to occupied
+        assertTrue(pool.tryReserve("t1", 500L, 5L, 1L, true, false));
+        assertFalse(pool.settlePrefetch("t1", 500L, 5L, 1L, 1_900L, 5L, 1L));
+        assertTrue(pool.settlePrefetch("t1", 500L, 5L, 1L, 700L, 6L, 2L));
+        assertEquals(700L, pool.snapshot().occupiedBytes());
+        assertEquals(0L, pool.snapshot().committedPrefetchBytes());
+        pool.release(700L, 6L, 2L, false);
+        pool.release(0L, 0L, 0L, false);
+
+        // Wait queue skipTurnAndYield + cancelWaiter + awaitCapacityChange + reconfigure
+        assertTrue(pool.tryReserve("holder", 1_500L, 10L, 1L, false, false));
+        assertFalse(pool.tryReserve("w1", 500L, 1L, 1L, false, true));
+        assertFalse(pool.tryReserve("w2", 500L, 1L, 1L, false, true));
+        pool.skipTurnAndYield(null);
+        pool.skipTurnAndYield("w1");
+        pool.cancelWaiter(null);
+        pool.cancelWaiter("w2");
+        assertEquals(1, pool.snapshot().waitingTaskCount());
+        assertFalse(pool.awaitCapacityChange(0L));
+        assertFalse(pool.awaitCapacityChange(5L));
+
+        assertThrows(IllegalArgumentException.class, () -> pool.reconfigure(0L, 10L, 10L, 0L));
+        pool.reconfigure(4_000L, 40L, 10L, 200L);
+        assertTrue(pool.canPotentiallyFit(3_500L, 30L, 10L));
+        assertTrue(pool.tryReserve("w1", 500L, 1L, 1L, false, true));
+    }
 }

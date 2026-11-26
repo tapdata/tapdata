@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.throttle.TaskThrottleTelemetrySample;
 import com.tapdata.tm.commons.throttle.ThrottleConstants;
 import com.tapdata.tm.commons.throttle.ThrottleDimension;
 import io.tapdata.observable.metric.throttle.MonotonicClock;
+import io.tapdata.observable.metric.throttle.ThrottleAggregatorRegistry;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Process-level registry holding active {@link TaskThrottleRuntime} instances,
@@ -27,13 +29,18 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class TaskThrottleRuntimeRegistry {
 
-    private static volatile TaskThrottleRuntimeRegistry INSTANCE = new TaskThrottleRuntimeRegistry();
+    private static final AtomicReference<TaskThrottleRuntimeRegistry> INSTANCE =
+            new AtomicReference<>(new TaskThrottleRuntimeRegistry(new AgentMemoryBudgetPool(), MonotonicClock.SYSTEM));
 
     private final MonotonicClock clock;
     private final AgentMemoryBudgetPool agentMemoryPool;
     private final ConcurrentHashMap<String, TaskThrottleRuntime> activeRuntimes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RunningTaskMeta> runningTasks = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<TaskThrottleApplyReceipt> pendingReceipts = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<TaskThrottleStopEvidenceDto> pendingStopEvidences = new ConcurrentLinkedQueue<>();
+
+    private record RunningTaskMeta(String tenantId, String taskKind, String taskId) {
+    }
 
     private volatile String agentId = "unknown-agent";
     private volatile long cdcSampleConfigVersion = 0L;
@@ -42,7 +49,7 @@ public class TaskThrottleRuntimeRegistry {
 
     public TaskThrottleRuntimeRegistry() {
         this(new AgentMemoryBudgetPool(), MonotonicClock.SYSTEM);
-        INSTANCE = this;
+        INSTANCE.set(this);
     }
 
     public TaskThrottleRuntimeRegistry(AgentMemoryBudgetPool agentMemoryPool, MonotonicClock clock) {
@@ -51,11 +58,13 @@ public class TaskThrottleRuntimeRegistry {
     }
 
     public static TaskThrottleRuntimeRegistry getInstance() {
-        return INSTANCE;
+        return INSTANCE.get();
     }
 
     public static void setInstanceForTest(TaskThrottleRuntimeRegistry custom) {
-        INSTANCE = custom == null ? new TaskThrottleRuntimeRegistry() : custom;
+        INSTANCE.set(custom == null
+                ? new TaskThrottleRuntimeRegistry(new AgentMemoryBudgetPool(), MonotonicClock.SYSTEM)
+                : custom);
     }
 
     public void resetForTest() {
@@ -63,11 +72,31 @@ public class TaskThrottleRuntimeRegistry {
             rt.shutdownAndBuildStopEvidence(agentId, false, "test reset");
         }
         activeRuntimes.clear();
+        runningTasks.clear();
         pendingReceipts.clear();
         pendingStopEvidences.clear();
         cdcSampleConfigVersion = 0L;
         cdcSampleRefreshIntervalSeconds = ThrottleConstants.DEFAULT_CDC_SAMPLE_REFRESH_INTERVAL_SECONDS;
         lastDeltaCursor = 0L;
+        ThrottleAggregatorRegistry.clearForTest();
+    }
+
+    public void registerRunningTask(String taskId, String tenantId, String taskKind) {
+        if (taskId == null || taskId.isBlank()) {
+            return;
+        }
+        String normalizedTaskId = taskId.trim();
+        runningTasks.put(normalizedTaskId, new RunningTaskMeta(
+                tenantId != null ? tenantId : "",
+                taskKind != null && !taskKind.isBlank() ? taskKind : "sync",
+                normalizedTaskId
+        ));
+    }
+
+    public void unregisterRunningTask(String taskId) {
+        if (taskId != null && !taskId.isBlank()) {
+            runningTasks.remove(taskId.trim());
+        }
     }
 
     public AgentMemoryBudgetPool getAgentMemoryPool() {
@@ -109,7 +138,9 @@ public class TaskThrottleRuntimeRegistry {
             pendingReceipts.offer(receipt);
         }
         TaskThrottleRuntime previous = activeRuntimes.put(runKey.getTaskId(), created);
+        ThrottleAggregatorRegistry.register(runKey.getTaskId(), created.getAggregator());
         if (previous != null && previous != created) {
+            ThrottleAggregatorRegistry.unregister(runKey.getTaskId(), previous.getAggregator());
             previous.markFenced("Replaced by newer runEpoch " + runKey.getRunEpoch());
             previous.shutdownAndBuildStopEvidence(agentId, false, "Replaced locally by newer runEpoch");
         }
@@ -132,6 +163,7 @@ public class TaskThrottleRuntimeRegistry {
         if (removed == null) {
             return null;
         }
+        ThrottleAggregatorRegistry.unregister(taskId, removed.getAggregator());
         TaskThrottleStopEvidenceDto evidence = removed.shutdownAndBuildStopEvidence(agentId, writesSettled, note);
         if (removed.isProtectedRun()) {
             pendingStopEvidences.offer(evidence);
@@ -169,6 +201,18 @@ public class TaskThrottleRuntimeRegistry {
             }
             TaskThrottleRuntime runtime = activeRuntimes.get(directive.getTaskId());
             if (runtime == null || runtime.isClosed()) {
+                if (!directive.isFenced() && directive.getPolicy() != null) {
+                    RunningTaskMeta meta = runningTasks.get(directive.getTaskId());
+                    if (meta != null) {
+                        String tenantId = directive.getTenantId() != null ? directive.getTenantId() : meta.tenantId();
+                        String taskKind = directive.getTaskKind() != null ? directive.getTaskKind() : meta.taskKind();
+                        openRuntime(
+                                new TaskRunKey(tenantId, taskKind, directive.getTaskId(), Math.max(0L, directive.getAuthorizedRunEpoch())),
+                                directive.getPolicy(),
+                                directive.isProtectedRun()
+                        );
+                    }
+                }
                 continue;
             }
             if (directive.isFenced()

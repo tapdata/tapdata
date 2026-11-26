@@ -165,6 +165,13 @@ public final class ThrottleMetricsWindowAggregator {
         acc.waitingDimensions = waitingDimensions == null || waitingDimensions.isEmpty()
                 ? EnumSet.noneOf(ThrottleDimension.class)
                 : EnumSet.copyOf(waitingDimensions);
+        if (acc.waitReason == WaitReason.RATE_WAIT) {
+            acc.windowWaitReason = WaitReason.RATE_WAIT;
+            acc.windowWaitingDimensions.addAll(acc.waitingDimensions);
+        } else if (acc.waitReason != WaitReason.NONE && acc.windowWaitReason == WaitReason.NONE) {
+            acc.windowWaitReason = acc.waitReason;
+            acc.windowWaitingDimensions = EnumSet.copyOf(acc.waitingDimensions);
+        }
         acc.bufferWatermark = bufferWatermark;
         acc.logPositionStatus = logPositionStatus != null ? logPositionStatus : LogPositionStatus.NORMAL;
 
@@ -220,11 +227,15 @@ public final class ThrottleMetricsWindowAggregator {
         for (ThrottlePhase phase : ThrottlePhase.values()) {
             for (ThrottleDirection dir : ThrottleDirection.values()) {
                 SlotAccumulator acc = slots.get(phase).get(dir);
-                if (!acc.active && acc.waitReason == WaitReason.NONE) {
+                if (!acc.active && acc.waitReason == WaitReason.NONE && acc.windowWaitReason == WaitReason.NONE) {
                     continue;
                 }
                 Long bytesValue = acc.missingBytes ? null : acc.estimatedAdmittedBytes;
                 Long cancelledBytesValue = acc.cancelledBytesMissing ? null : acc.cancelledBytes;
+                WaitReason effectiveWait = acc.windowWaitReason != WaitReason.NONE ? acc.windowWaitReason : acc.waitReason;
+                EnumSet<ThrottleDimension> effectiveDims = acc.windowWaitReason != WaitReason.NONE
+                        ? acc.windowWaitingDimensions
+                        : acc.waitingDimensions;
 
                 samples.add(TaskThrottleTelemetrySample.builder()
                         .runEpoch(runEpoch)
@@ -245,8 +256,8 @@ public final class ThrottleMetricsWindowAggregator {
                         .sampleQuality(acc.sampleQuality)
                         .cancelledAfterDebitEvents(acc.cancelledEvents)
                         .cancelledEstimatedBytes(cancelledBytesValue)
-                        .waitReason(acc.waitReason)
-                        .waitingDimensions(Collections.unmodifiableSet(EnumSet.copyOf(acc.waitingDimensions)))
+                        .waitReason(effectiveWait)
+                        .waitingDimensions(Collections.unmodifiableSet(EnumSet.copyOf(effectiveDims)))
                         .bufferWatermark(acc.bufferWatermark)
                         .logPositionStatus(acc.logPositionStatus)
                         .build());
@@ -330,6 +341,8 @@ public final class ThrottleMetricsWindowAggregator {
         boolean cancelledBytesMissing = false;
         WaitReason waitReason = WaitReason.NONE;
         EnumSet<ThrottleDimension> waitingDimensions = EnumSet.noneOf(ThrottleDimension.class);
+        WaitReason windowWaitReason = WaitReason.NONE;
+        EnumSet<ThrottleDimension> windowWaitingDimensions = EnumSet.noneOf(ThrottleDimension.class);
         double bufferWatermark = 0.0d;
         LogPositionStatus logPositionStatus = LogPositionStatus.NORMAL;
 
@@ -347,6 +360,8 @@ public final class ThrottleMetricsWindowAggregator {
             this.cancelledEvents = 0L;
             this.cancelledBytes = 0L;
             this.cancelledBytesMissing = false;
+            this.windowWaitReason = this.waitReason;
+            this.windowWaitingDimensions = EnumSet.copyOf(this.waitingDimensions);
             // Keep slot active when idle-waiting or running phase persists for zero-rate continuity
             this.active = this.persistZeroIdle || this.waitReason != WaitReason.NONE;
         }

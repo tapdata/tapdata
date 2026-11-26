@@ -31,6 +31,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -248,6 +249,11 @@ public class TaskThrottlePolicyService {
                 || executionGuardService == null
                 || executionGuardService.isAgentCompatible(targetAgentId, kind);
 
+        String taskStatus = taskDto.getStatus();
+        boolean taskRunningOnAgent = targetAgentId != null && !targetAgentId.isBlank()
+                && (TaskDto.STATUS_RUNNING.equals(taskStatus) || TaskDto.STATUS_WAIT_RUN.equals(taskStatus));
+        boolean activateRunningProtection = taskRunningOnAgent && enablingAny && compatibleAgent;
+
         String nextApplyStatus = compatibleAgent
                 ? TaskThrottlePolicyEntity.APPLY_PENDING
                 : TaskThrottlePolicyEntity.APPLY_WAITING_COMPATIBLE_AGENT;
@@ -277,6 +283,7 @@ public class TaskThrottlePolicyService {
                     .occurredAt(now)
                     .detail("Initial policy save")
                     .build();
+            long initialRunEpoch = activateRunningProtection ? 1L : 0L;
             TaskThrottlePolicyEntity created = TaskThrottlePolicyEntity.builder()
                     .id(taskKey)
                     .tenantId(tenantId)
@@ -287,9 +294,9 @@ public class TaskThrottlePolicyService {
                     .phases(sanitizedPhases)
                     .updatedBy(operator)
                     .updatedAt(now)
-                    .currentRunEpoch(0L)
+                    .currentRunEpoch(initialRunEpoch)
                     .currentAgentId(targetAgentId)
-                    .protectedRunActive(false)
+                    .protectedRunActive(activateRunningProtection)
                     .stopGateStatus(nextGateStatus)
                     .stopGateReason(nextGateReason)
                     .deltaSeq(nextDeltaSeq())
@@ -306,6 +313,9 @@ public class TaskThrottlePolicyService {
                 throw new TaskThrottleVersionConflictException(
                         latest != null ? latest.getDesiredVersion() : 0L,
                         toView(latest, tenantId, kind, taskId, taskKey));
+            }
+            if (activateRunningProtection) {
+                syncRunningTaskThrottleAttrs(taskId, initialRunEpoch, true);
             }
             flushOutboxForTask(created);
             TaskThrottlePolicyEntity refreshed = mongo.findOne(
@@ -346,6 +356,17 @@ public class TaskThrottlePolicyService {
                 .set("stopGateReason", nextGateReason)
                 .push("pendingAuditOutbox", outbox);
 
+        boolean needRunningProtectionSync = activateRunningProtection
+                && (existing.getCurrentRunEpoch() <= 0L
+                || !existing.isProtectedRunActive()
+                || !targetAgentId.equals(existing.getCurrentAgentId()));
+        long effectiveEpoch = existing.getCurrentRunEpoch() > 0L ? existing.getCurrentRunEpoch() : 1L;
+        if (needRunningProtectionSync) {
+            casUpdate.set("currentRunEpoch", effectiveEpoch)
+                    .set("currentAgentId", targetAgentId)
+                    .set("protectedRunActive", true);
+        }
+
         TaskThrottlePolicyEntity updated = mongo.findAndModify(
                 casQuery, casUpdate, FindAndModifyOptions.options().returnNew(true), TaskThrottlePolicyEntity.class);
         if (updated == null) {
@@ -354,6 +375,9 @@ public class TaskThrottlePolicyService {
             throw new TaskThrottleVersionConflictException(
                     latest != null ? latest.getDesiredVersion() : expectedVer,
                     toView(latest, tenantId, kind, taskId, taskKey));
+        }
+        if (needRunningProtectionSync) {
+            syncRunningTaskThrottleAttrs(taskId, effectiveEpoch, true);
         }
         flushOutboxForTask(updated);
         TaskThrottlePolicyEntity refreshed = mongo.findOne(
@@ -483,6 +507,15 @@ public class TaskThrottlePolicyService {
         return flushed;
     }
 
+    private void syncRunningTaskThrottleAttrs(String taskId, long runEpoch, boolean protectedRun) {
+        if (taskService == null || taskId == null || !ObjectId.isValid(taskId)) {
+            return;
+        }
+        taskService.update(
+                Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
+                new Update().set("attrs.throttleRunEpoch", runEpoch).set("attrs.throttleProtected", protectedRun));
+    }
+
     private TaskThrottlePolicyView toView(
             TaskThrottlePolicyEntity entity,
             String tenantId,
@@ -492,6 +525,16 @@ public class TaskThrottlePolicyService {
         TaskThrottleLiveStatusView live = telemetryAndRankingService != null
                 ? telemetryAndRankingService.evaluateLiveStatus(taskId)
                 : null;
+        if (live != null && entity != null && entity.getPhases() != null) {
+            EnumSet<ThrottlePhase> enabledPhases = EnumSet.noneOf(ThrottlePhase.class);
+            for (Map.Entry<ThrottlePhase, ThrottlePhaseLimit> phaseEntry : entity.getPhases().entrySet()) {
+                if (phaseEntry.getKey() != null && phaseEntry.getValue() != null && phaseEntry.getValue().isEnabled()) {
+                    enabledPhases.add(phaseEntry.getKey());
+                }
+            }
+            live.setConfiguredPhases(enabledPhases);
+            live.setPolicyConfigured(!enabledPhases.isEmpty());
+        }
         if (entity == null) {
             return TaskThrottlePolicyView.builder()
                     .taskKey(taskKey)

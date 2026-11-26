@@ -35,6 +35,8 @@ public class AgentThrottleSyncClient {
     public static final String RESOURCE_RECEIPTS = "agent-throttle/receipts";
     public static final String RESOURCE_TELEMETRY = "agent-throttle/telemetry";
     public static final String RESOURCE_STOP_EVIDENCE = "agent-throttle/stop-evidence";
+    public static final long CAPABILITY_REFRESH_INTERVAL_MS = 60_000L;
+    private static final String UNKNOWN_AGENT_ID = "unknown-agent";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
@@ -44,6 +46,7 @@ public class AgentThrottleSyncClient {
     private ClientMongoOperator clientMongoOperator;
     @Autowired(required = false)
     private TaskThrottleRuntimeRegistry registry = TaskThrottleRuntimeRegistry.getInstance();
+    private volatile long lastCapabilityRegisteredAtMs = 0L;
 
     public AgentThrottleSyncClient() {
     }
@@ -57,25 +60,46 @@ public class AgentThrottleSyncClient {
 
     @Scheduled(fixedDelay = 5000L, initialDelay = 3000L)
     public void scheduledSyncCycle() {
+        ensureCapabilitiesRegistered(false);
         pullDeltaAndApply();
         flushPendingReceipts();
         flushTelemetrySamples();
         flushPendingStopEvidences();
     }
 
+    public boolean ensureCapabilitiesRegistered(boolean force) {
+        if (!hasValidAgentId()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        if (!force && lastCapabilityRegisteredAtMs > 0L && (now - lastCapabilityRegisteredAtMs) < CAPABILITY_REFRESH_INTERVAL_MS) {
+            return true;
+        }
+        return registerCapabilities();
+    }
+
     public boolean registerCapabilities() {
-        if (clientMongoOperator == null) {
+        if (!hasValidAgentId()) {
             return false;
         }
         try {
             AgentThrottleCapabilities capabilities = registry.buildCapabilities();
             Map<String, Object> payload = OBJECT_MAPPER.convertValue(capabilities, MAP_TYPE);
             clientMongoOperator.postOne(payload, RESOURCE_CAPABILITIES, Object.class);
+            lastCapabilityRegisteredAtMs = System.currentTimeMillis();
             return true;
         } catch (Exception e) {
             logger.warn("Register agent throttle capabilities failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    private boolean hasValidAgentId() {
+        if (clientMongoOperator == null || registry == null) {
+            return false;
+        }
+        String agentId = registry.getAgentId();
+        return agentId != null && !agentId.isBlank() && !UNKNOWN_AGENT_ID.equals(agentId);
     }
 
     public boolean pullDeltaAndApply() {
@@ -86,9 +110,13 @@ public class AgentThrottleSyncClient {
             Map<String, Object> params = new HashMap<>(4);
             params.put("agentId", registry.getAgentId());
             params.put("cursor", registry.getLastDeltaCursor());
+            long beforeSampleVer = registry.getCdcSampleConfigVersion();
             AgentThrottleDeltaResponse delta = clientMongoOperator.findOne(params, RESOURCE_DELTA, AgentThrottleDeltaResponse.class);
             if (delta != null) {
                 registry.applyDelta(delta);
+                if (registry.getCdcSampleConfigVersion() != beforeSampleVer) {
+                    ensureCapabilitiesRegistered(true);
+                }
             }
             return true;
         } catch (Exception e) {

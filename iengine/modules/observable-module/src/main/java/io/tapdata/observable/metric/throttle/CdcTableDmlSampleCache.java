@@ -206,7 +206,7 @@ public final class CdcTableDmlSampleCache {
         GroupSlot(CdcSampleGroupKey key, long nowNanos) {
             this.key = key;
             this.snapshot = new AtomicReference<>(GroupSnapshot.empty(nowNanos));
-            this.staggerSeed = new AtomicLong(Math.abs((long) key.hashCode()));
+            this.staggerSeed = new AtomicLong(key.hashCode());
         }
     }
 
@@ -252,7 +252,7 @@ public final class CdcTableDmlSampleCache {
     private final MonotonicClock clock;
     private final EventCostMeter meter;
     private final CacheConfig staticConfig;
-    private volatile ConfigState configState;
+    private final AtomicReference<ConfigState> configState;
     private final ConcurrentHashMap<CdcSampleGroupKey, GroupSlot> groups = new ConcurrentHashMap<>();
     private final AtomicInteger roundRobinCursor = new AtomicInteger(0);
 
@@ -272,10 +272,10 @@ public final class CdcTableDmlSampleCache {
         this.clock = clock;
         this.meter = meter;
         this.staticConfig = config;
-        this.configState = new ConfigState(
+        this.configState = new AtomicReference<>(new ConfigState(
                 config.getRefreshIntervalSeconds(),
                 TimeUnit.SECONDS.toNanos(config.getRefreshIntervalSeconds()),
-                config.getSampleConfigVersion());
+                config.getSampleConfigVersion()));
     }
 
     public static void validateInterval(int intervalSeconds) {
@@ -291,18 +291,18 @@ public final class CdcTableDmlSampleCache {
      */
     public void updateRefreshInterval(int intervalSeconds, long sampleConfigVersion) {
         validateInterval(intervalSeconds);
-        this.configState = new ConfigState(
+        this.configState.set(new ConfigState(
                 intervalSeconds,
                 TimeUnit.SECONDS.toNanos(intervalSeconds),
-                sampleConfigVersion);
+                sampleConfigVersion));
     }
 
     public int getRefreshIntervalSeconds() {
-        return configState.refreshIntervalSeconds();
+        return configState.get().refreshIntervalSeconds();
     }
 
     public long getSampleConfigVersion() {
-        return configState.sampleConfigVersion();
+        return configState.get().sampleConfigVersion();
     }
 
     public int getGroupCount() {
@@ -314,7 +314,7 @@ public final class CdcTableDmlSampleCache {
      * when at least one valid sample exists within the interval.
      */
     public void markLowTrafficWindowCovered(long nowNanos) {
-        ConfigState cfg = this.configState;
+        ConfigState cfg = this.configState.get();
         for (GroupSlot slot : groups.values()) {
             slot.snapshot.updateAndGet(prev -> {
                 List<SampleEntry> active = pruneExpired(prev.samples, nowNanos, cfg.refreshIntervalNanos());
@@ -334,7 +334,7 @@ public final class CdcTableDmlSampleCache {
             long deleteCount,
             long controlCount,
             boolean rateWaiting) {
-        ConfigState cfg = this.configState;
+        ConfigState cfg = this.configState.get();
         long nowNanos = clock.nanoTime();
         long dmlCount = insertCount + updateCount + deleteCount;
 

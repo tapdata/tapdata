@@ -178,6 +178,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	public void init() {
 		instanceNo = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		TaskThrottleRuntimeRegistry.getInstance().setAgentId(instanceNo);
+		if (agentThrottleSyncClient != null) {
+			agentThrottleSyncClient.ensureCapabilitiesRegistered(true);
+		}
 		logger.info("[Task scheduler] instance no: {}", instanceNo);
 
 		TmStatusService.registeredTmAvailableHandler(() -> {
@@ -187,6 +190,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			 * 2、上报任务已停止/错误的状态信息
 			 */
 			try {
+				if (agentThrottleSyncClient != null) {
+					agentThrottleSyncClient.ensureCapabilitiesRegistered(true);
+				}
 				scanAndInternalStopRescheduledTasks();
 			} catch (Exception e) {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
@@ -1164,11 +1170,43 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
+	public static String resolveThrottleTenantId(TaskDto taskDto, TaskThrottlePolicyDto policyDto) {
+		if (policyDto != null && policyDto.getTenantId() != null && !policyDto.getTenantId().isBlank()) {
+			return policyDto.getTenantId().trim();
+		}
+		if (taskDto != null && taskDto.getCustomId() != null && !taskDto.getCustomId().isBlank()) {
+			return taskDto.getCustomId().trim();
+		}
+		if (taskDto != null && taskDto.getUserId() != null && !taskDto.getUserId().isBlank()) {
+			return taskDto.getUserId().trim();
+		}
+		return "";
+	}
+
 	private void openThrottleRuntimeIfConfigured(TaskDto taskDto) {
 		if (taskDto == null || taskDto.getId() == null) {
 			return;
 		}
+		String taskId = taskDto.getId().toHexString();
+		String taskKind = taskDto.getSyncType();
 		Map<String, Object> attrs = taskDto.getAttrs();
+		TaskThrottlePolicyDto policyDto = null;
+		if (attrs != null) {
+			Object policyObj = attrs.get("throttlePolicy");
+			if (policyObj instanceof TaskThrottlePolicyDto dto) {
+				policyDto = dto;
+			} else if (policyObj instanceof Map<?, ?> policyMap) {
+				try {
+					com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+							.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+					policyDto = mapper.convertValue(policyMap, TaskThrottlePolicyDto.class);
+				} catch (Exception e) {
+					logger.warn("Parse throttlePolicy from task attrs failed for task {}: {}", taskDto.getId(), e.getMessage());
+				}
+			}
+		}
+		String tenantId = resolveThrottleTenantId(taskDto, policyDto);
+		TaskThrottleRuntimeRegistry.getInstance().registerRunningTask(taskId, tenantId, taskKind);
 		if (attrs == null || (!attrs.containsKey("throttlePolicy") && !attrs.containsKey("throttleRunEpoch") && !attrs.containsKey("throttleProtected"))) {
 			return;
 		}
@@ -1178,22 +1216,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			runEpoch = num.longValue();
 		}
 		boolean protectedRun = Boolean.TRUE.equals(attrs.get("throttleProtected"));
-		TaskThrottlePolicyDto policyDto = null;
-		Object policyObj = attrs.get("throttlePolicy");
-		if (policyObj instanceof TaskThrottlePolicyDto dto) {
-			policyDto = dto;
-		} else if (policyObj instanceof Map<?, ?> policyMap) {
-			try {
-				com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
-						.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-				policyDto = mapper.convertValue(policyMap, TaskThrottlePolicyDto.class);
-			} catch (Exception e) {
-				logger.warn("Parse throttlePolicy from task attrs failed for task {}: {}", taskDto.getId(), e.getMessage());
-			}
-		}
-		String taskId = taskDto.getId().toHexString();
-		String tenantId = taskDto.getCustomId() != null ? taskDto.getCustomId() : "";
-		String taskKind = taskDto.getSyncType();
 		TaskRunKey runKey = new TaskRunKey(tenantId, taskKind, taskId, runEpoch);
 		TaskThrottleRuntimeRegistry.getInstance().openRuntime(runKey, policyDto, protectedRun || policyDto != null);
 	}
@@ -1203,6 +1225,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		String taskId = taskDto.getId().toHexString();
+		TaskThrottleRuntimeRegistry.getInstance().unregisterRunningTask(taskId);
 		TaskThrottleStopEvidenceDto evidence = TaskThrottleRuntimeRegistry.getInstance().closeRuntime(taskId, writesSettled, note);
 		if (evidence != null && agentThrottleSyncClient != null) {
 			try {

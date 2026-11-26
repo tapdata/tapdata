@@ -12,6 +12,7 @@ import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
+import io.tapdata.observable.metric.throttle.ThrottleAggregatorRegistry;
 import io.tapdata.observable.metric.throttle.ThrottleMetricsWindowAggregator;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -84,7 +85,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     protected AtomicReference<Double> taskCpuUsage = new AtomicReference<>(null);
     protected AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
-    private volatile ThrottleMetricsWindowAggregator throttleAggregator;
+    private final AtomicReference<ThrottleMetricsWindowAggregator> throttleAggregator = new AtomicReference<>();
     private final AtomicBoolean throttleSamplersRegistered = new AtomicBoolean(false);
 
     public TaskSampleHandler(TaskDto task) {
@@ -352,17 +353,28 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void attachThrottleAggregator(ThrottleMetricsWindowAggregator aggregator) {
-        this.throttleAggregator = aggregator;
+        this.throttleAggregator.set(aggregator);
         registerThrottleSamplersIfReady();
     }
 
     public ThrottleMetricsWindowAggregator getThrottleAggregator() {
-        return throttleAggregator;
+        return throttleAggregator.get();
+    }
+
+    private ThrottleMetricsWindowAggregator resolveThrottleAggregator() {
+        ThrottleMetricsWindowAggregator attached = this.throttleAggregator.get();
+        if (attached != null) {
+            return attached;
+        }
+        String resolvedTaskId = this.taskId;
+        if ((resolvedTaskId == null || resolvedTaskId.isEmpty()) && task != null && task.getId() != null) {
+            resolvedTaskId = task.getId().toHexString();
+        }
+        return ThrottleAggregatorRegistry.get(resolvedTaskId);
     }
 
     private void registerThrottleSamplersIfReady() {
-        ThrottleMetricsWindowAggregator aggregator = this.throttleAggregator;
-        if (aggregator == null || collector == null) {
+        if (collector == null) {
             return;
         }
         if (!throttleSamplersRegistered.compareAndSet(false, true)) {
@@ -384,7 +396,7 @@ public class TaskSampleHandler extends AbstractHandler {
                 MetricCons.SS.VS.F_CANCELLED_AFTER_DEBIT_EVENTS,
                 MetricCons.SS.VS.F_CANCELLED_ESTIMATED_BYTES)) {
             collector.addSampler(metricKey, () -> {
-                ThrottleMetricsWindowAggregator current = this.throttleAggregator;
+                ThrottleMetricsWindowAggregator current = resolveThrottleAggregator();
                 return current == null ? null : current.latestNumericMetrics().get(metricKey);
             });
         }

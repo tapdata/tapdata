@@ -168,14 +168,27 @@ public class TaskThrottleTelemetryAndRankingService {
                 continue;
             }
             String taskId = extractTaskIdFromKey(receipt.getTaskKey());
-            String dedupKey = "RECEIPT:" + receipt.getTaskKey() + ":" + receipt.getRunEpoch() + ":" + receipt.getPolicyVersion();
+            TaskThrottlePolicyEntity policy = mongo.findOne(
+                    Query.query(Criteria.where("_id").is(receipt.getTaskKey())),
+                    TaskThrottlePolicyEntity.class);
+            if (policy == null && taskId != null && !taskId.isBlank()) {
+                policy = mongo.findOne(
+                        Query.query(Criteria.where("taskId").is(taskId)),
+                        TaskThrottlePolicyEntity.class);
+            }
+
+            String canonicalTaskKey = policy != null ? policy.getId() : receipt.getTaskKey();
+            String canonicalTaskId = policy != null ? policy.getTaskId() : taskId;
+            String dedupKey = "RECEIPT:" + canonicalTaskKey + ":" + receipt.getRunEpoch() + ":" + receipt.getPolicyVersion();
 
             try {
                 mongo.insert(TaskThrottleChangeLogEntity.builder()
                         .id(UUID.randomUUID().toString())
                         .dedupKey(dedupKey)
-                        .taskKey(receipt.getTaskKey())
-                        .taskId(taskId)
+                        .tenantId(policy != null ? policy.getTenantId() : null)
+                        .taskKind(policy != null ? policy.getTaskKind() : null)
+                        .taskKey(canonicalTaskKey)
+                        .taskId(canonicalTaskId)
                         .eventType(TaskThrottleChangeLogEntity.EVENT_APPLY_RECEIPT)
                         .runEpoch(receipt.getRunEpoch())
                         .policyVersion(receipt.getPolicyVersion())
@@ -189,9 +202,6 @@ public class TaskThrottleTelemetryAndRankingService {
                 // Already recorded: receipt redelivery still evaluates monotonic summary safely below
             }
 
-            TaskThrottlePolicyEntity policy = mongo.findOne(
-                    Query.query(Criteria.where("_id").is(receipt.getTaskKey())),
-                    TaskThrottlePolicyEntity.class);
             if (policy == null) {
                 continue;
             }

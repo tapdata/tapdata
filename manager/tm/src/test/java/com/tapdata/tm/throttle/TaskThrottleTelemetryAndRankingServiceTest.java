@@ -356,6 +356,55 @@ class TaskThrottleTelemetryAndRankingServiceTest {
         assertTrue(unconfigured.getConfiguredPhases().isEmpty());
     }
 
+    @Test
+    void ingestReceiptsFallsBackToTaskIdWhenTenantPrefixIsMissingAndCanonicalizesAuditLog() {
+        registerAgent("agent-1");
+        ObjectId oid = MongoUtils.toObjectId("65f000000000000000000410");
+        String taskId = oid.toHexString();
+
+        UserDetail daasUser = mock(UserDetail.class);
+        when(daasUser.getCustomerId()).thenReturn(null);
+        when(daasUser.getUserId()).thenReturn("daas-user-42");
+        when(daasUser.getUsername()).thenReturn("admin");
+
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(oid);
+        taskDto.setSyncType("migrate");
+        taskDto.setType("initial_sync+cdc");
+        taskDto.setName("daas-migrate");
+        taskDto.setCustomId(null);
+        taskDto.setUserId("daas-user-42");
+
+        policyService.updatePolicy("migrate", taskId, updateReq(0L, 1_000_000L), daasUser);
+        guardService.authorizeStartOrTakeover(taskDto, "agent-1");
+
+        // Receipt arrives with blank tenant prefix ":migrate:<taskId>"
+        String blankTenantKey = TaskThrottlePolicyEntity.buildTaskKey("", "migrate", taskId);
+        telemetryService.ingestReceipts("agent-1", List.of(TaskThrottleApplyReceipt.builder()
+                .taskKey(blankTenantKey)
+                .runEpoch(1L)
+                .policyVersion(1L)
+                .outcome("APPLIED")
+                .appliedAt(clock.millis())
+                .build()));
+
+        TaskThrottlePolicyView view = policyService.getPolicyView("migrate", taskId, daasUser);
+        assertEquals(1L, view.getAppliedVersion());
+        assertEquals(TaskThrottlePolicyEntity.APPLY_APPLIED, view.getApplyStatus());
+        assertNotNull(view.getAppliedPhases());
+
+        String canonicalKey = TaskThrottlePolicyEntity.buildTaskKey("daas-user-42", "migrate", taskId);
+        TaskThrottleChangeLogEntity receiptLog = mongo.ops().findAll(TaskThrottleChangeLogEntity.class).stream()
+                .filter(c -> TaskThrottleChangeLogEntity.EVENT_APPLY_RECEIPT.equals(c.getEventType())
+                        && taskId.equals(c.getTaskId()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(receiptLog);
+        assertEquals(canonicalKey, receiptLog.getTaskKey());
+        assertEquals("daas-user-42", receiptLog.getTenantId());
+        assertEquals("migrate", receiptLog.getTaskKind());
+    }
+
     private void registerAgent(String agentId) {
         guardService.registerCapabilities(AgentThrottleCapabilities.builder()
                 .agentId(agentId)

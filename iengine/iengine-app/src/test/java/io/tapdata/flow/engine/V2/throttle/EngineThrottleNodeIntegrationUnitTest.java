@@ -14,8 +14,10 @@ import com.tapdata.tm.commons.throttle.ThrottlePhaseLimit;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkBaseNode;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.metric.throttle.MonotonicClock;
+import io.tapdata.observable.metric.throttle.ThrottleAggregatorRegistry;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -238,5 +240,120 @@ class EngineThrottleNodeIntegrationUnitTest {
                 .postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_STOP_EVIDENCE), eq(Object.class));
         assertFalse(client.reportStopEvidence(ev));
         assertEquals(1, registry.drainPendingStopEvidences().size());
+    }
+
+    @Test
+    void syncCycleAutoRegistersCapabilitiesReportsSampleVersionUpdatesAndLazyOpensRunningTasks() {
+        String runningTaskId = new ObjectId().toHexString();
+        ClientMongoOperator mockOp = mock(ClientMongoOperator.class);
+        AgentThrottleSyncClient client = new AgentThrottleSyncClient(mockOp, registry);
+
+        registry.registerRunningTask(runningTaskId, "t1", "migrate");
+        assertNull(registry.getActive(runningTaskId));
+
+        Map<ThrottlePhase, ThrottlePhaseLimit> cdcLimits = new EnumMap<>(ThrottlePhase.class);
+        cdcLimits.put(ThrottlePhase.CDC, ThrottlePhaseLimit.builder().enabled(true).eventsPerSec(50L).build());
+        TaskThrottlePolicyDto hotPolicy = TaskThrottlePolicyDto.builder()
+                .tenantId("t1").taskKind("migrate").taskId(runningTaskId).desiredVersion(1L).phases(cdcLimits).build();
+        AgentThrottleDeltaResponse deltaWithSampleAndHotPolicy = AgentThrottleDeltaResponse.builder()
+                .cursor(120L)
+                .sampleConfigVersion(5L)
+                .cdcSampleRefreshIntervalSeconds(15)
+                .directives(List.of(AgentThrottleDeltaResponse.TaskDirective.builder()
+                        .tenantId("t1")
+                        .taskKind("migrate")
+                        .taskId(runningTaskId)
+                        .authorizedRunEpoch(0L)
+                        .protectedRun(false)
+                        .policy(hotPolicy)
+                        .build()))
+                .build();
+        when(mockOp.findOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_DELTA), eq(AgentThrottleDeltaResponse.class)))
+                .thenReturn(deltaWithSampleAndHotPolicy)
+                .thenReturn(AgentThrottleDeltaResponse.builder().cursor(120L).sampleConfigVersion(5L).cdcSampleRefreshIntervalSeconds(15).build());
+
+        // Cycle 1: scheduledSyncCycle auto-registers capabilities once, then re-registers once after sampleConfigVersion advances
+        client.scheduledSyncCycle();
+        verify(mockOp, times(2)).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_CAPABILITIES), eq(Object.class));
+        verify(mockOp, times(1)).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_RECEIPTS), eq(Object.class));
+        TaskThrottleRuntime lazyOpened = registry.getActive(runningTaskId);
+        assertNotNull(lazyOpened);
+        assertEquals(15, lazyOpened.getInputMeter().getCdcSampleCache().getRefreshIntervalSeconds());
+
+        // Cycle 2 within 60s refresh window with unchanged sample version: no redundant capabilities POST
+        client.scheduledSyncCycle();
+        verify(mockOp, times(2)).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_CAPABILITIES), eq(Object.class));
+
+        registry.unregisterRunningTask(runningTaskId);
+    }
+
+    @Test
+    void schedulerTenantResolutionFallbackAndAggregatorRegistryLifecycle() {
+        TaskDto onlyUserId = new TaskDto();
+        onlyUserId.setUserId("user-uid-1");
+        assertEquals("user-uid-1", TapdataTaskScheduler.resolveThrottleTenantId(onlyUserId, null));
+
+        TaskDto withCustomId = new TaskDto();
+        withCustomId.setCustomId("custom-1");
+        withCustomId.setUserId("user-uid-1");
+        assertEquals("custom-1", TapdataTaskScheduler.resolveThrottleTenantId(withCustomId, null));
+
+        TaskThrottlePolicyDto withPolicyTenant = TaskThrottlePolicyDto.builder().tenantId("policy-tenant-1").build();
+        assertEquals("policy-tenant-1", TapdataTaskScheduler.resolveThrottleTenantId(withCustomId, withPolicyTenant));
+        assertEquals("", TapdataTaskScheduler.resolveThrottleTenantId(null, null));
+
+        String taskId = new ObjectId().toHexString();
+        TaskThrottleRuntime runtime = registry.openRuntime(new TaskRunKey("user-uid-1", "migrate", taskId, 1L), null, true);
+        assertSame(runtime.getAggregator(), ThrottleAggregatorRegistry.get(taskId));
+        registry.closeRuntime(taskId, true, "done");
+        assertNull(ThrottleAggregatorRegistry.get(taskId));
+    }
+
+    @Test
+    void syncClientHandlesMissingOperatorUnknownAgentAndControlPlaneErrorsGracefully() {
+        AgentThrottleSyncClient noOpClient = new AgentThrottleSyncClient(null, null);
+        assertFalse(noOpClient.ensureCapabilitiesRegistered(true));
+        assertFalse(noOpClient.registerCapabilities());
+        assertFalse(noOpClient.pullDeltaAndApply());
+        assertFalse(noOpClient.flushPendingReceipts());
+        assertFalse(noOpClient.flushTelemetrySamples());
+        assertTrue(noOpClient.reportStopEvidence(null));
+        noOpClient.flushPendingStopEvidences();
+
+        TaskThrottleStopEvidenceDto ev = TaskThrottleStopEvidenceDto.builder()
+                .tenantId("t1").taskKind("migrate").taskId("task-x").oldRunEpoch(1L).build();
+        TaskThrottleRuntimeRegistry prev = TaskThrottleRuntimeRegistry.getInstance();
+        try {
+            TaskThrottleRuntimeRegistry temp = new TaskThrottleRuntimeRegistry();
+            TaskThrottleRuntimeRegistry.setInstanceForTest(temp);
+            assertSame(temp, TaskThrottleRuntimeRegistry.getInstance());
+
+            AgentThrottleSyncClient tempNoOp = new AgentThrottleSyncClient(null, temp);
+            assertFalse(tempNoOp.ensureCapabilitiesRegistered(true));
+            assertFalse(tempNoOp.registerCapabilities());
+            assertFalse(tempNoOp.reportStopEvidence(ev));
+            assertEquals(1, temp.drainPendingStopEvidences().size());
+
+            ClientMongoOperator failingOp = mock(ClientMongoOperator.class);
+            when(failingOp.findOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_DELTA), eq(AgentThrottleDeltaResponse.class)))
+                    .thenThrow(new RuntimeException("delta timeout"));
+            doThrow(new RuntimeException("post failed")).when(failingOp).postOne(anyMap(), anyString(), eq(Object.class));
+
+            temp.setAgentId("agent-err-1");
+            TaskThrottlePolicyDto p = TaskThrottlePolicyDto.builder()
+                    .tenantId("t1").taskKind("migrate").taskId("task-y").desiredVersion(1L).build();
+            TaskThrottleRuntime rt = temp.openRuntime(new TaskRunKey("t1", "migrate", "task-y", 1L), p, true);
+            rt.getAggregator().activateSlot(ThrottlePhase.FULL, com.tapdata.tm.commons.throttle.ThrottleDirection.INPUT, 1L);
+
+            AgentThrottleSyncClient errClient = new AgentThrottleSyncClient(failingOp, temp);
+            assertFalse(errClient.registerCapabilities());
+            assertFalse(errClient.pullDeltaAndApply());
+            assertFalse(errClient.flushPendingReceipts());
+            assertFalse(errClient.flushTelemetrySamples());
+            TaskThrottleRuntimeRegistry.setInstanceForTest(null);
+            assertNotNull(TaskThrottleRuntimeRegistry.getInstance());
+        } finally {
+            TaskThrottleRuntimeRegistry.setInstanceForTest(prev);
+        }
     }
 }

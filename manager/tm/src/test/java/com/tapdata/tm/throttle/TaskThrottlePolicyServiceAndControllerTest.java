@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.AgentThrottleCapabilities;
 import com.tapdata.tm.commons.throttle.ThrottleConstants;
 import com.tapdata.tm.commons.throttle.ThrottleDirection;
 import com.tapdata.tm.commons.throttle.ThrottlePhase;
@@ -28,6 +29,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -38,11 +40,14 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TaskThrottlePolicyServiceAndControllerTest {
@@ -279,6 +284,49 @@ class TaskThrottlePolicyServiceAndControllerTest {
                 TaskThrottleController.SETTINGS_PERMISSION, "user-1")).thenReturn(true);
         assertEquals(90, controller.updateSampleConfig(Map.of("intervalSeconds", 90)).getData().getIntervalSeconds());
         assertEquals(2L, sampleConfigService.getCurrentConfig().configVersion());
+    }
+
+    @Test
+    void singlePolicyViewIncludesConfiguredLiveStatusAndRunningTaskActivationSyncsEpochAttrs() {
+        guardService.registerCapabilities(AgentThrottleCapabilities.builder()
+                .agentId("agent-run-1")
+                .throttleSupported(true)
+                .meterVersion(ThrottleConstants.METER_VERSION)
+                .supportedTaskKinds(Set.of("sync", "migrate", "logCollector"))
+                .build());
+
+        ObjectId runningOid = MongoUtils.toObjectId("65f000000000000000000108");
+        String runningTaskId = runningOid.toHexString();
+        TaskDto runningTask = buildTask(runningOid, "migrate", "initial_sync+cdc", null);
+        runningTask.setStatus(TaskDto.STATUS_RUNNING);
+        runningTask.setAgentId("agent-run-1");
+        when(taskService.checkExistById(eq(runningOid), eq(user))).thenReturn(runningTask);
+
+        ResponseEntity<ResponseMessage<Object>> v1Resp = controller.updatePolicy("migrate", runningTaskId, updateReq(0L, Map.of(
+                ThrottlePhase.CDC, ThrottlePhaseLimit.builder().enabled(true).eventsPerSec(60L).build())));
+        assertEquals(HttpStatus.OK, v1Resp.getStatusCode());
+        TaskThrottlePolicyView v1 = (TaskThrottlePolicyView) v1Resp.getBody().getData();
+        assertEquals(1L, v1.getCurrentRunEpoch());
+        assertTrue(v1.isProtectedRunActive());
+        assertEquals("agent-run-1", v1.getCurrentAgentId());
+        assertNotNull(v1.getLiveStatus());
+        assertTrue(v1.getLiveStatus().isPolicyConfigured());
+        assertEquals(Set.of(ThrottlePhase.CDC), v1.getLiveStatus().getConfiguredPhases());
+        verify(taskService, times(1)).update(any(Query.class), any(Update.class));
+
+        // Subsequent update on same running agent preserves currentRunEpoch=1L without redundant Task.attrs write
+        ResponseEntity<ResponseMessage<Object>> v2Resp = controller.updatePolicy("migrate", runningTaskId, updateReq(1L, Map.of(
+                ThrottlePhase.CDC, ThrottlePhaseLimit.builder().enabled(true).eventsPerSec(120L).build())));
+        assertEquals(HttpStatus.OK, v2Resp.getStatusCode());
+        TaskThrottlePolicyView v2 = (TaskThrottlePolicyView) v2Resp.getBody().getData();
+        assertEquals(1L, v2.getCurrentRunEpoch());
+        assertTrue(v2.isProtectedRunActive());
+        verify(taskService, times(1)).update(any(Query.class), any(Update.class));
+
+        TaskThrottlePolicyView singleView = controller.getPolicy("migrate", runningTaskId).getData();
+        assertNotNull(singleView.getLiveStatus());
+        assertTrue(singleView.getLiveStatus().isPolicyConfigured());
+        assertEquals(Set.of(ThrottlePhase.CDC), singleView.getLiveStatus().getConfiguredPhases());
     }
 
     private static TaskDto buildTask(ObjectId id, String syncType, String type, Map<String, Object> attrs) {

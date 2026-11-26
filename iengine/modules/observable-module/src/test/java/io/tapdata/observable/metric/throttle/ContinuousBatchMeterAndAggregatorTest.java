@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -215,6 +216,72 @@ class ContinuousBatchMeterAndAggregatorTest {
             assertEquals(ThrottleDimension.QPS.bitMask(), samplerMap.get(MetricCons.SS.VS.F_THROTTLE_WAITING_DIM_MASK).value().intValue());
             assertEquals(0.0d, samplerMap.get(MetricCons.SS.VS.F_ESTIMATED_OUTPUT_BYTES_RATE).value().doubleValue(), 0.001d);
         } finally {
+            ReflectionTestUtils.setField(retriever, "operator", previousOperator);
+        }
+    }
+
+    @Test
+    void aggregatorLatchesRateWaitWithinWindowAndTaskSampleHandlerResolvesFromRegistry() {
+        DriftClock clock = new DriftClock();
+        ThrottleMetricsWindowAggregator agg = new ThrottleMetricsWindowAggregator(3L, clock);
+
+        // Within a single 5s window: RATE_WAIT occurs, then slice is admitted (NONE) right before roll
+        agg.activateSlot(ThrottlePhase.FULL, ThrottleDirection.OUTPUT, 1L);
+        agg.updateWaitState(ThrottlePhase.FULL, ThrottleDirection.OUTPUT, WaitReason.RATE_WAIT,
+                EnumSet.of(ThrottleDimension.BYTES), 0.2d, LogPositionStatus.NORMAL);
+        agg.updateWaitState(ThrottlePhase.FULL, ThrottleDirection.OUTPUT, WaitReason.NONE,
+                EnumSet.noneOf(ThrottleDimension.class), 0.1d, LogPositionStatus.NORMAL);
+        agg.recordAdmitted(BatchMeteringResult.builder()
+                .taskId("latch-task").runEpoch(3L).phase(ThrottlePhase.FULL).direction(ThrottleDirection.OUTPUT)
+                .dmlCount(50L).estimatedBytes(10_000L).sampleCount(1L)
+                .sampleQuality(SampleQuality.VALID).sampleConfigVersion(1L).cdcSampleRefreshIntervalSeconds(30)
+                .build(), 1L);
+
+        clock.stepNormalSeconds(5);
+        List<TaskThrottleTelemetrySample> w1 = agg.snapshotAndRollWindow();
+        assertEquals(1, w1.size());
+        assertEquals(WaitReason.RATE_WAIT, w1.get(0).getWaitReason());
+        assertEquals(Set.of(ThrottleDimension.BYTES), w1.get(0).getWaitingDimensions());
+
+        // Subsequent idle window without new RATE_WAIT returns WaitReason.NONE
+        clock.stepNormalSeconds(5);
+        List<TaskThrottleTelemetrySample> w2 = agg.snapshotAndRollWindow();
+        assertEquals(1, w2.size());
+        assertEquals(WaitReason.NONE, w2.get(0).getWaitReason());
+        assertTrue(w2.get(0).getWaitingDimensions().isEmpty());
+
+        // Lazy registry binding: TaskSampleHandler initialized BEFORE aggregator registers in ThrottleAggregatorRegistry
+        TaskSampleRetriever retriever = TaskSampleRetriever.getInstance();
+        Object previousOperator = ReflectionTestUtils.getField(retriever, "operator");
+        try {
+            ThrottleAggregatorRegistry.clearForTest();
+            HttpClientMongoOperator operator = mock(HttpClientMongoOperator.class);
+            ReflectionTestUtils.setField(retriever, "operator", operator);
+            TaskSampleRetriever.Samples emptySamples = new TaskSampleRetriever.Samples();
+            emptySamples.setRetriever(new ArrayList<>());
+            TaskSampleRetriever.SampleResponse response = new TaskSampleRetriever.SampleResponse();
+            response.setSamples(emptySamples);
+            when(operator.postOne(anyMap(), eq(ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/query/v2?taskCounterRecovery=true"),
+                    eq(TaskSampleRetriever.SampleResponse.class))).thenReturn(response);
+
+            ObjectId taskOid = new ObjectId("0123456789abcdef01234569");
+            TaskDto task = mock(TaskDto.class);
+            when(task.getId()).thenReturn(taskOid);
+            when(task.getTaskRecordId()).thenReturn("record-lazy");
+            when(task.getStartTime()).thenReturn(new Date(100_000L));
+            TaskSampleHandler handler = new TaskSampleHandler(task);
+            handler.init();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Sampler> samplerMap = (Map<String, Sampler>) ReflectionTestUtils.getField(handler.getCollector(), "idSamplerMap");
+            assertNotNull(samplerMap);
+            assertNull(samplerMap.get(MetricCons.SS.VS.F_ESTIMATED_OUTPUT_BYTES_RATE).value());
+
+            ThrottleAggregatorRegistry.register(taskOid.toHexString(), agg);
+            assertEquals(0.0d, samplerMap.get(MetricCons.SS.VS.F_ESTIMATED_OUTPUT_BYTES_RATE).value().doubleValue(), 0.001d);
+            assertEquals(3L, samplerMap.get(MetricCons.SS.VS.F_THROTTLE_RUN_EPOCH).value().longValue());
+        } finally {
+            ThrottleAggregatorRegistry.clearForTest();
             ReflectionTestUtils.setField(retriever, "operator", previousOperator);
         }
     }
