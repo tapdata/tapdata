@@ -59,7 +59,7 @@ class AuditAccessDeniedIT {
 		com.tapdata.tm.Permission.service.PermissionService permissions = org.mockito.Mockito.mock(com.tapdata.tm.Permission.service.PermissionService.class);
 		com.tapdata.tm.Settings.service.SettingsService settings = org.mockito.Mockito.mock(com.tapdata.tm.Settings.service.SettingsService.class);
 		org.mockito.Mockito.when(settings.isCloud()).thenReturn(false);
-		// 角色页只写入页面节点 v2_audit_log（见 init/idaas/4.25-2）
+		// 角色页只写入页面节点 v2_audit_log（见 init/idaas/4.25-4）
 		org.mockito.Mockito.when(permissions.checkCurrentUserHasPermission("v2_audit_log", "u1")).thenReturn(true);
 		org.mockito.Mockito.when(permissions.checkCurrentUserHasPermission("v2_audit_log_export", "u1")).thenReturn(false);
 		com.tapdata.tm.permissions.service.ModuleAccess access = new com.tapdata.tm.permissions.service.ModuleAccess(permissions, settings);

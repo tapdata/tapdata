@@ -1,5 +1,6 @@
 package com.tapdata.tm.init.patches.daas;
 
+import com.mongodb.MongoCommandException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.tapdata.tm.init.PatchType;
@@ -63,7 +64,7 @@ class DashboardMetricsIndexesIT {
             SpringContextHelper.applicationContext = applicationContext;
 
             V4_25_3_DashboardMetricsIndexes patch = new V4_25_3_DashboardMetricsIndexes(
-                    new PatchType(AppType.DAAS, PatchTypeEnums.Script), new PatchVersion(4, 25, 3));
+                    new PatchType(AppType.DAAS, PatchTypeEnums.Script), new PatchVersion(4, 25, 5));
             patch.run();
             awaitIndex(obsTemplate, MeasurementEntity.COLLECTION_NAME,
                     V4_25_3_DashboardMetricsIndexes.MEASUREMENT_LATE_ROLLUP_INDEX);
@@ -78,7 +79,7 @@ class DashboardMetricsIndexesIT {
             assertMeasurementTtl(obsTemplate, TimeUnit.DAYS.toSeconds(7));
             assertEquals(1, countApiNodeIndexes(defaultTemplate));
 
-            obsTemplate.getDb().runCommand(new Document("collMod", MeasurementEntity.COLLECTION_NAME)
+            runCollModAwaitingIndexBuild(obsTemplate, new Document("collMod", MeasurementEntity.COLLECTION_NAME)
                     .append("index", new Document("keyPattern", new Document("date", -1))
                             .append("expireAfterSeconds", TimeUnit.DAYS.toSeconds(9))));
             patch.run();
@@ -120,6 +121,21 @@ class DashboardMetricsIndexesIT {
         }
         if (failure instanceof Error error) {
             throw error;
+        }
+    }
+
+    private void runCollModAwaitingIndexBuild(MongoTemplate template, Document command) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 15_000L;
+        while (true) {
+            try {
+                template.getDb().runCommand(command);
+                return;
+            } catch (MongoCommandException e) {
+                if (e.getErrorCode() != 12587 || System.currentTimeMillis() >= deadline) {
+                    throw e;
+                }
+                Thread.sleep(100L);
+            }
         }
     }
 

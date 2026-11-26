@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 @Timeout(10)
 class ModuleAccessIT {
     private static final String SEED_VERSION = "4.25-1";
-    private static final String AUDIT_SEED_VERSION = "4.25-2";
+    private static final String AUDIT_SEED_VERSION = "4.25-4";
     private static final String ADMIN_ROLE = "5b9a0a383fcba02649524bf1";
     private GenericApplicationContext context;
     private ModuleAccess access;
@@ -214,6 +214,10 @@ class ModuleAccessIT {
         assertThat(retention).isNotNull();
         assertThat(retention.get("$set").get("key").asText()).isEqualTo("audit.log.retention.days");
         assertThat(retention.get("$setOnInsert").get("value").asInt()).isEqualTo(90);
+        assertThat(retention.get("$setOnInsert").get("last_update").asInt()).isZero();
+        assertThat(retention.get("$setOnInsert").get("last_update_by").asText()).isEmpty();
+        assertThat(retention.get("$set").has("last_update")).isFalse();
+        assertThat(retention.get("$set").has("last_update_by")).isFalse();
         assertThat(indexes.get("UserLogs")).contains("eventId_1", "operationId_1_timestamp_1", "type_1_timestamp_-1_eventId_-1");
         assertThat(indexes.get("AuditOperations")).containsExactly("createdAt_ttl");
     }
