@@ -66,7 +66,7 @@ public class ConnectionAgentConflictService {
                     Criteria.where("dag.nodes.connectionId").in(overrides.keySet()),
                     Criteria.where("dag.nodes.connectionIds").in(overrides.keySet())));
             query.fields().include("_id", "name", "syncType", "status", "dag", "accessNodeType",
-                    "accessNodeProcessId", "priorityProcessId", "user_id", "shareCache", "lastUpdAt");
+                    "accessNodeProcessId", "accessNodeProcessIdList", "priorityProcessId", "user_id", "shareCache", "lastUpdAt");
             List<TaskDto> tasks = taskService.findAll(query);
             if (tasks == null || tasks.isEmpty()) break;
             for (TaskDto task : tasks) {
