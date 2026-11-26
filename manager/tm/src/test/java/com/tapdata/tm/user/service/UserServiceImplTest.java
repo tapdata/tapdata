@@ -40,6 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.*;
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayInputStream;
@@ -486,12 +487,20 @@ public class UserServiceImplTest {
     @Nested
     class buildDirContextTest {
         private InitialDirContext dirContext;
+        // buildDirContext 的 SSL 分支会改写 JVM 全局默认 SSLSocketFactory，用例结束后必须恢复，避免污染后续真实 HTTPS 调用的测试
+        private SSLSocketFactory originalSslSocketFactory;
 
         @BeforeEach
         @SneakyThrows
         void beforeEach() {
+            originalSslSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory();
             dirContext = mock(InitialDirContext.class);
             doCallRealMethod().when(userService).buildDirContext(any(LdapLoginDto.class));
+        }
+
+        @AfterEach
+        void afterEach() {
+            HttpsURLConnection.setDefaultSSLSocketFactory(originalSslSocketFactory);
         }
 
         @Test
