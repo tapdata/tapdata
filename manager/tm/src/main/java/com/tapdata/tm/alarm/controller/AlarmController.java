@@ -13,6 +13,7 @@ import com.tapdata.tm.alarm.dto.SystemNotificationStatusDto;
 import com.tapdata.tm.alarm.dto.SystemNotificationStatusItemDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.service.AlarmEventQueryService;
 import com.tapdata.tm.alarm.service.AlarmReceiverAccess;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -41,6 +42,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.service.ModuleAccess;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -92,6 +94,8 @@ public class AlarmController extends BaseController {
     private UserService userService;
     private UserLogService userLogService;
     private PermissionService permissionService;
+    private ModuleAccess moduleAccess;
+    private AlarmEventQueryService alarmEventQueryService;
 
     private boolean canConfigureInspect(UserDetail user) {
         return user != null && permissionService != null && (
@@ -125,13 +129,19 @@ public class AlarmController extends BaseController {
     @Audited(value = AuditAction.ALARM_CLOSE, objectId = "#ids")
     public ResponseMessage<Void> close(@RequestParam String[] ids) {
         UserDetail user = getLoginUser();
-        // 只关闭并审计真实存在的告警，非法或不存在的 ID 忽略
+        // 与新接口 /api/alarms/close 一致：关闭需要告警关闭权限
+        moduleAccess.require(user, DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE);
+        // 只关闭并审计当前用户可见范围内真实存在的告警，非法、不存在或不可见的 ID 忽略
         List<ObjectId> objectIds = ids == null ? Collections.emptyList() : Arrays.stream(ids).map(MongoUtils::toObjectId)
                 .filter(Objects::nonNull).distinct().collect(Collectors.toList());
         if (objectIds.isEmpty()) {
             return success();
         }
-        Query query = Query.query(Criteria.where("_id").in(objectIds));
+        Criteria scope = alarmEventQueryService.visibility(user);
+        if (scope == null) {
+            return success();
+        }
+        Query query = Query.query(new Criteria().andOperator(Criteria.where("_id").in(objectIds), scope));
         query.fields().include("_id");
         String[] existing = alarmService.query(query).stream().map(a -> a.getId().toHexString()).toArray(String[]::new);
         if (existing.length == 0) {
