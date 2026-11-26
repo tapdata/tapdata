@@ -356,4 +356,31 @@ class EngineThrottleNodeIntegrationUnitTest {
             TaskThrottleRuntimeRegistry.setInstanceForTest(prev);
         }
     }
+
+    @Test
+    void stopEvidenceDropsPermanentRejectionsAndCapsTransientRetries() {
+        ClientMongoOperator mockOp = mock(ClientMongoOperator.class);
+        AgentThrottleSyncClient client = new AgentThrottleSyncClient(mockOp, registry);
+
+        TaskThrottleStopEvidenceDto staleEv = TaskThrottleStopEvidenceDto.builder()
+                .tenantId("t1").taskKind("migrate").taskId("deleted-task")
+                .oldRunEpoch(1L).evidenceRef("ev-stale-1").build();
+        doThrow(new RuntimeException("STALE_RUN_EPOCH: No protected throttle run"))
+                .when(mockOp).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_STOP_EVIDENCE), eq(Object.class));
+        registry.requeueStopEvidence(staleEv);
+        client.flushPendingStopEvidences();
+        assertTrue(registry.drainPendingStopEvidences().isEmpty());
+
+        TaskThrottleStopEvidenceDto flakyEv = TaskThrottleStopEvidenceDto.builder()
+                .tenantId("t1").taskKind("migrate").taskId("flaky-task")
+                .oldRunEpoch(2L).evidenceRef("ev-flaky-1").build();
+        doThrow(new RuntimeException("connection reset"))
+                .when(mockOp).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_STOP_EVIDENCE), eq(Object.class));
+        for (int i = 1; i < AgentThrottleSyncClient.MAX_STOP_EVIDENCE_RETRIES; i++) {
+            assertFalse(client.reportStopEvidence(flakyEv));
+            assertEquals(1, registry.drainPendingStopEvidences().size());
+        }
+        assertFalse(client.reportStopEvidence(flakyEv));
+        assertTrue(registry.drainPendingStopEvidences().isEmpty());
+    }
 }

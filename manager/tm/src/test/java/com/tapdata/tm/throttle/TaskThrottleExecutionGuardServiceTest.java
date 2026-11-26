@@ -235,6 +235,41 @@ class TaskThrottleExecutionGuardServiceTest {
                 org.mockito.ArgumentMatchers.eq(1L));
     }
 
+    @Test
+    void agentUploadStopEvidenceIgnoresStaleOrDeletedTaskIdempotentlyWithoutFailingManualStrictness() {
+        String missingTaskId = new ObjectId().toHexString();
+        var missingRes = agentController.uploadStopEvidence(TaskThrottleStopEvidenceDto.builder()
+                .taskId(missingTaskId)
+                .oldAgentId("agent-a")
+                .oldRunEpoch(1L)
+                .evidenceRef("deleted-task-stop")
+                .writeSettled(true)
+                .build());
+        assertNotNull(missingRes);
+        assertNull(missingRes.getData());
+
+        // Stale epoch against an existing policy is also acknowledged idempotently by agent endpoint
+        registerCompatibleAgent("agent-a");
+        policyService.updatePolicy("migrate", taskId, TaskThrottlePolicyUpdateRequest.builder()
+                .expectedVersion(0L)
+                .phases(Map.of(ThrottlePhase.CDC, ThrottlePhaseLimit.builder().enabled(true).eventsPerSec(100L).build()))
+                .build(), mock(UserDetail.class));
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(taskOid);
+        taskDto.setSyncType("migrate");
+        assertEquals(1L, guardService.authorizeStartOrTakeover(taskDto, "agent-a").runEpoch());
+
+        var staleRes = agentController.uploadStopEvidence(TaskThrottleStopEvidenceDto.builder()
+                .taskId(taskId)
+                .oldAgentId("agent-a")
+                .oldRunEpoch(99L)
+                .evidenceRef("stale-agent-stop")
+                .writeSettled(true)
+                .build());
+        assertNotNull(staleRes);
+        assertNull(staleRes.getData());
+    }
+
     private void registerCompatibleAgent(String agentId) {
         guardService.registerCapabilities(AgentThrottleCapabilities.builder()
                 .agentId(agentId)

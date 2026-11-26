@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.throttle.AgentThrottleDeltaResponse;
 import com.tapdata.tm.commons.throttle.TaskThrottleApplyReceipt;
 import com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto;
 import com.tapdata.tm.commons.throttle.TaskThrottleTelemetrySample;
+import com.tapdata.tm.commons.throttle.ThrottleConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Control-plane synchronization client between Agent {@link TaskThrottleRuntimeRegistry} and TM:
@@ -36,6 +39,7 @@ public class AgentThrottleSyncClient {
     public static final String RESOURCE_TELEMETRY = "agent-throttle/telemetry";
     public static final String RESOURCE_STOP_EVIDENCE = "agent-throttle/stop-evidence";
     public static final long CAPABILITY_REFRESH_INTERVAL_MS = 60_000L;
+    public static final int MAX_STOP_EVIDENCE_RETRIES = 5;
     private static final String UNKNOWN_AGENT_ID = "unknown-agent";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -46,6 +50,7 @@ public class AgentThrottleSyncClient {
     private ClientMongoOperator clientMongoOperator;
     @Autowired(required = false)
     private TaskThrottleRuntimeRegistry registry = TaskThrottleRuntimeRegistry.getInstance();
+    private final ConcurrentHashMap<String, AtomicInteger> stopEvidenceFailures = new ConcurrentHashMap<>();
     private volatile long lastCapabilityRegisteredAtMs = 0L;
 
     public AgentThrottleSyncClient() {
@@ -173,16 +178,48 @@ public class AgentThrottleSyncClient {
             registry.requeueStopEvidence(evidence);
             return false;
         }
+        String key = stopEvidenceKey(evidence);
         try {
             Map<String, Object> payload = OBJECT_MAPPER.convertValue(evidence, MAP_TYPE);
             clientMongoOperator.postOne(payload, RESOURCE_STOP_EVIDENCE, Object.class);
+            stopEvidenceFailures.remove(key);
             registry.removeStopEvidence(evidence);
             return true;
         } catch (Exception e) {
-            logger.warn("Report throttle stop evidence failed for task {}: {}", evidence.getTaskId(), e.getMessage());
+            int failures = stopEvidenceFailures.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
+            if (isNonRetryableStopEvidenceError(e) || failures >= MAX_STOP_EVIDENCE_RETRIES) {
+                logger.warn("Dropping unrecoverable throttle stop evidence for task {} (failures={}): {}",
+                        evidence.getTaskId(), failures, e.getMessage());
+                stopEvidenceFailures.remove(key);
+                registry.removeStopEvidence(evidence);
+                return false;
+            }
+            logger.warn("Report throttle stop evidence failed for task {} (attempt {}): {}",
+                    evidence.getTaskId(), failures, e.getMessage());
             registry.requeueStopEvidence(evidence);
             return false;
         }
+    }
+
+    private static String stopEvidenceKey(TaskThrottleStopEvidenceDto evidence) {
+        String ref = evidence.getEvidenceRef();
+        if (ref != null && !ref.isBlank()) {
+            return ref;
+        }
+        return String.valueOf(evidence.getTaskId()) + ":" + evidence.getOldRunEpoch();
+    }
+
+    private static boolean isNonRetryableStopEvidenceError(Throwable error) {
+        Throwable cur = error;
+        for (int depth = 0; cur != null && depth < 8; depth++, cur = cur.getCause()) {
+            String msg = cur.getMessage();
+            if (msg != null && (msg.contains(ThrottleConstants.ERR_STALE_RUN_EPOCH)
+                    || msg.contains(ThrottleConstants.ERR_STOP_EVIDENCE_REQUIRED)
+                    || msg.contains("No protected throttle run"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void flushPendingStopEvidences() {

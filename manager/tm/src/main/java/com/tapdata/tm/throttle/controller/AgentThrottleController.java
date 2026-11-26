@@ -5,15 +5,19 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.throttle.AgentThrottleCapabilities;
 import com.tapdata.tm.commons.throttle.AgentThrottleDeltaResponse;
 import com.tapdata.tm.commons.throttle.TaskThrottleApplyReceipt;
 import com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto;
 import com.tapdata.tm.commons.throttle.TaskThrottleTelemetrySample;
+import com.tapdata.tm.commons.throttle.ThrottleConstants;
 import com.tapdata.tm.throttle.entity.AgentThrottleCapabilityEntity;
 import com.tapdata.tm.throttle.entity.TaskThrottleStopEvidenceEntity;
 import com.tapdata.tm.throttle.service.TaskThrottleExecutionGuardService;
 import com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +33,7 @@ import java.util.Map;
 @RequestMapping({"/api/agent-throttle", "/agent-throttle"})
 public class AgentThrottleController extends BaseController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AgentThrottleController.class);
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final TypeReference<List<TaskThrottleApplyReceipt>> RECEIPT_LIST_TYPE = new TypeReference<>() {
@@ -89,10 +94,24 @@ public class AgentThrottleController extends BaseController {
     @PostMapping("/stop-evidence")
     public ResponseMessage<TaskThrottleStopEvidenceEntity> uploadStopEvidence(
             @RequestBody TaskThrottleStopEvidenceDto dto) {
-        TaskThrottleStopEvidenceEntity saved = guardService.submitStopEvidence(dto, false);
+        try {
+            TaskThrottleStopEvidenceEntity saved = guardService.submitStopEvidence(dto, false);
+            clearTaskLiveStatus(dto);
+            return success(saved);
+        } catch (BizException ex) {
+            if (ThrottleConstants.ERR_STALE_RUN_EPOCH.equals(ex.getErrorCode())) {
+                logger.info("Ignoring stale or deleted-task stop evidence from agent {}: {}",
+                        dto == null ? null : dto.getOldAgentId(), ex.getMessage());
+                clearTaskLiveStatus(dto);
+                return success(null);
+            }
+            throw ex;
+        }
+    }
+
+    private void clearTaskLiveStatus(TaskThrottleStopEvidenceDto dto) {
         if (dto != null && dto.getTaskId() != null) {
             telemetryService.clearLiveStatus(dto.getTaskId());
         }
-        return success(saved);
     }
 }
