@@ -2,6 +2,7 @@ package com.tapdata.tm.init;
 
 import lombok.NonNull;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,6 +44,23 @@ public class PatchVersion implements Comparable<PatchVersion> {
             v = seq - o.seq;
         }
         return v;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof PatchVersion)) {
+            return false;
+        }
+        PatchVersion that = (PatchVersion) o;
+        return v1 == that.v1 && v2 == that.v2 && seq == that.seq;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(v1, v2, seq);
     }
 
     @Override

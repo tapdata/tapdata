@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 
 /**
  * Version of the tapdata
@@ -23,5 +25,11 @@ public class VersionDto extends BaseDto {
 
     private String type;
     private String version;
+    private List<String> executedPatches;
+
+    public VersionDto(String type, String version) {
+        this.type = type;
+        this.version = version;
+    }
 
 }

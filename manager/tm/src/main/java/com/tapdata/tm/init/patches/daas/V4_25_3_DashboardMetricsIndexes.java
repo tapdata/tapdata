@@ -22,8 +22,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Adds the dashboard measurement and API node trend indexes.
+ * <p>Originally declared as {@code 4.25-3}, deferred to {@code 4.25-5} under TAP-13351 to resolve
+ * the version collision with {@link V4_25_3_AuditAndRecovery}. The class name is kept for
+ * compilation compatibility across separated business and IT commits.</p>
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.25-3")
+@PatchAnnotation(appType = AppType.DAAS, version = "4.25-5")
 public class V4_25_3_DashboardMetricsIndexes extends AbsPatch {
     private static final Logger log = LoggerFactory.getLogger(V4_25_3_DashboardMetricsIndexes.class);
     static final String API_METRICS_NODE_TREND_INDEX = "api_metrics_node_trend";

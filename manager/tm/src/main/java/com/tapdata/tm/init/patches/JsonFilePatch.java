@@ -47,6 +47,11 @@ public class JsonFilePatch extends AbsPatch {
     }
 
     @Override
+    public String patchId() {
+        return "script:" + fileName;
+    }
+
+    @Override
     public void run() {
         logger.info("Execute json patch: {}...", fileName);
         try {
