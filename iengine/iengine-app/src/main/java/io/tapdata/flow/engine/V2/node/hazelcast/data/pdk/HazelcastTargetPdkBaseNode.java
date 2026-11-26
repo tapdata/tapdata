@@ -84,6 +84,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Tap
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.TaskAnalyze;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -1181,8 +1182,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (initialConcurrent && null != this.initialPartitionConcurrentProcessor && this.initialPartitionConcurrentProcessor.isRunning()) {
                 this.initialPartitionConcurrentProcessor.process(initialEvents, async);
             } else {
-                this.handleTapdataEvents(initialEvents);
+                splitCompleteTableSnapshotEvent2NewBatch(initialEvents, this::handleTapdataEvents);
             }
+        }
+    }
+
+    protected void splitCompleteTableSnapshotEvent2NewBatch(List<TapdataEvent> initialEvents,
+                                                              Consumer<List<TapdataEvent>> subListConsumer) {
+        int beginIndex = 0;
+        int len = initialEvents.size();
+        for (int i = 0; i < len; i++) {
+            if (initialEvents.get(i) instanceof TapdataCompleteTableSnapshotEvent) {
+                if (beginIndex < i) {
+                    subListConsumer.accept(initialEvents.subList(beginIndex, i));
+                }
+                subListConsumer.accept(Collections.singletonList(initialEvents.get(i)));
+                beginIndex = i + 1;
+            }
+        }
+
+        if (beginIndex < len) {
+            subListConsumer.accept(initialEvents.subList(beginIndex, len));
         }
     }
 
@@ -1876,6 +1896,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == tapdataEvent) return;
         Node<?> node = processorBaseContext.getNode();
         if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
+        if (offsetCallbackEnable && tapdataEvent.isDML() && tapdataEvent.getSyncStage() == SyncStage.CDC
+                && tapdataEvent.getSourceTime() != null
+                && tapdataEvent.getStreamOffset() instanceof ShareCDCOffset offset && offset.isOrderedDelivery()) {
+            // This runs after target intake, or after the concurrent writer watermark crosses all partitions.
+            tapdataEvent = TapdataHeartbeatEvent.create(tapdataEvent.getSourceTime(), offset, tapdataEvent.getNodeIds());
+        }
         String progressKey = tapdataEvent.getNodeIds().get(0) + "," + node.getId();
         SyncProgress syncProgress = this.syncProgressMap.computeIfAbsent(progressKey, k -> new SyncProgress());
         if (tapdataEvent instanceof TapdataStartingCdcEvent) {
@@ -1919,8 +1945,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
 		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
-			if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
-				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+			if (null != tapdataEvent.getBatchOffset()) {
+				Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+				Map<String, Object> batchOffsetMap;
+				if (batchOffsetObj instanceof Map) {
+					batchOffsetMap = (Map<String, Object>) batchOffsetObj;
+				} else {
+					batchOffsetMap = new ConcurrentHashMap<>();
+					syncProgress.setBatchOffsetObj(batchOffsetMap);
+				}
+				batchOffsetMap.put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+				flushOffset.set(true);
 			}
 		} else {
 			if (!offsetCallbackEnable) {
