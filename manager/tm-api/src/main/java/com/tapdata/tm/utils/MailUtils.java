@@ -550,6 +550,9 @@ public class MailUtils {
     }
 
     protected static String assemblyMessageBody(String message) {
+        if (isCompleteHtmlEmail(message)) {
+            return wrapHtmlDocument(message);
+        }
         //is cloud env
         boolean isCloud = productList != null && productList.contains("dfs");
         String cloud = "";
@@ -587,6 +590,37 @@ public class MailUtils {
                     "</html>";
         }
 
+    }
+
+    /**
+     * Card templates (class=email-content-root) and full HTML documents must not be wrapped in
+     * the generic "Hello there" shell, otherwise the layout is nested twice.
+     */
+    static boolean isCompleteHtmlEmail(String message) {
+        if (StringUtils.isBlank(message)) {
+            return false;
+        }
+        String trimmed = message.trim();
+        return trimmed.contains("email-content-root")
+                || StringUtils.startsWithIgnoreCase(trimmed, "<!DOCTYPE")
+                || StringUtils.startsWithIgnoreCase(trimmed, "<html");
+    }
+
+    static String wrapHtmlDocument(String message) {
+        String trimmed = message.trim();
+        if (StringUtils.containsIgnoreCase(trimmed, "<html")
+                || StringUtils.startsWithIgnoreCase(trimmed, "<!DOCTYPE")) {
+            return message;
+        }
+        return "<!DOCTYPE html>\n" +
+                "<html>\n" +
+                "<head>\n" +
+                "<meta charset=\"utf-8\" />\n" +
+                "</head>\n" +
+                "<body>\n" +
+                message +
+                "\n</body>\n" +
+                "</html>";
     }
 
     protected List<String> checkNotInBlacklistAddress(List<String> toList,SendStatus sendStatus){

@@ -14,7 +14,8 @@ public enum AlarmTypeEnum {
     ACCURATE_DELAY_ALARM("TASK","精准延迟告警"),
 	INSPECT_ALARM("TASK","校验任务出错"),
     API_SERVER_ALARM("API_SERVER","API Server Alarm"),
-    DATASOURCE_MONITOR_ALARM("CONNECTION", "Datasource Monitor Alarm");
+    DATASOURCE_MONITOR_ALARM("CONNECTION", "Datasource Monitor Alarm"),
+    WORKFLOW_ALARM("WORKFLOW", "工作流告警");
 
 
     private final String type;
