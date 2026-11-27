@@ -16,6 +16,9 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.ThrottlePhase;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import com.tapdata.tm.commons.util.ErrorUtil;
 import com.tapdata.tm.skiperrortable.vo.SkipErrorTableReportVo;
 import io.tapdata.ErrorCodeConfig;
@@ -1185,17 +1188,68 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														return null;
 													}));
 											if (pdkMethodInvoker == null || !pdkMethodInvoker.isEnableSkipErrorEvent()) {
+												TaskThrottleRuntime throttleRuntime = null;
+												String throttleTargetNodeId = "";
+												ThrottlePhase throttlePhase = null;
 												try {
-													writeRecordWithPolicyControl(
-															currentWritePolicyService,
-															connectorNode,
-															tapTable.getId(),
-															tapRecordEvents,
-															writeRecords -> {
-																writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
-																return null;
-															}
-													);
+													TaskDto taskDto = dataProcessorContext != null ? dataProcessorContext.getTaskDto() : null;
+													String throttleTaskId = (taskDto != null && taskDto.getId() != null) ? taskDto.getId().toHexString() : null;
+													throttleRuntime = throttleTaskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(throttleTaskId);
+													if (throttleRuntime == null) {
+														writeRecordWithPolicyControl(
+																currentWritePolicyService,
+																connectorNode,
+																tapTable.getId(),
+																tapRecordEvents,
+																writeRecords -> {
+																	writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+																	return null;
+																}
+														);
+													} else {
+														Object stageObj = firstEvent.getInfo(TapRecordEvent.INFO_KEY_SYNC_STAGE);
+														throttlePhase = "CDC".equalsIgnoreCase(String.valueOf(stageObj))
+																? ThrottlePhase.CDC
+																: (isInCdc() ? ThrottlePhase.CDC : ThrottlePhase.FULL);
+														throttleTargetNodeId = getNode() != null ? getNode().getId() : "";
+														String targetEndpointId = (dataProcessorContext != null && dataProcessorContext.getConnections() != null
+																&& dataProcessorContext.getConnections().getId() != null)
+																? String.valueOf(dataProcessorContext.getConnections().getId()) : throttleTargetNodeId;
+														throttleRuntime.executeTargetWriteChunked(
+																throttleTargetNodeId,
+																targetEndpointId,
+																throttlePhase,
+																tapRecordEvents,
+																e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : tapTable.getId(),
+																!isRetry,
+																() -> !isRunning(),
+																chunk -> {
+																	try {
+																		writeRecordWithPolicyControl(
+																				currentWritePolicyService,
+																				connectorNode,
+																				tapTable.getId(),
+																				chunk,
+																				writeRecords -> {
+																					writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), writeRecords, tapTable, resultConsumer);
+																					return null;
+																				}
+																		);
+																	} catch (Throwable t) {
+																		if (t instanceof Exception ex) {
+																			throw ex;
+																		}
+																		throw new RuntimeException(t);
+																	}
+																}
+														);
+													}
+												} catch (TaskThrottleRuntime.ThrottleRunFencedException fencedEx) {
+													if (pdkMethodInvoker != null) {
+														pdkMethodInvoker.cancelRetry();
+													}
+													errorHandle(fencedEx, fencedEx.getMessage());
+													throw fencedEx;
 												} catch (Exception e) {
                                                     if (skipErrorTable.skipTable(tapTable.getAncestorsName(), e, () -> SkipErrorTableReportVo.create()
                                                         .sourceTableName(tapTable.getAncestorsName())
@@ -1215,7 +1269,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
                                                                 return errorCodeEntity.fullErrorCode();
                                                             }).orElse(null))
                                                         .errorMessage(ErrorUtil.getStackString(e)))
-                                                    ) return;
+                                                    ) {
+                                                        if (throttleRuntime != null) {
+                                                            throttleRuntime.clearTargetWaiting(throttleTargetNodeId, throttlePhase);
+                                                        }
+                                                        return;
+                                                    }
 
 													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 													if (null != matched) {

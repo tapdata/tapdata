@@ -149,6 +149,22 @@ public final class MetricCons {
             public static final String F_CPU_USAGE = "cpuUsage";
             public static final String F_MEMORY_USAGE = "memoryUsage";
 
+            // continuous metering & throttling telemetry
+            public static final String F_ESTIMATED_INPUT_BYTES_RATE = "estimatedInputBytesRate";
+            public static final String F_ESTIMATED_OUTPUT_BYTES_RATE = "estimatedOutputBytesRate";
+            public static final String F_THROTTLE_APPLIED_VERSION = "throttleAppliedVersion";
+            public static final String F_SAMPLE_CONFIG_VERSION = "sampleConfigVersion";
+            public static final String F_CDC_SAMPLE_INTERVAL_SEC = "cdcSampleRefreshIntervalSeconds";
+            public static final String F_THROTTLE_RUN_EPOCH = "throttleRunEpoch";
+            public static final String F_THROTTLE_SAMPLE_SEQ = "throttleSampleSeq";
+            public static final String F_THROTTLE_WAIT_REASON_CODE = "throttleWaitReasonCode";
+            public static final String F_THROTTLE_WAITING_DIM_MASK = "throttleWaitingDimMask";
+            public static final String F_THROTTLE_BUFFER_WATERMARK = "throttleBufferWatermark";
+            public static final String F_THROTTLE_SAMPLE_QUALITY_CODE = "throttleSampleQualityCode";
+            public static final String F_THROTTLE_LOG_POSITION_STATUS_CODE = "throttleLogPositionStatusCode";
+            public static final String F_CANCELLED_AFTER_DEBIT_EVENTS = "cancelledAfterDebitEvents";
+            public static final String F_CANCELLED_ESTIMATED_BYTES = "cancelledEstimatedBytes";
+
             public static String path(String field) {
                 return F_SAMPLES + "." + F_VS + "." + field;
             }

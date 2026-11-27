@@ -21,6 +21,7 @@ public class ShareCdcContext implements Serializable {
 	private ConfigurationCenter configurationCenter;
 
 	private TapLogger obsLogger;
+	private transient ShareCdcRetentionListener retentionListener;
 
 	public ShareCdcContext(Long cdcStartTs, ConfigurationCenter configurationCenter) {
 		if (null == cdcStartTs || cdcStartTs.compareTo(0L) < 0) {
@@ -45,5 +46,13 @@ public class ShareCdcContext implements Serializable {
 
 	public void setObsLogger(TapLogger obsLogger) {
 		this.obsLogger = obsLogger;
+	}
+
+	public ShareCdcRetentionListener getRetentionListener() {
+		return retentionListener;
+	}
+
+	public void setRetentionListener(ShareCdcRetentionListener retentionListener) {
+		this.retentionListener = retentionListener;
 	}
 }

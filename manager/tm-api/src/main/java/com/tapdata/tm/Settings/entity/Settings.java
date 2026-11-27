@@ -40,5 +40,6 @@ public class Settings {
     private Integer min;
     private Integer max;
     private Boolean open;
+    private Long throttle_config_version;
 
 }

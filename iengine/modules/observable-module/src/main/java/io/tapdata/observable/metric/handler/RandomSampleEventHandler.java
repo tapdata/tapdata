@@ -14,41 +14,31 @@ import java.util.stream.Collectors;
 public class RandomSampleEventHandler {
     protected final double sampleRate;
 
-    long totalSize;
     public RandomSampleEventHandler(double sampleRate) {
         if (sampleRate <= 0 || sampleRate > 1) sampleRate = 1;
         this.sampleRate = sampleRate;
     }
 
     public void sampleMemoryTapEvent(HandlerUtil.EventTypeRecorder recorder, List<?> events, HandleEvent handle) {
-        if (null == events || events.isEmpty()) return;
-        List<Object> samples = Collections.singletonList(events.get(0));
-        totalSize = events.size();
+        if (null == recorder || null == events || events.isEmpty()) return;
+        final long batchSize = events.size();
         long sizeOfSampleListByte = 0L;
-        for (Object item : samples) {
-            TapEvent tapEvent = handle.handel(item);
-            if (null == tapEvent) {
-                continue;
-            }
-            if (null != tapEvent.getMemorySize()) {
-                sizeOfSampleListByte += tapEvent.getMemorySize();
+        TapEvent firstEvent = handle.handel(events.get(0));
+        if (null != firstEvent) {
+            if (null != firstEvent.getMemorySize()) {
+                sizeOfSampleListByte = firstEvent.getMemorySize();
             } else {
-                sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
+                sizeOfSampleListByte = sizeOfTapEvent(firstEvent);
             }
         }
-        unitConversion(recorder, sizeOfSampleListByte);
+        unitConversion(recorder, sizeOfSampleListByte, batchSize);
     }
 
     public long sampleMemoryTapEvent(List<?> events, HandleEvent handle) {
-        if (null == events) return 0L;
-        List<Object> samples = Collections.singletonList(events.get(0));
-        totalSize = events.size();
-		long sizeOfSampleByte = 0L;
-        for (Object item : samples) {
-            TapEvent tapEvent = handle.handel(item);
-            sizeOfSampleByte += sizeOfTapEvent(tapEvent);
-        }
-        return sizeOfSampleByte;
+        if (null == events || events.isEmpty()) return 0L;
+        TapEvent firstEvent = handle.handel(events.get(0));
+        if (null == firstEvent) return 0L;
+        return sizeOfTapEvent(firstEvent);
     }
 
     protected long sizeOfTapEvent(TapEvent tapEvent) {
@@ -71,31 +61,31 @@ public class RandomSampleEventHandler {
         if (CollectionUtils.isEmpty(events)) {
             return randomSampleList;
         }
-        //if (sampleRate <= 0 || sampleRate >= 1) return (List<Object>)events;
         List<Object> copyList = new ArrayList<>();
         copyList.addAll(events);
         int size = copyList.size();
         int sampleSize = (int)(Math.random() * size);
         randomSampleList.add(events.get(sampleSize));
-        setTotalSize(size);
         return randomSampleList;
     }
 
-    protected void unitConversion(HandlerUtil.EventTypeRecorder recorder, long sizeOfSampleListByte) {
-        long size = sizeOfSampleListByte * getTotalSize();
+    protected void unitConversion(HandlerUtil.EventTypeRecorder recorder, long sizeOfSampleListByte, long batchSize) {
+        if (null == recorder) {
+            return;
+        }
+        final long size;
+        if (sizeOfSampleListByte <= 0L || batchSize <= 0L) {
+            size = 0L;
+        } else if (sizeOfSampleListByte > Long.MAX_VALUE / batchSize) {
+            size = Long.MAX_VALUE;
+        } else {
+            size = sizeOfSampleListByte * batchSize;
+        }
         recorder.setMemorySize(size / 4);
         recorder.setMemoryUtil("B");
     }
 
     public interface HandleEvent {
         TapEvent handel(Object eventObject);
-    }
-
-    public long getTotalSize() {
-        return totalSize;
-    }
-
-    public void setTotalSize(long totalSize) {
-        this.totalSize = totalSize;
     }
 }

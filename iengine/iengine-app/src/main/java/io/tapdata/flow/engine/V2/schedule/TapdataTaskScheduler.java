@@ -12,7 +12,21 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.throttle.TaskThrottlePolicyDto;
+import com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto;
+import io.tapdata.flow.engine.V2.throttle.AgentThrottleSyncClient;
+import io.tapdata.flow.engine.V2.throttle.TaskRunKey;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.commons.task.heartbeat.HeartbeatRecoveryProtocol;
@@ -99,6 +113,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private SettingService settingService;
 	@Autowired
 	private TaskService<TaskDto> hazelcastTaskService;
+	@Autowired(required = false)
+	private AgentThrottleSyncClient agentThrottleSyncClient;
 	@Autowired
 	private MessageDao messageDao;
 	@Qualifier("taskControlScheduler")
@@ -170,6 +186,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@PostConstruct
 	public void init() {
 		instanceNo = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
+		TaskThrottleRuntimeRegistry.getInstance().setAgentId(instanceNo);
+		if (agentThrottleSyncClient != null) {
+			agentThrottleSyncClient.ensureCapabilitiesRegistered(true);
+		}
 		logger.info("[Task scheduler] instance no: {}", instanceNo);
 
 		TmStatusService.registeredTmAvailableHandler(() -> {
@@ -179,6 +199,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			 * 2、上报任务已停止/错误的状态信息
 			 */
 			try {
+				if (agentThrottleSyncClient != null) {
+					agentThrottleSyncClient.ensureCapabilitiesRegistered(true);
+				}
 				scanAndInternalStopRescheduledTasks();
 			} catch (Exception e) {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
@@ -643,6 +666,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		boolean permitAcquired = false;
+		boolean hazelcastStarted = false;
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
@@ -661,8 +685,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			permitAcquired = true;
 
 			// 使用 computeIfAbsent 防止创建重复的 TaskClient
-			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
+			taskClientMap.computeIfAbsent(taskId, id -> {
+				openThrottleRuntimeIfConfigured(taskDto);
+				return hazelcastTaskService.startTask(taskDto);
+			});
+			hazelcastStarted = true;
 		} catch (Throwable e) {
+			reportStartFailureThrottleStopEvidence(taskDto, !hazelcastStarted, "Start task failed: " + e.getMessage());
 			if (TmUnavailableException.isInstance(e)) {
 				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
 			} else {
@@ -861,6 +890,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 						continue;
 					}
 					clearTaskRetryCache(taskId);
+					closeThrottleRuntimeOnStop(taskClient.getTask(), true, "Task internally stopped");
 					ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskClient.getTask());
 					iterator.remove();
 				}
@@ -1146,7 +1176,186 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
+			closeThrottleRuntimeOnStop(taskDtoTaskClient.getTask(), true, "Task stopped cleanly: " + stopped);
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDtoTaskClient.getTask());
+		}
+	}
+
+	public static String resolveThrottleTenantId(TaskDto taskDto, TaskThrottlePolicyDto policyDto) {
+		if (policyDto != null && policyDto.getTenantId() != null && !policyDto.getTenantId().isBlank()) {
+			return policyDto.getTenantId().trim();
+		}
+		if (taskDto != null && taskDto.getCustomId() != null && !taskDto.getCustomId().isBlank()) {
+			return taskDto.getCustomId().trim();
+		}
+		if (taskDto != null && taskDto.getUserId() != null && !taskDto.getUserId().isBlank()) {
+			return taskDto.getUserId().trim();
+		}
+		return "";
+	}
+
+	private void openThrottleRuntimeIfConfigured(TaskDto taskDto) {
+		if (taskDto == null || taskDto.getId() == null) {
+			return;
+		}
+		String taskId = taskDto.getId().toHexString();
+		String taskKind = taskDto.getSyncType();
+		Map<String, Object> attrs = taskDto.getAttrs();
+		TaskThrottlePolicyDto policyDto = null;
+		if (attrs != null) {
+			Object policyObj = attrs.get("throttlePolicy");
+			if (policyObj instanceof TaskThrottlePolicyDto dto) {
+				policyDto = dto;
+			} else if (policyObj instanceof Map<?, ?> policyMap) {
+				try {
+					com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+							.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+					policyDto = mapper.convertValue(policyMap, TaskThrottlePolicyDto.class);
+				} catch (Exception e) {
+					logger.warn("Parse throttlePolicy from task attrs failed for task {}: {}", taskDto.getId(), e.getMessage());
+				}
+			}
+		}
+		String tenantId = resolveThrottleTenantId(taskDto, policyDto);
+		Map<String, Set<String>> topology = extractSourceToTargetTopology(taskDto);
+		TaskThrottleRuntimeRegistry.getInstance().registerRunningTask(taskId, tenantId, taskKind, topology);
+		if (attrs == null || (!attrs.containsKey("throttlePolicy") && !attrs.containsKey("throttleRunEpoch") && !attrs.containsKey("throttleProtected"))) {
+			return;
+		}
+		long runEpoch = 1L;
+		Object epochObj = attrs.get("throttleRunEpoch");
+		if (epochObj instanceof Number num && num.longValue() >= 0L) {
+			runEpoch = num.longValue();
+		}
+		boolean protectedRun = Boolean.TRUE.equals(attrs.get("throttleProtected"));
+		TaskRunKey runKey = new TaskRunKey(tenantId, taskKind, taskId, runEpoch);
+		TaskThrottleRuntime runtime = TaskThrottleRuntimeRegistry.getInstance().openRuntime(runKey, policyDto, protectedRun || policyDto != null);
+		if (runtime != null && !topology.isEmpty()) {
+			runtime.registerTopology(topology);
+		}
+	}
+
+	public static Map<String, Set<String>> extractSourceToTargetTopology(TaskDto taskDto) {
+		if (taskDto == null || taskDto.getDag() == null) {
+			return Collections.emptyMap();
+		}
+		DAG dag = taskDto.getDag();
+		List<Node> sources = dag.getSourceNodes();
+		List<Node> targets = dag.getTargetNodes();
+		if (CollectionUtils.isEmpty(sources) || CollectionUtils.isEmpty(targets)) {
+			return Collections.emptyMap();
+		}
+		Set<String> targetIds = new HashSet<>();
+		for (Node t : targets) {
+			if (t != null && t.getId() != null && !t.getId().isBlank()) {
+				targetIds.add(t.getId());
+			}
+		}
+		if (targetIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		Map<String, Set<String>> adj = new HashMap<>();
+		List<Edge> edges = dag.getEdges();
+		if (CollectionUtils.isNotEmpty(edges)) {
+			for (Edge edge : edges) {
+				if (edge != null && edge.getSource() != null && edge.getTarget() != null) {
+					adj.computeIfAbsent(edge.getSource(), k -> new HashSet<>()).add(edge.getTarget());
+				}
+			}
+		}
+		Map<String, Set<String>> topology = new HashMap<>();
+		for (Node src : sources) {
+			if (src == null || src.getId() == null || src.getId().isBlank()) {
+				continue;
+			}
+			Set<String> visited = new HashSet<>();
+			Set<String> reachableTargets = new HashSet<>();
+			ArrayDeque<String> queue = new ArrayDeque<>();
+			queue.add(src.getId());
+			visited.add(src.getId());
+			while (!queue.isEmpty()) {
+				String cur = queue.poll();
+				if (targetIds.contains(cur) && !cur.equals(src.getId())) {
+					reachableTargets.add(cur);
+				}
+				for (String next : adj.getOrDefault(cur, Collections.emptySet())) {
+					if (visited.add(next)) {
+						queue.add(next);
+					}
+				}
+			}
+			if (!reachableTargets.isEmpty()) {
+				topology.put(src.getId(), Collections.unmodifiableSet(reachableTargets));
+			}
+		}
+		return Collections.unmodifiableMap(topology);
+	}
+
+	private void reportStartFailureThrottleStopEvidence(TaskDto taskDto, boolean neverExecutedWrites, String note) {
+		if (taskDto == null || taskDto.getId() == null) {
+			return;
+		}
+		String taskId = taskDto.getId().toHexString();
+		TaskThrottleRuntimeRegistry registry = TaskThrottleRuntimeRegistry.getInstance();
+		if (registry.getActive(taskId) != null) {
+			closeThrottleRuntimeOnStop(taskDto, neverExecutedWrites, note);
+			return;
+		}
+		registry.unregisterRunningTask(taskId);
+		if (!neverExecutedWrites || agentThrottleSyncClient == null) {
+			return;
+		}
+		Map<String, Object> attrs = taskDto.getAttrs();
+		if (attrs == null || !Boolean.TRUE.equals(attrs.get("throttleProtected"))) {
+			return;
+		}
+		Object epochObj = attrs.get("throttleRunEpoch");
+		long runEpoch = (epochObj instanceof Number num) ? num.longValue() : 0L;
+		if (runEpoch <= 0L) {
+			return;
+		}
+		String currentAgentId = registry.getAgentId();
+		if (currentAgentId == null || currentAgentId.isBlank() || "unknown-agent".equals(currentAgentId)) {
+			currentAgentId = taskDto.getAgentId();
+		}
+		if (currentAgentId == null || currentAgentId.isBlank()) {
+			return;
+		}
+		long now = System.currentTimeMillis();
+		TaskThrottleStopEvidenceDto evidence = TaskThrottleStopEvidenceDto.builder()
+				.tenantId(resolveThrottleTenantId(taskDto, null))
+				.taskKind(taskDto.getSyncType())
+				.taskId(taskId)
+				.oldAgentId(currentAgentId)
+				.oldRunEpoch(runEpoch)
+				.source(TaskThrottleStopEvidenceDto.SOURCE_AGENT_GRACEFUL_STOP)
+				.evidenceRef(taskId + ":" + runEpoch + "#start-abort-" + now)
+				.observedAt(now)
+				.submittedBy("agent:" + currentAgentId)
+				.processExited(false)
+				.writeSettled(true)
+				.note(note == null ? "Task failed before starting execution" : note)
+				.build();
+		try {
+			agentThrottleSyncClient.reportStopEvidence(evidence);
+		} catch (Exception e) {
+			logger.warn("Report start-failure stop evidence failed for task {}: {}", taskId, e.getMessage());
+		}
+	}
+
+	private void closeThrottleRuntimeOnStop(TaskDto taskDto, boolean writesSettled, String note) {
+		if (taskDto == null || taskDto.getId() == null) {
+			return;
+		}
+		String taskId = taskDto.getId().toHexString();
+		TaskThrottleRuntimeRegistry.getInstance().unregisterRunningTask(taskId);
+		TaskThrottleStopEvidenceDto evidence = TaskThrottleRuntimeRegistry.getInstance().closeRuntime(taskId, writesSettled, note);
+		if (evidence != null && agentThrottleSyncClient != null) {
+			try {
+				agentThrottleSyncClient.reportStopEvidence(evidence);
+			} catch (Exception e) {
+				logger.warn("Report throttle stop evidence failed for task {}: {}", taskId, e.getMessage());
+			}
 		}
 	}
 

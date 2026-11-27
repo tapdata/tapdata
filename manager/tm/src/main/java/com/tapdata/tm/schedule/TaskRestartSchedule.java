@@ -18,6 +18,7 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
+import com.tapdata.tm.throttle.service.TaskThrottleExecutionGuardService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
@@ -65,6 +66,13 @@ public class TaskRestartSchedule {
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
     private MetadataDefinitionService metadataDefinitionService;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private TaskThrottleExecutionGuardService taskThrottleExecutionGuardService;
+
+    public void setTaskThrottleExecutionGuardService(TaskThrottleExecutionGuardService taskThrottleExecutionGuardService) {
+        this.taskThrottleExecutionGuardService = taskThrottleExecutionGuardService;
+    }
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -131,6 +139,10 @@ public class TaskRestartSchedule {
                     || HeartbeatWatchdog.pending(
                     HeartbeatWatchdog.attr(taskDto, HeartbeatWatchdog.RECOVERY)))) {
                 logSkipReschedule("engineRestartNeedStartTask", taskDto, "heartbeat_recovery_requires_stop_confirmation");
+                continue;
+            }
+            if (taskThrottleExecutionGuardService != null && taskThrottleExecutionGuardService.shouldBlockTimeoutReschedule(taskDto)) {
+                logSkipReschedule("engineRestartNeedStartTask", taskDto, "throttle_protected_requires_stop_evidence");
                 continue;
             }
             UserDetail user = userDetailMap.get(taskDto.getUserId());
@@ -491,6 +503,10 @@ public class TaskRestartSchedule {
             );
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
+                if (taskThrottleExecutionGuardService != null) {
+                    taskThrottleExecutionGuardService.releaseUnstartedEpochIfPresent(
+                            taskDto, "WAIT_RUN timeout before engine start");
+                }
                 try {
                     asyncTaskWarnLog(taskDto, user, "In the process of rescheduling tasks, the scheduling engine is {0}."
                         , agentId

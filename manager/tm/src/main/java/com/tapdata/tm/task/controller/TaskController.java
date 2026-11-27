@@ -55,6 +55,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
+import com.tapdata.tm.throttle.service.TaskThrottleExecutionGuardService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -113,6 +114,17 @@ public class TaskController extends BaseController {
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private TaskThrottleExecutionGuardService taskThrottleExecutionGuardService;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService taskThrottleTelemetryAndRankingService;
+
+    public void setTaskThrottleTelemetryAndRankingService(
+            com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService taskThrottleTelemetryAndRankingService) {
+        this.taskThrottleTelemetryAndRankingService = taskThrottleTelemetryAndRankingService;
+    }
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
     private UserService userService;
@@ -272,6 +284,10 @@ public class TaskController extends BaseController {
 
         UserDetail userDetail;
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
         if (where.get("id") instanceof Map && ((Map) where.get("id")).containsKey("$in")) {
             userDetail = getLoginUser();
         } else if (where.containsKey("_id") || where.containsKey("id")) {
@@ -286,6 +302,10 @@ public class TaskController extends BaseController {
             userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
         } else {
             userDetail = getLoginUser();
+        }
+        if (taskThrottleTelemetryAndRankingService != null
+                && !taskThrottleTelemetryAndRankingService.applyThrottleStatusWhere(where)) {
+            return success(new Page<>());
         }
 
         final Filter finalFilter = filter;
@@ -1513,12 +1533,21 @@ public class TaskController extends BaseController {
 
     	@Operation(summary = "更新子任务断点信息")
 	@PostMapping("syncProgress/{taskId}")
-	public ResponseMessage<Void> updateSyncProgress(@PathVariable("taskId") String taskId, @RequestBody String body) {
+	public ResponseMessage<Void> updateSyncProgress(@PathVariable("taskId") String taskId,
+			@RequestParam(value = "runEpoch", required = false) Long runEpoch,
+			@RequestParam(value = "agentId", required = false) String agentId,
+			@RequestBody String body) {
 		if (StringUtils.isBlank(body)) {
 			return success();
 		}
+		boolean protectedRun = taskThrottleExecutionGuardService != null
+				&& taskThrottleExecutionGuardService.validateCheckpointWrite(taskId, runEpoch, agentId);
 		Document document = Document.parse(body);
-		taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document);
+		if (protectedRun && runEpoch != null) {
+			taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document, runEpoch);
+		} else {
+			taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document);
+		}
 		return success();
 	}
 

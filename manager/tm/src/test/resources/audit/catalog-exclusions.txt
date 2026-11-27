@@ -160,6 +160,10 @@ com.tapdata.tm.taskhistory.controller.TaskHistoryController#*  # 内部回写、
 com.tapdata.tm.taskrebalance.controller.TaskRebalanceController#preview  # 只读预览（解析上传文件或计算方案），不改变对象
 com.tapdata.tm.servingindex.ServingIndexController#loadIndexes  # 只读加载索引规划，不修改 API 或索引
 com.tapdata.tm.servingindex.ServingIndexController#queryIndexes  # 通过引擎读取目标表索引，结果异步返回，不修改索引
+com.tapdata.tm.throttle.controller.AgentThrottleController#registerCapabilities  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.throttle.controller.AgentThrottleController#uploadReceipts  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.throttle.controller.AgentThrottleController#uploadStopEvidence  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
+com.tapdata.tm.throttle.controller.AgentThrottleController#uploadTelemetry  # 引擎、API Server 或 Agent 内部上报/校验，无用户业务副作用
 com.tapdata.tm.trace.controller.TraceController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
 com.tapdata.tm.transform.controller.MetadataTransformerItemController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审
 com.tapdata.tm.typemappings.controller.TypeMappingsController#*  # 内部回写、运行数据或不在需求第 9 章目录的对象；纳入时按第 21 章发布准入评审

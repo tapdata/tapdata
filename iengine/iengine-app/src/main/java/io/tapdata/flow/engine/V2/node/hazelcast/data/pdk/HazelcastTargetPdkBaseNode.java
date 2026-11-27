@@ -32,6 +32,8 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
+import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.enums.SettingType;
@@ -1371,6 +1373,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
 
             flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+            TaskThrottleRuntime throttleRuntime = resolveThrottleRuntime();
+            if (throttleRuntime != null) {
+                String targetNodeId = getNode() != null ? getNode().getId() : "";
+                throttleRuntime.onTargetEventsCompleted(targetNodeId, tapdataEvents);
+            }
         } catch (Throwable throwable) {
             Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
             if (null != matched) {
@@ -2213,6 +2220,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         try {
 			SnapshotPayload snapshotPayload = createSnapshotPayload();
 			if (snapshotPayload == null) return true;
+			TaskThrottleRuntime throttleRuntime = resolveThrottleRuntime();
+			if (throttleRuntime != null && !throttleRuntime.beforeCheckpointPersist()) {
+				return false;
+			}
 			AtomicBoolean needSave = new AtomicBoolean(true);
 			snapshotPayload.flushOffsetRequests.forEach(request -> sourceConnectorNodeMap.forEach((nodeId, node) -> {
 				if (!request.nodeIds.contains(nodeId)) return;
@@ -2226,6 +2237,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}));
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
+			if (throttleRuntime != null) {
+				if (!throttleRuntime.beforeCheckpointPersist()) {
+					return false;
+				}
+				collection = throttleRuntime.buildSyncProgressResource(collection, throttleRuntime.getAgentId());
+			}
 			try {
 				if (needSave.get()){
 					clientMongoOperator.insertOne(snapshotPayload.syncProgressJsonMap, collection);
@@ -2516,9 +2533,26 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }), TAG);
             CommonUtils.ignoreAnyError(this::stopFlushOffsetExecutorAndSaveSnapshot, TAG);
             CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
+            CommonUtils.ignoreAnyError(() -> {
+                TaskThrottleRuntime throttleRuntime = resolveThrottleRuntime();
+                if (throttleRuntime != null) {
+                    String targetNodeId = getNode() != null ? getNode().getId() : "";
+                    throttleRuntime.getBackpressureSignal().clearTargetWaiting(targetNodeId);
+                }
+            }, TAG);
         } finally {
             super.doClose();
         }
+    }
+
+    protected boolean isInCdc() {
+        return inCdc;
+    }
+
+    private TaskThrottleRuntime resolveThrottleRuntime() {
+        TaskDto taskDto = dataProcessorContext != null ? dataProcessorContext.getTaskDto() : null;
+        String taskId = (taskDto != null && taskDto.getId() != null) ? taskDto.getId().toHexString() : null;
+        return taskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(taskId);
     }
 
     protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
