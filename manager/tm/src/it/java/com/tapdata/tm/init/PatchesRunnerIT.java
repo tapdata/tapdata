@@ -51,7 +51,7 @@ class PatchesRunnerIT {
 
     private static final String ADMIN_ROLE_OID = "5b9a0a383fcba02649524bf1";
     private static final String SCRIPT_4254_ID = "script:4.25-4.json";
-    private static final String DASHBOARD_PATCH_ID = "java:" + V4_25_3_DashboardMetricsIndexes.class.getName();
+    private static final String DASHBOARD_PATCH_ID = "java:" + V4_25_3_DashboardMetricsIndexes.class.getName() + ":4.25-5";
 
     private static String mongoUri() {
         String uri = System.getenv("TAPDATA_IT_MONGO_URI");
@@ -188,7 +188,7 @@ class PatchesRunnerIT {
 
             AtomicInteger legacyCount = new AtomicInteger();
             AtomicInteger concurrentCount = new AtomicInteger();
-            String concurrentPatchId = "java:com.tapdata.tm.init.patches.daas.SimulatedConcurrent4255Patch";
+            String concurrentPatchId = "java:com.tapdata.tm.init.patches.daas.SimulatedConcurrent4255Patch:4.25-5";
 
             PatchesRunner restartNoopRunner = buildRunnerWithExtraPatch(
                     uri, defaultTemplate, legacyCount, concurrentCount, concurrentPatchId, false);
