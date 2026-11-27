@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmEventQueryService;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -127,9 +128,14 @@ class AlarmLegacyCloseIT {
         when(inspects.findAllDto(any(Query.class), eq(user))).thenReturn(List.of());
         String[] ids = {visible.getId().toHexString(), hidden.getId().toHexString(), "not-an-id"};
 
-        controller.close(ids);
+        List<MutiResponseMessage> results = controller.close(ids).getData();
 
         assertThat(closed()).containsExactly(visible.getId().toHexString());
+        // 逐项返回实际结果：只有实际关闭的告警为 ok，不可见与非法 ID 为 Alarm.NotFound（审计据此逐项记录）
+        assertThat(results).extracting(MutiResponseMessage::getId, MutiResponseMessage::getCode).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(visible.getId().toHexString(), "ok"),
+                org.assertj.core.groups.Tuple.tuple(hidden.getId().toHexString(), "Alarm.NotFound"),
+                org.assertj.core.groups.Tuple.tuple("not-an-id", "Alarm.NotFound"));
         verify(audit).addUserLog(Modular.ALARM, Operation.CLOSE, user, visible.getId().toHexString(), visible.getId().toHexString());
         verify(audit, never()).addUserLog(any(), any(), any(UserDetail.class), eq(hidden.getId().toHexString()), anyString());
 
