@@ -4,13 +4,19 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.throttle.AgentThrottleDeltaResponse;
+import com.tapdata.tm.commons.throttle.TaskThrottleApplyReceipt;
 import com.tapdata.tm.commons.throttle.TaskThrottlePolicyDto;
 import com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto;
 import com.tapdata.tm.commons.throttle.TaskThrottleTelemetrySample;
 import com.tapdata.tm.commons.throttle.ThrottlePhase;
 import com.tapdata.tm.commons.throttle.ThrottlePhaseLimit;
+import com.tapdata.tm.commons.throttle.WaitReason;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkBaseNode;
@@ -382,5 +388,160 @@ class EngineThrottleNodeIntegrationUnitTest {
         }
         assertFalse(client.reportStopEvidence(flakyEv));
         assertTrue(registry.drainPendingStopEvidences().isEmpty());
+    }
+
+    @Test
+    void cdcUnknownBytesSampleBoundsResampleRetriesAndDegradesGracefullyWithoutSpinning() throws Exception {
+        String taskId = new ObjectId().toHexString();
+        Map<ThrottlePhase, ThrottlePhaseLimit> limits = new EnumMap<>(ThrottlePhase.class);
+        limits.put(ThrottlePhase.CDC, ThrottlePhaseLimit.builder()
+                .enabled(true)
+                .bytesPerSec(50_000_000L) // bytes-only, no QPS
+                .build());
+        limits.put(ThrottlePhase.FULL, ThrottlePhaseLimit.builder()
+                .enabled(true)
+                .bytesPerSec(50_000_000L)
+                .build());
+        TaskThrottlePolicyDto policy = TaskThrottlePolicyDto.builder()
+                .tenantId("t1").taskKind("sync").taskId(taskId).desiredVersion(1L).phases(limits).build();
+        TaskThrottleRuntime runtime = registry.openRuntime(new TaskRunKey("t1", "sync", taskId, 1L), policy, true);
+
+        // Build CDC batch spanning 6 tables (> coldStartSamplesPerBatch=4): initial estimate is null,
+        // bounded retry must re-meter remaining groups and admit cleanly without permanent deadlock!
+        List<TapRecordEvent> multiTableCdc = new ArrayList<>();
+        for (int t = 0; t < 6; t++) {
+            multiTableCdc.add(TapInsertRecordEvent.create().init().table("tbl_" + t).after(Map.of("id", t, "v", "payload-" + t)));
+        }
+        List<TapRecordEvent> admitted = new ArrayList<>();
+        TaskThrottleRuntime.AdmitOutcome cdcOutcome = runtime.admitSourceBatch(
+                "src-1", "conn-1", ThrottlePhase.CDC, multiTableCdc,
+                e -> ((TapRecordEvent) e).getTableId(), () -> false, slice -> admitted.addAll(slice.events()));
+        assertEquals(TaskThrottleRuntime.AdmitOutcome.ADMITTED, cdcOutcome);
+        assertEquals(6, admitted.size());
+
+        // Cyclic payload causes FULL MeterBudgetExceededException (estimatedBytes=null) -> must degrade and pass instead of spinning
+        Map<String, Object> cyclic = new java.util.HashMap<>();
+        cyclic.put("self", cyclic);
+        List<TapRecordEvent> cyclicFull = List.of(TapInsertRecordEvent.create().init().table("cyclic_tbl").after(cyclic));
+        List<TapRecordEvent> fullAdmitted = new ArrayList<>();
+        TaskThrottleRuntime.AdmitOutcome fullOutcome = runtime.admitSourceBatch(
+                "src-1", "conn-1", ThrottlePhase.FULL, cyclicFull,
+                e -> "cyclic_tbl", () -> false, slice -> fullAdmitted.addAll(slice.events()));
+        assertEquals(TaskThrottleRuntime.AdmitOutcome.ADMITTED, fullOutcome);
+        assertEquals(1, fullAdmitted.size());
+    }
+
+    @Test
+    void skewedBatchSubslicesDynamicallyAndLazyZeroEpochRuntimePreservesCheckpointAndReceiptsRequeue() throws Exception {
+        String taskId = new ObjectId().toHexString();
+        Map<ThrottlePhase, ThrottlePhaseLimit> limits = new EnumMap<>(ThrottlePhase.class);
+        limits.put(ThrottlePhase.FULL, ThrottlePhaseLimit.builder()
+                .enabled(true)
+                .bytesPerSec(50_000L) // normalBurst=50KB, maxAtomic=250KB
+                .build());
+        TaskThrottlePolicyDto policy = TaskThrottlePolicyDto.builder()
+                .tenantId("t1").taskKind("sync").taskId(taskId).desiredVersion(1L).phases(limits).build();
+        TaskThrottleRuntime runtime = registry.openRuntime(new TaskRunKey("t1", "sync", taskId, 2L), policy, true);
+
+        // Skewed batch: 40 tiny 20B events + 4 large ~4KB events (single slice average could exceed 1s burst if unsplit)
+        List<TapRecordEvent> skewed = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            skewed.add(TapInsertRecordEvent.create().init().table("t").after(Map.of("i", i)));
+        }
+        String bigVal = "x".repeat(4_000);
+        for (int i = 0; i < 4; i++) {
+            skewed.add(TapInsertRecordEvent.create().init().table("t").after(Map.of("i", 100 + i, "big", bigVal)));
+        }
+        List<TapRecordEvent> passed = new ArrayList<>();
+        TaskThrottleRuntime.AdmitOutcome outcome = runtime.admitSourceBatch(
+                "src-1", "conn-1", ThrottlePhase.FULL, skewed, e -> "t", () -> false,
+                slice -> passed.addAll(slice.events()));
+        assertEquals(TaskThrottleRuntime.AdmitOutcome.ADMITTED, outcome);
+        assertEquals(44, passed.size());
+
+        // Lazy runtime opened with authorizedRunEpoch=0 MUST NOT mark protectedRun or attach ?runEpoch=0
+        String lazyTaskId = new ObjectId().toHexString();
+        registry.registerRunningTask(lazyTaskId, "t1", "migrate");
+        AgentThrottleDeltaResponse delta = AgentThrottleDeltaResponse.builder()
+                .cursor(50L)
+                .directives(List.of(AgentThrottleDeltaResponse.TaskDirective.builder()
+                        .tenantId("t1").taskKind("migrate").taskId(lazyTaskId).authorizedRunEpoch(0L).protectedRun(false)
+                        .policy(policy).build()))
+                .build();
+        registry.applyDelta(delta);
+        TaskThrottleRuntime lazyRt = registry.getActive(lazyTaskId);
+        assertNotNull(lazyRt);
+        assertFalse(lazyRt.isProtectedRun());
+        assertEquals("Task/syncProgress/" + lazyTaskId,
+                lazyRt.buildSyncProgressResource("Task/syncProgress/" + lazyTaskId, "agent-it-1"));
+
+        // Receipt POST failure MUST requeue receipts so next cycle delivers them cleanly
+        ClientMongoOperator mockOp = mock(ClientMongoOperator.class);
+        AgentThrottleSyncClient syncClient = new AgentThrottleSyncClient(mockOp, registry);
+        doThrow(new RuntimeException("transient outage"))
+                .when(mockOp).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_RECEIPTS), eq(Object.class));
+        assertFalse(syncClient.flushPendingReceipts());
+        List<TaskThrottleApplyReceipt> pendingAfterFail = registry.drainPendingReceipts();
+        assertFalse(pendingAfterFail.isEmpty());
+        registry.requeueReceipts(pendingAfterFail);
+        doReturn(Map.of()).when(mockOp).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_RECEIPTS), eq(Object.class));
+        assertTrue(syncClient.flushPendingReceipts());
+    }
+
+    @Test
+    void applyDeltaHoldsCursorOnFailureAndSchedulerWiresDagTopologyCorrectly() {
+        String taskId = new ObjectId().toHexString();
+        TaskThrottleRuntime runtime = registry.openRuntime(new TaskRunKey("t1", "sync", taskId, 3L), null, true);
+
+        // Failing directive leaves lastDeltaCursor unchanged; successful pass advances cursor
+        registry.applyDelta(AgentThrottleDeltaResponse.builder()
+                .cursor(200L)
+                .directives(List.of(AgentThrottleDeltaResponse.TaskDirective.builder()
+                        .taskId(taskId)
+                        .authorizedRunEpoch(3L)
+                        .policy(null)
+                        .build()))
+                .build());
+        assertEquals(200L, registry.getLastDeltaCursor());
+
+        TaskThrottleRuntime spyRuntime = spy(runtime);
+        registry.unregisterRunningTask(taskId);
+        @SuppressWarnings("unchecked")
+        java.util.concurrent.ConcurrentHashMap<String, TaskThrottleRuntime> map =
+                (java.util.concurrent.ConcurrentHashMap<String, TaskThrottleRuntime>) ReflectionTestUtils.getField(registry, "activeRuntimes");
+        map.put(taskId, spyRuntime);
+        doThrow(new RuntimeException("simulated apply failure")).when(spyRuntime).applyPolicy(any(), any(), any());
+
+        TaskThrottlePolicyDto p = TaskThrottlePolicyDto.builder().taskId(taskId).desiredVersion(2L).build();
+        registry.applyDelta(AgentThrottleDeltaResponse.builder()
+                .cursor(300L)
+                .directives(List.of(AgentThrottleDeltaResponse.TaskDirective.builder()
+                        .taskId(taskId).authorizedRunEpoch(3L).policy(p).build()))
+                .build());
+        assertEquals(200L, registry.getLastDeltaCursor()); // Held at 200 on error!
+
+        // DAG topology extraction separates independent branches for WriteBackpressureSignal
+        TableNode s1 = new TableNode();
+        s1.setId("src-1");
+        TableNode s2 = new TableNode();
+        s2.setId("src-2");
+        TableNode t1 = new TableNode();
+        t1.setId("tgt-1");
+        TableNode t2 = new TableNode();
+        t2.setId("tgt-2");
+        List<Node> nodes = List.of(s1, s2, t1, t2);
+        List<Edge> edges = List.of(new Edge("src-1", "tgt-1"), new Edge("src-2", "tgt-2"));
+        DAG dag = DAG.build(new com.tapdata.tm.commons.task.dto.Dag(edges, nodes));
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(new ObjectId());
+        taskDto.setDag(dag);
+        Map<String, java.util.Set<String>> topology = TapdataTaskScheduler.extractSourceToTargetTopology(taskDto);
+        assertEquals(java.util.Set.of("tgt-1"), topology.get("src-1"));
+        assertEquals(java.util.Set.of("tgt-2"), topology.get("src-2"));
+
+        runtime.registerTopology(topology);
+        runtime.getBackpressureSignal().markTargetWaiting("tgt-1", WaitReason.RATE_WAIT);
+        assertTrue(runtime.getBackpressureSignal().shouldPauseSourcePull("src-1"));
+        assertFalse(runtime.getBackpressureSignal().shouldPauseSourcePull("src-2"));
     }
 }

@@ -30,13 +30,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Per-task execution-epoch throttling and metering runtime unifying:
@@ -58,6 +61,8 @@ public class TaskThrottleRuntime {
     private static final long DEFAULT_TASK_BUDGET_RECORDS = 200_000L;
     private static final long DEFAULT_TASK_BUDGET_BATCHES = 8_192L;
     private static final long DEFAULT_DRAIN_RESERVE_BYTES = 2L * 1024L * 1024L;
+    private static final int MAX_SAMPLE_UNKNOWN_RETRIES = 8;
+    private static final long SAMPLE_UNKNOWN_RETRY_SLEEP_MS = 50L;
 
     private final TaskRunKey runKey;
     private final MonotonicClock clock;
@@ -73,7 +78,8 @@ public class TaskThrottleRuntime {
     private final LogRetentionMonitor logRetentionMonitor;
 
     private final AtomicLong batchSeqGenerator = new AtomicLong(1L);
-    private final ConcurrentHashMap<String, Long> maxCompletedSeqBySource = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Set<String>> sourceToTargets = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, Long>> maxCompletedSeqBySourceAndTarget = new ConcurrentHashMap<>();
 
     private volatile boolean protectedRun;
     private volatile boolean fenced;
@@ -231,7 +237,7 @@ public class TaskThrottleRuntime {
      * preserving unmodified collection URIs for non-protected legacy tests and flows.
      */
     public String buildSyncProgressResource(String baseCollection, String currentAgentId) {
-        if (!protectedRun || baseCollection == null) {
+        if (!protectedRun || runKey.getRunEpoch() <= 0L || baseCollection == null) {
             return baseCollection;
         }
         String sep = baseCollection.contains("?") ? "&" : "?";
@@ -251,10 +257,36 @@ public class TaskThrottleRuntime {
             this.agentId = currentAgentId;
         }
         TaskThrottleApplyReceipt receipt = controller.applyPolicy(dto, this.agentId, skippedVersions);
-        if (dto != null && dto.getPhases() != null && dto.getPhases().values().stream().anyMatch(p -> p != null && p.isEnabled())) {
+        if (runKey.getRunEpoch() > 0L
+                && dto != null && dto.getPhases() != null
+                && dto.getPhases().values().stream().anyMatch(p -> p != null && p.isEnabled())) {
             this.protectedRun = true;
         }
         return receipt;
+    }
+
+    /**
+     * Registers source -> reachable target node dependencies so fan-out leases and
+     * write backpressure track each branch independently.
+     */
+    public void registerTopology(Map<String, Set<String>> sourceToTargetsMap) {
+        if (sourceToTargetsMap == null || sourceToTargetsMap.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Set<String>> entry : sourceToTargetsMap.entrySet()) {
+            String sourceNodeId = entry.getKey();
+            Set<String> targets = entry.getValue();
+            if (sourceNodeId == null || sourceNodeId.isBlank() || targets == null || targets.isEmpty()) {
+                continue;
+            }
+            Set<String> copy = Collections.unmodifiableSet(new HashSet<>(targets));
+            this.sourceToTargets.put(sourceNodeId, copy);
+            for (String targetNodeId : copy) {
+                if (targetNodeId != null && !targetNodeId.isBlank()) {
+                    backpressureSignal.registerDependency(sourceNodeId, targetNodeId);
+                }
+            }
+        }
     }
 
     public void updateCdcSampleInterval(int intervalSeconds, long configVersion) {
@@ -292,7 +324,7 @@ public class TaskThrottleRuntime {
         if (!phaseEnabled) {
             // Metering-only + capacity protection path: keep original batch unsplit.
             BatchMeteringResult meter = meterBatch(inputMeter, resolvedPhase, endpointId, events, tableNormalizer, false);
-            return admitSingleSlice(sourceNodeId, resolvedPhase, events, meter, true, cancelled, sliceDispatcher);
+            return admitSingleSlice(sourceNodeId, endpointId, resolvedPhase, events, tableNormalizer, meter, true, cancelled, sliceDispatcher);
         }
 
         // Throttling enabled: slice large splittable batches so each piece stays within QPS/BYTES burst limits.
@@ -310,26 +342,26 @@ public class TaskThrottleRuntime {
             if (cancelled != null && cancelled.getAsBoolean()) {
                 return AdmitOutcome.CANCELLED;
             }
-            int end = Math.min(events.size(), offset + estimatedSliceSize);
-            List<T> subEvents = (offset == 0 && end == events.size()) ? events : new ArrayList<>(events.subList(offset, end));
-            BatchMeteringResult sliceMeter = (offset == 0 && end == events.size())
-                    ? probe
-                    : meterBatch(inputMeter, resolvedPhase, endpointId, subEvents, tableNormalizer, true);
-            boolean splittable = subEvents.size() > 1;
+            SubSlice<T> next = nextBoundedSlice(
+                    events, offset, estimatedSliceSize, inputMeter, resolvedPhase, endpointId,
+                    tableNormalizer, chunkMaxEvents, chunkMaxBytes, probe);
+            boolean splittable = next.events().size() > 1;
             AdmitOutcome outcome = admitSingleSlice(
-                    sourceNodeId, resolvedPhase, subEvents, sliceMeter, splittable, cancelled, sliceDispatcher);
+                    sourceNodeId, endpointId, resolvedPhase, next.events(), tableNormalizer, next.meter(), splittable, cancelled, sliceDispatcher);
             if (outcome != AdmitOutcome.ADMITTED) {
                 return outcome;
             }
-            offset = end;
+            offset = next.nextOffset();
         }
         return AdmitOutcome.ADMITTED;
     }
 
     private <T extends TapEvent> AdmitOutcome admitSingleSlice(
             String sourceNodeId,
+            String endpointId,
             ThrottlePhase phase,
             List<T> sliceEvents,
+            Function<TapEvent, String> tableNormalizer,
             BatchMeteringResult meterResult,
             boolean splittable,
             BooleanSupplier cancelled,
@@ -349,50 +381,44 @@ public class TaskThrottleRuntime {
 
         boolean leaseTransferredToDispatcher = false;
         long appliedVersion = controller.getAppliedVersion();
+        BatchMeteringResult effectiveMeter = meterResult;
         boolean tokenDebited = false;
         try {
             if (controller.isPhaseEnabled(phase)) {
-                TaskThrottleController.PolicySnapshot snap = controller.currentSnapshot();
-                TaskThrottleController.PhaseRule rule = snap.phases().get(phase);
-                boolean bytesOn = rule != null && rule.bytesEnabled();
+                TaskThrottleController.WaitStateObserver observer = new TaskThrottleController.WaitStateObserver() {
+                    @Override
+                    public void onWaiting(TaskThrottleController.AcquireResult waitResult) {
+                        WaitReason reason = waitResult.outcome() == TaskThrottleController.Outcome.SAMPLE_UNKNOWN_WAIT
+                                ? WaitReason.SAMPLE_WAIT
+                                : WaitReason.RATE_WAIT;
+                        aggregator.updateWaitState(
+                                phase,
+                                ThrottleDirection.INPUT,
+                                reason,
+                                waitResult.waitingDimensions(),
+                                inFlightBudget.currentWatermarkRatio(),
+                                logRetentionMonitor.worstStatus()
+                        );
+                    }
 
-                long bytesCost = meterResult.getEstimatedBytes() == null ? 0L : Math.max(0L, meterResult.getEstimatedBytes());
-                long eventsCost = meterResult.getDmlCount();
-                boolean bytesCostKnown = !bytesOn || meterResult.getEstimatedBytes() != null;
-
-                TaskThrottleController.AcquireResult acq = controller.acquireBlocking(
-                        Collections.singletonList(new TaskThrottleController.SlotDemand(
-                                phase, ThrottleDirection.INPUT, bytesCost, eventsCost, splittable, bytesCostKnown)),
-                        () -> fenced || closed || (cancelled != null && cancelled.getAsBoolean()),
-                        new TaskThrottleController.WaitStateObserver() {
-                            @Override
-                            public void onWaiting(TaskThrottleController.AcquireResult waitResult) {
-                                WaitReason reason = waitResult.outcome() == TaskThrottleController.Outcome.SAMPLE_UNKNOWN_WAIT
-                                        ? WaitReason.SAMPLE_WAIT
-                                        : WaitReason.RATE_WAIT;
-                                aggregator.updateWaitState(
-                                        phase,
-                                        ThrottleDirection.INPUT,
-                                        reason,
-                                        waitResult.waitingDimensions(),
-                                        inFlightBudget.currentWatermarkRatio(),
-                                        logRetentionMonitor.worstStatus()
-                                );
-                            }
-
-                            @Override
-                            public void onAdmitted(TaskThrottleController.AcquireResult admittedResult) {
-                                aggregator.updateWaitState(
-                                        phase,
-                                        ThrottleDirection.INPUT,
-                                        WaitReason.NONE,
-                                        EnumSet.noneOf(ThrottleDimension.class),
-                                        inFlightBudget.currentWatermarkRatio(),
-                                        logRetentionMonitor.worstStatus()
-                                );
-                            }
-                        }
-                );
+                    @Override
+                    public void onAdmitted(TaskThrottleController.AcquireResult admittedResult) {
+                        aggregator.updateWaitState(
+                                phase,
+                                ThrottleDirection.INPUT,
+                                WaitReason.NONE,
+                                EnumSet.noneOf(ThrottleDimension.class),
+                                inFlightBudget.currentWatermarkRatio(),
+                                logRetentionMonitor.worstStatus()
+                        );
+                    }
+                };
+                MeteredAcquireResult acqResult = acquireQuotaWithSampleRetry(
+                        phase, ThrottleDirection.INPUT, splittable, effectiveMeter,
+                        () -> meterBatch(inputMeter, phase, endpointId, sliceEvents, tableNormalizer, true),
+                        cancelled, observer);
+                effectiveMeter = acqResult.meter();
+                TaskThrottleController.AcquireResult acq = acqResult.acquire();
 
                 appliedVersion = acq.appliedVersion();
                 if (acq.outcome() == TaskThrottleController.Outcome.CANCELLED) {
@@ -412,12 +438,12 @@ public class TaskThrottleRuntime {
             if (fenced || closed || (cancelled != null && cancelled.getAsBoolean())) {
                 if (tokenDebited) {
                     aggregator.recordCancelledAfterDebit(
-                            phase, ThrottleDirection.INPUT, meterResult.getDmlCount(), meterResult.getEstimatedBytes());
+                            phase, ThrottleDirection.INPUT, effectiveMeter.getDmlCount(), effectiveMeter.getEstimatedBytes());
                 }
                 return (fenced || closed) ? AdmitOutcome.FENCED_OR_STOPPED : AdmitOutcome.CANCELLED;
             }
 
-            aggregator.recordAdmitted(meterResult, appliedVersion);
+            aggregator.recordAdmitted(effectiveMeter, appliedVersion);
             if (sliceDispatcher != null) {
                 lease.transferOwnership(lease.getHolderVersion(), "pipeline-queue");
                 sliceDispatcher.accept(new AdmittedSourceSlice<>(sliceEvents, lease, sourceNodeId, seq));
@@ -427,7 +453,7 @@ public class TaskThrottleRuntime {
         } catch (RuntimeException ex) {
             if (tokenDebited && !leaseTransferredToDispatcher) {
                 aggregator.recordCancelledAfterDebit(
-                        phase, ThrottleDirection.INPUT, meterResult.getDmlCount(), meterResult.getEstimatedBytes());
+                        phase, ThrottleDirection.INPUT, effectiveMeter.getDmlCount(), effectiveMeter.getEstimatedBytes());
             }
             throw ex;
         } finally {
@@ -463,7 +489,8 @@ public class TaskThrottleRuntime {
                 continue;
             }
             CapacityLease lease = inFlightBudget.tryAcquireLease(
-                    memBytes, recordCount, 1L, sourceNodeId, sourceNodeId, batchSeq, true);
+                    memBytes, recordCount, 1L, sourceNodeId, sourceNodeId, batchSeq,
+                    sourceToTargets.getOrDefault(sourceNodeId, Collections.emptySet()), true);
             if (lease != null) {
                 aggregator.updateWaitState(
                         phase,
@@ -532,11 +559,13 @@ public class TaskThrottleRuntime {
             if (fenced || closed) {
                 throw new IllegalStateException("Target write aborted for fenced/stopped runEpoch: " + runKey);
             }
-            int end = Math.min(records.size(), offset + sliceCount);
-            List<E> sub = (offset == 0 && end == records.size()) ? records : new ArrayList<>(records.subList(offset, end));
+            SubSlice<E> next = nextBoundedSlice(
+                    records, offset, sliceCount, outputMeter, resolvedPhase, endpointId,
+                    tableNormalizer, chunkMaxEvents, chunkMaxBytes, probe);
             executeSingleTargetWriteChunk(
-                    targetNodeId, endpointId, resolvedPhase, sub, tableNormalizer, sub.size() > 1, cancelled, writer);
-            offset = end;
+                    targetNodeId, endpointId, resolvedPhase, next.events(), tableNormalizer,
+                    next.events().size() > 1, cancelled, writer, next.meter());
+            offset = next.nextOffset();
         }
     }
 
@@ -549,52 +578,62 @@ public class TaskThrottleRuntime {
             boolean splittable,
             BooleanSupplier cancelled,
             ChunkWriter<E> writer) throws Exception {
-        BatchMeteringResult meter = meterBatch(outputMeter, phase, endpointId, chunk, tableNormalizer, controller.isPhaseEnabled(phase));
+        executeSingleTargetWriteChunk(targetNodeId, endpointId, phase, chunk, tableNormalizer, splittable, cancelled, writer, null);
+    }
+
+    private <E extends TapEvent> void executeSingleTargetWriteChunk(
+            String targetNodeId,
+            String endpointId,
+            ThrottlePhase phase,
+            List<E> chunk,
+            Function<TapEvent, String> tableNormalizer,
+            boolean splittable,
+            BooleanSupplier cancelled,
+            ChunkWriter<E> writer,
+            BatchMeteringResult precomputedMeter) throws Exception {
+        BatchMeteringResult meter = precomputedMeter != null
+                ? precomputedMeter
+                : meterBatch(outputMeter, phase, endpointId, chunk, tableNormalizer, controller.isPhaseEnabled(phase));
         long appliedVersion = controller.getAppliedVersion();
         boolean tokenDebited = false;
 
         if (controller.isPhaseEnabled(phase)) {
-            TaskThrottleController.PhaseRule rule = controller.currentSnapshot().phases().get(phase);
-            boolean bytesOn = rule != null && rule.bytesEnabled();
-            long bytesCost = meter.getEstimatedBytes() == null ? 0L : Math.max(0L, meter.getEstimatedBytes());
-            long eventsCost = meter.getDmlCount();
-            boolean bytesCostKnown = !bytesOn || meter.getEstimatedBytes() != null;
+            TaskThrottleController.WaitStateObserver observer = new TaskThrottleController.WaitStateObserver() {
+                @Override
+                public void onWaiting(TaskThrottleController.AcquireResult waitResult) {
+                    WaitReason reason = waitResult.outcome() == TaskThrottleController.Outcome.SAMPLE_UNKNOWN_WAIT
+                            ? WaitReason.SAMPLE_WAIT
+                            : WaitReason.RATE_WAIT;
+                    backpressureSignal.markTargetWaiting(targetNodeId, reason);
+                    aggregator.updateWaitState(
+                            phase,
+                            ThrottleDirection.OUTPUT,
+                            reason,
+                            waitResult.waitingDimensions(),
+                            inFlightBudget.currentWatermarkRatio(),
+                            logRetentionMonitor.worstStatus()
+                    );
+                }
 
-            TaskThrottleController.AcquireResult acq = controller.acquireBlocking(
-                    Collections.singletonList(new TaskThrottleController.SlotDemand(
-                            phase, ThrottleDirection.OUTPUT, bytesCost, eventsCost, splittable, bytesCostKnown)),
-                    () -> fenced || closed || (cancelled != null && cancelled.getAsBoolean()),
-                    new TaskThrottleController.WaitStateObserver() {
-                        @Override
-                        public void onWaiting(TaskThrottleController.AcquireResult waitResult) {
-                            WaitReason reason = waitResult.outcome() == TaskThrottleController.Outcome.SAMPLE_UNKNOWN_WAIT
-                                    ? WaitReason.SAMPLE_WAIT
-                                    : WaitReason.RATE_WAIT;
-                            backpressureSignal.markTargetWaiting(targetNodeId, reason);
-                            aggregator.updateWaitState(
-                                    phase,
-                                    ThrottleDirection.OUTPUT,
-                                    reason,
-                                    waitResult.waitingDimensions(),
-                                    inFlightBudget.currentWatermarkRatio(),
-                                    logRetentionMonitor.worstStatus()
-                            );
-                        }
-
-                        @Override
-                        public void onAdmitted(TaskThrottleController.AcquireResult admittedResult) {
-                            backpressureSignal.clearTargetWaiting(targetNodeId);
-                            aggregator.updateWaitState(
-                                    phase,
-                                    ThrottleDirection.OUTPUT,
-                                    WaitReason.NONE,
-                                    EnumSet.noneOf(ThrottleDimension.class),
-                                    inFlightBudget.currentWatermarkRatio(),
-                                    logRetentionMonitor.worstStatus()
-                            );
-                        }
-                    }
-            );
+                @Override
+                public void onAdmitted(TaskThrottleController.AcquireResult admittedResult) {
+                    backpressureSignal.clearTargetWaiting(targetNodeId);
+                    aggregator.updateWaitState(
+                            phase,
+                            ThrottleDirection.OUTPUT,
+                            WaitReason.NONE,
+                            EnumSet.noneOf(ThrottleDimension.class),
+                            inFlightBudget.currentWatermarkRatio(),
+                            logRetentionMonitor.worstStatus()
+                    );
+                }
+            };
+            MeteredAcquireResult acqResult = acquireQuotaWithSampleRetry(
+                    phase, ThrottleDirection.OUTPUT, splittable, meter,
+                    () -> meterBatch(outputMeter, phase, endpointId, chunk, tableNormalizer, true),
+                    cancelled, observer);
+            meter = acqResult.meter();
+            TaskThrottleController.AcquireResult acq = acqResult.acquire();
             appliedVersion = acq.appliedVersion();
             if (acq.outcome() == TaskThrottleController.Outcome.CANCELLED || acq.outcome() == TaskThrottleController.Outcome.STOPPED) {
                 backpressureSignal.clearTargetWaiting(targetNodeId);
@@ -629,8 +668,8 @@ public class TaskThrottleRuntime {
     }
 
     /**
-     * Releases proportional capacity for processed target events and flushes any older source batches
-     * filtered out earlier in the DAG so watermarks drain deterministically.
+     * Releases proportional capacity for processed target events and sweeps older source batches only
+     * once every downstream target feeding from that source has passed the older batch sequence.
      */
     public void onTargetEventsCompleted(String targetNodeId, List<TapdataEvent> completedEvents) {
         if (completedEvents == null || completedEvents.isEmpty()) {
@@ -657,16 +696,42 @@ public class TaskThrottleRuntime {
         for (Map.Entry<String, Long> entry : countByLease.entrySet()) {
             CapacityLease lease = inFlightBudget.getLease(entry.getKey());
             if (lease != null) {
-                lease.ackProcessedEvents(entry.getValue());
+                lease.ackProcessedEvents(targetNodeId, entry.getValue());
             }
         }
 
+        String resolvedTarget = (targetNodeId == null || targetNodeId.isBlank()) ? "__default__" : targetNodeId;
         for (Map.Entry<String, Long> entry : maxSeqBySource.entrySet()) {
             String src = entry.getKey();
             long seq = entry.getValue();
-            maxCompletedSeqBySource.merge(src, seq, Math::max);
-            if (seq > 1L) {
-                inFlightBudget.flushOlderLeasesForSource(src, seq);
+            ConcurrentHashMap<String, Long> perTarget = maxCompletedSeqBySourceAndTarget.computeIfAbsent(
+                    src, k -> new ConcurrentHashMap<>());
+            perTarget.merge(resolvedTarget, seq, Math::max);
+
+            Set<String> expectedTargets = sourceToTargets.get(src);
+            long sweepWatermark;
+            if (expectedTargets != null && !expectedTargets.isEmpty()) {
+                long minAcrossAllTargets = Long.MAX_VALUE;
+                boolean allTargetsObserved = true;
+                for (String target : expectedTargets) {
+                    Long targetMax = perTarget.get(target);
+                    if (targetMax == null) {
+                        allTargetsObserved = false;
+                        break;
+                    }
+                    if (targetMax < minAcrossAllTargets) {
+                        minAcrossAllTargets = targetMax;
+                    }
+                }
+                if (!allTargetsObserved) {
+                    continue;
+                }
+                sweepWatermark = minAcrossAllTargets;
+            } else {
+                sweepWatermark = seq;
+            }
+            if (sweepWatermark > 1L) {
+                inFlightBudget.flushOlderLeasesForSource(src, sweepWatermark);
             }
         }
         backpressureSignal.signalDrainProgress();
@@ -743,6 +808,113 @@ public class TaskThrottleRuntime {
             return meter.meterCdcBatch(endpointId, events, tableNormalizer, rateWaiting);
         }
         return meter.meterFullBatch(endpointId, events, tableNormalizer);
+    }
+
+    private MeteredAcquireResult acquireQuotaWithSampleRetry(
+            ThrottlePhase phase,
+            ThrottleDirection direction,
+            boolean splittable,
+            BatchMeteringResult initialMeter,
+            Supplier<BatchMeteringResult> remeterSupplier,
+            BooleanSupplier cancelled,
+            TaskThrottleController.WaitStateObserver observer) {
+        BatchMeteringResult currentMeter = initialMeter;
+        TaskThrottleController.PhaseRule rule = controller.currentSnapshot().phases().get(phase);
+        boolean bytesOn = rule != null && rule.bytesEnabled();
+
+        if (bytesOn && currentMeter.getEstimatedBytes() == null) {
+            if (phase == ThrottlePhase.CDC) {
+                for (int attempt = 0; attempt < MAX_SAMPLE_UNKNOWN_RETRIES; attempt++) {
+                    if (fenced || closed) {
+                        return new MeteredAcquireResult(
+                                TaskThrottleController.AcquireResult.stopped(controller.getAppliedVersion()), currentMeter);
+                    }
+                    if (cancelled != null && cancelled.getAsBoolean()) {
+                        return new MeteredAcquireResult(
+                                TaskThrottleController.AcquireResult.cancelled(controller.getAppliedVersion()), currentMeter);
+                    }
+                    if (observer != null) {
+                        observer.onWaiting(TaskThrottleController.AcquireResult.waitForUnknownSample(
+                                controller.getAppliedVersion(), EnumSet.of(ThrottleDimension.BYTES)));
+                    }
+                    sleepSampleRetryStep(SAMPLE_UNKNOWN_RETRY_SLEEP_MS);
+                    if (fenced || closed) {
+                        return new MeteredAcquireResult(
+                                TaskThrottleController.AcquireResult.stopped(controller.getAppliedVersion()), currentMeter);
+                    }
+                    if (cancelled != null && cancelled.getAsBoolean()) {
+                        return new MeteredAcquireResult(
+                                TaskThrottleController.AcquireResult.cancelled(controller.getAppliedVersion()), currentMeter);
+                    }
+                    currentMeter = remeterSupplier.get();
+                    if (currentMeter.getEstimatedBytes() != null) {
+                        break;
+                    }
+                }
+            }
+            if (currentMeter.getEstimatedBytes() == null) {
+                logger.warn("Degrading unknown byte metering to QPS-only/unthrottled pass for task={} phase={} dir={}",
+                        runKey, phase, direction);
+            }
+        }
+
+        // Known null bytes after bounded CDC retries or FULL unmeterables bypass BYTES blocking without spinning.
+        long bytesCost = currentMeter.getEstimatedBytes() == null ? 0L : Math.max(0L, currentMeter.getEstimatedBytes());
+        long eventsCost = currentMeter.getDmlCount();
+        TaskThrottleController.AcquireResult acq = controller.acquireBlocking(
+                Collections.singletonList(new TaskThrottleController.SlotDemand(
+                        phase, direction, bytesCost, eventsCost, splittable, true)),
+                () -> fenced || closed || (cancelled != null && cancelled.getAsBoolean()),
+                observer
+        );
+        return new MeteredAcquireResult(acq, currentMeter);
+    }
+
+    private static void sleepSampleRetryStep(long sleepMillis) {
+        if (sleepMillis <= 0L) {
+            return;
+        }
+        try {
+            Thread.sleep(sleepMillis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private <T extends TapEvent> SubSlice<T> nextBoundedSlice(
+            List<T> events,
+            int offset,
+            int targetCount,
+            ContinuousBatchMeter meter,
+            ThrottlePhase phase,
+            String endpointId,
+            Function<TapEvent, String> tableNormalizer,
+            long chunkMaxEvents,
+            long chunkMaxBytes,
+            BatchMeteringResult fullBatchProbe) {
+        int curCount = Math.max(1, Math.min(targetCount, events.size() - offset));
+        while (true) {
+            int end = Math.min(events.size(), offset + curCount);
+            List<T> subEvents = (offset == 0 && end == events.size()) ? events : new ArrayList<>(events.subList(offset, end));
+            BatchMeteringResult sliceMeter = (offset == 0 && end == events.size())
+                    ? fullBatchProbe
+                    : meterBatch(meter, phase, endpointId, subEvents, tableNormalizer, true);
+            boolean overBytes = chunkMaxBytes > 0L && chunkMaxBytes < Long.MAX_VALUE
+                    && sliceMeter.getEstimatedBytes() != null
+                    && sliceMeter.getEstimatedBytes() > chunkMaxBytes;
+            boolean overEvents = chunkMaxEvents > 0L && chunkMaxEvents < Long.MAX_VALUE
+                    && sliceMeter.getDmlCount() > chunkMaxEvents;
+            if (subEvents.size() <= 1 || (!overBytes && !overEvents)) {
+                return new SubSlice<>(subEvents, end, sliceMeter);
+            }
+            curCount = Math.max(1, subEvents.size() / 2);
+        }
+    }
+
+    private record MeteredAcquireResult(TaskThrottleController.AcquireResult acquire, BatchMeteringResult meter) {
+    }
+
+    private record SubSlice<T extends TapEvent>(List<T> events, int nextOffset, BatchMeteringResult meter) {
     }
 
     private int computeSliceRecordCount(int totalSize, BatchMeteringResult probe, long maxEvents, long maxBytes) {

@@ -39,8 +39,10 @@ public class TaskThrottleRuntimeRegistry {
     private final ConcurrentLinkedQueue<TaskThrottleApplyReceipt> pendingReceipts = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<TaskThrottleStopEvidenceDto> pendingStopEvidences = new ConcurrentLinkedQueue<>();
 
-    private record RunningTaskMeta(String tenantId, String taskKind, String taskId) {
+    private record RunningTaskMeta(String tenantId, String taskKind, String taskId, Map<String, Set<String>> sourceToTargets) {
     }
+
+    private static final int MAX_PENDING_RECEIPTS = 500;
 
     private volatile String agentId = "unknown-agent";
     private volatile long cdcSampleConfigVersion = 0L;
@@ -82,14 +84,29 @@ public class TaskThrottleRuntimeRegistry {
     }
 
     public void registerRunningTask(String taskId, String tenantId, String taskKind) {
+        registerRunningTask(taskId, tenantId, taskKind, null);
+    }
+
+    public void registerRunningTask(String taskId, String tenantId, String taskKind, Map<String, Set<String>> sourceToTargets) {
         if (taskId == null || taskId.isBlank()) {
             return;
         }
         String normalizedTaskId = taskId.trim();
+        Map<String, Set<String>> topologyCopy = null;
+        if (sourceToTargets != null && !sourceToTargets.isEmpty()) {
+            topologyCopy = new java.util.HashMap<>(sourceToTargets.size());
+            for (Map.Entry<String, Set<String>> e : sourceToTargets.entrySet()) {
+                if (e.getKey() != null && e.getValue() != null && !e.getValue().isEmpty()) {
+                    topologyCopy.put(e.getKey(), Set.copyOf(e.getValue()));
+                }
+            }
+            topologyCopy = java.util.Collections.unmodifiableMap(topologyCopy);
+        }
         runningTasks.put(normalizedTaskId, new RunningTaskMeta(
                 tenantId != null ? tenantId : "",
                 taskKind != null && !taskKind.isBlank() ? taskKind : "sync",
-                normalizedTaskId
+                normalizedTaskId,
+                topologyCopy
         ));
     }
 
@@ -171,17 +188,17 @@ public class TaskThrottleRuntimeRegistry {
         return evidence;
     }
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TaskThrottleRuntimeRegistry.class);
+
     /**
      * Applies an incremental delta from TM:
      * 1. Updates agent-wide CDC sample interval when config version advances.
      * 2. Fences stale local runEpochs or applies policy hot-updates cleanly with receipts.
+     * Advances {@code lastDeltaCursor} only after all directives apply without error.
      */
     public void applyDelta(AgentThrottleDeltaResponse delta) {
         if (delta == null) {
             return;
-        }
-        if (delta.getCursor() > this.lastDeltaCursor) {
-            this.lastDeltaCursor = delta.getCursor();
         }
         if (delta.getSampleConfigVersion() > this.cdcSampleConfigVersion
                 && delta.getCdcSampleRefreshIntervalSeconds() >= ThrottleConstants.MIN_CDC_SAMPLE_REFRESH_INTERVAL_SECONDS
@@ -192,43 +209,59 @@ public class TaskThrottleRuntimeRegistry {
                 runtime.updateCdcSampleInterval(cdcSampleRefreshIntervalSeconds, cdcSampleConfigVersion);
             }
         }
-        if (delta.getDirectives() == null || delta.getDirectives().isEmpty()) {
-            return;
-        }
-        for (AgentThrottleDeltaResponse.TaskDirective directive : delta.getDirectives()) {
-            if (directive == null || directive.getTaskId() == null) {
-                continue;
+        boolean allApplied = true;
+        if (delta.getDirectives() != null && !delta.getDirectives().isEmpty()) {
+            for (AgentThrottleDeltaResponse.TaskDirective directive : delta.getDirectives()) {
+                if (directive == null || directive.getTaskId() == null) {
+                    continue;
+                }
+                try {
+                    applySingleDirective(directive);
+                } catch (RuntimeException ex) {
+                    allApplied = false;
+                    logger.warn("Failed to apply throttle delta directive for task {} (holding cursor at {}): {}",
+                            directive.getTaskId(), this.lastDeltaCursor, ex.getMessage());
+                }
             }
-            TaskThrottleRuntime runtime = activeRuntimes.get(directive.getTaskId());
-            if (runtime == null || runtime.isClosed()) {
-                if (!directive.isFenced() && directive.getPolicy() != null) {
-                    RunningTaskMeta meta = runningTasks.get(directive.getTaskId());
-                    if (meta != null) {
-                        String tenantId = directive.getTenantId() != null ? directive.getTenantId() : meta.tenantId();
-                        String taskKind = directive.getTaskKind() != null ? directive.getTaskKind() : meta.taskKind();
-                        openRuntime(
-                                new TaskRunKey(tenantId, taskKind, directive.getTaskId(), Math.max(0L, directive.getAuthorizedRunEpoch())),
-                                directive.getPolicy(),
-                                directive.isProtectedRun()
-                        );
+        }
+        if (allApplied && delta.getCursor() > this.lastDeltaCursor) {
+            this.lastDeltaCursor = delta.getCursor();
+        }
+    }
+
+    private void applySingleDirective(AgentThrottleDeltaResponse.TaskDirective directive) {
+        TaskThrottleRuntime runtime = activeRuntimes.get(directive.getTaskId());
+        if (runtime == null || runtime.isClosed()) {
+            if (!directive.isFenced() && directive.getPolicy() != null) {
+                RunningTaskMeta meta = runningTasks.get(directive.getTaskId());
+                if (meta != null) {
+                    String tenantId = directive.getTenantId() != null ? directive.getTenantId() : meta.tenantId();
+                    String taskKind = directive.getTaskKind() != null ? directive.getTaskKind() : meta.taskKind();
+                    TaskThrottleRuntime opened = openRuntime(
+                            new TaskRunKey(tenantId, taskKind, directive.getTaskId(), Math.max(0L, directive.getAuthorizedRunEpoch())),
+                            directive.getPolicy(),
+                            directive.isProtectedRun()
+                    );
+                    if (meta.sourceToTargets() != null && !meta.sourceToTargets().isEmpty()) {
+                        opened.registerTopology(meta.sourceToTargets());
                     }
                 }
-                continue;
             }
-            if (directive.isFenced()
-                    || (directive.getAuthorizedRunEpoch() > 0L
-                    && directive.getAuthorizedRunEpoch() != runtime.getRunKey().getRunEpoch())) {
-                runtime.markFenced("TM directive fenced local runEpoch " + runtime.getRunKey().getRunEpoch()
-                        + " (authorizedRunEpoch=" + directive.getAuthorizedRunEpoch() + ")");
-                continue;
-            }
-            if (directive.isProtectedRun()) {
-                runtime.setProtectedRun(true);
-            }
-            if (directive.getPolicy() != null) {
-                TaskThrottleApplyReceipt receipt = runtime.applyPolicy(directive.getPolicy(), agentId, null);
-                pendingReceipts.offer(receipt);
-            }
+            return;
+        }
+        if (directive.isFenced()
+                || (directive.getAuthorizedRunEpoch() > 0L
+                && directive.getAuthorizedRunEpoch() != runtime.getRunKey().getRunEpoch())) {
+            runtime.markFenced("TM directive fenced local runEpoch " + runtime.getRunKey().getRunEpoch()
+                    + " (authorizedRunEpoch=" + directive.getAuthorizedRunEpoch() + ")");
+            return;
+        }
+        if (directive.isProtectedRun()) {
+            runtime.setProtectedRun(true);
+        }
+        if (directive.getPolicy() != null) {
+            TaskThrottleApplyReceipt receipt = runtime.applyPolicy(directive.getPolicy(), agentId, null);
+            pendingReceipts.offer(receipt);
         }
     }
 
@@ -239,6 +272,39 @@ public class TaskThrottleRuntimeRegistry {
             list.add(item);
         }
         return list;
+    }
+
+    public void requeueReceipts(List<TaskThrottleApplyReceipt> receipts) {
+        if (receipts == null || receipts.isEmpty()) {
+            return;
+        }
+        for (TaskThrottleApplyReceipt receipt : receipts) {
+            if (receipt == null) {
+                continue;
+            }
+            if (pendingReceipts.size() >= MAX_PENDING_RECEIPTS) {
+                break;
+            }
+            boolean duplicate = false;
+            for (TaskThrottleApplyReceipt existing : pendingReceipts) {
+                if (sameReceipt(existing, receipt)) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                pendingReceipts.offer(receipt);
+            }
+        }
+    }
+
+    private static boolean sameReceipt(TaskThrottleApplyReceipt a, TaskThrottleApplyReceipt b) {
+        if (a == b) {
+            return true;
+        }
+        return java.util.Objects.equals(a.getTaskKey(), b.getTaskKey())
+                && a.getRunEpoch() == b.getRunEpoch()
+                && a.getPolicyVersion() == b.getPolicyVersion();
     }
 
     public List<TaskThrottleStopEvidenceDto> drainPendingStopEvidences() {

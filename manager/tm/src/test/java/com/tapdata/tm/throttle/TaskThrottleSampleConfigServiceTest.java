@@ -133,4 +133,21 @@ class TaskThrottleSampleConfigServiceTest {
         assertEquals(90, snap.intervalSeconds());
         assertEquals(2L, snap.configVersion());
     }
+
+    @Test
+    void configVersionSurvivesServiceRestartMonotonicallyWithoutRegressing() {
+        sampleConfigService.updateInterval(20); // v2
+        sampleConfigService.updateInterval(40); // v3
+
+        // Simulate TM restart by constructing a fresh service instance over the same Mongo store
+        TaskThrottleSampleConfigService restarted = new TaskThrottleSampleConfigService(
+                mongo.ops(), Clock.fixed(Instant.ofEpochMilli(1_700_000_010_000L), ZoneOffset.UTC));
+        TaskThrottleSampleConfigService.ConfigSnapshot loaded = restarted.getCurrentConfig();
+        assertEquals(40, loaded.intervalSeconds());
+        assertEquals(3L, loaded.configVersion());
+
+        TaskThrottleSampleConfigView nextUpdate = restarted.updateInterval(60);
+        assertEquals(60, nextUpdate.getIntervalSeconds());
+        assertEquals(4L, nextUpdate.getConfigVersion());
+    }
 }

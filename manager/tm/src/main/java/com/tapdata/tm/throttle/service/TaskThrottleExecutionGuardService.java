@@ -259,8 +259,36 @@ public class TaskThrottleExecutionGuardService {
     }
 
     /**
+     * Releases an epoch reservation that was authorized by TM scheduling before the task
+     * actually transitioned to {@code WAIT_RUN} / launched on Agent, preventing permanent lockouts.
+     */
+    public boolean releaseUnstartedEpoch(String taskId, long expectedRunEpoch, String expectedAgentId, String reason) {
+        if (mongo == null || isBlank(taskId) || expectedRunEpoch <= 0L) {
+            return false;
+        }
+        Criteria criteria = Criteria.where("taskId").is(taskId.trim())
+                .and("currentRunEpoch").is(expectedRunEpoch)
+                .and("protectedRunActive").is(true);
+        if (!isBlank(expectedAgentId)) {
+            criteria = criteria.and("currentAgentId").is(expectedAgentId.trim());
+        }
+        Update update = new Update()
+                .set("protectedRunActive", false)
+                .set("stopGateStatus", TaskThrottlePolicyEntity.STOP_GATE_NONE)
+                .set("stopGateReason", null)
+                .set("deltaSeq", nextDeltaSeq());
+        UpdateResult res = mongo.updateFirst(Query.query(criteria), update, TaskThrottlePolicyEntity.class);
+        boolean released = res != null && res.getModifiedCount() > 0L;
+        if (released) {
+            log.info("Released unstarted protected runEpoch {} for task {} (agent={}, reason={})",
+                    expectedRunEpoch, taskId, expectedAgentId, reason);
+        }
+        return released;
+    }
+
+    /**
      * Prevents heartbeat-timeout schedulers from reassigning a protected task solely on ping timeout
-     * when verified stop evidence has not been recorded.
+     * when verified stop evidence has not been recorded for an active protected runEpoch.
      */
     public boolean shouldBlockTimeoutReschedule(TaskDto taskDto) {
         if (taskDto == null || taskDto.getId() == null) {
@@ -268,10 +296,7 @@ public class TaskThrottleExecutionGuardService {
         }
         String taskId = taskDto.getId().toHexString();
         TaskThrottlePolicyEntity policy = findPolicyByTaskId(taskId);
-        if (policy == null) {
-            return false;
-        }
-        if (!policy.isProtectedRunActive() && !hasEnabledPhase(policy)) {
+        if (policy == null || !policy.isProtectedRunActive() || policy.getCurrentRunEpoch() <= 0L) {
             return false;
         }
         TaskThrottleStopEvidenceEntity valid = findUnconsumedVerifiedEvidence(
@@ -286,14 +311,16 @@ public class TaskThrottleExecutionGuardService {
 
     /**
      * Rejects stale-epoch checkpoint updates while preserving unprotected legacy checkpoint writes untouched.
+     *
+     * @return {@code true} iff this task currently has an active protected throttle runEpoch enforced.
      */
-    public void validateCheckpointWrite(String taskId, Long runEpoch, String agentId) {
+    public boolean validateCheckpointWrite(String taskId, Long runEpoch, String agentId) {
         if (isBlank(taskId)) {
-            return;
+            return false;
         }
         TaskThrottlePolicyEntity policy = findPolicyByTaskId(taskId.trim());
         if (policy == null || !policy.isProtectedRunActive()) {
-            return;
+            return false;
         }
         if (runEpoch == null || !Objects.equals(runEpoch, policy.getCurrentRunEpoch())) {
             throw new BizException(ThrottleConstants.ERR_STALE_RUN_EPOCH,
@@ -303,6 +330,7 @@ public class TaskThrottleExecutionGuardService {
             throw new BizException(ThrottleConstants.ERR_STALE_RUN_EPOCH,
                     "Checkpoint agentId rejected: provided=" + agentId + ", authorized=" + policy.getCurrentAgentId());
         }
+        return true;
     }
 
     public TaskThrottlePolicyEntity findPolicyByTaskId(String taskId) {

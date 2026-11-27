@@ -1,9 +1,13 @@
 package io.tapdata.flow.engine.V2.throttle;
 
+import io.tapdata.observable.metric.throttle.MonotonicClock;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -16,9 +20,12 @@ public class InFlightBudget {
 
     public static final double DEFAULT_HIGH_WATERMARK = 0.80d;
     public static final double DEFAULT_LOW_WATERMARK = 0.60d;
+    public static final long DEFAULT_STALE_LEASE_GRACE_NANOS = TimeUnit.SECONDS.toNanos(30L);
 
     private final TaskRunKey runKey;
     private final AgentMemoryBudgetPool agentPool;
+    private final MonotonicClock clock;
+    private final long staleLeaseGraceNanos;
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition capacityChanged = lock.newCondition();
 
@@ -63,6 +70,21 @@ public class InFlightBudget {
             long drainReserveBytes,
             double highWatermarkRatio,
             double lowWatermarkRatio) {
+        this(runKey, agentPool, maxBytes, maxRecords, maxBatches, drainReserveBytes,
+                highWatermarkRatio, lowWatermarkRatio, MonotonicClock.SYSTEM, DEFAULT_STALE_LEASE_GRACE_NANOS);
+    }
+
+    public InFlightBudget(
+            TaskRunKey runKey,
+            AgentMemoryBudgetPool agentPool,
+            long maxBytes,
+            long maxRecords,
+            long maxBatches,
+            long drainReserveBytes,
+            double highWatermarkRatio,
+            double lowWatermarkRatio,
+            MonotonicClock clock,
+            long staleLeaseGraceNanos) {
         if (runKey == null || agentPool == null) {
             throw new IllegalArgumentException("runKey and agentPool must not be null");
         }
@@ -74,6 +96,8 @@ public class InFlightBudget {
         }
         this.runKey = runKey;
         this.agentPool = agentPool;
+        this.clock = clock == null ? MonotonicClock.SYSTEM : clock;
+        this.staleLeaseGraceNanos = Math.max(0L, staleLeaseGraceNanos);
         this.maxBytes = maxBytes;
         this.maxRecords = maxRecords;
         this.maxBatches = maxBatches;
@@ -111,6 +135,19 @@ public class InFlightBudget {
             String sourceNodeId,
             long sourceBatchSeq,
             boolean registerAgentWaiterOnFail) {
+        return tryAcquireLease(estimatedBytes, records, batches, ownerTag, sourceNodeId, sourceBatchSeq, null,
+                registerAgentWaiterOnFail);
+    }
+
+    public CapacityLease tryAcquireLease(
+            long estimatedBytes,
+            long records,
+            long batches,
+            String ownerTag,
+            String sourceNodeId,
+            long sourceBatchSeq,
+            Set<String> expectedTargets,
+            boolean registerAgentWaiterOnFail) {
         if (estimatedBytes < 0L || records < 0L || batches < 0L) {
             throw new IllegalArgumentException("Lease amounts must be non-negative");
         }
@@ -131,7 +168,7 @@ public class InFlightBudget {
             evaluateWatermarksLocked();
 
             CapacityLease lease = new CapacityLease(
-                    runKey, this, estimatedBytes, records, batches, ownerTag, sourceNodeId, sourceBatchSeq);
+                    runKey, this, estimatedBytes, records, batches, ownerTag, sourceNodeId, sourceBatchSeq, expectedTargets);
             activeLeases.put(lease.getLeaseId(), lease);
             return lease;
         } finally {
@@ -257,44 +294,83 @@ public class InFlightBudget {
         return tryAcquireLease(extraBytes, extraRecords, extraBatches, ownerTag, false);
     }
 
-    void reclaimSlice(CapacityLease lease, long bytes, long records, long batches, boolean fullRelease) {
-        if (lease == null) {
-            return;
+    boolean ackLeaseEvents(CapacityLease lease, String targetNodeId, long completedEvents) {
+        if (lease == null || completedEvents <= 0L) {
+            return false;
         }
+        return settleLeaseMutation(lease, () -> lease.ackEventsLocked(targetNodeId, completedEvents));
+    }
+
+    boolean releaseLease(CapacityLease lease, long expectedHolderVersion) {
+        if (lease == null) {
+            return false;
+        }
+        return settleLeaseMutation(lease, () -> lease.releaseLocked(expectedHolderVersion));
+    }
+
+    boolean releaseLeaseBySharedRef(CapacityLease lease, long pinnedHolderVersion) {
+        if (lease == null) {
+            return false;
+        }
+        return settleLeaseMutation(lease, () -> lease.releaseBySharedRefLocked(pinnedHolderVersion));
+    }
+
+    private boolean settleLeaseMutation(CapacityLease lease, java.util.function.Supplier<long[]> leaseUpdater) {
+        boolean notify = false;
         lock.lock();
         try {
             if (!activeLeases.containsKey(lease.getLeaseId())) {
-                return;
+                return false;
             }
+            long[] delta = leaseUpdater.get();
+            if (delta == null) {
+                return false;
+            }
+            long bytes = Math.max(0L, delta[0]);
+            long records = Math.max(0L, delta[1]);
+            long batches = Math.max(0L, delta[2]);
+            boolean fullRelease = delta.length > 3 && delta[3] != 0L;
             if (fullRelease) {
                 activeLeases.remove(lease.getLeaseId());
             }
-            usedBytes = Math.max(0L, usedBytes - Math.max(0L, bytes));
-            usedRecords = Math.max(0L, usedRecords - Math.max(0L, records));
-            usedBatches = Math.max(0L, usedBatches - Math.max(0L, batches));
-            agentPool.release(Math.max(0L, bytes), Math.max(0L, records), Math.max(0L, batches), false);
-            evaluateWatermarksLocked();
-            capacityChanged.signalAll();
+            if (bytes > 0L || records > 0L || batches > 0L || fullRelease) {
+                usedBytes = Math.max(0L, usedBytes - bytes);
+                usedRecords = Math.max(0L, usedRecords - records);
+                usedBatches = Math.max(0L, usedBatches - batches);
+                agentPool.release(bytes, records, batches, false);
+                evaluateWatermarksLocked();
+                capacityChanged.signalAll();
+                notify = true;
+            }
         } finally {
             lock.unlock();
         }
-        notifyDrainListeners();
+        if (notify) {
+            notifyDrainListeners();
+        }
+        return true;
     }
 
     /**
-     * Reclaims residual leases from earlier source batches filtered out before reaching the target.
+     * Reclaims residual leases from earlier source batches only after they remain older than
+     * {@code latestObservedSeq} across the configured grace window, protecting concurrent retries/fan-out.
      */
     public int flushOlderLeasesForSource(String sourceNodeId, long latestObservedSeq) {
         if (sourceNodeId == null || latestObservedSeq <= 1L) {
             return 0;
         }
         int reclaimedCount = 0;
+        long nowNanos = clock.nanoTime();
         lock.lock();
         try {
             for (CapacityLease lease : new ArrayList<>(activeLeases.values())) {
                 if (sourceNodeId.equals(lease.getSourceNodeId())
                         && lease.getSourceBatchSeq() > 0L
                         && lease.getSourceBatchSeq() < latestObservedSeq) {
+                    long observedAt = lease.getOrMarkObservedBehindNanos(nowNanos);
+                    if ((nowNanos - observedAt) < staleLeaseGraceNanos) {
+                        continue;
+                    }
                     long[] rem = lease.forceReclaimRemaining();
                     if (rem != null) {
                         activeLeases.remove(lease.getLeaseId());

@@ -1,11 +1,16 @@
 package io.tapdata.flow.engine.V2.throttle;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Capacity lease binding reserved bytes/records/batches to a specific task runEpoch, owner, and holder version.
  * Supports single-owner handoff (with holderVersion fencing), shared fan-out reference counting,
- * incremental ack release per processed record count, and idempotent release.
+ * multi-target fan-out proportional ack tracking, single-lock-order budget settlement, and idempotent release.
  */
 public final class CapacityLease {
 
@@ -17,7 +22,11 @@ public final class CapacityLease {
     private final long initialBatches;
     private final String sourceNodeId;
     private final long sourceBatchSeq;
+    private final Set<String> expectedTargets;
+    private final Map<String, Long> ackedByTarget;
 
+    private long committedFanOutEvents;
+    private long observedBehindAtNanos;
     private long remainingBytes;
     private long remainingRecords;
     private long remainingBatches;
@@ -33,7 +42,7 @@ public final class CapacityLease {
             long reservedRecords,
             long reservedBatches,
             String ownerTag) {
-        this(runKey, budget, reservedBytes, reservedRecords, reservedBatches, ownerTag, null, 0L);
+        this(runKey, budget, reservedBytes, reservedRecords, reservedBatches, ownerTag, null, 0L, null);
     }
 
     CapacityLease(
@@ -45,6 +54,19 @@ public final class CapacityLease {
             String ownerTag,
             String sourceNodeId,
             long sourceBatchSeq) {
+        this(runKey, budget, reservedBytes, reservedRecords, reservedBatches, ownerTag, sourceNodeId, sourceBatchSeq, null);
+    }
+
+    CapacityLease(
+            TaskRunKey runKey,
+            InFlightBudget budget,
+            long reservedBytes,
+            long reservedRecords,
+            long reservedBatches,
+            String ownerTag,
+            String sourceNodeId,
+            long sourceBatchSeq,
+            Set<String> expectedTargets) {
         this.leaseId = UUID.randomUUID().toString();
         this.runKey = runKey;
         this.budget = budget;
@@ -56,6 +78,13 @@ public final class CapacityLease {
         this.remainingBatches = this.initialBatches;
         this.sourceNodeId = sourceNodeId;
         this.sourceBatchSeq = sourceBatchSeq;
+        if (expectedTargets != null && expectedTargets.size() > 1) {
+            this.expectedTargets = Collections.unmodifiableSet(new HashSet<>(expectedTargets));
+            this.ackedByTarget = new HashMap<>(expectedTargets.size());
+        } else {
+            this.expectedTargets = Collections.emptySet();
+            this.ackedByTarget = null;
+        }
         this.ownerTag = ownerTag == null ? "source" : ownerTag;
         this.holderVersion = 1L;
         this.activeRefCount = 1;
@@ -146,43 +175,18 @@ public final class CapacityLease {
 
     /**
      * Releases proportional records and bytes when part of a source batch completes at downstream targets.
-     * Once remaining records hit zero, completes full lease release (including remaining bytes and batches).
+     * Executes under {@link InFlightBudget}'s single lock to eliminate cross-lock races and handles
+     * multi-target fan-out watermarks when multiple downstream targets consume the same source lease.
      */
     public boolean ackProcessedEvents(long completedEvents) {
+        return ackProcessedEvents(null, completedEvents);
+    }
+
+    public boolean ackProcessedEvents(String targetNodeId, long completedEvents) {
         if (completedEvents <= 0L) {
             return false;
         }
-        long releaseBytes = 0L;
-        long releaseRecords = 0L;
-        long releaseBatches = 0L;
-        boolean fullRelease = false;
-
-        synchronized (this) {
-            if (released || activeRefCount > 1) {
-                return false;
-            }
-            if (remainingRecords <= completedEvents) {
-                releaseBytes = remainingBytes;
-                releaseRecords = remainingRecords;
-                releaseBatches = remainingBatches;
-                remainingBytes = 0L;
-                remainingRecords = 0L;
-                remainingBatches = 0L;
-                activeRefCount = 0;
-                released = true;
-                fullRelease = true;
-            } else {
-                releaseRecords = completedEvents;
-                releaseBytes = (remainingBytes * releaseRecords) / Math.max(1L, remainingRecords);
-                releaseBatches = 0L;
-                remainingRecords -= releaseRecords;
-                remainingBytes -= releaseBytes;
-            }
-        }
-        if (releaseBytes > 0L || releaseRecords > 0L || releaseBatches > 0L || fullRelease) {
-            budget.reclaimSlice(this, releaseBytes, releaseRecords, releaseBatches, fullRelease);
-        }
-        return true;
+        return budget.ackLeaseEvents(this, targetNodeId, completedEvents);
     }
 
     /**
@@ -190,50 +194,100 @@ public final class CapacityLease {
      * Old-owner late callbacks with a stale holderVersion are safely rejected without disturbing current reservations.
      */
     public boolean release(long expectedHolderVersion) {
-        long releaseBytes = 0L;
-        long releaseRecords = 0L;
-        long releaseBatches = 0L;
-        boolean shouldReclaimBudget = false;
-        synchronized (this) {
-            if (released || holderVersion != expectedHolderVersion) {
-                return false;
+        return budget.releaseLease(this, expectedHolderVersion);
+    }
+
+    synchronized long[] ackEventsLocked(String targetNodeId, long completedEvents) {
+        if (released || activeRefCount > 1 || completedEvents <= 0L) {
+            return null;
+        }
+        long effectiveDelta = completedEvents;
+        if (!expectedTargets.isEmpty()) {
+            if (targetNodeId == null || !expectedTargets.contains(targetNodeId)) {
+                return null;
             }
-            activeRefCount--;
-            if (activeRefCount <= 0) {
-                releaseBytes = remainingBytes;
-                releaseRecords = remainingRecords;
-                releaseBatches = remainingBatches;
-                remainingBytes = 0L;
-                remainingRecords = 0L;
-                remainingBatches = 0L;
-                released = true;
-                shouldReclaimBudget = true;
+            long prevForTarget = ackedByTarget.getOrDefault(targetNodeId, 0L);
+            long nextForTarget = Math.min(initialRecords, prevForTarget + completedEvents);
+            ackedByTarget.put(targetNodeId, nextForTarget);
+
+            long minAcrossTargets = initialRecords;
+            for (String target : expectedTargets) {
+                long acked = ackedByTarget.getOrDefault(target, 0L);
+                if (acked < minAcrossTargets) {
+                    minAcrossTargets = acked;
+                }
+            }
+            effectiveDelta = Math.max(0L, minAcrossTargets - committedFanOutEvents);
+            committedFanOutEvents += effectiveDelta;
+            if (effectiveDelta == 0L) {
+                return new long[]{0L, 0L, 0L, 0L};
             }
         }
-        if (shouldReclaimBudget) {
-            budget.reclaimSlice(this, releaseBytes, releaseRecords, releaseBatches, true);
+
+        long releaseBytes;
+        long releaseRecords;
+        long releaseBatches;
+        long fullRelease;
+        if (remainingRecords <= effectiveDelta) {
+            releaseBytes = remainingBytes;
+            releaseRecords = remainingRecords;
+            releaseBatches = remainingBatches;
+            remainingBytes = 0L;
+            remainingRecords = 0L;
+            remainingBatches = 0L;
+            activeRefCount = 0;
+            released = true;
+            fullRelease = 1L;
+        } else {
+            releaseRecords = effectiveDelta;
+            releaseBytes = (remainingBytes * releaseRecords) / Math.max(1L, remainingRecords);
+            releaseBatches = 0L;
+            remainingRecords -= releaseRecords;
+            remainingBytes -= releaseBytes;
+            fullRelease = 0L;
         }
-        return true;
+        return new long[]{releaseBytes, releaseRecords, releaseBatches, fullRelease};
+    }
+
+    synchronized long[] releaseLocked(long expectedHolderVersion) {
+        if (released || holderVersion != expectedHolderVersion) {
+            return null;
+        }
+        activeRefCount--;
+        if (activeRefCount <= 0) {
+            long[] rem = new long[]{remainingBytes, remainingRecords, remainingBatches, 1L};
+            remainingBytes = 0L;
+            remainingRecords = 0L;
+            remainingBatches = 0L;
+            released = true;
+            return rem;
+        }
+        return new long[]{0L, 0L, 0L, 0L};
+    }
+
+    synchronized long getOrMarkObservedBehindNanos(long nowNanos) {
+        if (observedBehindAtNanos == 0L) {
+            observedBehindAtNanos = nowNanos;
+        }
+        return observedBehindAtNanos;
     }
 
     /**
      * Force-reclaims remaining budget held by this lease upon invalidation, stop, or sequence sweep.
      * Returns an array {bytes, records, batches} or null if already released.
      */
-    long[] forceReclaimRemaining() {
-        synchronized (this) {
-            if (released) {
-                return null;
-            }
-            long[] rem = new long[]{remainingBytes, remainingRecords, remainingBatches};
-            remainingBytes = 0L;
-            remainingRecords = 0L;
-            remainingBatches = 0L;
-            released = true;
-            activeRefCount = 0;
-            holderVersion++;
-            return rem;
+    synchronized long[] forceReclaimRemaining() {
+        if (released) {
+            return null;
         }
+        long[] rem = new long[]{remainingBytes, remainingRecords, remainingBatches};
+        remainingBytes = 0L;
+        remainingRecords = 0L;
+        remainingBatches = 0L;
+        released = true;
+        activeRefCount = 0;
+        holderVersion++;
+        return rem;
     }
 
     /**
@@ -271,29 +325,22 @@ public final class CapacityLease {
     }
 
     private boolean releaseBySharedRef(long pinnedHolderVersion) {
-        long releaseBytes = 0L;
-        long releaseRecords = 0L;
-        long releaseBatches = 0L;
-        boolean shouldReclaimBudget = false;
-        synchronized (this) {
-            if (released || holderVersion < pinnedHolderVersion) {
-                return false;
-            }
-            activeRefCount--;
-            if (activeRefCount <= 0) {
-                releaseBytes = remainingBytes;
-                releaseRecords = remainingRecords;
-                releaseBatches = remainingBatches;
-                remainingBytes = 0L;
-                remainingRecords = 0L;
-                remainingBatches = 0L;
-                released = true;
-                shouldReclaimBudget = true;
-            }
+        return budget.releaseLeaseBySharedRef(this, pinnedHolderVersion);
+    }
+
+    synchronized long[] releaseBySharedRefLocked(long pinnedHolderVersion) {
+        if (released || holderVersion < pinnedHolderVersion) {
+            return null;
         }
-        if (shouldReclaimBudget) {
-            budget.reclaimSlice(this, releaseBytes, releaseRecords, releaseBatches, true);
+        activeRefCount--;
+        if (activeRefCount <= 0) {
+            long[] rem = new long[]{remainingBytes, remainingRecords, remainingBatches, 1L};
+            remainingBytes = 0L;
+            remainingRecords = 0L;
+            remainingBatches = 0L;
+            released = true;
+            return rem;
         }
-        return true;
+        return new long[]{0L, 0L, 0L, 0L};
     }
 }

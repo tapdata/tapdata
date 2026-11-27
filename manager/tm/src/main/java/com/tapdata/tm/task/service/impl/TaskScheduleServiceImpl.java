@@ -168,12 +168,26 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             taskDto.getAttrs().remove("throttleProtected");
             taskDto.getAttrs().remove("throttlePolicy");
         }
-        taskService.update(agentIdQuery, waitRunUpdate, user);
+        com.mongodb.client.result.UpdateResult waitRunUpdateResult = taskService.update(agentIdQuery, waitRunUpdate, user);
+        if (waitRunUpdateResult != null && waitRunUpdateResult.getMatchedCount() == 0L) {
+            if (throttleDecision != null && throttleDecision.protectedRun() && taskThrottleExecutionGuardService != null) {
+                taskThrottleExecutionGuardService.releaseUnstartedEpoch(
+                        taskDto.getId().toHexString(), throttleDecision.runEpoch(), taskDto.getAgentId(),
+                        "Task was no longer in SCHEDULING status");
+            }
+            log.info("task {} left SCHEDULING before wait_run update took effect", taskDto.getName());
+            return;
+        }
 
         // Step 2: Transition state to WAIT_RUN — agentId is already correct at this point
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
 
         if (stateMachineResult.isFail()) {
+            if (throttleDecision != null && throttleDecision.protectedRun() && taskThrottleExecutionGuardService != null) {
+                taskThrottleExecutionGuardService.releaseUnstartedEpoch(
+                        taskDto.getId().toHexString(), throttleDecision.runEpoch(), taskDto.getAgentId(),
+                        "SCHEDULE_SUCCESS transition rejected");
+            }
             log.info("concurrent start operations, this operation don’t effective, task name = {}", taskDto.getName());
             return;
         }

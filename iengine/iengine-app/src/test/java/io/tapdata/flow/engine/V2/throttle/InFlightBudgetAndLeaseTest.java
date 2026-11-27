@@ -3,11 +3,13 @@ package io.tapdata.flow.engine.V2.throttle;
 import io.tapdata.observable.metric.throttle.MonotonicClock;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,10 +88,22 @@ class InFlightBudgetAndLeaseTest {
     }
 
     @Test
-    void progressiveAckAndOlderBatchSeqSweepPreventFilterLeakage() {
-        AgentMemoryBudgetPool pool = new AgentMemoryBudgetPool(100_000L, 1_000L, 100L, 0L, MonotonicClock.SYSTEM);
+    void progressiveAckAndOlderBatchSeqSweepPreventFilterLeakageWithinAndAfterGraceWindow() {
+        AtomicLong nanoClock = new AtomicLong(1_000_000L);
+        MonotonicClock clock = new MonotonicClock() {
+            @Override
+            public long nanoTime() {
+                return nanoClock.get();
+            }
+
+            @Override
+            public long currentTimeMillis() {
+                return TimeUnit.NANOSECONDS.toMillis(nanoClock.get());
+            }
+        };
+        AgentMemoryBudgetPool pool = new AgentMemoryBudgetPool(100_000L, 1_000L, 100L, 0L, clock);
         InFlightBudget budget = new InFlightBudget(new TaskRunKey("t1", "sync", "task-ack", 1L),
-                pool, 50_000L, 500L, 50L, 0L);
+                pool, 50_000L, 500L, 50L, 0L, 0.80d, 0.60d, clock, TimeUnit.SECONDS.toNanos(30L));
 
         CapacityLease lease1 = budget.tryAcquireLease(1_000L, 10L, 1L, "src", "src-node-1", 1L, false);
         assertNotNull(lease1);
@@ -99,9 +113,19 @@ class InFlightBudgetAndLeaseTest {
         assertEquals(600L, budget.snapshot().usedBytes());
         assertEquals(1L, budget.snapshot().usedBatches()); // Batch still held until final slice or sweep
 
-        // Simulate 6 records of seq=1 filtered out upstream while seq=2 completes -> sweep reclaims residual of seq=1
+        // Simulate concurrent target completion of seq=2 while seq=1 still has in-flight retry within 30s grace window
         CapacityLease lease2 = budget.tryAcquireLease(500L, 5L, 1L, "src", "src-node-1", 2L, false);
         assertNotNull(lease2);
+        assertEquals(0, budget.flushOlderLeasesForSource("src-node-1", 2L));
+        assertFalse(lease1.isReleased());
+
+        // Still within grace window at +15s -> must NOT prematurely reclaim seq=1
+        nanoClock.addAndGet(TimeUnit.SECONDS.toNanos(15L));
+        assertEquals(0, budget.flushOlderLeasesForSource("src-node-1", 2L));
+        assertFalse(lease1.isReleased());
+
+        // Once 30s grace window elapses with seq=1 still uncompleted -> sweep reclaims residual filtered batch
+        nanoClock.addAndGet(TimeUnit.SECONDS.toNanos(16L));
         int swept = budget.flushOlderLeasesForSource("src-node-1", 2L);
         assertEquals(1, swept);
         assertTrue(lease1.isReleased());
@@ -114,6 +138,75 @@ class InFlightBudgetAndLeaseTest {
         assertEquals(0L, budget.snapshot().usedRecords());
         assertEquals(0L, budget.snapshot().usedBatches());
         assertEquals(0L, pool.snapshot().totalReservedBytes());
+    }
+
+    @Test
+    void fanOutLeaseRetainsBudgetUntilAllDownstreamTargetsComplete() {
+        AgentMemoryBudgetPool pool = new AgentMemoryBudgetPool(100_000L, 1_000L, 100L, 0L, MonotonicClock.SYSTEM);
+        InFlightBudget budget = new InFlightBudget(new TaskRunKey("t1", "sync", "task-fanout", 1L),
+                pool, 50_000L, 500L, 50L, 0L);
+
+        CapacityLease lease = budget.tryAcquireLease(
+                1_000L, 10L, 1L, "src-1", "src-1", 1L, Set.of("tgt-a", "tgt-b"), false);
+        assertNotNull(lease);
+
+        // Fast branch tgt-a finishes all 10 records -> budget must still be held for slow branch tgt-b!
+        assertTrue(lease.ackProcessedEvents("tgt-a", 10L));
+        assertFalse(lease.isReleased());
+        assertEquals(1_000L, budget.snapshot().usedBytes());
+        assertEquals(1L, budget.snapshot().usedBatches());
+
+        // Slow branch tgt-b finishes 4 records -> proportional 4/10 (400B, 4 rec) reclaimed, 600B kept
+        assertTrue(lease.ackProcessedEvents("tgt-b", 4L));
+        assertFalse(lease.isReleased());
+        assertEquals(600L, budget.snapshot().usedBytes());
+        assertEquals(6L, budget.snapshot().usedRecords());
+
+        // Slow branch tgt-b finishes remaining 6 records -> full release & 0 residual!
+        assertTrue(lease.ackProcessedEvents("tgt-b", 6L));
+        assertTrue(lease.isReleased());
+        assertEquals(0L, budget.snapshot().usedBytes());
+        assertEquals(0L, budget.snapshot().usedRecords());
+        assertEquals(0L, budget.snapshot().usedBatches());
+        assertEquals(0L, pool.snapshot().totalReservedBytes());
+    }
+
+    @Test
+    void concurrentPartialAckAndForceReclaimNeverLeakBudgetBytes() throws Exception {
+        AgentMemoryBudgetPool pool = new AgentMemoryBudgetPool(1_000_000L, 100_000L, 10_000L, 0L, MonotonicClock.SYSTEM);
+        InFlightBudget budget = new InFlightBudget(new TaskRunKey("t1", "sync", "task-race", 1L),
+                pool, 500_000L, 50_000L, 5_000L, 0L, 0.80d, 0.60d, MonotonicClock.SYSTEM, 0L);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            for (int round = 0; round < 40; round++) {
+                CapacityLease lease = budget.tryAcquireLease(1_000L, 10L, 1L, "src", "src-1", round + 1L, false);
+                assertNotNull(lease);
+                CountDownLatch start = new CountDownLatch(1);
+                Future<?> ackFuture = exec.submit(() -> {
+                    start.await();
+                    for (int i = 0; i < 10; i++) {
+                        lease.ackProcessedEvents(1L);
+                    }
+                    return null;
+                });
+                Future<?> sweepFuture = exec.submit(() -> {
+                    start.await();
+                    budget.flushOlderLeasesForSource("src-1", 1_000_000L);
+                    return null;
+                });
+                start.countDown();
+                ackFuture.get(5, TimeUnit.SECONDS);
+                sweepFuture.get(5, TimeUnit.SECONDS);
+                assertTrue(lease.isReleased());
+            }
+            assertEquals(0L, budget.snapshot().usedBytes());
+            assertEquals(0L, budget.snapshot().usedRecords());
+            assertEquals(0L, budget.snapshot().usedBatches());
+            assertEquals(0L, pool.snapshot().totalReservedBytes());
+        } finally {
+            exec.shutdownNow();
+        }
     }
 
     @Test

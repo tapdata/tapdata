@@ -315,13 +315,6 @@ public class TaskThrottleController {
                             }
                             return AcquireResult.exceedsAtomicLimit(snapshotVersion, ThrottleDimension.BYTES, demand.bytesCost, maxAtomic);
                         }
-                        if (demand.splittable && demand.bytesCost > slot.bytesBucket.normalBurst) {
-                            // Safety guard: splittable callers slice first; if not sliced, still disallow overdraft on splittable
-                            if (ticket != null) {
-                                releasedFairReservation |= clearReservationLocked(lockOrder, ticket.candidateId);
-                            }
-                            return AcquireResult.exceedsAtomicLimit(snapshotVersion, ThrottleDimension.BYTES, demand.bytesCost, slot.bytesBucket.normalBurst);
-                        }
                         requirements.add(new BucketRequirement(slot.bytesBucket, ThrottleDimension.BYTES, demand.bytesCost));
                     }
                 }
@@ -335,12 +328,6 @@ public class TaskThrottleController {
                                 releasedFairReservation |= clearReservationLocked(lockOrder, ticket.candidateId);
                             }
                             return AcquireResult.exceedsAtomicLimit(snapshotVersion, ThrottleDimension.QPS, demand.eventsCost, maxAtomic);
-                        }
-                        if (demand.splittable && demand.eventsCost > slot.qpsBucket.normalBurst) {
-                            if (ticket != null) {
-                                releasedFairReservation |= clearReservationLocked(lockOrder, ticket.candidateId);
-                            }
-                            return AcquireResult.exceedsAtomicLimit(snapshotVersion, ThrottleDimension.QPS, demand.eventsCost, slot.qpsBucket.normalBurst);
                         }
                         requirements.add(new BucketRequirement(slot.qpsBucket, ThrottleDimension.QPS, demand.eventsCost));
                     }

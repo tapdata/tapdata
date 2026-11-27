@@ -1524,11 +1524,10 @@ public class TaskController extends BaseController {
 		if (StringUtils.isBlank(body)) {
 			return success();
 		}
-		if (taskThrottleExecutionGuardService != null) {
-			taskThrottleExecutionGuardService.validateCheckpointWrite(taskId, runEpoch, agentId);
-		}
+		boolean protectedRun = taskThrottleExecutionGuardService != null
+				&& taskThrottleExecutionGuardService.validateCheckpointWrite(taskId, runEpoch, agentId);
 		Document document = Document.parse(body);
-		if (runEpoch != null) {
+		if (protectedRun && runEpoch != null) {
 			taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document, runEpoch);
 		} else {
 			taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document);

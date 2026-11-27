@@ -145,7 +145,8 @@ public class AgentThrottleSyncClient {
             clientMongoOperator.postOne(payload, RESOURCE_RECEIPTS, Object.class);
             return true;
         } catch (Exception e) {
-            logger.warn("Upload throttle apply receipts failed: {}", e.getMessage());
+            registry.requeueReceipts(receipts);
+            logger.warn("Upload throttle apply receipts failed (requeued {} items): {}", receipts.size(), e.getMessage());
             return false;
         }
     }

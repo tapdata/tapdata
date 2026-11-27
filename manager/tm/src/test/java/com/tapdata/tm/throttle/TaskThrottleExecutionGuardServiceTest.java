@@ -199,8 +199,8 @@ class TaskThrottleExecutionGuardServiceTest {
     void enforcesCheckpointFencingAndIntegratesWithTaskControllerUpdateSyncProgress() {
         registerCompatibleAgent("agent-curr");
 
-        // Unprotected task bypasses fencing
-        guardService.validateCheckpointWrite(taskId, null, null);
+        // Unprotected task returns false from validateCheckpointWrite
+        assertFalse(guardService.validateCheckpointWrite(taskId, null, null));
 
         UserDetail user = mock(UserDetail.class);
         policyService.updatePolicy("sync", taskId, TaskThrottlePolicyUpdateRequest.builder()
@@ -233,6 +233,44 @@ class TaskThrottleExecutionGuardServiceTest {
                 org.mockito.ArgumentMatchers.eq(taskOid),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq(1L));
+
+        // Unprotected task passing runEpoch=0 (e.g., stale client query) falls back to 2-arg updateSyncProgress
+        String lazyTaskId = new ObjectId().toHexString();
+        controller.updateSyncProgress(lazyTaskId, 0L, "agent-curr", "{\"offset\":7}");
+        verify(mockTaskService).updateSyncProgress(
+                org.mockito.ArgumentMatchers.eq(MongoUtils.toObjectId(lazyTaskId)),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void inactivePolicyNeverBlocksTimeoutRescheduleAndUnstartedEpochCanBeReleased() {
+        registerCompatibleAgent("agent-a");
+        policyService.updatePolicy("sync", taskId, TaskThrottlePolicyUpdateRequest.builder()
+                .expectedVersion(0L)
+                .phases(Map.of(ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(500_000L).build()))
+                .build(), mock(UserDetail.class));
+
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(taskOid);
+        taskDto.setSyncType("sync");
+
+        // protectedRunActive=false, currentRunEpoch=0 -> heartbeat timeout reschedule must NOT be blocked!
+        assertFalse(guardService.shouldBlockTimeoutReschedule(taskDto));
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_NONE,
+                guardService.findPolicyByTaskId(taskId).getStopGateStatus());
+
+        // Scheduling authorizes runEpoch=1, then fails before WAIT_RUN -> releaseUnstartedEpoch restores clean scheduling
+        TaskThrottleExecutionGuardService.AuthorizationDecision auth =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-a");
+        assertTrue(auth.allowed());
+        assertTrue(auth.protectedRun());
+        assertTrue(guardService.releaseUnstartedEpoch(taskId, auth.runEpoch(), "agent-a", "start aborted"));
+        assertFalse(guardService.shouldBlockTimeoutReschedule(taskDto));
+
+        TaskThrottleExecutionGuardService.AuthorizationDecision retryAuth =
+                guardService.authorizeStartOrTakeover(taskDto, "agent-a");
+        assertTrue(retryAuth.allowed());
+        assertEquals(2L, retryAuth.runEpoch());
     }
 
     @Test

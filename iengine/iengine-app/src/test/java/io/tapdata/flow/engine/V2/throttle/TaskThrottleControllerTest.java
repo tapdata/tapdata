@@ -116,6 +116,26 @@ class TaskThrottleControllerTest {
     }
 
     @Test
+    void splittableRequestWithinFiveSecondAtomicLimitUsesOverdraftInsteadOfFailing() {
+        VirtualClock clock = new VirtualClock();
+        TaskRunKey key = new TaskRunKey("t1", "sync", "task-splittable", 1L);
+        TaskThrottleController controller = new TaskThrottleController(key, clock);
+        controller.applyPolicy(fullInputPolicy(1L, 1_000L, 100L), "agent-1", null);
+
+        // Refill normalBurst=1_000, events=10
+        clock.advanceMillis(1_000L);
+        TaskThrottleController.AcquireResult splittableOverdraft = controller.tryAcquire(
+                ThrottlePhase.FULL, ThrottleDirection.INPUT, 2_500L, 1L, true, true, controller.newWaitTicket());
+        assertEquals(TaskThrottleController.Outcome.ADMITTED, splittableOverdraft.outcome());
+
+        // Request exceeding 5s atomic cap (bytes maxAtomic = 5_000) still fails cleanly without debiting
+        TaskThrottleController.AcquireResult tooBigSplittable = controller.tryAcquire(
+                ThrottlePhase.FULL, ThrottleDirection.INPUT, 5_001L, 1L, true, true, controller.newWaitTicket());
+        assertEquals(TaskThrottleController.Outcome.EXCEEDS_ATOMIC_LIMIT, tooBigSplittable.outcome());
+        assertEquals(ThrottleDimension.BYTES, tooBigSplittable.exceededDimension());
+    }
+
+    @Test
     void enforcesDualDimensionsSimultaneouslyAndRejectsOverFiveSecondsAtomicLimit() {
         VirtualClock clock = new VirtualClock();
         TaskRunKey key = new TaskRunKey("t1", "sync", "task-1", 2L);

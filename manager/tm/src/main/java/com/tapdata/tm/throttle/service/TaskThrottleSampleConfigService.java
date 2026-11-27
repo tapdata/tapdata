@@ -99,6 +99,9 @@ public class TaskThrottleSampleConfigService {
                     // Fallback cleanly to last valid or default 30s
                 }
             }
+            if (settings.getThrottle_config_version() != null && settings.getThrottle_config_version() > 0L) {
+                configVersion.accumulateAndGet(settings.getThrottle_config_version(), Math::max);
+            }
             if (settings.getLast_update() != null && settings.getLast_update() > 0) {
                 lastUpdatedAt = settings.getLast_update().longValue() * 1000L;
             }
@@ -108,8 +111,12 @@ public class TaskThrottleSampleConfigService {
 
     public TaskThrottleSampleConfigView updateInterval(Object rawInterval) {
         int validSeconds = validateIntervalValue(rawInterval);
-        long nextVersion = configVersion.incrementAndGet();
         long now = clock.millis();
+        long persistedBase = readPersistedVersion();
+        long base = Math.max(configVersion.get(), Math.max(1L, persistedBase));
+        long nextVersion = base + 1L;
+        configVersion.accumulateAndGet(nextVersion, Math::max);
+        long effectiveVersion = configVersion.get();
 
         if (mongo != null) {
             Query query = Query.query(Criteria.where("key").is(ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL));
@@ -127,6 +134,7 @@ public class TaskThrottleSampleConfigService {
                     .set("user_visible", true)
                     .set("min", ThrottleConstants.MIN_CDC_SAMPLE_REFRESH_INTERVAL_SECONDS)
                     .set("max", ThrottleConstants.MAX_CDC_SAMPLE_REFRESH_INTERVAL_SECONDS)
+                    .set("throttle_config_version", effectiveVersion)
                     .set("last_update", (int) (now / 1000L));
             mongo.upsert(query, update, Settings.class);
         }
@@ -141,9 +149,34 @@ public class TaskThrottleSampleConfigService {
      */
     public void validateAndAdvanceVersion(Object rawValue) {
         int valid = validateIntervalValue(rawValue);
-        configVersion.incrementAndGet();
+        long now = clock.millis();
+        long persistedBase = readPersistedVersion();
+        long nextVersion = Math.max(configVersion.get(), Math.max(1L, persistedBase)) + 1L;
+        configVersion.accumulateAndGet(nextVersion, Math::max);
+        long effectiveVersion = configVersion.get();
+        if (mongo != null) {
+            Query query = Query.query(Criteria.where("key").is(ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL));
+            mongo.upsert(query, new Update()
+                    .set("key", ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL)
+                    .set("value", String.valueOf(valid))
+                    .set("throttle_config_version", effectiveVersion)
+                    .set("last_update", (int) (now / 1000L)), Settings.class);
+        }
         cachedIntervalSeconds = valid;
-        lastUpdatedAt = clock.millis();
+        lastUpdatedAt = now;
+    }
+
+    private long readPersistedVersion() {
+        if (mongo == null) {
+            return 0L;
+        }
+        Settings settings = mongo.findOne(
+                Query.query(Criteria.where("key").is(ThrottleConstants.SETTING_KEY_CDC_SAMPLE_REFRESH_INTERVAL)),
+                Settings.class);
+        if (settings != null && settings.getThrottle_config_version() != null && settings.getThrottle_config_version() > 0L) {
+            return settings.getThrottle_config_version();
+        }
+        return 0L;
     }
 
     public TaskThrottleSampleConfigView getConfigView() {
