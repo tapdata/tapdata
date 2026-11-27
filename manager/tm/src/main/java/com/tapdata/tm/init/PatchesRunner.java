@@ -116,30 +116,46 @@ public class PatchesRunner implements ApplicationRunner {
 
         for (Map.Entry<PatchVersion, List<IPatch>> entry : groupedPatches.entrySet()) {
             PatchVersion groupVersion = entry.getKey();
+            boolean trackedGroup = isTrackedVersion(appType, groupVersion);
             for (IPatch patch : entry.getValue()) {
                 try {
                     patch.run();
-                    if (isTrackedVersion(appType, groupVersion)) {
+                    if (trackedGroup) {
                         versionService.recordExecutedPatch(patchType.toString(), patch.patchId());
                         executedPatches.add(patch.patchId());
+                    } else if (null == appVersion || groupVersion.compareTo(appVersion) > 0) {
+                        setAppVersion(patchType, groupVersion);
+                        appVersion = groupVersion;
                     }
                 } catch (Exception e) {
-                    String msg = String.format("Patch %s %s error: %s", patch.type(), patch.version(), e.getMessage());
-                    logger.error(msg);
-                    TmStartMsg tmMsg = new TmStartMsg("fail", msg);
-                    TMStartMsgUtil.writeTMStartMsg(tmMsg);
-                    throw new RuntimeException(msg, e);
+                    throw failPatch(patch.type(), patch.version(), e);
                 }
             }
-            if (null == appVersion || groupVersion.compareTo(appVersion) > 0) {
-                setAppVersion(patchType, groupVersion);
+            if (trackedGroup && (null == appVersion || groupVersion.compareTo(appVersion) > 0)) {
+                advanceAppVersion(patchType, groupVersion);
                 appVersion = groupVersion;
             }
         }
         if (null == appVersion || currentVersion.compareTo(appVersion) > 0) {
-            setAppVersion(patchType, currentVersion);
+            advanceAppVersion(patchType, currentVersion);
         }
         logger.info("Patch {} {} completed.", patchType, currentVersion);
+    }
+
+    private void advanceAppVersion(PatchType patchType, PatchVersion targetVersion) {
+        try {
+            setAppVersion(patchType, targetVersion);
+        } catch (Exception e) {
+            throw failPatch(patchType, targetVersion, e);
+        }
+    }
+
+    private RuntimeException failPatch(Object patchContext, PatchVersion version, Exception e) {
+        String msg = String.format("Patch %s %s error: %s", patchContext, version, e.getMessage());
+        logger.error(msg);
+        TmStartMsg tmMsg = new TmStartMsg("fail", msg);
+        TMStartMsgUtil.writeTMStartMsg(tmMsg);
+        return new RuntimeException(msg, e);
     }
 
     /**

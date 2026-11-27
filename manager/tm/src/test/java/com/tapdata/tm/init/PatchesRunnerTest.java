@@ -6,6 +6,7 @@ import com.tapdata.tm.init.patches.JsonFilePatch;
 import com.tapdata.tm.init.scanners.JavaPatchScanner;
 import com.tapdata.tm.init.scanners.ScriptPatchScanner;
 import com.tapdata.tm.utils.TMStartMsgUtil;
+import com.tapdata.tm.utils.TmStartMsg;
 import com.tapdata.tm.verison.dto.VersionDto;
 import com.tapdata.tm.verison.service.VersionService;
 import io.tapdata.utils.UnitTestUtils;
@@ -377,6 +378,104 @@ class PatchesRunnerTest {
                     eq(daas), eq(PatchVersion.valueOf("4.25-5")), eq(PatchVersion.valueOf("4.25-5")), any(), any());
             verify(versionService, never()).recordExecutedPatch(any(), any());
             verify(versionService, never()).upsert(any(Query.class), any(VersionDto.class));
+        }
+
+        @Test
+        void testLegacyUntrackedGroupAdvancesVersionPerPatchAndDoesNotRerunFirstPatchAfterSecondFails() {
+            VersionDto before331 = new VersionDto(daasScriptType.toString(), "3.2-1");
+            when(versionService.findOne(any(Query.class))).thenReturn(before331);
+            doReturn(PatchVersion.valueOf("3.3-1"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
+
+            List<String> executedOrder = new ArrayList<>();
+            IPatch script331 = dummyPatch(daasScriptType, "3.3-1", "script:3.3-1.json", () -> executedOrder.add("3.3-1:script"));
+            IPatch java331Failing = dummyPatch(daasScriptType, "3.3-1", "java:EncryptPatch:3.3-1", () -> {
+                throw new IllegalStateException("encrypt boom");
+            });
+
+            doReturn(Arrays.asList(script331, java331Failing))
+                    .when(spyPatchesRunner).scanPatches(eq(io.tapdata.utils.AppType.DAAS), any(), any(), any(), any());
+
+            try (MockedStatic<TMStartMsgUtil> startMsgMock = mockStatic(TMStartMsgUtil.class);
+                 MockedStatic<InitLogMap> initLogMapMock = mockStatic(InitLogMap.class)) {
+                Assertions.assertThrows(RuntimeException.class, () -> spyPatchesRunner.run(applicationArguments));
+                startMsgMock.verify(() -> TMStartMsgUtil.writeTMStartMsg(any()), times(1));
+                initLogMapMock.verify(() -> InitLogMap.complete(any()), never());
+            }
+
+            Assertions.assertEquals(Collections.singletonList("3.3-1:script"), executedOrder);
+            verify(versionService, never()).recordExecutedPatch(any(), any());
+            ArgumentCaptor<VersionDto> firstRunUpdates = ArgumentCaptor.forClass(VersionDto.class);
+            verify(versionService, times(1)).upsert(any(Query.class), firstRunUpdates.capture());
+            Assertions.assertEquals("3.3-1", firstRunUpdates.getValue().getVersion());
+
+            // Simulate restart: watermark is already at 3.3-1 (below tracked baseline), so non-idempotent 3.3-1.json must not re-run
+            reset(versionService, spyPatchesRunner);
+            UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "versionService", versionService);
+            UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "mongodbUri", "mongodb://localhost:27017/unused");
+            UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "productList", Collections.singletonList("idaas"));
+            doReturn(PatchVersion.valueOf("3.3-1"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
+            when(versionService.findOne(any(Query.class))).thenReturn(new VersionDto(daasScriptType.toString(), "3.3-1"));
+
+            try (MockedStatic<InitLogMap> initLogMapMock = mockStatic(InitLogMap.class)) {
+                initLogMapMock.when(() -> InitLogMap.complete(any())).then(invocation -> null);
+                Assertions.assertDoesNotThrow(() -> spyPatchesRunner.run(applicationArguments));
+                initLogMapMock.verify(() -> InitLogMap.complete(any()), times(1));
+            }
+            verify(spyPatchesRunner, never()).scanPatches(any(), any(), any(), any(), any());
+            verify(versionService, never()).upsert(any(Query.class), any(VersionDto.class));
+        }
+
+        @Test
+        void testGroupVersionUpsertFailureWritesStartFailMsgWithContext() {
+            when(versionService.findOne(any(Query.class))).thenReturn(new VersionDto(daasScriptType.toString(), "4.25-3"));
+            doReturn(PatchVersion.valueOf("4.25-4"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
+            IPatch p4254 = dummyPatch(daasScriptType, "4.25-4", "script:4.25-4.json", () -> {});
+            doReturn(Collections.singletonList(p4254))
+                    .when(spyPatchesRunner).scanPatches(eq(io.tapdata.utils.AppType.DAAS), any(), any(), any(), any());
+            doThrow(new IllegalStateException("mongo write concern timeout"))
+                    .when(versionService).upsert(any(Query.class), any(VersionDto.class));
+
+            try (MockedStatic<TMStartMsgUtil> startMsgMock = mockStatic(TMStartMsgUtil.class);
+                 MockedStatic<InitLogMap> initLogMapMock = mockStatic(InitLogMap.class)) {
+                RuntimeException ex = Assertions.assertThrows(RuntimeException.class, () -> spyPatchesRunner.run(applicationArguments));
+                Assertions.assertTrue(ex.getMessage().contains("daas_script_version"));
+                Assertions.assertTrue(ex.getMessage().contains("4.25-4"));
+                Assertions.assertTrue(ex.getMessage().contains("mongo write concern timeout"));
+
+                ArgumentCaptor<TmStartMsg> msgCaptor = ArgumentCaptor.forClass(TmStartMsg.class);
+                startMsgMock.verify(() -> TMStartMsgUtil.writeTMStartMsg(msgCaptor.capture()), times(1));
+                Assertions.assertEquals("fail", msgCaptor.getValue().getStatus());
+                Assertions.assertTrue(msgCaptor.getValue().getMsg().contains("4.25-4"));
+                initLogMapMock.verify(() -> InitLogMap.complete(any()), never());
+            }
+        }
+
+        @Test
+        void testFinalCurrentVersionUpsertFailureWritesStartFailMsgWithContext() {
+            when(versionService.findOne(any(Query.class))).thenReturn(new VersionDto(daasScriptType.toString(), "4.25-4"));
+            doReturn(PatchVersion.valueOf("4.25-5"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
+            doReturn(Collections.emptyList())
+                    .when(spyPatchesRunner).scanPatches(eq(io.tapdata.utils.AppType.DAAS), any(), any(), any(), any());
+            doThrow(new IllegalStateException("mongo network reset"))
+                    .when(versionService).upsert(any(Query.class), any(VersionDto.class));
+
+            try (MockedStatic<TMStartMsgUtil> startMsgMock = mockStatic(TMStartMsgUtil.class);
+                 MockedStatic<InitLogMap> initLogMapMock = mockStatic(InitLogMap.class)) {
+                RuntimeException ex = Assertions.assertThrows(RuntimeException.class, () -> spyPatchesRunner.run(applicationArguments));
+                Assertions.assertTrue(ex.getMessage().contains("daas_script_version"));
+                Assertions.assertTrue(ex.getMessage().contains("4.25-5"));
+                Assertions.assertTrue(ex.getMessage().contains("mongo network reset"));
+
+                ArgumentCaptor<TmStartMsg> msgCaptor = ArgumentCaptor.forClass(TmStartMsg.class);
+                startMsgMock.verify(() -> TMStartMsgUtil.writeTMStartMsg(msgCaptor.capture()), times(1));
+                Assertions.assertEquals("fail", msgCaptor.getValue().getStatus());
+                Assertions.assertTrue(msgCaptor.getValue().getMsg().contains("4.25-5"));
+                initLogMapMock.verify(() -> InitLogMap.complete(any()), never());
+            }
         }
 
         private IPatch dummyPatch(PatchType type, String version, String patchId, Runnable action) {
