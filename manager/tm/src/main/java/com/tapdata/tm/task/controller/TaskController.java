@@ -117,6 +117,14 @@ public class TaskController extends BaseController {
     @lombok.Setter(lombok.AccessLevel.NONE)
     @Autowired(required = false)
     private TaskThrottleExecutionGuardService taskThrottleExecutionGuardService;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService taskThrottleTelemetryAndRankingService;
+
+    public void setTaskThrottleTelemetryAndRankingService(
+            com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService taskThrottleTelemetryAndRankingService) {
+        this.taskThrottleTelemetryAndRankingService = taskThrottleTelemetryAndRankingService;
+    }
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
     private UserService userService;
@@ -276,6 +284,10 @@ public class TaskController extends BaseController {
 
         UserDetail userDetail;
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
         if (where.get("id") instanceof Map && ((Map) where.get("id")).containsKey("$in")) {
             userDetail = getLoginUser();
         } else if (where.containsKey("_id") || where.containsKey("id")) {
@@ -290,6 +302,10 @@ public class TaskController extends BaseController {
             userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
         } else {
             userDetail = getLoginUser();
+        }
+        if (taskThrottleTelemetryAndRankingService != null
+                && !taskThrottleTelemetryAndRankingService.applyThrottleStatusWhere(where)) {
+            return success(new Page<>());
         }
 
         final Filter finalFilter = filter;

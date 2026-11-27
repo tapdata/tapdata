@@ -47,6 +47,7 @@ public class TaskThrottleRuntimeRegistry {
     }
 
     private static final int MAX_PENDING_RECEIPTS = 500;
+    public static final int MAX_PENDING_STOP_EVIDENCES = 500;
     public static final int MAX_PENDING_TELEMETRY_SAMPLES_PER_TASK = 60;
     public static final int MAX_PENDING_TELEMETRY_TASKS = 500;
 
@@ -330,9 +331,25 @@ public class TaskThrottleRuntimeRegistry {
             return;
         }
         String ref = evidence.getEvidenceRef();
+        String taskId = evidence.getTaskId();
         for (TaskThrottleStopEvidenceDto existing : pendingStopEvidences) {
             if (existing == evidence || (ref != null && ref.equals(existing.getEvidenceRef()))) {
                 return;
+            }
+        }
+        if (taskId != null && !taskId.isBlank()) {
+            for (TaskThrottleStopEvidenceDto existing : pendingStopEvidences) {
+                if (taskId.equals(existing.getTaskId()) && existing.getOldRunEpoch() > evidence.getOldRunEpoch()) {
+                    return;
+                }
+            }
+            // Keep only the latest stop evidence per taskId/runEpoch so stale ones cannot crowd the bounded queue.
+            pendingStopEvidences.removeIf(item ->
+                    taskId.equals(item.getTaskId()) && item.getOldRunEpoch() <= evidence.getOldRunEpoch());
+        }
+        while (pendingStopEvidences.size() >= MAX_PENDING_STOP_EVIDENCES) {
+            if (pendingStopEvidences.poll() == null) {
+                break;
             }
         }
         pendingStopEvidences.offer(evidence);

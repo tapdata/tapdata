@@ -64,6 +64,8 @@ public class TaskThrottlePolicyService {
     private TaskThrottleExecutionGuardService executionGuardService;
     @Autowired(required = false)
     private TaskThrottleTelemetryAndRankingService telemetryAndRankingService;
+    @Autowired(required = false)
+    private TaskThrottleSampleConfigService sampleConfigService;
 
     @Autowired
     public TaskThrottlePolicyService(MongoOperations mongo) {
@@ -85,6 +87,10 @@ public class TaskThrottlePolicyService {
 
     public void setTelemetryAndRankingService(TaskThrottleTelemetryAndRankingService telemetryAndRankingService) {
         this.telemetryAndRankingService = telemetryAndRankingService;
+    }
+
+    public void setSampleConfigService(TaskThrottleSampleConfigService sampleConfigService) {
+        this.sampleConfigService = sampleConfigService;
     }
 
     public static String normalizeSupportedKindOrNull(String rawKind) {
@@ -292,13 +298,22 @@ public class TaskThrottlePolicyService {
         String nextApplyStatus = compatibleAgent
                 ? TaskThrottlePolicyEntity.APPLY_PENDING
                 : TaskThrottlePolicyEntity.APPLY_WAITING_COMPATIBLE_AGENT;
-        String nextGateStatus = compatibleAgent
-                ? (existing != null && existing.getStopGateStatus() != null
-                ? existing.getStopGateStatus() : TaskThrottlePolicyEntity.STOP_GATE_NONE)
-                : TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT;
-        String nextGateReason = compatibleAgent
-                ? (existing != null ? existing.getStopGateReason() : null)
-                : "Running/assigned Agent does not support throttling; awaiting compatible Agent";
+        String nextGateStatus;
+        String nextGateReason;
+        if (compatibleAgent) {
+            if (existing != null
+                    && existing.getStopGateStatus() != null
+                    && !TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT.equals(existing.getStopGateStatus())) {
+                nextGateStatus = existing.getStopGateStatus();
+                nextGateReason = existing.getStopGateReason();
+            } else {
+                nextGateStatus = TaskThrottlePolicyEntity.STOP_GATE_NONE;
+                nextGateReason = null;
+            }
+        } else {
+            nextGateStatus = TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT;
+            nextGateReason = "Running/assigned Agent does not support throttling; awaiting compatible Agent";
+        }
 
         if (existing == null) {
             if (req.getExpectedVersion() != 0L) {
@@ -421,6 +436,18 @@ public class TaskThrottlePolicyService {
     }
 
     public List<TaskThrottleChangeLogEntity> listChanges(String rawKind, String taskId, UserDetail user, int page, int size) {
+        return listChanges(rawKind, taskId, user, page, size, null, null, null);
+    }
+
+    public List<TaskThrottleChangeLogEntity> listChanges(
+            String rawKind,
+            String taskId,
+            UserDetail user,
+            int page,
+            int size,
+            Long startAt,
+            Long endAt,
+            String eventType) {
         String kind = normalizeAndValidateKind(rawKind);
         TaskDto taskDto = validateTaskAccess(taskId, kind, user);
         String tenantId = resolveTenantId(taskDto, user);
@@ -437,7 +464,20 @@ public class TaskThrottlePolicyService {
 
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(200, size <= 0 ? 50 : size));
-        Query q = Query.query(Criteria.where("taskId").is(taskId))
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+        if (eventType != null && !eventType.isBlank()) {
+            criteria = criteria.and("eventType").is(eventType.trim());
+        }
+        if (startAt != null || endAt != null) {
+            criteria = criteria.and("occurredAt");
+            if (startAt != null) {
+                criteria = criteria.gte(startAt);
+            }
+            if (endAt != null) {
+                criteria = criteria.lte(endAt);
+            }
+        }
+        Query q = Query.query(criteria)
                 .with(Sort.by(Sort.Direction.DESC, "occurredAt"))
                 .skip((long) safePage * safeSize)
                 .limit(safeSize);
@@ -570,6 +610,15 @@ public class TaskThrottlePolicyService {
             live.setConfiguredPhases(enabledPhases);
             live.setPolicyConfigured(!enabledPhases.isEmpty());
         }
+        Integer sampleIntervalSeconds = null;
+        Long sampleConfigVersion = null;
+        if (sampleConfigService != null) {
+            TaskThrottleSampleConfigService.ConfigSnapshot cfg = sampleConfigService.getCurrentConfig();
+            if (cfg != null) {
+                sampleIntervalSeconds = cfg.intervalSeconds();
+                sampleConfigVersion = cfg.configVersion();
+            }
+        }
         if (entity == null) {
             return TaskThrottlePolicyView.builder()
                     .taskKey(taskKey)
@@ -584,6 +633,8 @@ public class TaskThrottlePolicyService {
                     .currentRunEpoch(0L)
                     .protectedRunActive(false)
                     .stopGateStatus(TaskThrottlePolicyEntity.STOP_GATE_NONE)
+                    .cdcSampleRefreshIntervalSeconds(sampleIntervalSeconds)
+                    .sampleConfigVersion(sampleConfigVersion)
                     .liveStatus(live)
                     .build();
         }
@@ -607,6 +658,8 @@ public class TaskThrottlePolicyService {
                 .protectedRunActive(entity.isProtectedRunActive())
                 .stopGateStatus(entity.getStopGateStatus())
                 .stopGateReason(entity.getStopGateReason())
+                .cdcSampleRefreshIntervalSeconds(sampleIntervalSeconds)
+                .sampleConfigVersion(sampleConfigVersion)
                 .liveStatus(live)
                 .build();
     }

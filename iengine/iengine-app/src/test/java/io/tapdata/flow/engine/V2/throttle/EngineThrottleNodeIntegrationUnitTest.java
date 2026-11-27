@@ -389,11 +389,28 @@ class EngineThrottleNodeIntegrationUnitTest {
                 .oldRunEpoch(2L).evidenceRef("ev-flaky-1").build();
         doThrow(new RuntimeException("connection reset"))
                 .when(mockOp).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_STOP_EVIDENCE), eq(Object.class));
-        for (int i = 1; i < AgentThrottleSyncClient.MAX_STOP_EVIDENCE_RETRIES; i++) {
+        for (int i = 1; i <= AgentThrottleSyncClient.MAX_STOP_EVIDENCE_RETRIES + 2; i++) {
             assertFalse(client.reportStopEvidence(flakyEv));
-            assertEquals(1, registry.drainPendingStopEvidences().size());
+            List<TaskThrottleStopEvidenceDto> queued = registry.drainPendingStopEvidences();
+            assertEquals(1, queued.size(), "Transient failures must not drop stop evidence on attempt " + i);
+            assertEquals("ev-flaky-1", queued.get(0).getEvidenceRef());
+            registry.requeueStopEvidence(queued.get(0));
         }
-        assertFalse(client.reportStopEvidence(flakyEv));
+
+        // Newer epoch supersedes older epoch for same taskId, while stale epoch cannot overwrite newer epoch
+        TaskThrottleStopEvidenceDto olderForFlaky = TaskThrottleStopEvidenceDto.builder()
+                .tenantId("t1").taskKind("migrate").taskId("flaky-task")
+                .oldRunEpoch(1L).evidenceRef("ev-flaky-old").build();
+        registry.requeueStopEvidence(olderForFlaky);
+        List<TaskThrottleStopEvidenceDto> kept = registry.drainPendingStopEvidences();
+        assertEquals(1, kept.size());
+        assertEquals(2L, kept.get(0).getOldRunEpoch());
+        registry.requeueStopEvidence(kept.get(0));
+
+        // Once control-plane connectivity recovers, queued stop evidence succeeds and drains cleanly
+        doReturn(Map.of("ok", true))
+                .when(mockOp).postOne(anyMap(), eq(AgentThrottleSyncClient.RESOURCE_STOP_EVIDENCE), eq(Object.class));
+        client.flushPendingStopEvidences();
         assertTrue(registry.drainPendingStopEvidences().isEmpty());
     }
 
@@ -862,5 +879,64 @@ class EngineThrottleNodeIntegrationUnitTest {
                 .findFirst().orElseThrow();
         assertEquals(0L, cdcIn.getAdmittedEvents());
         assertEquals(3L, cdcIn.getCancelledAfterDebitEvents());
+    }
+
+    @Test
+    void silentFanOutBranchReclaimsStaleLeaseAfterGraceOnlyWhenNoTargetIsWaiting() {
+        String taskId = new ObjectId().toHexString();
+        AtomicLong fakeNanos = new AtomicLong(1_000_000_000L);
+        MonotonicClock testClock = new MonotonicClock() {
+            @Override
+            public long nanoTime() {
+                return fakeNanos.get();
+            }
+
+            @Override
+            public long currentTimeMillis() {
+                return fakeNanos.get() / 1_000_000L;
+            }
+        };
+        AgentMemoryBudgetPool pool = new AgentMemoryBudgetPool(10_000_000L, 50_000L, 5_000L, 0L, testClock);
+        TaskThrottleRuntime runtime = new TaskThrottleRuntime(
+                new TaskRunKey("t1", "sync", taskId, 1L),
+                pool,
+                testClock,
+                true,
+                1_000_000L,
+                1_000L,
+                100L,
+                0L,
+                TimeUnit.MILLISECONDS.toNanos(50L));
+        runtime.registerTopology(Map.of("src-1", java.util.Set.of("tgt-active", "tgt-silent")));
+
+        List<TapdataEvent> dispatchedBatch1 = new ArrayList<>();
+        TaskThrottleRuntime.AdmitOutcome out1 = runtime.admitSourceBatch(
+                "src-1", "ep-1", ThrottlePhase.FULL, insertEvents(2),
+                e -> ((TapRecordEvent) e).getTableId(), () -> false,
+                slice -> {
+                    for (TapRecordEvent rec : slice.events()) {
+                        TapdataEvent td = new TapdataEvent();
+                        td.setTapEvent(rec);
+                        TaskThrottleRuntime.attachLeaseInfo(
+                                td, slice.lease().getLeaseId(), slice.sourceNodeId(), slice.batchSeq());
+                        dispatchedBatch1.add(td);
+                    }
+                });
+        assertEquals(TaskThrottleRuntime.AdmitOutcome.ADMITTED, out1);
+        assertEquals(2L, runtime.getInFlightBudget().snapshot().usedRecords());
+
+        // While tgt-silent is actively marked as waiting (slow target under backpressure), do NOT sweep early
+        runtime.getBackpressureSignal().markTargetWaiting("tgt-silent", WaitReason.RATE_WAIT);
+        runtime.onTargetEventsCompleted("tgt-active", dispatchedBatch1);
+        fakeNanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(80L));
+        runtime.onTargetEventsCompleted("tgt-active", dispatchedBatch1);
+        assertEquals(2L, runtime.getInFlightBudget().snapshot().usedRecords());
+
+        // Once no downstream target is waiting, tgt-active progress + grace expiry sweeps the silent branch lease
+        runtime.getBackpressureSignal().clearTargetWaiting("tgt-silent");
+        runtime.onTargetEventsCompleted("tgt-active", dispatchedBatch1);
+        fakeNanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(60L));
+        runtime.onTargetEventsCompleted("tgt-active", dispatchedBatch1);
+        assertEquals(0L, runtime.getInFlightBudget().snapshot().usedRecords());
     }
 }

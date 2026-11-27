@@ -361,6 +361,10 @@ public class InFlightBudget {
         return true;
     }
 
+    public long getStaleLeaseGraceNanos() {
+        return staleLeaseGraceNanos;
+    }
+
     /**
      * Reclaims residual leases from earlier source batches only after they remain older than
      * {@code latestObservedSeq} across the configured grace window, protecting concurrent retries/fan-out.
@@ -369,6 +373,22 @@ public class InFlightBudget {
         if (sourceNodeId == null || latestObservedSeq <= 1L) {
             return 0;
         }
+        return flushLeasesForSourceUpTo(sourceNodeId, latestObservedSeq - 1L);
+    }
+
+    /**
+     * Reclaims residual leases for {@code sourceNodeId} with {@code sourceBatchSeq <= maxSeqInclusive}
+     * once they stay unresolved past {@link #staleLeaseGraceNanos}, preventing permanent stalls on filtered
+     * or silent fan-out branches.
+     */
+    public int flushStaleLeasesUpTo(String sourceNodeId, long maxSeqInclusive) {
+        if (sourceNodeId == null || maxSeqInclusive <= 0L) {
+            return 0;
+        }
+        return flushLeasesForSourceUpTo(sourceNodeId, maxSeqInclusive);
+    }
+
+    private int flushLeasesForSourceUpTo(String sourceNodeId, long maxSeqInclusive) {
         int reclaimedCount = 0;
         long nowNanos = clock.nanoTime();
         lock.lock();
@@ -376,7 +396,7 @@ public class InFlightBudget {
             for (CapacityLease lease : new ArrayList<>(activeLeases.values())) {
                 if (sourceNodeId.equals(lease.getSourceNodeId())
                         && lease.getSourceBatchSeq() > 0L
-                        && lease.getSourceBatchSeq() < latestObservedSeq) {
+                        && lease.getSourceBatchSeq() <= maxSeqInclusive) {
                     long observedAt = lease.getOrMarkObservedBehindNanos(nowNanos);
                     if ((nowNanos - observedAt) < staleLeaseGraceNanos) {
                         continue;

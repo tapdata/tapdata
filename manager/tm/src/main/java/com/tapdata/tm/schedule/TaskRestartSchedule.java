@@ -70,6 +70,10 @@ public class TaskRestartSchedule {
     @Autowired(required = false)
     private TaskThrottleExecutionGuardService taskThrottleExecutionGuardService;
 
+    public void setTaskThrottleExecutionGuardService(TaskThrottleExecutionGuardService taskThrottleExecutionGuardService) {
+        this.taskThrottleExecutionGuardService = taskThrottleExecutionGuardService;
+    }
+
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
@@ -499,6 +503,10 @@ public class TaskRestartSchedule {
             );
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
+                if (taskThrottleExecutionGuardService != null) {
+                    taskThrottleExecutionGuardService.releaseUnstartedEpochIfPresent(
+                            taskDto, "WAIT_RUN timeout before engine start");
+                }
                 try {
                     asyncTaskWarnLog(taskDto, user, "In the process of rescheduling tasks, the scheduling engine is {0}."
                         , agentId

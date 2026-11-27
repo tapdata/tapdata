@@ -119,13 +119,21 @@ public class TaskThrottleController extends BaseController {
         }
     }
 
+    public ResponseMessage<List<TaskThrottleChangeLogEntity>> listChanges(
+            String kind, String taskId, int page, int size) {
+        return listChanges(kind, taskId, page, size, null, null, null);
+    }
+
     @GetMapping("/{kind}/{taskId}/changes")
     public ResponseMessage<List<TaskThrottleChangeLogEntity>> listChanges(
             @PathVariable("kind") String kind,
             @PathVariable("taskId") String taskId,
             @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "50") int size) {
-        return success(policyService.listChanges(kind, taskId, currentUser(), page, size));
+            @RequestParam(value = "size", defaultValue = "50") int size,
+            @RequestParam(value = "startAt", required = false) Long startAt,
+            @RequestParam(value = "endAt", required = false) Long endAt,
+            @RequestParam(value = "eventType", required = false) String eventType) {
+        return success(policyService.listChanges(kind, taskId, currentUser(), page, size, startAt, endAt, eventType));
     }
 
     @PostMapping("/{kind}/{taskId}/stop-evidence")

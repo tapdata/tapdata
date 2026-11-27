@@ -308,6 +308,37 @@ class TaskThrottleExecutionGuardServiceTest {
         assertNull(staleRes.getData());
     }
 
+    @Test
+    void releaseUnstartedEpochIfPresentHandlesAttrsAndPolicyFallback() {
+        registerCompatibleAgent("agent-a");
+        policyService.updatePolicy("sync", taskId, TaskThrottlePolicyUpdateRequest.builder()
+                .expectedVersion(0L)
+                .phases(Map.of(ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(500_000L).build()))
+                .build(), mock(UserDetail.class));
+
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(taskOid);
+        taskDto.setSyncType("sync");
+        taskDto.setAgentId("agent-a");
+
+        TaskThrottleExecutionGuardService.AuthorizationDecision auth1 = guardService.authorizeStartOrTakeover(taskDto, "agent-a");
+        assertTrue(auth1.allowed());
+        taskDto.setAttrs(new java.util.HashMap<>(Map.of("throttleRunEpoch", auth1.runEpoch(), "throttleProtected", true)));
+        assertTrue(guardService.releaseUnstartedEpochIfPresent(taskDto, "sendStartMsg failed"));
+
+        TaskThrottleExecutionGuardService.AuthorizationDecision auth2 = guardService.authorizeStartOrTakeover(taskDto, "agent-a");
+        assertTrue(auth2.allowed());
+        assertEquals(auth1.runEpoch() + 1L, auth2.runEpoch());
+
+        // Also supports WAIT_RUN pause/timeout when caller TaskDto only carries id & agentId
+        registerCompatibleAgent("agent-b");
+        TaskDto minimalDto = new TaskDto();
+        minimalDto.setId(taskOid);
+        minimalDto.setAgentId("agent-a");
+        assertTrue(guardService.releaseUnstartedEpochIfPresent(minimalDto, "WAIT_RUN paused"));
+        assertTrue(guardService.authorizeStartOrTakeover(taskDto, "agent-b").allowed());
+    }
+
     private void registerCompatibleAgent(String agentId) {
         guardService.registerCapabilities(AgentThrottleCapabilities.builder()
                 .agentId(agentId)

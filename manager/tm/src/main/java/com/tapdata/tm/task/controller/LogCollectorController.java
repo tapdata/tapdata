@@ -54,6 +54,14 @@ public class LogCollectorController extends BaseController {
     private LogCollectorService logCollectorService;
     private LogCollectorExtendService logCollectorExtendService;
     private TaskService taskService;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @Autowired(required = false)
+    private com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService taskThrottleTelemetryAndRankingService;
+
+    public void setTaskThrottleTelemetryAndRankingService(
+            com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService taskThrottleTelemetryAndRankingService) {
+        this.taskThrottleTelemetryAndRankingService = taskThrottleTelemetryAndRankingService;
+    }
 
     /**
      *  查询挖掘任务列表
@@ -78,6 +86,14 @@ public class LogCollectorController extends BaseController {
         }
         String taskName = (String) where.get("taskName");
         String connectionName = (String) where.get("connectionName");
+        Object rawThrottleStatus = where.get("throttleStatus");
+        String throttleFilterMode = rawThrottleStatus == null ? null
+                : com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService.normalizeThrottleStatusFilter(
+                String.valueOf(rawThrottleStatus));
+        if (taskThrottleTelemetryAndRankingService != null
+                && !taskThrottleTelemetryAndRankingService.applyThrottleStatusWhere(where)) {
+            return success(new Page<>());
+        }
 
 
         if (where.get("status") == null) {
@@ -106,6 +122,28 @@ public class LogCollectorController extends BaseController {
                             taskWhere.put("name", taskName);
                         }
                         return logCollectorService.find(taskFilter, userDetail);
+                    }
+                    if (throttleFilterMode != null && taskThrottleTelemetryAndRankingService != null) {
+                        java.util.Set<String> matchedIds = taskThrottleTelemetryAndRankingService.findTaskIdsForThrottleFilter(throttleFilterMode);
+                        Page<LogCollectorVo> allByConn = logCollectorService.findByConnectionName(
+                                taskName, connectionName, userDetail, 0, 10000, taskFilter.getSort());
+                        List<LogCollectorVo> filtered = new java.util.ArrayList<>();
+                        if (allByConn != null && allByConn.getItems() != null) {
+                            boolean invert = "disabled".equals(throttleFilterMode);
+                            for (LogCollectorVo vo : allByConn.getItems()) {
+                                String id = vo == null ? null : vo.getId();
+                                boolean contains = id != null && matchedIds.contains(id);
+                                if (invert ? !contains : contains) {
+                                    filtered.add(vo);
+                                }
+                            }
+                        }
+                        long total = filtered.size();
+                        int skip = Math.max(0, taskFilter.getSkip());
+                        int limit = taskFilter.getLimit() > 0 ? taskFilter.getLimit() : (int) Math.max(total, 20L);
+                        int from = Math.min(skip, filtered.size());
+                        int to = Math.min(from + limit, filtered.size());
+                        return new Page<>(total, filtered.subList(from, to));
                     }
                     return logCollectorService.findByConnectionName(taskName, connectionName, userDetail, taskFilter.getSkip(), taskFilter.getLimit(), taskFilter.getSort());
                 }

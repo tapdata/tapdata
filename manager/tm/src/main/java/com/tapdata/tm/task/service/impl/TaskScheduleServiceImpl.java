@@ -191,7 +191,16 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             log.info("concurrent start operations, this operation don’t effective, task name = {}", taskDto.getName());
             return;
         }
-        sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
+        try {
+            sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
+        } catch (RuntimeException ex) {
+            if (throttleDecision != null && throttleDecision.protectedRun() && taskThrottleExecutionGuardService != null) {
+                taskThrottleExecutionGuardService.releaseUnstartedEpoch(
+                        taskDto.getId().toHexString(), throttleDecision.runEpoch(), taskDto.getAgentId(),
+                        "sendStartMsg failed: " + ex.getMessage());
+            }
+            throw ex;
+        }
 
         //数据发现的任务收集
         TaskDto newTaskDto = taskService.findById(taskDto.getId(), user);

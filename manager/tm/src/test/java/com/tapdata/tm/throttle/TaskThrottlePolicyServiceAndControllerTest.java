@@ -75,6 +75,7 @@ class TaskThrottlePolicyServiceAndControllerTest {
         policyService.setTaskService(taskService);
         policyService.setExecutionGuardService(guardService);
         policyService.setTelemetryAndRankingService(telemetryService);
+        policyService.setSampleConfigService(sampleConfigService);
 
         user = mock(UserDetail.class);
         when(user.getCustomerId()).thenReturn("tenant-1");
@@ -339,6 +340,75 @@ class TaskThrottlePolicyServiceAndControllerTest {
         assertNotNull(singleView.getLiveStatus());
         assertTrue(singleView.getLiveStatus().isPolicyConfigured());
         assertEquals(Set.of(ThrottlePhase.CDC), singleView.getLiveStatus().getConfiguredPhases());
+    }
+
+    @Test
+    void incompatibleGateResetsWhenAgentCompatibleOrDisabledAndViewIncludesSampleConfigAndFilteredChanges() {
+        // Legacy / incompatible agent sets WAITING_COMPATIBLE_AGENT gate
+        guardService.registerCapabilities(AgentThrottleCapabilities.builder()
+                .agentId("agent-old-1")
+                .throttleSupported(false)
+                .meterVersion("v0")
+                .build());
+        guardService.registerCapabilities(AgentThrottleCapabilities.builder()
+                .agentId("agent-new-1")
+                .throttleSupported(true)
+                .meterVersion(ThrottleConstants.METER_VERSION)
+                .supportedTaskKinds(Set.of("sync", "migrate", "logCollector"))
+                .build());
+
+        ObjectId oid = MongoUtils.toObjectId("65f000000000000000000208");
+        String tid = oid.toHexString();
+        TaskDto task = buildTask(oid, "sync", "initial_sync+cdc", null);
+        task.setStatus(TaskDto.STATUS_STOP);
+        task.setAgentId("agent-old-1");
+        when(taskService.checkExistById(eq(oid), eq(user))).thenReturn(task);
+
+        TaskThrottlePolicyView blocked = (TaskThrottlePolicyView) controller.updatePolicy("sync", tid, updateReq(0L, Map.of(
+                ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(500_000L).build())))
+                .getBody().getData();
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT, blocked.getStopGateStatus());
+        assertNotNull(blocked.getStopGateReason());
+        assertEquals(30, blocked.getCdcSampleRefreshIntervalSeconds());
+        assertEquals(1L, blocked.getSampleConfigVersion());
+
+        // Switching to compatible agent resets STOP_GATE_WAITING_COMPATIBLE_AGENT cleanly
+        task.setAgentId("agent-new-1");
+        TaskThrottlePolicyView unblocked = (TaskThrottlePolicyView) controller.updatePolicy("sync", tid, updateReq(1L, Map.of(
+                ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(800_000L).build())))
+                .getBody().getData();
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_NONE, unblocked.getStopGateStatus());
+        assertNull(unblocked.getStopGateReason());
+        assertEquals(TaskThrottlePolicyEntity.APPLY_PENDING, unblocked.getApplyStatus());
+
+        // Back to incompatible agent, then disabling all phases also clears STOP_GATE_WAITING_COMPATIBLE_AGENT
+        task.setAgentId("agent-old-1");
+        TaskThrottlePolicyView blockedAgain = (TaskThrottlePolicyView) controller.updatePolicy("sync", tid, updateReq(2L, Map.of(
+                ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(true).bytesPerSec(900_000L).build())))
+                .getBody().getData();
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT, blockedAgain.getStopGateStatus());
+        TaskThrottlePolicyView disabledView = (TaskThrottlePolicyView) controller.updatePolicy("sync", tid, updateReq(3L, Map.of(
+                ThrottlePhase.FULL, ThrottlePhaseLimit.builder().enabled(false).build())))
+                .getBody().getData();
+        assertEquals(TaskThrottlePolicyEntity.STOP_GATE_NONE, disabledView.getStopGateStatus());
+        assertNull(disabledView.getStopGateReason());
+
+        // Sample config updates reflect on getPolicyView
+        sampleConfigService.updateInterval(90);
+        TaskThrottlePolicyView fetched = controller.getPolicy("sync", tid).getData();
+        assertEquals(90, fetched.getCdcSampleRefreshIntervalSeconds());
+        assertEquals(2L, fetched.getSampleConfigVersion());
+
+        // listChanges supports startAt/endAt/eventType filters
+        List<TaskThrottleChangeLogEntity> allPolicyChanges = controller.listChanges(
+                "sync", tid, 0, 50, null, null, TaskThrottleChangeLogEntity.EVENT_POLICY_CHANGE).getData();
+        assertEquals(4, allPolicyChanges.size());
+        assertTrue(controller.listChanges(
+                "sync", tid, 0, 50, null, null, TaskThrottleChangeLogEntity.EVENT_STOP_EVIDENCE).getData().isEmpty());
+        assertTrue(controller.listChanges(
+                "sync", tid, 0, 50, 2_000_000_000_000L, null, null).getData().isEmpty());
+        assertEquals(4, controller.listChanges(
+                "sync", tid, 0, 50, 1_600_000_000_000L, 1_800_000_000_000L, TaskThrottleChangeLogEntity.EVENT_POLICY_CHANGE).getData().size());
     }
 
     private static TaskDto buildTask(ObjectId id, String syncType, String type, Map<String, Object> attrs) {

@@ -40,5 +40,8 @@ public class TaskThrottlePolicyView {
     private String stopGateStatus;
     private String stopGateReason;
 
+    private Integer cdcSampleRefreshIntervalSeconds;
+    private Long sampleConfigVersion;
+
     private TaskThrottleLiveStatusView liveStatus;
 }

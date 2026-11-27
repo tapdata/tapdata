@@ -1,6 +1,7 @@
 package com.tapdata.tm.throttle.service;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.throttle.AgentThrottleDeltaResponse;
 import com.tapdata.tm.commons.throttle.LogPositionStatus;
@@ -455,12 +456,16 @@ public class TaskThrottleTelemetryAndRankingService {
                 }
             }
 
-            Map<String, Boolean> throttleEnabledMap = loadThrottleEnabledFlags(taskById.keySet());
+            Map<String, TaskThrottlePolicyEntity> policyByTaskId = loadPoliciesByTaskId(taskById.keySet());
 
             for (Map.Entry<String, TaskDto> entry : taskById.entrySet()) {
                 String taskId = entry.getKey();
                 TaskDto task = entry.getValue();
                 List<TaskThrottleTelemetryEntity> taskSamples = byTask.getOrDefault(taskId, List.of());
+                TaskThrottlePolicyEntity policy = policyByTaskId.get(taskId);
+                long targetRunEpoch = policy != null && policy.getCurrentRunEpoch() > 0L
+                        ? policy.getCurrentRunEpoch()
+                        : taskSamples.stream().mapToLong(TaskThrottleTelemetryEntity::getRunEpoch).max().orElse(0L);
 
                 List<long[]> validIntervals = new ArrayList<>();
                 long totalValidBytes = 0L;
@@ -468,6 +473,9 @@ public class TaskThrottleTelemetryAndRankingService {
                 boolean sawMissingBytes = false;
 
                 for (TaskThrottleTelemetryEntity s : taskSamples) {
+                    if (s.getRunEpoch() != targetRunEpoch) {
+                        continue;
+                    }
                     if (s.getTimeQuality() == TimeQuality.UNALIGNED) {
                         sawUnaligned = true;
                         continue;
@@ -513,7 +521,7 @@ public class TaskThrottleTelemetryAndRankingService {
                         .totalEstimatedBytes(totalValidBytes)
                         .coveredSeconds(coveredSec)
                         .coverageRatio(coverageRatio)
-                        .throttleEnabled(throttleEnabledMap.getOrDefault(taskId, false))
+                        .throttleEnabled(TaskThrottleExecutionGuardService.hasEnabledPhase(policy))
                         .liveStatus(evaluateLiveStatus(taskId))
                         .build());
             }
@@ -534,8 +542,142 @@ public class TaskThrottleTelemetryAndRankingService {
                 .build();
     }
 
-    private Map<String, Boolean> loadThrottleEnabledFlags(Set<String> taskIds) {
-        Map<String, Boolean> map = new HashMap<>();
+    /**
+     * Translates an optional {@code throttleStatus} filter field on task list queries into a pre-pagination
+     * Mongo {@code _id} condition and removes the virtual {@code throttleStatus} key from {@code where}.
+     *
+     * @return {@code true} if querying should proceed, {@code false} when the positive match set is empty.
+     */
+    public boolean applyThrottleStatusWhere(Where where) {
+        if (where == null || !where.containsKey("throttleStatus")) {
+            return true;
+        }
+        Object rawObj = where.remove("throttleStatus");
+        if (rawObj == null) {
+            return true;
+        }
+        String mode = normalizeThrottleStatusFilter(String.valueOf(rawObj));
+        if (mode == null) {
+            return true;
+        }
+        Set<String> matchedIds = findTaskIdsForThrottleFilter(mode);
+        List<ObjectId> objectIds = new ArrayList<>(matchedIds.size());
+        for (String id : matchedIds) {
+            if (ObjectId.isValid(id)) {
+                objectIds.add(new ObjectId(id));
+            }
+        }
+        if ("disabled".equals(mode)) {
+            if (!objectIds.isEmpty()) {
+                mergeIdOperatorIntoWhere(where, "$nin", objectIds);
+            }
+            return true;
+        }
+        if (objectIds.isEmpty()) {
+            return false;
+        }
+        mergeIdOperatorIntoWhere(where, "$in", objectIds);
+        return true;
+    }
+
+    public Set<String> findTaskIdsForThrottleFilter(String rawThrottleStatus) {
+        String mode = normalizeThrottleStatusFilter(rawThrottleStatus);
+        if (mode == null) {
+            return Set.of();
+        }
+        Set<String> throttlingIds = new java.util.LinkedHashSet<>();
+        Set<String> unknownIds = new java.util.LinkedHashSet<>();
+        long nowUtc = clock.millis();
+        for (LiveTaskTracker tracker : liveTrackers.values()) {
+            if (tracker == null) {
+                continue;
+            }
+            TaskThrottleLiveStatusView view = tracker.toView(nowUtc);
+            if (view.isStatusUnknown()) {
+                unknownIds.add(tracker.taskId);
+            } else if (view.isThrottlingActive()) {
+                throttlingIds.add(tracker.taskId);
+            }
+        }
+        if ("throttling".equals(mode)) {
+            return throttlingIds;
+        }
+        if ("unknown".equals(mode)) {
+            return unknownIds;
+        }
+        if (mongo == null) {
+            return Set.of();
+        }
+        Set<String> matched = new java.util.LinkedHashSet<>();
+        List<TaskThrottlePolicyEntity> policies = mongo.findAll(TaskThrottlePolicyEntity.class);
+        if (policies != null) {
+            for (TaskThrottlePolicyEntity p : policies) {
+                if (p == null || p.getTaskId() == null) {
+                    continue;
+                }
+                if ("waiting_agent".equals(mode)) {
+                    if (TaskThrottlePolicyEntity.STOP_GATE_WAITING_COMPATIBLE_AGENT.equals(p.getStopGateStatus())
+                            || TaskThrottlePolicyEntity.APPLY_WAITING_COMPATIBLE_AGENT.equals(p.getApplyStatus())) {
+                        matched.add(p.getTaskId());
+                    }
+                } else if (TaskThrottleExecutionGuardService.hasEnabledPhase(p)) {
+                    if ("configured_idle".equals(mode)) {
+                        if (!throttlingIds.contains(p.getTaskId()) && !unknownIds.contains(p.getTaskId())) {
+                            matched.add(p.getTaskId());
+                        }
+                    } else if ("enabled".equals(mode) || "disabled".equals(mode)) {
+                        matched.add(p.getTaskId());
+                    }
+                }
+            }
+        }
+        if ("disabled".equals(mode)) {
+            matched.addAll(throttlingIds);
+            matched.addAll(unknownIds);
+        }
+        return matched;
+    }
+
+    public static String normalizeThrottleStatusFilter(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String s = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (s) {
+            case "throttling", "rate_wait" -> "throttling";
+            case "configured_idle", "idle" -> "configured_idle";
+            case "unknown", "status_unknown" -> "unknown";
+            case "waiting_agent", "waiting_compatible_agent" -> "waiting_agent";
+            case "enabled", "configured" -> "enabled";
+            case "disabled", "unconfigured" -> "disabled";
+            default -> null;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void mergeIdOperatorIntoWhere(Where where, String operator, List<ObjectId> objectIds) {
+        Map<String, Object> idCond = new LinkedHashMap<>();
+        idCond.put(operator, objectIds);
+        if (!where.containsKey("_id") && !where.containsKey("id")) {
+            where.put("_id", idCond);
+            return;
+        }
+        String andKey = where.containsKey("and") ? "and" : "$and";
+        List<Map<String, Object>> andList;
+        Object existingAnd = where.get(andKey);
+        if (existingAnd instanceof List<?> list) {
+            andList = (List<Map<String, Object>>) list;
+        } else {
+            andList = new ArrayList<>();
+            where.put(andKey, andList);
+        }
+        Map<String, Object> clause = new LinkedHashMap<>();
+        clause.put("_id", idCond);
+        andList.add(clause);
+    }
+
+    private Map<String, TaskThrottlePolicyEntity> loadPoliciesByTaskId(Set<String> taskIds) {
+        Map<String, TaskThrottlePolicyEntity> map = new HashMap<>();
         if (mongo == null || taskIds.isEmpty()) {
             return map;
         }
@@ -543,7 +685,7 @@ public class TaskThrottleTelemetryAndRankingService {
                 Query.query(Criteria.where("taskId").in(taskIds)), TaskThrottlePolicyEntity.class);
         if (policies != null) {
             for (TaskThrottlePolicyEntity p : policies) {
-                map.put(p.getTaskId(), TaskThrottleExecutionGuardService.hasEnabledPhase(p));
+                map.put(p.getTaskId(), p);
             }
         }
         return map;

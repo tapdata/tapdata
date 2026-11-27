@@ -543,6 +543,99 @@ class TaskThrottleTelemetryAndRankingServiceTest {
         }
     }
 
+    @Test
+    void staleStopEvidenceDoesNotClearLiveStatusOfCurrentEpochAndRankingIsolatesRunEpoch() {
+        registerAgent("agent-live-1");
+        ObjectId t1Oid = MongoUtils.toObjectId("65f000000000000000000301");
+        String t1Id = t1Oid.toHexString();
+        TaskDto t1 = buildTask(t1Oid, "sync", "epoch-isolated-task");
+
+        policyService.updatePolicy("sync", t1Id, updateReq(0L, 1_000_000L), user);
+        assertEquals(1L, guardService.authorizeStartOrTakeover(t1, "agent-live-1").runEpoch());
+
+        telemetryService.ingestTelemetry("agent-live-1", Map.of(t1Id, List.of(sample(
+                t1Id, 1L, 1L, ThrottlePhase.FULL, ThrottleDirection.OUTPUT,
+                clock.millis() - 300_000L, clock.millis(),
+                WaitReason.NONE, Set.of(), 3_000_000_000L, SampleQuality.VALID, TimeQuality.ALIGNED))));
+
+        assertNotNull(guardService.submitStopEvidence(com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto.builder()
+                .taskId(t1Id).oldAgentId("agent-live-1").oldRunEpoch(1L).evidenceRef("ev-1").writeSettled(true).build(), false));
+        registerAgent("agent-live-2");
+        assertEquals(2L, guardService.authorizeStartOrTakeover(t1, "agent-live-2").runEpoch());
+
+        telemetryService.ingestTelemetry("agent-live-2", Map.of(t1Id, List.of(sample(
+                t1Id, 2L, 1L, ThrottlePhase.FULL, ThrottleDirection.OUTPUT,
+                clock.millis() - 300_000L, clock.millis(),
+                WaitReason.RATE_WAIT, Set.of(ThrottleDimension.BYTES), 300_000_000L, SampleQuality.VALID, TimeQuality.ALIGNED))));
+        assertTrue(telemetryService.evaluateLiveStatus(t1Id).isThrottlingActive());
+
+        // Stale stop evidence arriving late must NOT clear live status of epoch 2
+        agentController.uploadStopEvidence(com.tapdata.tm.commons.throttle.TaskThrottleStopEvidenceDto.builder()
+                .taskId(t1Id).oldAgentId("agent-live-1").oldRunEpoch(1L).evidenceRef("late-stale-ev").writeSettled(true).build());
+        assertTrue(telemetryService.evaluateLiveStatus(t1Id).isThrottlingActive());
+
+        // Ranking must ONLY aggregate epoch 2 samples (1 MB/s), NOT merge epoch 1 (10 MB/s) + epoch 2
+        when(chartViewService.getViewTaskDtoByUser(user)).thenReturn(List.of(t1));
+        TaskThrottleRankingResponse ranking = telemetryService.queryEstimatedDataRateRanking(
+                user, ThrottleDirection.OUTPUT, 300L, 5);
+        assertEquals(1, ranking.getItems().size());
+        assertEquals(300_000_000L, ranking.getItems().get(0).getTotalEstimatedBytes());
+        assertEquals(1.0d, ranking.getItems().get(0).getEstimatedMbPerSec(), 0.05d);
+    }
+
+    @Test
+    void applyThrottleStatusWhereRewritesPrePaginationCriteriaSafely() {
+        registerAgent("agent-w-1");
+        ObjectId enabledOid = MongoUtils.toObjectId("65f000000000000000000401");
+        String enabledId = enabledOid.toHexString();
+        policyService.updatePolicy("sync", enabledId, updateReq(0L, 1_000_000L), user);
+
+        com.tapdata.tm.base.dto.Where enabledWhere = new com.tapdata.tm.base.dto.Where();
+        enabledWhere.put("throttleStatus", "enabled");
+        assertTrue(telemetryService.applyThrottleStatusWhere(enabledWhere));
+        assertFalse(enabledWhere.containsKey("throttleStatus"));
+        assertEquals(Map.of("$in", List.of(enabledOid)), enabledWhere.get("_id"));
+
+        com.tapdata.tm.base.dto.Where disabledWhere = new com.tapdata.tm.base.dto.Where();
+        disabledWhere.put("throttleStatus", "disabled");
+        disabledWhere.put("_id", enabledOid);
+        assertTrue(telemetryService.applyThrottleStatusWhere(disabledWhere));
+        assertTrue(disabledWhere.containsKey("$and"));
+
+        com.tapdata.tm.base.dto.Where waitingWhere = new com.tapdata.tm.base.dto.Where();
+        waitingWhere.put("throttleStatus", "waiting_agent");
+        assertFalse(telemetryService.applyThrottleStatusWhere(waitingWhere));
+
+        telemetryService.ingestTelemetry("agent-w-1", Map.of(enabledId, List.of(sample(
+                enabledId, 0L, 1L, ThrottlePhase.CDC, ThrottleDirection.INPUT,
+                clock.millis() - 5_000L, clock.millis(),
+                WaitReason.RATE_WAIT, Set.of(ThrottleDimension.QPS), 100L, SampleQuality.VALID, TimeQuality.ALIGNED))));
+        com.tapdata.tm.base.dto.Where throttlingWhere = new com.tapdata.tm.base.dto.Where();
+        throttlingWhere.put("throttleStatus", "throttling");
+        assertTrue(telemetryService.applyThrottleStatusWhere(throttlingWhere));
+        assertEquals(Map.of("$in", List.of(enabledOid)), throttlingWhere.get("_id"));
+
+        // While enabledId is actively throttling, configured_idle returns false (empty set)
+        com.tapdata.tm.base.dto.Where idleWhileActiveWhere = new com.tapdata.tm.base.dto.Where();
+        idleWhileActiveWhere.put("throttleStatus", "configured_idle");
+        assertFalse(telemetryService.applyThrottleStatusWhere(idleWhileActiveWhere));
+
+        // Second configured task without active throttling matches configured_idle
+        ObjectId idleOid = MongoUtils.toObjectId("65f000000000000000000402");
+        policyService.updatePolicy("sync", idleOid.toHexString(), updateReq(0L, 2_000_000L), user);
+        com.tapdata.tm.base.dto.Where idleWhere = new com.tapdata.tm.base.dto.Where();
+        idleWhere.put("throttleStatus", "configured_idle");
+        assertTrue(telemetryService.applyThrottleStatusWhere(idleWhere));
+        assertEquals(Map.of("$in", List.of(idleOid)), idleWhere.get("_id"));
+
+        // Advancing clock past 15s marks enabledId statusUnknown=true so unknown filter matches enabledId
+        clock.advanceMillis(16_000L);
+        com.tapdata.tm.base.dto.Where unknownWhere = new com.tapdata.tm.base.dto.Where();
+        unknownWhere.put("throttleStatus", "unknown");
+        assertTrue(telemetryService.applyThrottleStatusWhere(unknownWhere));
+        assertEquals(Map.of("$in", List.of(enabledOid)), unknownWhere.get("_id"));
+    }
+
     private void registerAgent(String agentId) {
         guardService.registerCapabilities(AgentThrottleCapabilities.builder()
                 .agentId(agentId)

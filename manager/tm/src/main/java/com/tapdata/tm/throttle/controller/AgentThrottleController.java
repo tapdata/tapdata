@@ -102,7 +102,6 @@ public class AgentThrottleController extends BaseController {
             if (ThrottleConstants.ERR_STALE_RUN_EPOCH.equals(ex.getErrorCode())) {
                 logger.info("Ignoring stale or deleted-task stop evidence from agent {}: {}",
                         dto == null ? null : dto.getOldAgentId(), ex.getMessage());
-                clearTaskLiveStatus(dto);
                 return success(null);
             }
             throw ex;

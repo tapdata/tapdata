@@ -153,6 +153,7 @@ class TaskThrottleScheduleAndMetricsIT {
             TaskThrottlePolicyService svc = new TaskThrottlePolicyService(mongo.ops(), clock);
             svc.setExecutionGuardService(context.getBean(TaskThrottleExecutionGuardService.class));
             svc.setTelemetryAndRankingService(context.getBean(TaskThrottleTelemetryAndRankingService.class));
+            svc.setSampleConfigService(context.getBean(TaskThrottleSampleConfigService.class));
             return svc;
         });
         context.registerBean(AgentThrottleController.class, () -> new AgentThrottleController(

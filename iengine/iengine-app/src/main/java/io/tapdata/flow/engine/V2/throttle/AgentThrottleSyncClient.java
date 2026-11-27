@@ -189,15 +189,17 @@ public class AgentThrottleSyncClient {
             return true;
         } catch (Exception e) {
             int failures = stopEvidenceFailures.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
-            if (isNonRetryableStopEvidenceError(e) || failures >= MAX_STOP_EVIDENCE_RETRIES) {
-                logger.warn("Dropping unrecoverable throttle stop evidence for task {} (failures={}): {}",
+            if (isNonRetryableStopEvidenceError(e)) {
+                logger.warn("Dropping permanently rejected throttle stop evidence for task {} (failures={}): {}",
                         evidence.getTaskId(), failures, e.getMessage());
                 stopEvidenceFailures.remove(key);
                 registry.removeStopEvidence(evidence);
                 return false;
             }
-            logger.warn("Report throttle stop evidence failed for task {} (attempt {}): {}",
-                    evidence.getTaskId(), failures, e.getMessage());
+            if (failures <= MAX_STOP_EVIDENCE_RETRIES || failures % MAX_STOP_EVIDENCE_RETRIES == 0) {
+                logger.warn("Report throttle stop evidence failed for task {} (attempt {}, keeping in retry queue): {}",
+                        evidence.getTaskId(), failures, e.getMessage());
+            }
             registry.requeueStopEvidence(evidence);
             return false;
         }

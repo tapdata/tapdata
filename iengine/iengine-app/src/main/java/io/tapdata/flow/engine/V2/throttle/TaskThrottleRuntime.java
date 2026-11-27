@@ -113,6 +113,29 @@ public class TaskThrottleRuntime {
             long taskMaxRecords,
             long taskMaxBatches,
             long taskDrainReserveBytes) {
+        this(
+                runKey,
+                agentPool,
+                clock,
+                protectedRun,
+                taskMaxBytes,
+                taskMaxRecords,
+                taskMaxBatches,
+                taskDrainReserveBytes,
+                InFlightBudget.DEFAULT_STALE_LEASE_GRACE_NANOS
+        );
+    }
+
+    public TaskThrottleRuntime(
+            TaskRunKey runKey,
+            AgentMemoryBudgetPool agentPool,
+            MonotonicClock clock,
+            boolean protectedRun,
+            long taskMaxBytes,
+            long taskMaxRecords,
+            long taskMaxBatches,
+            long taskDrainReserveBytes,
+            long staleLeaseGraceNanos) {
         if (runKey == null || agentPool == null) {
             throw new IllegalArgumentException("runKey and agentPool must not be null");
         }
@@ -145,7 +168,11 @@ public class TaskThrottleRuntime {
                 taskMaxBytes,
                 taskMaxRecords,
                 taskMaxBatches,
-                taskDrainReserveBytes
+                taskDrainReserveBytes,
+                InFlightBudget.DEFAULT_HIGH_WATERMARK,
+                InFlightBudget.DEFAULT_LOW_WATERMARK,
+                this.clock,
+                staleLeaseGraceNanos
         );
         this.backpressureSignal = new WriteBackpressureSignal(this.inFlightBudget, this.clock);
         this.logRetentionMonitor = new LogRetentionMonitor();
@@ -552,6 +579,9 @@ public class TaskThrottleRuntime {
                 return null;
             }
             if (backpressureSignal.shouldPauseSourcePull(sourceNodeId)) {
+                if (sweepSilentBranchesIfNeeded(sourceNodeId, batchSeq, false) > 0) {
+                    continue;
+                }
                 WaitReason reason = backpressureSignal.dominantUpstreamReason(sourceNodeId);
                 aggregator.updateWaitState(
                         phase,
@@ -577,6 +607,9 @@ public class TaskThrottleRuntime {
                         logRetentionMonitor.worstStatus()
                 );
                 return lease;
+            }
+            if (sweepSilentBranchesIfNeeded(sourceNodeId, batchSeq, false) > 0) {
+                continue;
             }
             aggregator.updateWaitState(
                     phase,
@@ -826,32 +859,72 @@ public class TaskThrottleRuntime {
             perTarget.merge(resolvedTarget, seq, Math::max);
 
             Set<String> expectedTargets = sourceToTargets.get(src);
-            long sweepWatermark;
             if (expectedTargets != null && !expectedTargets.isEmpty()) {
                 long minAcrossAllTargets = Long.MAX_VALUE;
+                long maxAcrossObservedTargets = 0L;
                 boolean allTargetsObserved = true;
                 for (String target : expectedTargets) {
                     Long targetMax = perTarget.get(target);
                     if (targetMax == null) {
                         allTargetsObserved = false;
-                        break;
-                    }
-                    if (targetMax < minAcrossAllTargets) {
-                        minAcrossAllTargets = targetMax;
+                    } else {
+                        if (targetMax < minAcrossAllTargets) {
+                            minAcrossAllTargets = targetMax;
+                        }
+                        if (targetMax > maxAcrossObservedTargets) {
+                            maxAcrossObservedTargets = targetMax;
+                        }
                     }
                 }
-                if (!allTargetsObserved) {
-                    continue;
+                if (allTargetsObserved && minAcrossAllTargets > 1L) {
+                    inFlightBudget.flushOlderLeasesForSource(src, minAcrossAllTargets);
+                } else if (!allTargetsObserved && maxAcrossObservedTargets > 0L) {
+                    sweepSilentBranchesIfNeeded(src, maxAcrossObservedTargets, true);
                 }
-                sweepWatermark = minAcrossAllTargets;
-            } else {
-                sweepWatermark = seq;
-            }
-            if (sweepWatermark > 1L) {
-                inFlightBudget.flushOlderLeasesForSource(src, sweepWatermark);
+            } else if (seq > 1L) {
+                inFlightBudget.flushOlderLeasesForSource(src, seq);
             }
         }
         backpressureSignal.signalDrainProgress();
+    }
+
+    /**
+     * When a fan-out target filters out every event in a source batch, it never invokes
+     * {@link #onTargetEventsCompleted}. Once active branches or subsequent source batches advance and
+     * no dependent target is blocked on write/backpressure wait, stale unresolved leases past the
+     * budget's grace window are safely reclaimed so {@link InFlightBudget} cannot stay wedged forever.
+     */
+    private int sweepSilentBranchesIfNeeded(String sourceNodeId, long candidateSeq, boolean inclusive) {
+        if (sourceNodeId == null || candidateSeq <= 0L) {
+            return 0;
+        }
+        if (inclusive ? candidateSeq < 1L : candidateSeq <= 1L) {
+            return 0;
+        }
+        if (hasWaitingTargetForSource(sourceNodeId)) {
+            return 0;
+        }
+        if (inclusive) {
+            return inFlightBudget.flushStaleLeasesUpTo(sourceNodeId, candidateSeq);
+        }
+        return inFlightBudget.flushOlderLeasesForSource(sourceNodeId, candidateSeq);
+    }
+
+    private boolean hasWaitingTargetForSource(String sourceNodeId) {
+        Set<String> waitingTargets = backpressureSignal.getWaitingTargetIds();
+        if (waitingTargets.isEmpty()) {
+            return false;
+        }
+        Set<String> expectedTargets = sourceToTargets.get(sourceNodeId);
+        if (expectedTargets == null || expectedTargets.isEmpty()) {
+            return true;
+        }
+        for (String target : expectedTargets) {
+            if (waitingTargets.contains(target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

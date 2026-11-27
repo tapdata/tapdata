@@ -287,6 +287,29 @@ public class TaskThrottleExecutionGuardService {
     }
 
     /**
+     * Releases any pending protected epoch on {@code taskDto} if its Agent run never started
+     * (e.g. start message failure, WAIT_RUN timeout, or user stop while still in WAIT_RUN).
+     */
+    public boolean releaseUnstartedEpochIfPresent(TaskDto taskDto, String reason) {
+        if (mongo == null || taskDto == null || taskDto.getId() == null) {
+            return false;
+        }
+        String taskId = taskDto.getId().toHexString();
+        long expectedEpoch = 0L;
+        if (taskDto.getAttrs() != null && taskDto.getAttrs().get("throttleRunEpoch") instanceof Number num) {
+            expectedEpoch = num.longValue();
+        }
+        if (expectedEpoch <= 0L) {
+            TaskThrottlePolicyEntity policy = findPolicyByTaskId(taskId);
+            if (policy == null || !policy.isProtectedRunActive() || policy.getCurrentRunEpoch() <= 0L) {
+                return false;
+            }
+            expectedEpoch = policy.getCurrentRunEpoch();
+        }
+        return releaseUnstartedEpoch(taskId, expectedEpoch, taskDto.getAgentId(), reason);
+    }
+
+    /**
      * Prevents heartbeat-timeout schedulers from reassigning a protected task solely on ping timeout
      * when verified stop evidence has not been recorded for an active protected runEpoch.
      */
