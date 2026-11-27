@@ -13,7 +13,7 @@ public interface IPatch extends Comparable<IPatch>, Runnable {
     PatchVersion version();
 
     default String patchId() {
-        return "java:" + getClass().getName();
+        return "java:" + getClass().getName() + ":" + version();
     }
 
     @Override

@@ -272,9 +272,9 @@ class PatchesRunnerTest {
                     "Historical patches <= 4.25-2 must never be rescanned on upgrade");
             Assertions.assertTrue(scanned.stream().anyMatch(p -> "script:4.25-4.json".equals(p.patchId())));
             Assertions.assertTrue(scanned.stream().anyMatch(p ->
-                    "java:com.tapdata.tm.init.patches.daas.V4_25_3_AuditAndRecovery".equals(p.patchId())));
+                    "java:com.tapdata.tm.init.patches.daas.V4_25_3_AuditAndRecovery:4.25-3".equals(p.patchId())));
             Assertions.assertTrue(scanned.stream().anyMatch(p ->
-                    "java:com.tapdata.tm.init.patches.daas.V4_25_3_DashboardMetricsIndexes".equals(p.patchId())));
+                    "java:com.tapdata.tm.init.patches.daas.V4_25_3_DashboardMetricsIndexes:4.25-5".equals(p.patchId())));
 
             // When DFS is already at legacy max version (3.20-1 < tracked baseline 3.20-2), run skips without scanning
             clearInvocations(spyPatchesRunner);
@@ -311,6 +311,66 @@ class PatchesRunnerTest {
                     sorted.stream().map(IPatch::patchId).toList());
         }
 
+        @Test
+        void testSameJavaPatchClassBumpedVersionProducesDistinctPatchIdAndRuns() {
+            List<String> executed = new ArrayList<>();
+            IPatch v4255 = new VersionedJavaPatch(daasScriptType, PatchVersion.valueOf("4.25-5"), () -> executed.add("4.25-5"));
+            IPatch v4256 = new VersionedJavaPatch(daasScriptType, PatchVersion.valueOf("4.25-6"), () -> executed.add("4.25-6"));
+
+            String expectedV4255Id = "java:" + VersionedJavaPatch.class.getName() + ":4.25-5";
+            String expectedV4256Id = "java:" + VersionedJavaPatch.class.getName() + ":4.25-6";
+            Assertions.assertEquals(expectedV4255Id, v4255.patchId());
+            Assertions.assertEquals(expectedV4256Id, v4256.patchId());
+            Assertions.assertNotEquals(v4255.patchId(), v4256.patchId());
+
+            VersionDto at4255 = new VersionDto(daasScriptType.toString(), "4.25-5",
+                    Collections.singletonList(expectedV4255Id));
+            when(versionService.findOne(any(Query.class))).thenReturn(at4255);
+            doReturn(Arrays.asList(v4255, v4256))
+                    .when(spyPatchesRunner).scanPatches(eq(io.tapdata.utils.AppType.DAAS), any(), any(), any(), any());
+
+            try (MockedStatic<InitLogMap> initLogMapMock = mockStatic(InitLogMap.class)) {
+                initLogMapMock.when(() -> InitLogMap.complete(any())).then(invocation -> null);
+                Assertions.assertDoesNotThrow(() -> spyPatchesRunner.run(applicationArguments));
+            }
+
+            Assertions.assertEquals(Collections.singletonList("4.25-6"), executed);
+            verify(versionService).recordExecutedPatch(daasScriptType.toString(), expectedV4256Id);
+            verify(versionService, never()).recordExecutedPatch(daasScriptType.toString(), expectedV4255Id);
+            ArgumentCaptor<VersionDto> updates = ArgumentCaptor.forClass(VersionDto.class);
+            verify(versionService, times(1)).upsert(any(Query.class), updates.capture());
+            Assertions.assertEquals("4.25-6", updates.getValue().getVersion());
+        }
+
+        @Test
+        void testRealScanAtTrackedCurrentVersionIncludesOnlyTrackedWindowAndSkipsRecordedPatches() {
+            io.tapdata.utils.AppType daas = io.tapdata.utils.AppType.DAAS;
+            List<IPatch> realScanned = spyPatchesRunner.scanPatches(
+                    daas, PatchVersion.valueOf("4.25-5"), PatchVersion.valueOf("4.25-5"),
+                    new ScriptPatchScanner(daas, Collections.emptyMap()),
+                    new JavaPatchScanner(daas));
+
+            List<String> expectedIds = Arrays.asList(
+                    "script:4.25-4.json",
+                    "java:com.tapdata.tm.init.patches.daas.V4_25_3_DashboardMetricsIndexes:4.25-5");
+            Assertions.assertEquals(expectedIds, realScanned.stream().map(IPatch::patchId).toList());
+
+            VersionDto alreadyUpToDate = new VersionDto(daasScriptType.toString(), "4.25-5", expectedIds);
+            when(versionService.findOne(any(Query.class))).thenReturn(alreadyUpToDate);
+            clearInvocations(spyPatchesRunner);
+
+            try (MockedStatic<InitLogMap> initLogMapMock = mockStatic(InitLogMap.class)) {
+                initLogMapMock.when(() -> InitLogMap.complete(any())).then(invocation -> null);
+                Assertions.assertDoesNotThrow(() -> spyPatchesRunner.run(applicationArguments));
+                initLogMapMock.verify(() -> InitLogMap.complete(any()), times(1));
+            }
+
+            verify(spyPatchesRunner, times(1)).scanPatches(
+                    eq(daas), eq(PatchVersion.valueOf("4.25-5")), eq(PatchVersion.valueOf("4.25-5")), any(), any());
+            verify(versionService, never()).recordExecutedPatch(any(), any());
+            verify(versionService, never()).upsert(any(Query.class), any(VersionDto.class));
+        }
+
         private IPatch dummyPatch(PatchType type, String version, String patchId, Runnable action) {
             return new AbsPatch(type, PatchVersion.valueOf(version)) {
                 @Override
@@ -323,6 +383,20 @@ class PatchesRunnerTest {
                     action.run();
                 }
             };
+        }
+
+        private static class VersionedJavaPatch extends AbsPatch {
+            private final Runnable action;
+
+            VersionedJavaPatch(PatchType type, PatchVersion version, Runnable action) {
+                super(type, version);
+                this.action = action;
+            }
+
+            @Override
+            public void run() {
+                action.run();
+            }
         }
     }
 }
