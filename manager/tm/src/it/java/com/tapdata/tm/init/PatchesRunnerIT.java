@@ -40,7 +40,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.spy;
 
 /** L1：真实 MongoDB 验证 4.25-2/4.25-3 存量升级、用户配置保留与 executedPatches 防跳过/防重跑契约。 */
 @Timeout(60)
@@ -57,6 +60,8 @@ class PatchesRunnerIT {
         }
         Assumptions.assumeTrue(uri != null && !uri.isBlank(),
                 "需要隔离 MongoDB 连接环境变量 TAPDATA_IT_MONGO_URI 或 TAPDATA_TEST_MONGO_URI");
+        Assumptions.assumeTrue("true".equalsIgnoreCase(System.getenv("TAPDATA_TEST_MONGO_ALLOW_TEMP_DATABASE")),
+                "TAPDATA_TEST_MONGO_ALLOW_TEMP_DATABASE=true is required because the test creates and drops a random database");
         return uri;
     }
 
@@ -211,6 +216,81 @@ class PatchesRunnerIT {
             assertEquals("4.25-5", versionDoc.getString("version"));
             List<String> executed = versionDoc.getList("executedPatches", String.class);
             assertTrue(executed.containsAll(List.of(SCRIPT_4254_ID, DASHBOARD_PATCH_ID, concurrentPatchId)));
+        });
+    }
+
+    @Test
+    @DisplayName("已有等价审计索引重跑 4.25-4.json 时不触发 dropIndexes 或重建索引")
+    void shouldNotDropOrRecreateEquivalentAuditIndexesWhenUpgradingFrom4_25_3() throws Exception {
+        withIsolatedMongo((uri, defaultTemplate, obsTemplate) -> {
+            defaultTemplate.getCollection("Version").insertOne(new Document()
+                    .append("type", "daas_script_version")
+                    .append("version", "4.25-3"));
+            defaultTemplate.getCollection("UserLogs").createIndex(
+                    new Document("eventId", 1),
+                    new IndexOptions().name("eventId_1").sparse(true));
+            defaultTemplate.getCollection("UserLogs").createIndex(
+                    new Document("operationId", 1).append("timestamp", 1),
+                    new IndexOptions().name("operationId_1_timestamp_1").sparse(true));
+            defaultTemplate.getCollection("UserLogs").createIndex(
+                    new Document("type", 1).append("timestamp", -1).append("eventId", -1),
+                    new IndexOptions().name("type_1_timestamp_-1_eventId_-1"));
+            defaultTemplate.getCollection("AuditOperations").createIndex(
+                    new Document("createdAt", 1),
+                    new IndexOptions().name("createdAt_ttl").expireAfter(604800L, TimeUnit.SECONDS));
+            prepareDashboardCollections(defaultTemplate, obsTemplate);
+
+            MongoTemplate spyTemplate = spy(defaultTemplate);
+            List<String> executedCommands = new ArrayList<>();
+            doAnswer(invocation -> {
+                executedCommands.add(invocation.getArgument(0, String.class));
+                return invocation.callRealMethod();
+            }).when(spyTemplate).executeCommand(anyString());
+
+            GenericApplicationContext spyContext = new GenericApplicationContext();
+            org.springframework.context.ApplicationContext outerContext = SpringContextHelper.applicationContext;
+            try {
+                spyContext.registerBean("mongoTemplate", MongoTemplate.class, () -> spyTemplate);
+                spyContext.registerBean("obsMongoTemplate", CompletableFuture.class,
+                        () -> CompletableFuture.completedFuture(obsTemplate));
+                spyContext.refresh();
+                SpringContextHelper.applicationContext = spyContext;
+
+                PatchesRunner runner = buildRunner(uri, spyTemplate);
+                try (MockedStatic<InitLogMap> initLogMap = mockStatic(InitLogMap.class)) {
+                    initLogMap.when(() -> InitLogMap.complete(any())).then(invocation -> null);
+                    runner.run(null);
+                }
+                awaitIndex(obsTemplate, MeasurementEntity.COLLECTION_NAME, "idx_task_dashboard_dirty");
+            } finally {
+                SpringContextHelper.applicationContext = outerContext;
+                if (spyContext.isActive()) {
+                    spyContext.close();
+                }
+            }
+
+            assertTrue(executedCommands.stream().noneMatch(cmd -> cmd.contains("dropIndexes")),
+                    "Equivalent existing indexes must not be dropped: " + executedCommands);
+            assertTrue(executedCommands.stream().noneMatch(cmd ->
+                            cmd.contains("createIndexes") && (cmd.contains("\"UserLogs\"") || cmd.contains("\"AuditOperations\""))),
+                    "Equivalent existing indexes must not be recreated: " + executedCommands);
+
+            Set<String> userLogIndexes = indexNames(defaultTemplate, "UserLogs");
+            assertTrue(userLogIndexes.containsAll(List.of(
+                    "eventId_1", "operationId_1_timestamp_1", "type_1_timestamp_-1_eventId_-1")));
+            Document ttlIndex = defaultTemplate.getCollection("AuditOperations").listIndexes().into(new ArrayList<>()).stream()
+                    .filter(doc -> "createdAt_ttl".equals(doc.getString("name")))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(ttlIndex);
+            assertEquals(604800L, ((Number) ttlIndex.get("expireAfterSeconds")).longValue());
+            assertNotNull(defaultTemplate.getCollection("Permission")
+                    .find(new Document("name", "v2_audit_log_export")).first());
+            Document versionDoc = defaultTemplate.getCollection("Version")
+                    .find(new Document("type", "daas_script_version")).first();
+            assertNotNull(versionDoc);
+            assertEquals("4.25-5", versionDoc.getString("version"));
+            assertTrue(versionDoc.getList("executedPatches", String.class).contains(SCRIPT_4254_ID));
         });
     }
 
