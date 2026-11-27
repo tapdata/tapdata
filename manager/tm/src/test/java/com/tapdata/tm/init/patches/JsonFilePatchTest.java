@@ -481,6 +481,41 @@ class JsonFilePatchTest {
         assertTrue(commands.getAllValues().get(1).contains("createIndexes"));
     }
 
+    @Test
+    void shouldCreateNewIndexMatchingOldDefinitionOfPlannedDropIndexAcrossMultipleCreateBlocks() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "UserLogs", List.of(
+                new Document("v", 2).append("key", new Document("_id", 1)).append("name", "_id_"),
+                new Document("v", 2).append("key", new Document("x", 1).append("y", 1)).append("name", "a")
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "UserLogs",
+                    "indexes": [
+                      { "name": "b", "key": { "x": 1, "y": 1 }, "background": true }
+                    ]
+                  },
+                  {
+                    "createIndexes": "UserLogs",
+                    "indexes": [
+                      { "name": "a", "key": { "x": 1 }, "background": true }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        verify(mongoTemplate, times(1)).getCollection("UserLogs");
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(3)).executeCommand(commands.capture());
+        assertTrue(commands.getAllValues().get(0).contains("dropIndexes") && commands.getAllValues().get(0).contains("\"a\""));
+        assertTrue(commands.getAllValues().get(1).contains("createIndexes") && commands.getAllValues().get(1).contains("\"b\""));
+        assertTrue(commands.getAllValues().get(2).contains("createIndexes") && commands.getAllValues().get(2).contains("\"a\""));
+    }
+
     private JsonFilePatch newPatch(MongoTemplate mongoTemplate, String script) {
         return new JsonFilePatch(
                 new PatchType(AppType.DAAS, PatchTypeEnums.Script),

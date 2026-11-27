@@ -22,6 +22,7 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -179,24 +180,33 @@ public class JsonFilePatch extends AbsPatch {
             }
             List<JSONObject> newCreates = new ArrayList<>();
             List<Document> needDrops = new ArrayList<>();
+            Map<String, Map<String, NormalizedIndex>> existIndexMapsByCollection = new HashMap<>();
+            Map<String, List<NormalizedIndex>> existIndexesByCollection = new HashMap<>();
             Map<String, Set<String>> plannedDropsByCollection = new HashMap<>();
+            List<List<NormalizedIndex>> targetIndexesPerCreate = new ArrayList<>(creates.size());
 
+            // 第一遍：按集合加载现有索引快照，并跨所有 createIndexes 条目规划待 drop 索引
             for (JSONObject create : creates) {
                 String collectionName = (String) create.get("createIndexes");
-                ListIndexesIterable<Document> documents = mongoTemplate.getCollection(collectionName).listIndexes();
-                Map<String, NormalizedIndex> existIndexMap = new HashMap<>();
-                List<NormalizedIndex> existIndexes = new ArrayList<>();
-                for (Document document : documents) {
-                    NormalizedIndex existing = fromIndexMap(document);
-                    existIndexMap.put(existing.name(), existing);
-                    existIndexes.add(existing);
-                }
-
                 JSONArray jsonArray = (JSONArray) create.get("indexes");
-
                 if (CollectionUtils.isEmpty(jsonArray)) {
+                    targetIndexesPerCreate.add(Collections.emptyList());
                     continue;
                 }
+                Map<String, NormalizedIndex> existIndexMap = existIndexMapsByCollection.get(collectionName);
+                if (existIndexMap == null) {
+                    existIndexMap = new HashMap<>();
+                    List<NormalizedIndex> existIndexes = new ArrayList<>();
+                    ListIndexesIterable<Document> documents = mongoTemplate.getCollection(collectionName).listIndexes();
+                    for (Document document : documents) {
+                        NormalizedIndex existing = fromIndexMap(document);
+                        existIndexMap.put(existing.name(), existing);
+                        existIndexes.add(existing);
+                    }
+                    existIndexMapsByCollection.put(collectionName, existIndexMap);
+                    existIndexesByCollection.put(collectionName, existIndexes);
+                }
+
                 Set<String> plannedDropNames = plannedDropsByCollection.computeIfAbsent(collectionName, k -> new HashSet<>());
                 List<NormalizedIndex> targetIndexes = new ArrayList<>(jsonArray.size());
                 for (Object index : jsonArray) {
@@ -213,6 +223,21 @@ public class JsonFilePatch extends AbsPatch {
                         }
                     }
                 }
+                targetIndexesPerCreate.add(targetIndexes);
+            }
+
+            // 第二遍：基于完整的集合级待 drop 名单判定每个条目需创建的索引
+            for (int c = 0; c < creates.size(); c++) {
+                JSONObject create = creates.get(c);
+                JSONArray jsonArray = (JSONArray) create.get("indexes");
+                if (CollectionUtils.isEmpty(jsonArray)) {
+                    continue;
+                }
+                String collectionName = (String) create.get("createIndexes");
+                Map<String, NormalizedIndex> existIndexMap = existIndexMapsByCollection.get(collectionName);
+                List<NormalizedIndex> existIndexes = existIndexesByCollection.get(collectionName);
+                Set<String> plannedDropNames = plannedDropsByCollection.getOrDefault(collectionName, Collections.emptySet());
+                List<NormalizedIndex> targetIndexes = targetIndexesPerCreate.get(c);
 
                 JSONArray newJsonArray = new JSONArray();
                 for (int i = 0; i < jsonArray.size(); i++) {
