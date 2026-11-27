@@ -160,6 +160,41 @@ public class TaskThrottlePolicyService {
         return taskDto;
     }
 
+    /**
+     * Filters raw task IDs to only those the given user is authorized to access.
+     */
+    public List<String> filterAccessibleTaskIds(List<String> taskIds, UserDetail user) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return List.of();
+        }
+        java.util.Set<String> deduped = new java.util.LinkedHashSet<>();
+        for (String raw : taskIds) {
+            if (raw != null && !raw.isBlank()) {
+                deduped.add(raw.trim());
+            }
+        }
+        if (deduped.isEmpty()) {
+            return List.of();
+        }
+        if (taskService == null) {
+            return new ArrayList<>(deduped);
+        }
+        if (user == null) {
+            return List.of();
+        }
+        List<String> accessible = new ArrayList<>(deduped.size());
+        for (String taskId : deduped) {
+            if (!ObjectId.isValid(taskId)) {
+                continue;
+            }
+            TaskDto found = taskService.checkExistById(new ObjectId(taskId), user);
+            if (found != null) {
+                accessible.add(taskId);
+            }
+        }
+        return accessible;
+    }
+
     public void validatePolicyPhases(Map<ThrottlePhase, ThrottlePhaseLimit> phases, String taskMode) {
         if (phases == null || phases.isEmpty()) {
             return;

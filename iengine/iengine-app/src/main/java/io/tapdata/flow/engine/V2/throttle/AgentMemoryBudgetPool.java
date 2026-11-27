@@ -224,6 +224,24 @@ public class AgentMemoryBudgetPool {
         }
     }
 
+    public long maxSingleReservationBytes() {
+        lock.lock();
+        try {
+            return Math.max(1L, maxMemoryBytes - drainReserveBytes);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public long maxSingleReservationRecords() {
+        lock.lock();
+        try {
+            return Math.max(1L, maxRecords);
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public Snapshot snapshot() {
         lock.lock();
         try {

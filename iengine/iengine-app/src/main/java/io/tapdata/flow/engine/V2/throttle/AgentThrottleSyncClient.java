@@ -166,7 +166,8 @@ public class AgentThrottleSyncClient {
             clientMongoOperator.postOne(payload, RESOURCE_TELEMETRY, Object.class);
             return true;
         } catch (Exception e) {
-            logger.warn("Upload throttle telemetry samples failed: {}", e.getMessage());
+            registry.requeueTelemetry(telemetry);
+            logger.warn("Upload throttle telemetry samples failed (requeued {} tasks): {}", telemetry.size(), e.getMessage());
             return false;
         }
     }

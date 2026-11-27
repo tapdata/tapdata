@@ -154,7 +154,8 @@ public class TaskThrottleController extends BaseController {
     @GetMapping("/live-status")
     public ResponseMessage<Map<String, TaskThrottleLiveStatusView>> getLiveStatuses(
             @RequestParam(value = "taskIds", required = false) List<String> taskIds) {
-        return success(telemetryService.evaluateLiveStatuses(taskIds));
+        List<String> authorizedTaskIds = policyService.filterAccessibleTaskIds(taskIds, currentUser());
+        return success(telemetryService.evaluateLiveStatuses(authorizedTaskIds));
     }
 
     @GetMapping("/ranking")
@@ -167,6 +168,9 @@ public class TaskThrottleController extends BaseController {
 
     @GetMapping("/sample-config")
     public ResponseMessage<TaskThrottleSampleConfigView> getSampleConfig() {
+        if (moduleAccess != null) {
+            moduleAccess.require(currentUser(), SETTINGS_PERMISSION);
+        }
         return success(sampleConfigService.getConfigView());
     }
 

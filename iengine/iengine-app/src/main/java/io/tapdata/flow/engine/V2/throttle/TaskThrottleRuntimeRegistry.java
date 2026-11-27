@@ -12,8 +12,10 @@ import io.tapdata.observable.metric.throttle.MonotonicClock;
 import io.tapdata.observable.metric.throttle.ThrottleAggregatorRegistry;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,11 +40,15 @@ public class TaskThrottleRuntimeRegistry {
     private final ConcurrentHashMap<String, RunningTaskMeta> runningTasks = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<TaskThrottleApplyReceipt> pendingReceipts = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<TaskThrottleStopEvidenceDto> pendingStopEvidences = new ConcurrentLinkedQueue<>();
+    private final Object telemetryQueueLock = new Object();
+    private final Map<String, ArrayDeque<TaskThrottleTelemetrySample>> pendingTelemetryByTask = new LinkedHashMap<>();
 
     private record RunningTaskMeta(String tenantId, String taskKind, String taskId, Map<String, Set<String>> sourceToTargets) {
     }
 
     private static final int MAX_PENDING_RECEIPTS = 500;
+    public static final int MAX_PENDING_TELEMETRY_SAMPLES_PER_TASK = 60;
+    public static final int MAX_PENDING_TELEMETRY_TASKS = 500;
 
     private volatile String agentId = "unknown-agent";
     private volatile long cdcSampleConfigVersion = 0L;
@@ -77,6 +83,9 @@ public class TaskThrottleRuntimeRegistry {
         runningTasks.clear();
         pendingReceipts.clear();
         pendingStopEvidences.clear();
+        synchronized (telemetryQueueLock) {
+            pendingTelemetryByTask.clear();
+        }
         cdcSampleConfigVersion = 0L;
         cdcSampleRefreshIntervalSeconds = ThrottleConstants.DEFAULT_CDC_SAMPLE_REFRESH_INTERVAL_SECONDS;
         lastDeltaCursor = 0L;
@@ -340,18 +349,85 @@ public class TaskThrottleRuntimeRegistry {
         }
     }
 
+    public void requeueTelemetry(Map<String, List<TaskThrottleTelemetrySample>> failedTelemetry) {
+        if (failedTelemetry == null || failedTelemetry.isEmpty()) {
+            return;
+        }
+        synchronized (telemetryQueueLock) {
+            for (Map.Entry<String, List<TaskThrottleTelemetrySample>> entry : failedTelemetry.entrySet()) {
+                String taskId = entry.getKey();
+                List<TaskThrottleTelemetrySample> samples = entry.getValue();
+                if (taskId == null || taskId.isBlank() || samples == null || samples.isEmpty()) {
+                    continue;
+                }
+                ArrayDeque<TaskThrottleTelemetrySample> queue = pendingTelemetryByTask.get(taskId);
+                if (queue == null) {
+                    if (pendingTelemetryByTask.size() >= MAX_PENDING_TELEMETRY_TASKS) {
+                        continue;
+                    }
+                    queue = new ArrayDeque<>();
+                    pendingTelemetryByTask.put(taskId, queue);
+                }
+                mergeTelemetrySamplesLocked(queue, samples);
+                if (queue.isEmpty()) {
+                    pendingTelemetryByTask.remove(taskId);
+                }
+            }
+        }
+    }
+
     public Map<String, List<TaskThrottleTelemetrySample>> snapshotTelemetryAll() {
-        Map<String, List<TaskThrottleTelemetrySample>> result = new ConcurrentHashMap<>();
+        Map<String, ArrayDeque<TaskThrottleTelemetrySample>> merged = new LinkedHashMap<>();
+        synchronized (telemetryQueueLock) {
+            for (Map.Entry<String, ArrayDeque<TaskThrottleTelemetrySample>> entry : pendingTelemetryByTask.entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isEmpty()) {
+                    merged.put(entry.getKey(), new ArrayDeque<>(entry.getValue()));
+                }
+            }
+            pendingTelemetryByTask.clear();
+        }
         for (Map.Entry<String, TaskThrottleRuntime> entry : activeRuntimes.entrySet()) {
             TaskThrottleRuntime rt = entry.getValue();
             if (!rt.isClosed()) {
                 List<TaskThrottleTelemetrySample> samples = rt.snapshotAndRollTelemetry();
                 if (!samples.isEmpty()) {
-                    result.put(entry.getKey(), samples);
+                    ArrayDeque<TaskThrottleTelemetrySample> queue = merged.computeIfAbsent(entry.getKey(), k -> new ArrayDeque<>());
+                    mergeTelemetrySamplesLocked(queue, samples);
                 }
             }
         }
+        Map<String, List<TaskThrottleTelemetrySample>> result = new LinkedHashMap<>(merged.size());
+        for (Map.Entry<String, ArrayDeque<TaskThrottleTelemetrySample>> entry : merged.entrySet()) {
+            if (!entry.getValue().isEmpty()) {
+                result.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+        }
         return result;
+    }
+
+    private static void mergeTelemetrySamplesLocked(
+            ArrayDeque<TaskThrottleTelemetrySample> queue,
+            List<TaskThrottleTelemetrySample> incoming) {
+        for (TaskThrottleTelemetrySample sample : incoming) {
+            if (sample == null) {
+                continue;
+            }
+            queue.removeIf(existing -> sameTelemetrySample(existing, sample));
+            while (queue.size() >= MAX_PENDING_TELEMETRY_SAMPLES_PER_TASK) {
+                queue.pollFirst();
+            }
+            queue.offerLast(sample);
+        }
+    }
+
+    private static boolean sameTelemetrySample(TaskThrottleTelemetrySample a, TaskThrottleTelemetrySample b) {
+        if (a == b) {
+            return true;
+        }
+        return a.getRunEpoch() == b.getRunEpoch()
+                && a.getSampleSeq() == b.getSampleSeq()
+                && a.getPhase() == b.getPhase()
+                && a.getDirection() == b.getDirection();
     }
 
     public AgentThrottleCapabilities buildCapabilities() {

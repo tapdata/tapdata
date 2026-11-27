@@ -278,4 +278,41 @@ class TaskThrottleControllerTest {
             pool.shutdownNow();
         }
     }
+
+    @Test
+    void oversizedAtomicRequestWithOverdraftFlagWaitsForBurstAndPaysOffDebt() {
+        VirtualClock clock = new VirtualClock();
+        TaskRunKey key = new TaskRunKey("t1", "sync", "task-atomic-overdraft", 6L);
+        TaskThrottleController controller = new TaskThrottleController(key, clock);
+        controller.applyPolicy(fullInputPolicy(1L, 1_000L, 100L), "agent-1", null);
+
+        // At t=0 bucket balance is empty; default disallow returns EXCEEDS_ATOMIC_LIMIT on 6_000B (> 5_000B maxAtomic)
+        TaskThrottleController.AcquireResult rejected = controller.tryAcquire(
+                ThrottlePhase.FULL, ThrottleDirection.INPUT, 6_000L, 1L, false, true, controller.newWaitTicket());
+        assertEquals(TaskThrottleController.Outcome.EXCEEDS_ATOMIC_LIMIT, rejected.outcome());
+
+        // With allowAtomicOverdraft=true: waits until bucket fills normalBurst=1_000 (at t=1s)
+        TaskThrottleController.AcquireResult waitingForBurst = controller.tryAcquireAll(
+                List.of(new TaskThrottleController.SlotDemand(
+                        ThrottlePhase.FULL, ThrottleDirection.INPUT, 6_000L, 1L, false, true, true)),
+                controller.newWaitTicket());
+        assertEquals(TaskThrottleController.Outcome.RATE_WAIT, waitingForBurst.outcome());
+
+        clock.advanceMillis(1_000L);
+        TaskThrottleController.AcquireResult admitted = controller.tryAcquireAll(
+                List.of(new TaskThrottleController.SlotDemand(
+                        ThrottlePhase.FULL, ThrottleDirection.INPUT, 6_000L, 1L, false, true, true)),
+                controller.newWaitTicket());
+        assertEquals(TaskThrottleController.Outcome.ADMITTED, admitted.outcome());
+
+        // Balance is now -5_000 debt; subsequent 100B must wait 5.1s to pay off debt before proceeding
+        TaskThrottleController.AcquireResult payingDebt = controller.tryAcquire(
+                ThrottlePhase.FULL, ThrottleDirection.INPUT, 100L, 1L, true, true, controller.newWaitTicket());
+        assertEquals(TaskThrottleController.Outcome.RATE_WAIT, payingDebt.outcome());
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(5_100L), payingDebt.waitNanos());
+
+        clock.advanceMillis(5_100L);
+        assertEquals(TaskThrottleController.Outcome.ADMITTED, controller.tryAcquire(
+                ThrottlePhase.FULL, ThrottleDirection.INPUT, 100L, 1L, true, true, controller.newWaitTicket()).outcome());
+    }
 }

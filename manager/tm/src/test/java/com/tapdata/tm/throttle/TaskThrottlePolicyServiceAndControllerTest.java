@@ -275,6 +275,9 @@ class TaskThrottlePolicyServiceAndControllerTest {
 
         controller.setModuleAccess(new ModuleAccess(permissionService, settingsService));
 
+        BizException getDenied = assertThrows(BizException.class, () -> controller.getSampleConfig());
+        assertEquals("NotAuthorized", getDenied.getErrorCode());
+
         BizException denied = assertThrows(BizException.class,
                 () -> controller.updateSampleConfig(Map.of("intervalSeconds", 90)));
         assertEquals("NotAuthorized", denied.getErrorCode());
@@ -282,8 +285,17 @@ class TaskThrottlePolicyServiceAndControllerTest {
 
         when(permissionService.checkCurrentUserHasPermission(
                 TaskThrottleController.SETTINGS_PERMISSION, "user-1")).thenReturn(true);
+        assertEquals(30, controller.getSampleConfig().getData().getIntervalSeconds());
         assertEquals(90, controller.updateSampleConfig(Map.of("intervalSeconds", 90)).getData().getIntervalSeconds());
         assertEquals(2L, sampleConfigService.getCurrentConfig().configVersion());
+
+        // /live-status filters out tasks the caller cannot access
+        String allowedId = taskOid.toHexString();
+        String forbiddenId = MongoUtils.toObjectId("65f000000000000000000199").toHexString();
+        Map<String, ?> liveStatuses = controller.getLiveStatuses(List.of(allowedId, forbiddenId, "invalid-oid")).getData();
+        assertTrue(liveStatuses.containsKey(allowedId));
+        assertFalse(liveStatuses.containsKey(forbiddenId));
+        assertEquals(1, liveStatuses.size());
     }
 
     @Test

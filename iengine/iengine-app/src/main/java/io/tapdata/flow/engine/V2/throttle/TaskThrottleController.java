@@ -309,7 +309,7 @@ public class TaskThrottleController {
                         blockedDims.add(ThrottleDimension.BYTES);
                     } else if (demand.bytesCost > 0L) {
                         long maxAtomic = maxAtomicCost(slot.bytesBucket.rate);
-                        if (demand.bytesCost > maxAtomic) {
+                        if (!demand.allowAtomicOverdraft && demand.bytesCost > maxAtomic) {
                             if (ticket != null) {
                                 releasedFairReservation |= clearReservationLocked(lockOrder, ticket.candidateId);
                             }
@@ -323,7 +323,7 @@ public class TaskThrottleController {
                     anyEnabled = true;
                     if (demand.eventsCost > 0L) {
                         long maxAtomic = maxAtomicCost(slot.qpsBucket.rate);
-                        if (demand.eventsCost > maxAtomic) {
+                        if (!demand.allowAtomicOverdraft && demand.eventsCost > maxAtomic) {
                             if (ticket != null) {
                                 releasedFairReservation |= clearReservationLocked(lockOrder, ticket.candidateId);
                             }
@@ -367,7 +367,7 @@ public class TaskThrottleController {
             if (!reservedByOther && blockedDims.isEmpty()) {
                 // Atomic debit across all required buckets + clear candidate fair reservation.
                 for (BucketRequirement req : requirements) {
-                    req.bucket.balance -= req.cost;
+                    req.bucket.balance = saturatingSubtract(req.bucket.balance, req.cost);
                     if (req.bucket.balance < req.bucket.normalBurst) {
                         // Remainder preserved while refilling below burst
                     } else {
@@ -789,13 +789,32 @@ public class TaskThrottleController {
         }
     }
 
+    private static long saturatingSubtract(long a, long b) {
+        try {
+            return Math.subtractExact(a, b);
+        } catch (ArithmeticException ex) {
+            return Long.MIN_VALUE / 2L;
+        }
+    }
+
     public record SlotDemand(
             ThrottlePhase phase,
             ThrottleDirection direction,
             long bytesCost,
             long eventsCost,
             boolean splittable,
-            boolean bytesCostKnown) {
+            boolean bytesCostKnown,
+            boolean allowAtomicOverdraft) {
+
+        public SlotDemand(
+                ThrottlePhase phase,
+                ThrottleDirection direction,
+                long bytesCost,
+                long eventsCost,
+                boolean splittable,
+                boolean bytesCostKnown) {
+            this(phase, direction, bytesCost, eventsCost, splittable, bytesCostKnown, false);
+        }
 
         static SlotDemand combine(SlotDemand a, SlotDemand b) {
             return new SlotDemand(
@@ -804,7 +823,8 @@ public class TaskThrottleController {
                     a.bytesCost + b.bytesCost,
                     a.eventsCost + b.eventsCost,
                     a.splittable && b.splittable,
-                    a.bytesCostKnown && b.bytesCostKnown
+                    a.bytesCostKnown && b.bytesCostKnown,
+                    a.allowAtomicOverdraft || b.allowAtomicOverdraft
             );
         }
     }

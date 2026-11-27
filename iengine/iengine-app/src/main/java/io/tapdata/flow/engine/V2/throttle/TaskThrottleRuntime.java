@@ -147,8 +147,34 @@ public class TaskThrottleRuntime {
                 taskMaxBatches,
                 taskDrainReserveBytes
         );
-        this.backpressureSignal = new WriteBackpressureSignal(this.inFlightBudget);
+        this.backpressureSignal = new WriteBackpressureSignal(this.inFlightBudget, this.clock);
         this.logRetentionMonitor = new LogRetentionMonitor();
+    }
+
+    public static final class ThrottleRunFencedException extends RuntimeException {
+        public ThrottleRunFencedException(String message) {
+            super(message);
+        }
+    }
+
+    public ThrottleRunFencedException buildFencedException(String stageDesc) {
+        String prefix = (stageDesc == null || stageDesc.isBlank()) ? "Throttle runtime" : stageDesc;
+        String reasonSuffix = (fenceReason != null && !fenceReason.isBlank()) ? " (" + fenceReason + ")" : "";
+        return new ThrottleRunFencedException(
+                prefix + " aborted because throttle runEpoch is fenced: " + runKey + reasonSuffix);
+    }
+
+    public void clearTargetWaiting(String targetNodeId, ThrottlePhase phase) {
+        backpressureSignal.clearTargetWaiting(targetNodeId);
+        ThrottlePhase resolved = phase == null ? ThrottlePhase.FULL : phase;
+        aggregator.updateWaitState(
+                resolved,
+                ThrottleDirection.OUTPUT,
+                WaitReason.NONE,
+                EnumSet.noneOf(ThrottleDimension.class),
+                inFlightBudget.currentWatermarkRatio(),
+                logRetentionMonitor.worstStatus()
+        );
     }
 
     public TaskRunKey getRunKey() {
@@ -321,15 +347,43 @@ public class TaskThrottleRuntime {
         boolean phaseEnabled = controller.isPhaseEnabled(resolvedPhase);
         aggregator.activateSlot(resolvedPhase, ThrottleDirection.INPUT, controller.getAppliedVersion());
 
+        long maxLeaseBytes = inFlightBudget.maxSingleLeaseBytes();
+        long budgetMaxBytes = Math.max(1L, maxLeaseBytes / 2L);
+        long budgetMaxRecords = Math.min(inFlightBudget.maxSingleLeaseRecords(),
+                Math.max(1L, maxLeaseBytes / MIN_FALLBACK_RECORD_MEM_BYTES));
+
         if (!phaseEnabled) {
-            // Metering-only + capacity protection path: keep original batch unsplit.
-            BatchMeteringResult meter = meterBatch(inputMeter, resolvedPhase, endpointId, events, tableNormalizer, false);
-            return admitSingleSlice(sourceNodeId, endpointId, resolvedPhase, events, tableNormalizer, meter, true, cancelled, sliceDispatcher);
+            BatchMeteringResult probe = meterBatch(inputMeter, resolvedPhase, endpointId, events, tableNormalizer, false);
+            long fullMemBytes = estimateConservativeMemoryBytes(probe, events.size());
+            if (events.size() <= 1 || inFlightBudget.canEverFit(fullMemBytes, events.size(), 1L)) {
+                return admitSingleSlice(sourceNodeId, endpointId, resolvedPhase, events, tableNormalizer, probe, true, cancelled, sliceDispatcher);
+            }
+            int estimatedSliceSize = computeSliceRecordCount(events.size(), probe, budgetMaxRecords, budgetMaxBytes);
+            int offset = 0;
+            while (offset < events.size()) {
+                if (fenced || closed) {
+                    return AdmitOutcome.FENCED_OR_STOPPED;
+                }
+                if (cancelled != null && cancelled.getAsBoolean()) {
+                    return AdmitOutcome.CANCELLED;
+                }
+                SubSlice<T> next = nextBoundedSlice(
+                        events, offset, estimatedSliceSize, inputMeter, resolvedPhase, endpointId,
+                        tableNormalizer, budgetMaxRecords, budgetMaxBytes, probe, false, true);
+                AdmitOutcome outcome = admitSingleSlice(
+                        sourceNodeId, endpointId, resolvedPhase, next.events(), tableNormalizer, next.meter(),
+                        next.events().size() > 1, cancelled, sliceDispatcher);
+                if (outcome != AdmitOutcome.ADMITTED) {
+                    return outcome;
+                }
+                offset = next.nextOffset();
+            }
+            return AdmitOutcome.ADMITTED;
         }
 
-        // Throttling enabled: slice large splittable batches so each piece stays within QPS/BYTES burst limits.
-        long chunkMaxEvents = controller.maxSplittableEvents(resolvedPhase);
-        long chunkMaxBytes = controller.maxSplittableBytes(resolvedPhase);
+        // Throttling enabled: slice large splittable batches so each piece stays within QPS/BYTES burst limits and hard capacity bounds.
+        long chunkMaxEvents = Math.min(controller.maxSplittableEvents(resolvedPhase), budgetMaxRecords);
+        long chunkMaxBytes = Math.min(controller.maxSplittableBytes(resolvedPhase), budgetMaxBytes);
 
         BatchMeteringResult probe = meterBatch(inputMeter, resolvedPhase, endpointId, events, tableNormalizer, true);
         int estimatedSliceSize = computeSliceRecordCount(events.size(), probe, chunkMaxEvents, chunkMaxBytes);
@@ -344,7 +398,7 @@ public class TaskThrottleRuntime {
             }
             SubSlice<T> next = nextBoundedSlice(
                     events, offset, estimatedSliceSize, inputMeter, resolvedPhase, endpointId,
-                    tableNormalizer, chunkMaxEvents, chunkMaxBytes, probe);
+                    tableNormalizer, chunkMaxEvents, chunkMaxBytes, probe, true, true);
             boolean splittable = next.events().size() > 1;
             AdmitOutcome outcome = admitSingleSlice(
                     sourceNodeId, endpointId, resolvedPhase, next.events(), tableNormalizer, next.meter(), splittable, cancelled, sliceDispatcher);
@@ -370,11 +424,16 @@ public class TaskThrottleRuntime {
         long memBytes = estimateConservativeMemoryBytes(meterResult, sliceEvents.size());
         long recordCount = sliceEvents.size();
 
+        long effectiveMemBytes = memBytes;
+        long effectiveRecordCount = recordCount;
         if (!inFlightBudget.canEverFit(memBytes, recordCount, 1L)) {
-            throw new IllegalStateException("Batch exceeds hard in-flight capacity budget: bytes=" + memBytes + ", records=" + recordCount);
+            effectiveMemBytes = Math.min(memBytes, inFlightBudget.maxSingleLeaseBytes());
+            effectiveRecordCount = Math.min(recordCount, inFlightBudget.maxSingleLeaseRecords());
+            logger.warn("Single slice exceeds hard in-flight capacity budget (task={}, bytes={}, records={}); clamping lease to ({}, {}) for bounded-wait admission",
+                    runKey, memBytes, recordCount, effectiveMemBytes, effectiveRecordCount);
         }
 
-        CapacityLease lease = acquireCapacityWithBackpressure(sourceNodeId, seq, phase, memBytes, recordCount, cancelled);
+        CapacityLease lease = acquireCapacityWithBackpressure(sourceNodeId, seq, phase, effectiveMemBytes, effectiveRecordCount, cancelled);
         if (lease == null) {
             return (fenced || closed) ? AdmitOutcome.FENCED_OR_STOPPED : AdmitOutcome.CANCELLED;
         }
@@ -536,8 +595,13 @@ public class TaskThrottleRuntime {
         if (records == null || records.isEmpty()) {
             return;
         }
-        if (fenced || closed) {
-            throw new IllegalStateException("Target write rejected for fenced/stopped runEpoch: " + runKey);
+        if (fenced) {
+            backpressureSignal.clearTargetWaiting(targetNodeId);
+            throw buildFencedException("Target write");
+        }
+        if (closed || (cancelled != null && cancelled.getAsBoolean())) {
+            backpressureSignal.clearTargetWaiting(targetNodeId);
+            return;
         }
         ThrottlePhase resolvedPhase = phase == null ? ThrottlePhase.FULL : phase;
         aggregator.activateSlot(resolvedPhase, ThrottleDirection.OUTPUT, controller.getAppliedVersion());
@@ -556,20 +620,27 @@ public class TaskThrottleRuntime {
 
         int offset = 0;
         while (offset < records.size()) {
-            if (fenced || closed) {
-                throw new IllegalStateException("Target write aborted for fenced/stopped runEpoch: " + runKey);
+            if (fenced) {
+                backpressureSignal.clearTargetWaiting(targetNodeId);
+                throw buildFencedException("Target write");
+            }
+            if (closed || (cancelled != null && cancelled.getAsBoolean())) {
+                backpressureSignal.clearTargetWaiting(targetNodeId);
+                return;
             }
             SubSlice<E> next = nextBoundedSlice(
                     records, offset, sliceCount, outputMeter, resolvedPhase, endpointId,
-                    tableNormalizer, chunkMaxEvents, chunkMaxBytes, probe);
-            executeSingleTargetWriteChunk(
+                    tableNormalizer, chunkMaxEvents, chunkMaxBytes, probe, true, false);
+            if (!executeSingleTargetWriteChunk(
                     targetNodeId, endpointId, resolvedPhase, next.events(), tableNormalizer,
-                    next.events().size() > 1, cancelled, writer, next.meter());
+                    next.events().size() > 1, cancelled, writer, next.meter())) {
+                return;
+            }
             offset = next.nextOffset();
         }
     }
 
-    private <E extends TapEvent> void executeSingleTargetWriteChunk(
+    private <E extends TapEvent> boolean executeSingleTargetWriteChunk(
             String targetNodeId,
             String endpointId,
             ThrottlePhase phase,
@@ -578,10 +649,10 @@ public class TaskThrottleRuntime {
             boolean splittable,
             BooleanSupplier cancelled,
             ChunkWriter<E> writer) throws Exception {
-        executeSingleTargetWriteChunk(targetNodeId, endpointId, phase, chunk, tableNormalizer, splittable, cancelled, writer, null);
+        return executeSingleTargetWriteChunk(targetNodeId, endpointId, phase, chunk, tableNormalizer, splittable, cancelled, writer, null);
     }
 
-    private <E extends TapEvent> void executeSingleTargetWriteChunk(
+    private <E extends TapEvent> boolean executeSingleTargetWriteChunk(
             String targetNodeId,
             String endpointId,
             ThrottlePhase phase,
@@ -591,6 +662,14 @@ public class TaskThrottleRuntime {
             BooleanSupplier cancelled,
             ChunkWriter<E> writer,
             BatchMeteringResult precomputedMeter) throws Exception {
+        if (fenced) {
+            backpressureSignal.clearTargetWaiting(targetNodeId);
+            throw buildFencedException("Target write");
+        }
+        if (closed || (cancelled != null && cancelled.getAsBoolean())) {
+            backpressureSignal.clearTargetWaiting(targetNodeId);
+            return false;
+        }
         BatchMeteringResult meter = precomputedMeter != null
                 ? precomputedMeter
                 : meterBatch(outputMeter, phase, endpointId, chunk, tableNormalizer, controller.isPhaseEnabled(phase));
@@ -637,7 +716,10 @@ public class TaskThrottleRuntime {
             appliedVersion = acq.appliedVersion();
             if (acq.outcome() == TaskThrottleController.Outcome.CANCELLED || acq.outcome() == TaskThrottleController.Outcome.STOPPED) {
                 backpressureSignal.clearTargetWaiting(targetNodeId);
-                throw new IllegalStateException("Target write cancelled/stopped while waiting output quota");
+                if (fenced) {
+                    throw buildFencedException("Target write");
+                }
+                return false;
             }
             if (acq.outcome() == TaskThrottleController.Outcome.EXCEEDS_ATOMIC_LIMIT) {
                 backpressureSignal.clearTargetWaiting(targetNodeId);
@@ -646,10 +728,26 @@ public class TaskThrottleRuntime {
             tokenDebited = true;
         }
 
+        if (fenced) {
+            backpressureSignal.clearTargetWaiting(targetNodeId);
+            if (tokenDebited) {
+                aggregator.recordCancelledAfterDebit(phase, ThrottleDirection.OUTPUT, meter.getDmlCount(), meter.getEstimatedBytes());
+            }
+            throw buildFencedException("Target write");
+        }
+        if (closed || (cancelled != null && cancelled.getAsBoolean())) {
+            backpressureSignal.clearTargetWaiting(targetNodeId);
+            if (tokenDebited) {
+                aggregator.recordCancelledAfterDebit(phase, ThrottleDirection.OUTPUT, meter.getDmlCount(), meter.getEstimatedBytes());
+            }
+            return false;
+        }
+
         aggregator.recordAdmitted(meter, appliedVersion);
         try {
             writer.write(chunk);
             backpressureSignal.clearTargetWaiting(targetNodeId);
+            return true;
         } catch (Exception ex) {
             if (tokenDebited && cancelled != null && cancelled.getAsBoolean()) {
                 aggregator.recordCancelledAfterDebit(phase, ThrottleDirection.OUTPUT, meter.getDmlCount(), meter.getEstimatedBytes());
@@ -861,12 +959,23 @@ public class TaskThrottleRuntime {
         // Known null bytes after bounded CDC retries or FULL unmeterables bypass BYTES blocking without spinning.
         long bytesCost = currentMeter.getEstimatedBytes() == null ? 0L : Math.max(0L, currentMeter.getEstimatedBytes());
         long eventsCost = currentMeter.getDmlCount();
+        BooleanSupplier stopSignal = () -> fenced || closed || (cancelled != null && cancelled.getAsBoolean());
         TaskThrottleController.AcquireResult acq = controller.acquireBlocking(
                 Collections.singletonList(new TaskThrottleController.SlotDemand(
-                        phase, direction, bytesCost, eventsCost, splittable, true)),
-                () -> fenced || closed || (cancelled != null && cancelled.getAsBoolean()),
+                        phase, direction, bytesCost, eventsCost, splittable, true, false)),
+                stopSignal,
                 observer
         );
+        if (acq.outcome() == TaskThrottleController.Outcome.EXCEEDS_ATOMIC_LIMIT) {
+            logger.warn("Indivisible unit exceeds 5s atomic limit on {} (task={}, phase={}, dir={}, cost={}, limit={}); admitting via bounded-wait overdraft debt",
+                    acq.exceededDimension(), runKey, phase, direction, acq.requestedCost(), acq.limitCost());
+            acq = controller.acquireBlocking(
+                    Collections.singletonList(new TaskThrottleController.SlotDemand(
+                            phase, direction, bytesCost, eventsCost, splittable, true, true)),
+                    stopSignal,
+                    observer
+            );
+        }
         return new MeteredAcquireResult(acq, currentMeter);
     }
 
@@ -891,20 +1000,27 @@ public class TaskThrottleRuntime {
             Function<TapEvent, String> tableNormalizer,
             long chunkMaxEvents,
             long chunkMaxBytes,
-            BatchMeteringResult fullBatchProbe) {
+            BatchMeteringResult fullBatchProbe,
+            boolean rateWaiting,
+            boolean enforceBudgetFit) {
         int curCount = Math.max(1, Math.min(targetCount, events.size() - offset));
         while (true) {
             int end = Math.min(events.size(), offset + curCount);
             List<T> subEvents = (offset == 0 && end == events.size()) ? events : new ArrayList<>(events.subList(offset, end));
             BatchMeteringResult sliceMeter = (offset == 0 && end == events.size())
                     ? fullBatchProbe
-                    : meterBatch(meter, phase, endpointId, subEvents, tableNormalizer, true);
+                    : meterBatch(meter, phase, endpointId, subEvents, tableNormalizer, rateWaiting);
             boolean overBytes = chunkMaxBytes > 0L && chunkMaxBytes < Long.MAX_VALUE
                     && sliceMeter.getEstimatedBytes() != null
                     && sliceMeter.getEstimatedBytes() > chunkMaxBytes;
             boolean overEvents = chunkMaxEvents > 0L && chunkMaxEvents < Long.MAX_VALUE
                     && sliceMeter.getDmlCount() > chunkMaxEvents;
-            if (subEvents.size() <= 1 || (!overBytes && !overEvents)) {
+            boolean overBudget = enforceBudgetFit
+                    && !inFlightBudget.canEverFit(
+                    estimateConservativeMemoryBytes(sliceMeter, subEvents.size()),
+                    subEvents.size(),
+                    1L);
+            if (subEvents.size() <= 1 || (!overBytes && !overEvents && !overBudget)) {
                 return new SubSlice<>(subEvents, end, sliceMeter);
             }
             curCount = Math.max(1, subEvents.size() / 2);

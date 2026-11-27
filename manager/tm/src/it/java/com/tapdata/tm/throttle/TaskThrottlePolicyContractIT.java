@@ -362,7 +362,11 @@ class TaskThrottlePolicyContractIT {
                 .andExpect(jsonPath("$.data.intervalSeconds").value(30))
                 .andExpect(jsonPath("$.data.configVersion").value(1));
 
-        // 无系统设置权限用户修改被拦截
+        // 无系统设置权限用户读写均被拦截
+        mvc.perform(asReadonly(get("/api/task-throttle/sample-config")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("NotAuthorized"));
+
         mvc.perform(asReadonly(put("/api/task-throttle/sample-config")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"intervalSeconds\":60}")))
@@ -419,6 +423,11 @@ class TaskThrottlePolicyContractIT {
                 .andExpect(jsonPath("$.data." + syncId + ".configuredPhases[0]").value("FULL"))
                 .andExpect(jsonPath("$.data." + syncId + ".throttlingActive").value(false))
                 .andExpect(jsonPath("$.data." + unconfiguredId + ".policyConfigured").value(false));
+
+        // 无权限用户查询其他人的 taskIds 时，过滤掉无权任务返回空映射，不泄露配置或运行态
+        mvc.perform(asReadonly(get("/api/task-throttle/live-status?taskIds=" + syncId + "," + unconfiguredId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
 
         String lcId = collectorTaskOid.toHexString();
         mvc.perform(asAdmin(put("/api/task-throttle/logCollector/" + lcId)

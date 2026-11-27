@@ -636,7 +636,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					String sourceNodeId = getNode() != null ? getNode().getId() : "";
 					String endpointId = (dataProcessorContext != null && dataProcessorContext.getConnections() != null && dataProcessorContext.getConnections().getId() != null)
 							? String.valueOf(dataProcessorContext.getConnections().getId()) : sourceNodeId;
-					throttleRuntime.admitSourceBatch(
+					TaskThrottleRuntime.AdmitOutcome admitOutcome = throttleRuntime.admitSourceBatch(
 							sourceNodeId,
 							endpointId,
 							ThrottlePhase.CDC,
@@ -661,6 +661,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 								}
 							}
 					);
+					if (admitOutcome == TaskThrottleRuntime.AdmitOutcome.FENCED_OR_STOPPED && throttleRuntime.isFenced()) {
+						throw throttleRuntime.buildFencedException("Source partition CDC read");
+					}
 				}
 			}
 		} catch (Throwable throwable) {

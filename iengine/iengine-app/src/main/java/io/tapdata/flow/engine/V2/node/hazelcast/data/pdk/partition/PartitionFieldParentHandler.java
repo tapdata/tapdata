@@ -200,7 +200,7 @@ public class PartitionFieldParentHandler {
 		String sourceNodeId = sourcePdkDataNode.getNode() != null ? sourcePdkDataNode.getNode().getId() : "";
 		String endpointId = (ctx != null && ctx.getConnections() != null && ctx.getConnections().getId() != null)
 				? String.valueOf(ctx.getConnections().getId()) : sourceNodeId;
-		throttleRuntime.admitSourceBatch(
+		TaskThrottleRuntime.AdmitOutcome admitOutcome = throttleRuntime.admitSourceBatch(
 				sourceNodeId,
 				endpointId,
 				ThrottlePhase.FULL,
@@ -222,6 +222,9 @@ public class PartitionFieldParentHandler {
 					}
 				}
 		);
+		if (admitOutcome == TaskThrottleRuntime.AdmitOutcome.FENCED_OR_STOPPED && throttleRuntime.isFenced()) {
+			throw throttleRuntime.buildFencedException("Source partition batch read");
+		}
 	}
 
 }

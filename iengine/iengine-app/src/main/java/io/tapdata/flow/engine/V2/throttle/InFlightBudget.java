@@ -113,6 +113,16 @@ public class InFlightBudget {
                 && agentPool.canPotentiallyFit(estimatedBytes, records, batches);
     }
 
+    public long maxSingleLeaseBytes() {
+        long taskCap = Math.max(1L, maxBytes - drainReserveBytes);
+        long agentCap = agentPool.maxSingleReservationBytes();
+        return Math.max(1L, Math.min(taskCap, agentCap));
+    }
+
+    public long maxSingleLeaseRecords() {
+        return Math.max(1L, Math.min(maxRecords, agentPool.maxSingleReservationRecords()));
+    }
+
     /**
      * Atomically reserves capacity in both the task budget and the Agent pool.
      * Lock ordering is strictly task-lock -> agent-pool-lock (acyclic).

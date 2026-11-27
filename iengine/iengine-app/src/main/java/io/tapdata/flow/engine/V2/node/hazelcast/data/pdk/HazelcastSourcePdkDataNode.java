@@ -702,6 +702,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             );
                                             if (admitOutcome == TaskThrottleRuntime.AdmitOutcome.ADMITTED) {
                                                 BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject, TableBatchReadStatus.RUNNING.name());
+                                            } else if (admitOutcome == TaskThrottleRuntime.AdmitOutcome.FENCED_OR_STOPPED && throttleRuntime.isFenced()) {
+                                                if (pdkMethodInvoker != null) {
+                                                    pdkMethodInvoker.cancelRetry();
+                                                }
+                                                TaskThrottleRuntime.ThrottleRunFencedException fencedEx =
+                                                        throttleRuntime.buildFencedException("Source batch read");
+                                                errorHandle(fencedEx, fencedEx.getMessage());
+                                                throw fencedEx;
                                             }
                                         }
                                     }
@@ -1384,6 +1392,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 								}
 							}
 						}
+					} else if (admitOutcome == TaskThrottleRuntime.AdmitOutcome.FENCED_OR_STOPPED && throttleRuntime.isFenced()) {
+						if (pdkMethodInvoker != null) {
+							pdkMethodInvoker.cancelRetry();
+						}
+						throw throttleRuntime.buildFencedException("Source CDC read");
 					}
 				}
 			} catch (Throwable throwable) {

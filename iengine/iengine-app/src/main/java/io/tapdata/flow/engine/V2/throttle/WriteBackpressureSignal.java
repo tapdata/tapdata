@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.throttle;
 
 import com.tapdata.tm.commons.throttle.WaitReason;
+import io.tapdata.observable.metric.throttle.MonotonicClock;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -18,17 +19,34 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class WriteBackpressureSignal {
 
+    public static final long DEFAULT_WRITE_IO_WAIT_TTL_NANOS = TimeUnit.SECONDS.toNanos(10L);
+
+    private record TargetWaitEntry(WaitReason reason, long markedAtNanos) {
+    }
+
     private final InFlightBudget budget;
+    private final MonotonicClock clock;
+    private final long writeIoWaitTtlNanos;
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition resumeCondition = lock.newCondition();
 
-    /** TargetNodeId -> reason for write pause. */
-    private final Map<String, WaitReason> waitingTargets = new ConcurrentHashMap<>();
+    /** TargetNodeId -> reason and mark timestamp for write pause. */
+    private final Map<String, TargetWaitEntry> waitingTargets = new ConcurrentHashMap<>();
     /** Optional DAG edge dependency: targetNodeId -> sourceNodeIds that feed it. Empty map means global scope. */
     private final Map<String, Set<String>> targetToSourceDeps = new ConcurrentHashMap<>();
 
     public WriteBackpressureSignal(InFlightBudget budget) {
+        this(budget, MonotonicClock.SYSTEM, DEFAULT_WRITE_IO_WAIT_TTL_NANOS);
+    }
+
+    public WriteBackpressureSignal(InFlightBudget budget, MonotonicClock clock) {
+        this(budget, clock, DEFAULT_WRITE_IO_WAIT_TTL_NANOS);
+    }
+
+    public WriteBackpressureSignal(InFlightBudget budget, MonotonicClock clock, long writeIoWaitTtlNanos) {
         this.budget = budget;
+        this.clock = clock == null ? MonotonicClock.SYSTEM : clock;
+        this.writeIoWaitTtlNanos = Math.max(0L, writeIoWaitTtlNanos);
         if (budget != null) {
             budget.addDrainListener(this::signalDrainProgress);
         }
@@ -46,7 +64,7 @@ public class WriteBackpressureSignal {
             clearTargetWaiting(targetNodeId);
             return;
         }
-        waitingTargets.put(targetNodeId, reason);
+        waitingTargets.put(targetNodeId, new TargetWaitEntry(reason, clock.nanoTime()));
         lock.lock();
         try {
             resumeCondition.signalAll();
@@ -73,6 +91,27 @@ public class WriteBackpressureSignal {
         }
     }
 
+    private void evictExpiredWriteIoWaits() {
+        if (writeIoWaitTtlNanos <= 0L || waitingTargets.isEmpty()) {
+            return;
+        }
+        long nowNanos = clock.nanoTime();
+        boolean removedAny = false;
+        for (Map.Entry<String, TargetWaitEntry> entry : waitingTargets.entrySet()) {
+            TargetWaitEntry waitEntry = entry.getValue();
+            if (waitEntry != null
+                    && waitEntry.reason() == WaitReason.WRITE_IO_WAIT
+                    && (nowNanos - waitEntry.markedAtNanos()) >= writeIoWaitTtlNanos) {
+                if (waitingTargets.remove(entry.getKey(), waitEntry)) {
+                    removedAny = true;
+                }
+            }
+        }
+        if (removedAny) {
+            signalDrainProgress();
+        }
+    }
+
     /**
      * Checks whether the given source node should pause new upstream pulls due to either
      * high-watermark buffer saturation (80%/60% hysteresis) or an actively stalled dependent target.
@@ -88,6 +127,7 @@ public class WriteBackpressureSignal {
      * Returns whether a downstream target dependent on {@code sourceNodeId} is currently waiting on RATE_WAIT/IO_WAIT.
      */
     public boolean isDependentTargetWaiting(String sourceNodeId) {
+        evictExpiredWriteIoWaits();
         if (waitingTargets.isEmpty()) {
             return false;
         }
@@ -107,17 +147,22 @@ public class WriteBackpressureSignal {
         if (budget != null && budget.isHighWatermarkPaused()) {
             return WaitReason.BACKPRESSURE_WAIT;
         }
+        evictExpiredWriteIoWaits();
         if (waitingTargets.isEmpty()) {
             return WaitReason.NONE;
         }
         WaitReason dominant = WaitReason.NONE;
-        for (Map.Entry<String, WaitReason> e : waitingTargets.entrySet()) {
+        for (Map.Entry<String, TargetWaitEntry> e : waitingTargets.entrySet()) {
+            TargetWaitEntry entry = e.getValue();
+            if (entry == null) {
+                continue;
+            }
             Set<String> deps = targetToSourceDeps.get(e.getKey());
             if (targetToSourceDeps.isEmpty() || sourceNodeId == null || deps == null || deps.isEmpty() || deps.contains(sourceNodeId)) {
-                if (e.getValue() == WaitReason.WRITE_IO_WAIT) {
+                if (entry.reason() == WaitReason.WRITE_IO_WAIT) {
                     return WaitReason.WRITE_IO_WAIT;
                 }
-                dominant = e.getValue();
+                dominant = entry.reason();
             }
         }
         return dominant;
@@ -139,6 +184,7 @@ public class WriteBackpressureSignal {
     }
 
     public Set<String> getWaitingTargetIds() {
+        evictExpiredWriteIoWaits();
         return Collections.unmodifiableSet(new HashSet<>(waitingTargets.keySet()));
     }
 }

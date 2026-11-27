@@ -1188,10 +1188,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														return null;
 													}));
 											if (pdkMethodInvoker == null || !pdkMethodInvoker.isEnableSkipErrorEvent()) {
+												TaskThrottleRuntime throttleRuntime = null;
+												String throttleTargetNodeId = "";
+												ThrottlePhase throttlePhase = null;
 												try {
 													TaskDto taskDto = dataProcessorContext != null ? dataProcessorContext.getTaskDto() : null;
 													String throttleTaskId = (taskDto != null && taskDto.getId() != null) ? taskDto.getId().toHexString() : null;
-													TaskThrottleRuntime throttleRuntime = throttleTaskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(throttleTaskId);
+													throttleRuntime = throttleTaskId == null ? null : TaskThrottleRuntimeRegistry.getInstance().getActive(throttleTaskId);
 													if (throttleRuntime == null) {
 														writeRecordWithPolicyControl(
 																currentWritePolicyService,
@@ -1205,17 +1208,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														);
 													} else {
 														Object stageObj = firstEvent.getInfo(TapRecordEvent.INFO_KEY_SYNC_STAGE);
-														ThrottlePhase phase = "CDC".equalsIgnoreCase(String.valueOf(stageObj))
+														throttlePhase = "CDC".equalsIgnoreCase(String.valueOf(stageObj))
 																? ThrottlePhase.CDC
 																: (isInCdc() ? ThrottlePhase.CDC : ThrottlePhase.FULL);
-														String targetNodeId = getNode() != null ? getNode().getId() : "";
+														throttleTargetNodeId = getNode() != null ? getNode().getId() : "";
 														String targetEndpointId = (dataProcessorContext != null && dataProcessorContext.getConnections() != null
 																&& dataProcessorContext.getConnections().getId() != null)
-																? String.valueOf(dataProcessorContext.getConnections().getId()) : targetNodeId;
+																? String.valueOf(dataProcessorContext.getConnections().getId()) : throttleTargetNodeId;
 														throttleRuntime.executeTargetWriteChunked(
-																targetNodeId,
+																throttleTargetNodeId,
 																targetEndpointId,
-																phase,
+																throttlePhase,
 																tapRecordEvents,
 																e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : tapTable.getId(),
 																!isRetry,
@@ -1241,6 +1244,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 																}
 														);
 													}
+												} catch (TaskThrottleRuntime.ThrottleRunFencedException fencedEx) {
+													if (pdkMethodInvoker != null) {
+														pdkMethodInvoker.cancelRetry();
+													}
+													errorHandle(fencedEx, fencedEx.getMessage());
+													throw fencedEx;
 												} catch (Exception e) {
                                                     if (skipErrorTable.skipTable(tapTable.getAncestorsName(), e, () -> SkipErrorTableReportVo.create()
                                                         .sourceTableName(tapTable.getAncestorsName())
@@ -1260,7 +1269,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
                                                                 return errorCodeEntity.fullErrorCode();
                                                             }).orElse(null))
                                                         .errorMessage(ErrorUtil.getStackString(e)))
-                                                    ) return;
+                                                    ) {
+                                                        if (throttleRuntime != null) {
+                                                            throttleRuntime.clearTargetWaiting(throttleTargetNodeId, throttlePhase);
+                                                        }
+                                                        return;
+                                                    }
 
 													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 													if (null != matched) {
