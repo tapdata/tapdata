@@ -310,7 +310,7 @@ public class AlarmEventQueryService {
     /**
      * 有告警模块权限可见全部告警；云版仍仅可见有权限的任务和校验任务的告警。
      */
-    Criteria visibility(UserDetail user) {
+    public Criteria visibility(UserDetail user) {
         if (moduleAccess.allData(user, DataPermissionEnumsName.V2_ALARM_EVENT)) {
             return new Criteria();
         }

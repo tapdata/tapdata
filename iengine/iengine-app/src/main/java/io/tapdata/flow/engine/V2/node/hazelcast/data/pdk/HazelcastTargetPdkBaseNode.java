@@ -88,6 +88,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Par
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.flow.engine.V2.util.TaskAnalyze;
@@ -2075,6 +2076,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == tapdataEvent) return;
         Node<?> node = processorBaseContext.getNode();
         if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
+        if (offsetCallbackEnable && tapdataEvent.isDML() && tapdataEvent.getSyncStage() == SyncStage.CDC
+                && tapdataEvent.getSourceTime() != null
+                && tapdataEvent.getStreamOffset() instanceof ShareCDCOffset offset && offset.isOrderedDelivery()) {
+            // This runs after target intake, or after the concurrent writer watermark crosses all partitions.
+            tapdataEvent = TapdataHeartbeatEvent.create(tapdataEvent.getSourceTime(), offset, tapdataEvent.getNodeIds());
+        }
         String progressKey = tapdataEvent.getNodeIds().get(0) + "," + node.getId();
         if (tapdataEvent instanceof TapdataHeartbeatEvent && (null == tapdataEvent.getSyncStage() || offsetCallbackEnable)) {
 			try {

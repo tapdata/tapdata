@@ -88,9 +88,10 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Slf4j
 public class UserServiceImpl extends UserService{
     /**
-     * 权限过滤关键字：包含这些关键字的子权限不会被自动添加，需要用户手动指定
+     * 权限过滤关键字：包含这些关键字的子权限不会被自动添加，需要用户手动指定。
+     * ack_close：告警事件关闭属于独立处置权限，勾选告警事件查看时不能默认授予。
      */
-    private static final List<String> EXCLUDED_PERMISSION_KEYWORDS = List.of("import", "export", "all_data", "copy", "creation");
+    private static final List<String> EXCLUDED_PERMISSION_KEYWORDS = List.of("import", "export", "all_data", "copy", "creation", "ack_close");
     private static final Set<String> SELF_UPDATE_FIELDS = Set.of(
             "notification",
             "guideData",
@@ -1004,7 +1005,9 @@ public class UserServiceImpl extends UserService{
 			"v2_user_management_menu",
 			"v2_role_management",
 			"v2_project_management",
-			"v2_project_import_and_export"
+			"v2_project_import_and_export",
+			// 告警事件是带独立关闭按钮的页面权限，单独取消关闭权限时不能连带删除页面权限
+			"v2_alarm_event"
 		);
 
     @Override
