@@ -147,7 +147,7 @@ public class PatchesRunner implements ApplicationRunner {
      *
      * @return current version
      */
-    private PatchVersion getCurrentVersion(AppType appType) {
+    protected PatchVersion getCurrentVersion(AppType appType) {
         PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver = new PathMatchingResourcePatternResolver();
         String versionFilePath = String.format("%s/version", patchDir(appType));
         Resource versionRes = pathMatchingResourcePatternResolver.getResource(versionFilePath);

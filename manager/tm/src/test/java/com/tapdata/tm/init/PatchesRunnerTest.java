@@ -143,6 +143,8 @@ class PatchesRunnerTest {
             daasScriptType = new PatchType(io.tapdata.utils.AppType.DAAS, PatchTypeEnums.Script);
             UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "mongodbUri", "mongodb://localhost:27017/unused");
             UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "productList", Collections.singletonList("idaas"));
+            doReturn(PatchVersion.valueOf("4.25-5"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
         }
 
         @Test
@@ -209,6 +211,8 @@ class PatchesRunnerTest {
             UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "versionService", versionService);
             UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "mongodbUri", "mongodb://localhost:27017/unused");
             UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "productList", Collections.singletonList("idaas"));
+            doReturn(PatchVersion.valueOf("4.25-5"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
 
             VersionDto onRestart = new VersionDto(daasScriptType.toString(), "4.25-4",
                     Arrays.asList("script:4.25-4.json", "java:PatchA"));
@@ -280,6 +284,8 @@ class PatchesRunnerTest {
             clearInvocations(spyPatchesRunner);
             PatchType dfsType = new PatchType(io.tapdata.utils.AppType.DFS, PatchTypeEnums.Script);
             UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "productList", Arrays.asList("idaas", "dfs"));
+            doReturn(PatchVersion.valueOf("3.20-1"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DFS);
             when(versionService.findOne(any(Query.class)))
                     .thenReturn(new VersionDto(daasScriptType.toString(), "4.25-6"))
                     .thenReturn(new VersionDto(dfsType.toString(), "3.20-1"));
@@ -326,6 +332,8 @@ class PatchesRunnerTest {
             VersionDto at4255 = new VersionDto(daasScriptType.toString(), "4.25-5",
                     Collections.singletonList(expectedV4255Id));
             when(versionService.findOne(any(Query.class))).thenReturn(at4255);
+            doReturn(PatchVersion.valueOf("4.25-6"))
+                    .when(spyPatchesRunner).getCurrentVersion(io.tapdata.utils.AppType.DAAS);
             doReturn(Arrays.asList(v4255, v4256))
                     .when(spyPatchesRunner).scanPatches(eq(io.tapdata.utils.AppType.DAAS), any(), any(), any(), any());
 

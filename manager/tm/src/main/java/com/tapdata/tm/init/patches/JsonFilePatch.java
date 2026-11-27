@@ -5,7 +5,6 @@ import cn.hutool.json.JSONConfig;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.mongodb.client.ListIndexesIterable;
-import com.tapdata.tm.init.MongoIndex;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.utils.Lists;
@@ -185,11 +184,11 @@ public class JsonFilePatch extends AbsPatch {
             for (JSONObject create : creates) {
                 String collectionName = (String) create.get("createIndexes");
                 ListIndexesIterable<Document> documents = mongoTemplate.getCollection(collectionName).listIndexes();
-                Map<String, MongoIndex> existIndexMap = new HashMap<>();
-                List<MongoIndex> existIndexes = new ArrayList<>();
+                Map<String, NormalizedIndex> existIndexMap = new HashMap<>();
+                List<NormalizedIndex> existIndexes = new ArrayList<>();
                 for (Document document : documents) {
-                    MongoIndex existing = fromIndexDocument(document);
-                    existIndexMap.put(existing.getName(), existing);
+                    NormalizedIndex existing = fromIndexMap(document);
+                    existIndexMap.put(existing.name(), existing);
                     existIndexes.add(existing);
                 }
 
@@ -199,17 +198,17 @@ public class JsonFilePatch extends AbsPatch {
                     continue;
                 }
                 Set<String> plannedDropNames = plannedDropsByCollection.computeIfAbsent(collectionName, k -> new HashSet<>());
-                List<MongoIndex> targetIndexes = new ArrayList<>(jsonArray.size());
+                List<NormalizedIndex> targetIndexes = new ArrayList<>(jsonArray.size());
                 for (Object index : jsonArray) {
                     JSONObject jsonObject = (JSONObject) index;
-                    MongoIndex mongoIndex = fromIndexJson(jsonObject);
-                    targetIndexes.add(mongoIndex);
-                    MongoIndex existingByName = existIndexMap.get(mongoIndex.getName());
-                    if (existingByName != null && !isIndexEquivalent(mongoIndex, existingByName) && !"_id_".equals(mongoIndex.getName())) {
-                        if (plannedDropNames.add(mongoIndex.getName())) {
+                    NormalizedIndex targetIndex = fromIndexMap(jsonObject);
+                    targetIndexes.add(targetIndex);
+                    NormalizedIndex existingByName = existIndexMap.get(targetIndex.name());
+                    if (existingByName != null && !isIndexEquivalent(targetIndex, existingByName) && !"_id_".equals(targetIndex.name())) {
+                        if (plannedDropNames.add(targetIndex.name())) {
                             Document drop = new Document();
                             drop.put("dropIndexes", collectionName);
-                            drop.put("index", mongoIndex.getName());
+                            drop.put("index", targetIndex.name());
                             needDrops.add(drop);
                         }
                     }
@@ -218,16 +217,16 @@ public class JsonFilePatch extends AbsPatch {
                 JSONArray newJsonArray = new JSONArray();
                 for (int i = 0; i < jsonArray.size(); i++) {
                     Object index = jsonArray.get(i);
-                    MongoIndex mongoIndex = targetIndexes.get(i);
+                    NormalizedIndex targetIndex = targetIndexes.get(i);
                     // 查询同名或等价索引是否已存在；等价索引直接跳过，并排除本轮已计划 drop 的索引
-                    MongoIndex existingByName = existIndexMap.get(mongoIndex.getName());
+                    NormalizedIndex existingByName = existIndexMap.get(targetIndex.name());
                     if (existingByName != null) {
-                        if (!isIndexEquivalent(mongoIndex, existingByName)) {
+                        if (!isIndexEquivalent(targetIndex, existingByName)) {
                             newJsonArray.add(index);
                         }
                     } else if (existIndexes.stream()
-                            .filter(existing -> !plannedDropNames.contains(existing.getName()))
-                            .noneMatch(existing -> isIndexEquivalent(mongoIndex, existing))) {
+                            .filter(existing -> !plannedDropNames.contains(existing.name()))
+                            .noneMatch(existing -> isIndexEquivalent(targetIndex, existing))) {
                         newJsonArray.add(index);
                     }
                 }
@@ -278,52 +277,97 @@ public class JsonFilePatch extends AbsPatch {
         return script;
     }
 
-    static boolean isIndexEquivalent(MongoIndex target, MongoIndex existing) {
+    private record NormalizedIndex(
+            String name,
+            Document key,
+            boolean unique,
+            boolean sparse,
+            boolean hidden,
+            Object expireAfterSeconds,
+            Document partialFilterExpression,
+            Document weights,
+            Document wildcardProjection,
+            Document storageEngine,
+            String defaultLanguage,
+            String languageOverride,
+            Object textIndexVersion,
+            Object sphereIndexVersion,
+            Object bits,
+            Object min,
+            Object max,
+            Object bucketSize,
+            Document collation
+    ) {
+    }
+
+    static boolean isIndexEquivalent(NormalizedIndex target, NormalizedIndex existing) {
         if (target == null || existing == null) {
             return false;
         }
-        return orderedDocumentEquals(target.getKey(), existing.getKey())
-                && target.isUnique() == existing.isUnique()
-                && target.isSparse() == existing.isSparse()
-                && target.isHidden() == existing.isHidden()
-                && Objects.equals(target.getExpireAfterSeconds(), existing.getExpireAfterSeconds())
-                && normalizedValueEquals(target.getPartialFilterExpression(), existing.getPartialFilterExpression())
-                && normalizedValueEquals(target.getWeights(), existing.getWeights())
-                && normalizedValueEquals(target.getWildcardProjection(), existing.getWildcardProjection())
-                && normalizedValueEquals(target.getStorageEngine(), existing.getStorageEngine())
-                && Objects.equals(target.getDefaultLanguage(), existing.getDefaultLanguage())
-                && Objects.equals(target.getLanguageOverride(), existing.getLanguageOverride())
-                && Objects.equals(target.getTextVersion(), existing.getTextVersion())
-                && Objects.equals(target.getSphereVersion(), existing.getSphereVersion())
-                && Objects.equals(target.getBits(), existing.getBits())
-                && Objects.equals(target.getMin(), existing.getMin())
-                && Objects.equals(target.getMax(), existing.getMax())
-                && Objects.equals(target.getBucketSize(), existing.getBucketSize())
-                && Objects.equals(target.getCollation(), existing.getCollation());
+        return orderedDocumentEquals(target.key(), existing.key())
+                && target.unique() == existing.unique()
+                && target.sparse() == existing.sparse()
+                && target.hidden() == existing.hidden()
+                && normalizedValueEquals(target.expireAfterSeconds(), existing.expireAfterSeconds())
+                && normalizedValueEquals(target.partialFilterExpression(), existing.partialFilterExpression())
+                && normalizedValueEquals(target.weights(), existing.weights())
+                && normalizedValueEquals(target.wildcardProjection(), existing.wildcardProjection())
+                && normalizedValueEquals(target.storageEngine(), existing.storageEngine())
+                && Objects.equals(target.defaultLanguage(), existing.defaultLanguage())
+                && Objects.equals(target.languageOverride(), existing.languageOverride())
+                && normalizedValueEquals(target.textIndexVersion(), existing.textIndexVersion())
+                && normalizedValueEquals(target.sphereIndexVersion(), existing.sphereIndexVersion())
+                && normalizedValueEquals(target.bits(), existing.bits())
+                && normalizedValueEquals(target.min(), existing.min())
+                && normalizedValueEquals(target.max(), existing.max())
+                && normalizedValueEquals(target.bucketSize(), existing.bucketSize())
+                && normalizedValueEquals(target.collation(), existing.collation());
     }
 
-    private static MongoIndex fromIndexDocument(Document document) {
-        MongoIndex index = JSONUtil.toBean(JSONUtil.toJsonStr(document), MongoIndex.class);
-        copySemanticDocuments(index, document);
-        return index;
+    private static NormalizedIndex fromIndexMap(Map<String, Object> source) {
+        return new NormalizedIndex(
+                toStringValue(source.get("name")),
+                toOrderedDocument(source.get("key")),
+                toBooleanValue(source.get("unique")),
+                toBooleanValue(source.get("sparse")),
+                toBooleanValue(source.get("hidden")),
+                firstNonNull(source, "expireAfterSeconds"),
+                toOrderedDocument(source.get("partialFilterExpression")),
+                toOrderedDocument(source.get("weights")),
+                toOrderedDocument(source.get("wildcardProjection")),
+                toOrderedDocument(source.get("storageEngine")),
+                toStringValue(firstNonNull(source, "default_language", "defaultLanguage")),
+                toStringValue(firstNonNull(source, "language_override", "languageOverride")),
+                firstNonNull(source, "textIndexVersion", "textVersion"),
+                firstNonNull(source, "2dsphereIndexVersion", "sphereVersion"),
+                firstNonNull(source, "bits"),
+                firstNonNull(source, "min"),
+                firstNonNull(source, "max"),
+                firstNonNull(source, "bucketSize"),
+                toOrderedDocument(source.get("collation"))
+        );
     }
 
-    private static MongoIndex fromIndexJson(JSONObject jsonObject) {
-        MongoIndex index = jsonObject.toBean(MongoIndex.class);
-        copySemanticDocuments(index, jsonObject);
-        return index;
+    private static Object firstNonNull(Map<String, Object> source, String... keys) {
+        for (String key : keys) {
+            Object value = source.get(key);
+            if (!JSONUtil.isNull(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
-    private static void copySemanticDocuments(MongoIndex index, Map<String, Object> source) {
-        index.setKey(toOrderedDocument(source.get("key")));
-        index.setPartialFilterExpression(toOrderedDocument(source.get("partialFilterExpression")));
-        index.setWeights(toOrderedDocument(source.get("weights")));
-        index.setWildcardProjection(toOrderedDocument(source.get("wildcardProjection")));
-        index.setStorageEngine(toOrderedDocument(source.get("storageEngine")));
+    private static String toStringValue(Object value) {
+        return JSONUtil.isNull(value) ? null : String.valueOf(value);
+    }
+
+    private static boolean toBooleanValue(Object value) {
+        return Boolean.TRUE.equals(value);
     }
 
     private static Document toOrderedDocument(Object raw) {
-        if (raw == null) {
+        if (JSONUtil.isNull(raw)) {
             return null;
         }
         if (raw instanceof Map<?, ?> map) {
@@ -337,6 +381,9 @@ public class JsonFilePatch extends AbsPatch {
     }
 
     private static Object toOrderedValue(Object value) {
+        if (JSONUtil.isNull(value)) {
+            return null;
+        }
         if (value instanceof Map<?, ?>) {
             return toOrderedDocument(value);
         }

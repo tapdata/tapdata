@@ -257,6 +257,230 @@ class JsonFilePatchTest {
         assertTrue(createCmd.contains("createIndexes") && createCmd.contains("\"b\"") && createCmd.contains("\"a\""));
     }
 
+    @Test
+    void shouldSkipEquivalentTextIndexWithRealMongoOptionKeys() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "Logs", List.of(
+                new Document("v", 2)
+                        .append("key", new Document("_fts", "text").append("_ftsx", 1))
+                        .append("name", "level_text_message_text")
+                        .append("weights", new Document("level", 1).append("message", 1))
+                        .append("default_language", "english")
+                        .append("language_override", "language")
+                        .append("textIndexVersion", 3L)
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "Logs",
+                    "indexes": [
+                      {
+                        "name": "level_text_message_text",
+                        "key": { "_fts": "text", "_ftsx": 1 },
+                        "textIndexVersion": 3,
+                        "background": true,
+                        "weights": { "message": 1, "level": 1 },
+                        "default_language": "english",
+                        "language_override": "language"
+                      }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        verify(mongoTemplate, never()).executeCommand(anyString());
+    }
+
+    @Test
+    void shouldDropAndRecreateWhenTextIndexDefaultLanguageChanges() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "Logs", List.of(
+                new Document("v", 2)
+                        .append("key", new Document("_fts", "text").append("_ftsx", 1))
+                        .append("name", "level_text_message_text")
+                        .append("weights", new Document("level", 1).append("message", 1))
+                        .append("default_language", "english")
+                        .append("language_override", "language")
+                        .append("textIndexVersion", 3)
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "Logs",
+                    "indexes": [
+                      {
+                        "name": "level_text_message_text",
+                        "key": { "_fts": "text", "_ftsx": 1 },
+                        "textIndexVersion": 3,
+                        "background": true,
+                        "weights": { "level": 1, "message": 1 },
+                        "default_language": "none",
+                        "language_override": "language"
+                      }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        assertTrue(commands.getAllValues().get(0).contains("dropIndexes"));
+        assertTrue(commands.getAllValues().get(1).contains("createIndexes"));
+    }
+
+    @Test
+    void shouldDropAndRecreateWhenTextIndexLanguageOverrideChanges() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "Logs", List.of(
+                new Document("v", 2)
+                        .append("key", new Document("_fts", "text").append("_ftsx", 1))
+                        .append("name", "level_text_message_text")
+                        .append("weights", new Document("level", 1).append("message", 1))
+                        .append("default_language", "english")
+                        .append("language_override", "language")
+                        .append("textIndexVersion", 3)
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "Logs",
+                    "indexes": [
+                      {
+                        "name": "level_text_message_text",
+                        "key": { "_fts": "text", "_ftsx": 1 },
+                        "textIndexVersion": 3,
+                        "background": true,
+                        "weights": { "level": 1, "message": 1 },
+                        "default_language": "english",
+                        "language_override": "lang"
+                      }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        assertTrue(commands.getAllValues().get(0).contains("dropIndexes"));
+        assertTrue(commands.getAllValues().get(1).contains("createIndexes"));
+    }
+
+    @Test
+    void shouldDropAndRecreateWhenTextIndexVersionChanges() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "Logs", List.of(
+                new Document("v", 2)
+                        .append("key", new Document("_fts", "text").append("_ftsx", 1))
+                        .append("name", "level_text_message_text")
+                        .append("weights", new Document("level", 1))
+                        .append("default_language", "english")
+                        .append("language_override", "language")
+                        .append("textIndexVersion", 2)
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "Logs",
+                    "indexes": [
+                      {
+                        "name": "level_text_message_text",
+                        "key": { "_fts": "text", "_ftsx": 1 },
+                        "textIndexVersion": 3,
+                        "weights": { "level": 1 },
+                        "default_language": "english",
+                        "language_override": "language"
+                      }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        assertTrue(commands.getAllValues().get(0).contains("dropIndexes"));
+        assertTrue(commands.getAllValues().get(1).contains("createIndexes"));
+    }
+
+    @Test
+    void shouldDropAndRecreateWhen2dsphereIndexVersionChanges() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "Locations", List.of(
+                new Document("v", 2)
+                        .append("key", new Document("loc", "2dsphere"))
+                        .append("name", "loc_2dsphere")
+                        .append("2dsphereIndexVersion", 2)
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "Locations",
+                    "indexes": [
+                      {
+                        "name": "loc_2dsphere",
+                        "key": { "loc": "2dsphere" },
+                        "2dsphereIndexVersion": 3,
+                        "background": true
+                      }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        assertTrue(commands.getAllValues().get(0).contains("dropIndexes"));
+        assertTrue(commands.getAllValues().get(1).contains("createIndexes"));
+    }
+
+    @Test
+    void shouldDropAndRecreateWhenCollationChanges() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "Users", List.of(
+                new Document("v", 2)
+                        .append("key", new Document("name", 1))
+                        .append("name", "name_1")
+                        .append("collation", new Document("locale", "en").append("strength", 2))
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "Users",
+                    "indexes": [
+                      {
+                        "name": "name_1",
+                        "key": { "name": 1 },
+                        "collation": { "locale": "zh", "strength": 2 },
+                        "background": true
+                      }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        assertTrue(commands.getAllValues().get(0).contains("dropIndexes"));
+        assertTrue(commands.getAllValues().get(1).contains("createIndexes"));
+    }
+
     private JsonFilePatch newPatch(MongoTemplate mongoTemplate, String script) {
         return new JsonFilePatch(
                 new PatchType(AppType.DAAS, PatchTypeEnums.Script),
