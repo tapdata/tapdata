@@ -216,7 +216,7 @@ public class LogCollectorThrottleOverviewService {
                 .waitingDimensions(entity.getWaitingDimensions() == null
                         ? Collections.emptySet()
                         : Collections.unmodifiableSet(entity.getWaitingDimensions()))
-                .logPositionStatus(entity.getLogPositionStatus() == null ? LogPositionStatus.NORMAL : entity.getLogPositionStatus())
+                .logPositionStatus(entity.getLogPositionStatus() == null ? LogPositionStatus.UNKNOWN : entity.getLogPositionStatus())
                 .lastSampledAtUtc(entity.getWindowEndUtc() > 0L ? entity.getWindowEndUtc() : null)
                 .build();
     }
@@ -227,14 +227,31 @@ public class LogCollectorThrottleOverviewService {
         if (telemetry != null && telemetry.getLogPositionStatus() != null) {
             return telemetry.getLogPositionStatus();
         }
+        LogPositionStatus worstLive = null;
         if (live != null && live.getActiveWaits() != null) {
             for (TaskThrottleLiveStatusView.ActiveWaitDetail detail : live.getActiveWaits()) {
-                if (detail != null && detail.getLogPositionStatus() != null) {
-                    return detail.getLogPositionStatus();
+                if (detail == null || detail.getLogPositionStatus() == null) {
+                    continue;
+                }
+                if (worstLive == null || severityRank(detail.getLogPositionStatus()) > severityRank(worstLive)) {
+                    worstLive = detail.getLogPositionStatus();
                 }
             }
         }
-        return LogPositionStatus.NORMAL;
+        return worstLive != null ? worstLive : LogPositionStatus.UNKNOWN;
+    }
+
+    private static int severityRank(LogPositionStatus status) {
+        if (status == null) {
+            return -1;
+        }
+        return switch (status) {
+            case UNKNOWN -> 0;
+            case NORMAL -> 1;
+            case WARN_70 -> 2;
+            case CRITICAL_90 -> 3;
+            case EXPIRED -> 4;
+        };
     }
 
     private static Long extractOldestEventTimeMs(Map<String, Object> attrs) {

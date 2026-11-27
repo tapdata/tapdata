@@ -157,6 +157,12 @@ public class TaskThrottleRuntime {
         }
     }
 
+    public static final class SliceDispatchCancelledException extends RuntimeException {
+        public SliceDispatchCancelledException(String message) {
+            super(message);
+        }
+    }
+
     public ThrottleRunFencedException buildFencedException(String stageDesc) {
         String prefix = (stageDesc == null || stageDesc.isBlank()) ? "Throttle runtime" : stageDesc;
         String reasonSuffix = (fenceReason != null && !fenceReason.isBlank()) ? " (" + fenceReason + ")" : "";
@@ -166,6 +172,9 @@ public class TaskThrottleRuntime {
 
     public void clearTargetWaiting(String targetNodeId, ThrottlePhase phase) {
         backpressureSignal.clearTargetWaiting(targetNodeId);
+        if (!backpressureSignal.getWaitingTargetIds().isEmpty()) {
+            return;
+        }
         ThrottlePhase resolved = phase == null ? ThrottlePhase.FULL : phase;
         aggregator.updateWaitState(
                 resolved,
@@ -502,12 +511,20 @@ public class TaskThrottleRuntime {
                 return (fenced || closed) ? AdmitOutcome.FENCED_OR_STOPPED : AdmitOutcome.CANCELLED;
             }
 
-            aggregator.recordAdmitted(effectiveMeter, appliedVersion);
             if (sliceDispatcher != null) {
                 lease.transferOwnership(lease.getHolderVersion(), "pipeline-queue");
-                sliceDispatcher.accept(new AdmittedSourceSlice<>(sliceEvents, lease, sourceNodeId, seq));
+                try {
+                    sliceDispatcher.accept(new AdmittedSourceSlice<>(sliceEvents, lease, sourceNodeId, seq));
+                } catch (SliceDispatchCancelledException cancelledEx) {
+                    if (tokenDebited) {
+                        aggregator.recordCancelledAfterDebit(
+                                phase, ThrottleDirection.INPUT, effectiveMeter.getDmlCount(), effectiveMeter.getEstimatedBytes());
+                    }
+                    return (fenced || closed) ? AdmitOutcome.FENCED_OR_STOPPED : AdmitOutcome.CANCELLED;
+                }
                 leaseTransferredToDispatcher = true;
             }
+            aggregator.recordAdmitted(effectiveMeter, appliedVersion);
             return AdmitOutcome.ADMITTED;
         } catch (RuntimeException ex) {
             if (tokenDebited && !leaseTransferredToDispatcher) {
@@ -697,14 +714,16 @@ public class TaskThrottleRuntime {
                 @Override
                 public void onAdmitted(TaskThrottleController.AcquireResult admittedResult) {
                     backpressureSignal.clearTargetWaiting(targetNodeId);
-                    aggregator.updateWaitState(
-                            phase,
-                            ThrottleDirection.OUTPUT,
-                            WaitReason.NONE,
-                            EnumSet.noneOf(ThrottleDimension.class),
-                            inFlightBudget.currentWatermarkRatio(),
-                            logRetentionMonitor.worstStatus()
-                    );
+                    if (backpressureSignal.getWaitingTargetIds().isEmpty()) {
+                        aggregator.updateWaitState(
+                                phase,
+                                ThrottleDirection.OUTPUT,
+                                WaitReason.NONE,
+                                EnumSet.noneOf(ThrottleDimension.class),
+                                inFlightBudget.currentWatermarkRatio(),
+                                logRetentionMonitor.worstStatus()
+                        );
+                    }
                 }
             };
             MeteredAcquireResult acqResult = acquireQuotaWithSampleRetry(

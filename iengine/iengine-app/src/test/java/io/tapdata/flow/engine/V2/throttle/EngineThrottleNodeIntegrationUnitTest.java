@@ -25,6 +25,9 @@ import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.metric.throttle.MonotonicClock;
 import io.tapdata.observable.metric.throttle.ThrottleAggregatorRegistry;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.target.FlushOffsetFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -762,5 +765,102 @@ class EngineThrottleNodeIntegrationUnitTest {
         assertEquals(TaskThrottleRuntimeRegistry.MAX_PENDING_TELEMETRY_SAMPLES_PER_TASK, drained.get("task-overflow").size());
         assertEquals(16L, drained.get("task-overflow").get(0).getSampleSeq());
         assertEquals(75L, drained.get("task-overflow").get(59).getSampleSeq());
+    }
+
+    @Test
+    void fencedCheckpointBlocksSourceFlushOffsetAndMongoWrite() throws Throwable {
+        ObjectId oid = new ObjectId();
+        String taskId = oid.toHexString();
+        TaskDto task = new TaskDto();
+        task.setId(oid);
+        task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+
+        FlushOffsetFunction flushOffsetFn = mock(FlushOffsetFunction.class);
+        ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+        when(connectorFunctions.getFlushOffsetFunction()).thenReturn(flushOffsetFn);
+        ConnectorNode sourceConnectorNode = mock(ConnectorNode.class);
+        when(sourceConnectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+
+        HazelcastTargetPdkBaseNode node = mock(HazelcastTargetPdkBaseNode.class);
+        ClientMongoOperator mongo = mock(ClientMongoOperator.class);
+        DataProcessorContext ctx = new DataProcessorContext.DataProcessorContextBuilder().withTaskDto(task).build();
+        ReflectionTestUtils.setField(node, "dataProcessorContext", ctx);
+        ReflectionTestUtils.setField(node, "clientMongoOperator", mongo);
+        ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+        ReflectionTestUtils.setField(node, "saveSnapshotLock", new Object());
+        ReflectionTestUtils.setField(node, "flushOffset", new AtomicBoolean(true));
+        ReflectionTestUtils.setField(node, "uploadDagService", new AtomicBoolean(false));
+        ReflectionTestUtils.setField(node, "sourceConnectorNodeMap", Map.of("src", sourceConnectorNode));
+
+        SyncProgress progress = new SyncProgress();
+        progress.setSyncStage("CDC");
+        progress.setStreamOffsetObj(Map.of("seq", 10L));
+        ReflectionTestUtils.setField(node, "syncProgressMap", Map.of("src,tgt", progress));
+        doCallRealMethod().when(node).saveToSnapshot();
+
+        TaskThrottleRuntime runtime = registry.openRuntime(new TaskRunKey("t1", "sync", taskId, 1L), null, true);
+        runtime.markFenced("fenced before flushOffset");
+
+        assertFalse(node.saveToSnapshot());
+        verify(flushOffsetFn, never()).flushOffset(any(), any());
+        verify(mongo, never()).insertOne(any(), anyString());
+    }
+
+    @Test
+    void clearTargetWaitingPreservesSharedOutputWaitWhileAnotherTargetWaitsAndDispatchCancelDoesNotCountAdmitted() {
+        String taskId = new ObjectId().toHexString();
+        TaskThrottleRuntime runtime = registry.openRuntime(new TaskRunKey("t1", "sync", taskId, 1L), null, true);
+
+        runtime.getAggregator().activateSlot(ThrottlePhase.FULL, ThrottleDirection.OUTPUT, 1L);
+        runtime.getBackpressureSignal().markTargetWaiting("tgt-B", WaitReason.WRITE_IO_WAIT);
+        runtime.getAggregator().updateWaitState(
+                ThrottlePhase.FULL,
+                ThrottleDirection.OUTPUT,
+                WaitReason.WRITE_IO_WAIT,
+                java.util.EnumSet.noneOf(com.tapdata.tm.commons.throttle.ThrottleDimension.class),
+                0.0d,
+                com.tapdata.tm.commons.throttle.LogPositionStatus.NORMAL);
+
+        // Skipping an error on tgt-A must NOT wipe out tgt-B's active OUTPUT wait
+        runtime.clearTargetWaiting("tgt-A", ThrottlePhase.FULL);
+        List<TaskThrottleTelemetrySample> midSamples = runtime.snapshotAndRollTelemetry();
+        TaskThrottleTelemetrySample midOut = midSamples.stream()
+                .filter(s -> s.getPhase() == ThrottlePhase.FULL && s.getDirection() == ThrottleDirection.OUTPUT)
+                .findFirst().orElseThrow();
+        assertEquals(WaitReason.WRITE_IO_WAIT, midOut.getWaitReason());
+
+        // Clearing the last waiting target updates live waitReason to NONE immediately,
+        // and the next rolled window reports NONE once the prior partial-window WRITE_IO_WAIT rolls off.
+        runtime.clearTargetWaiting("tgt-B", ThrottlePhase.FULL);
+        assertEquals(WaitReason.NONE.code(), runtime.getAggregator().latestNumericMetrics()
+                .get(com.tapdata.tm.commons.metrics.MetricCons.SS.VS.F_THROTTLE_WAIT_REASON_CODE).intValue());
+        runtime.snapshotAndRollTelemetry();
+        List<TaskThrottleTelemetrySample> afterClearSamples = runtime.snapshotAndRollTelemetry();
+        TaskThrottleTelemetrySample clearedOut = afterClearSamples.stream()
+                .filter(s -> s.getPhase() == ThrottlePhase.FULL && s.getDirection() == ThrottleDirection.OUTPUT)
+                .findFirst().orElseThrow();
+        assertEquals(WaitReason.NONE, clearedOut.getWaitReason());
+
+        // Regression (#7): SliceDispatchCancelledException after quota debit must NOT record admittedEvents
+        Map<ThrottlePhase, ThrottlePhaseLimit> limits = new EnumMap<>(ThrottlePhase.class);
+        limits.put(ThrottlePhase.CDC, ThrottlePhaseLimit.builder().enabled(true).eventsPerSec(1000L).build());
+        runtime.applyPolicy(TaskThrottlePolicyDto.builder().taskId(taskId).desiredVersion(1L).phases(limits).build(), "agent-it-1", null);
+
+        TaskThrottleRuntime.AdmitOutcome outcome = runtime.admitSourceBatch(
+                "src-1", "ep-1", ThrottlePhase.CDC, insertEvents(3),
+                e -> ((TapRecordEvent) e).getTableId(), () -> false,
+                slice -> {
+                    throw new TaskThrottleRuntime.SliceDispatchCancelledException("lock/running cancelled before enqueue");
+                });
+        assertEquals(TaskThrottleRuntime.AdmitOutcome.CANCELLED, outcome);
+        assertEquals(0L, runtime.getInFlightBudget().snapshot().usedBytes());
+        assertEquals(0L, runtime.getInFlightBudget().snapshot().usedRecords());
+
+        List<TaskThrottleTelemetrySample> cancelSamples = runtime.snapshotAndRollTelemetry();
+        TaskThrottleTelemetrySample cdcIn = cancelSamples.stream()
+                .filter(s -> s.getPhase() == ThrottlePhase.CDC && s.getDirection() == ThrottleDirection.INPUT)
+                .findFirst().orElseThrow();
+        assertEquals(0L, cdcIn.getAdmittedEvents());
+        assertEquals(3L, cdcIn.getCancelledAfterDebitEvents());
     }
 }

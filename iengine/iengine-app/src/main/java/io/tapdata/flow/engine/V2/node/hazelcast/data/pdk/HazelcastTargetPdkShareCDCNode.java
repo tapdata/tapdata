@@ -102,6 +102,9 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				String tableId = (event instanceof TapRecordEvent rec && rec.getTableId() != null)
 						? rec.getTableId()
 						: (event instanceof TapBaseEvent base && base.getTableId() != null ? base.getTableId() : "");
+				if (tableId.isEmpty()) {
+					return "";
+				}
 				Object connObj = orig != null ? orig.getInfo(TapdataEvent.CONNECTION_ID_INFO_KEY) : null;
 				if (connObj == null && event != null && event.getInfo() != null) {
 					connObj = event.getInfo().get(TapdataEvent.CONNECTION_ID_INFO_KEY);

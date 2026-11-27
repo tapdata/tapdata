@@ -17,6 +17,8 @@ public final class ThrottleConstants {
     public static final int MAX_CDC_SAMPLE_REFRESH_INTERVAL_SECONDS = 300;
 
     public static final long DEFAULT_MAX_ATOMIC_SECONDS = 5L;
+    public static final long MIN_RANKING_WINDOW_SECONDS = 300L;
+    public static final long MAX_RANKING_WINDOW_SECONDS = 3600L;
     public static final double HIGH_WATERMARK_RATIO = 0.80d;
     public static final double LOW_WATERMARK_RATIO = 0.60d;
 
@@ -28,6 +30,7 @@ public final class ThrottleConstants {
     public static final int MAX_SAMPLES_PER_GROUP = 4;
 
     public static final String ERR_INVALID_RATE = "INVALID_RATE";
+    public static final String ERR_INVALID_WINDOW = "INVALID_WINDOW";
     public static final String ERR_UNSUPPORTED_TASK_KIND = "UNSUPPORTED_TASK_KIND";
     public static final String ERR_UNSUPPORTED_PATH = "UNSUPPORTED_PATH";
     public static final String ERR_VERSION_CONFLICT = "VERSION_CONFLICT";

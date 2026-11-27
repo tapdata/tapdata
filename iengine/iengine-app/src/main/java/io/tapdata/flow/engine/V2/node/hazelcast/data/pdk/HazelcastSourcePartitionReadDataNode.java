@@ -641,7 +641,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 							endpointId,
 							ThrottlePhase.CDC,
 							tapEvents,
-							e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : "",
+							HazelcastSourcePdkDataNode::throttleTableNormalizer,
 							() -> !isRunning(),
 							slice -> {
 								List<TapdataEvent> tapdataEvents = wrapTapdataEvent(slice.events(), SyncStage.CDC, offsetObj);

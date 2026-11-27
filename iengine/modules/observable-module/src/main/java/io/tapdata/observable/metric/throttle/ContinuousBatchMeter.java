@@ -283,7 +283,7 @@ public final class ContinuousBatchMeter {
     private static String normalizeTable(TapEvent event, String rawTableId, Function<TapEvent, String> normalizer) {
         if (normalizer != null) {
             String custom = normalizer.apply(event);
-            if (custom != null) {
+            if (custom != null && !custom.isEmpty()) {
                 return custom;
             }
         }

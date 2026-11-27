@@ -46,6 +46,7 @@ import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.DoSnapshotFunctions;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -688,6 +689,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                                             String leaseId = slice.lease() != null ? slice.lease().getLeaseId() : null;
                                                             eventsLock.lock();
                                                             try {
+                                                                if (!isRunning()) {
+                                                                    throw new TaskThrottleRuntime.SliceDispatchCancelledException(
+                                                                            "Source batch slice dispatch cancelled before enqueue");
+                                                                }
                                                                 for (TapdataEvent ev : tapdataEvents) {
                                                                     TaskThrottleRuntime.attachLeaseInfo(ev, leaseId, slice.sourceNodeId(), slice.batchSeq());
                                                                     this.enqueue(ev);
@@ -1340,7 +1345,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 										}
 									}
 									if (!isRunning() || !lockedForEnqueue) {
-										return;
+										throw new TaskThrottleRuntime.SliceDispatchCancelledException(
+												"Source CDC slice dispatch cancelled before enqueue");
 									}
 									List<TapdataEvent> tapdataEvents = wrapTapdataEvent(slice.events(), SyncStage.CDC, offsetObj);
 									if (logger.isDebugEnabled()) {
@@ -2176,15 +2182,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
     }
 
     public static String throttleTableNormalizer(TapEvent event) {
+        String tableId = null;
         if (event instanceof TapRecordEvent rec) {
-            String tableId = rec.getTableId() != null ? rec.getTableId() : "";
-            Map<String, Object> info = event.getInfo();
-            Object connIdObj = info != null ? info.get(TapdataEvent.CONNECTION_ID_INFO_KEY) : null;
-            if (connIdObj instanceof String connId && !connId.isBlank()) {
-                return connId + ":" + tableId;
-            }
-            return tableId;
+            tableId = rec.getTableId();
+        } else if (event instanceof TapDDLEvent ddl) {
+            tableId = ddl.getTableId();
         }
-        return "";
+        if (tableId == null || tableId.isEmpty()) {
+            return "";
+        }
+        Map<String, Object> info = event.getInfo();
+        Object connIdObj = info != null ? info.get(TapdataEvent.CONNECTION_ID_INFO_KEY) : null;
+        if (connIdObj instanceof String connId && !connId.isBlank()) {
+            return connId + ":" + tableId;
+        }
+        return tableId;
     }
 }

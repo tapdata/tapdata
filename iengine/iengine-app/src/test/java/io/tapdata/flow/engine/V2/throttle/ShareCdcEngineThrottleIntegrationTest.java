@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.throttle.TaskThrottleTelemetrySample;
 import com.tapdata.tm.commons.throttle.ThrottleDirection;
 import com.tapdata.tm.commons.throttle.ThrottlePhase;
 import com.tapdata.tm.commons.throttle.ThrottlePhaseLimit;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
@@ -134,6 +135,14 @@ class ShareCdcEngineThrottleIntegrationTest {
         assertEquals("conn-A:orders", HazelcastSourcePdkDataNode.throttleTableNormalizer(connA));
         assertEquals("conn-B:orders", HazelcastSourcePdkDataNode.throttleTableNormalizer(connB));
         assertEquals("orders", HazelcastSourcePdkDataNode.throttleTableNormalizer(plain));
+
+        TapCreateTableEvent connADdl = new TapCreateTableEvent();
+        connADdl.setTableId("orders");
+        connADdl.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, "conn-A");
+        TapCreateTableEvent plainDdl = new TapCreateTableEvent();
+        plainDdl.setTableId("users");
+        assertEquals("conn-A:orders", HazelcastSourcePdkDataNode.throttleTableNormalizer(connADdl));
+        assertEquals("users", HazelcastSourcePdkDataNode.throttleTableNormalizer(plainDdl));
 
         String taskId = new ObjectId().toHexString();
         TaskThrottleRuntime runtime = registry.openRuntime(

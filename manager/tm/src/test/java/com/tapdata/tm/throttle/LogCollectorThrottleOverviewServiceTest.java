@@ -185,6 +185,72 @@ class LogCollectorThrottleOverviewServiceTest {
         assertTrue(consumerSummary.getLiveStatus().isThrottlingActive());
     }
 
+    @Test
+    void returnsUnknownWhenTelemetryAndLiveDataAreAbsentAndPropagatesNonRateLiveStatus() {
+        ObjectId lcOid = MongoUtils.toObjectId("65f000000000000000000601");
+        String lcId = lcOid.toHexString();
+        LogCollectorNode lcNode = new LogCollectorNode();
+        lcNode.setConnectionIds(List.of("conn-shared-2"));
+        DAG lcDag = mock(DAG.class);
+        when(lcDag.getSources()).thenReturn(List.of(lcNode));
+
+        TaskDto collectorTask = new TaskDto();
+        collectorTask.setId(lcOid);
+        collectorTask.setName("share-collector-unknown");
+        collectorTask.setSyncType("logCollector");
+        collectorTask.setType("cdc");
+        collectorTask.setStatus(TaskDto.STATUS_RUNNING);
+        collectorTask.setCustomId("tenant-1");
+        collectorTask.setDag(lcDag);
+        when(taskService.checkExistById(eq(lcOid), eq(user))).thenReturn(collectorTask);
+
+        // Collector capture sample with null logPositionStatus must report UNKNOWN, not NORMAL
+        long now = fixedClock.millis();
+        telemetryService.ingestTelemetry("agent-1", Map.of(lcId, List.of(
+                telemetrySample(ThrottlePhase.CDC, ThrottleDirection.INPUT, now - 5_000L, now,
+                        1_000_000L, 100L, WaitReason.NONE, EnumSet.noneOf(ThrottleDimension.class), null)
+        )));
+
+        ObjectId silentOid = MongoUtils.toObjectId("65f000000000000000000602");
+        TaskDto silentConsumer = new TaskDto();
+        silentConsumer.setId(silentOid);
+        silentConsumer.setName("legacy-silent-consumer");
+        silentConsumer.setSyncType("sync");
+        silentConsumer.setType("cdc");
+        silentConsumer.setStatus(TaskDto.STATUS_RUNNING);
+        silentConsumer.setCustomId("tenant-1");
+
+        // Consumer blocked by WRITE_IO_WAIT on INPUT (CRITICAL_90), no CDC OUTPUT telemetry row
+        ObjectId ioBlockedOid = MongoUtils.toObjectId("65f000000000000000000603");
+        String ioBlockedId = ioBlockedOid.toHexString();
+        TaskDto ioBlockedConsumer = new TaskDto();
+        ioBlockedConsumer.setId(ioBlockedOid);
+        ioBlockedConsumer.setName("io-blocked-consumer");
+        ioBlockedConsumer.setSyncType("sync");
+        ioBlockedConsumer.setType("cdc");
+        ioBlockedConsumer.setStatus(TaskDto.STATUS_RUNNING);
+        ioBlockedConsumer.setCustomId("tenant-1");
+        telemetryService.ingestTelemetry("agent-1", Map.of(ioBlockedId, List.of(
+                telemetrySample(ThrottlePhase.CDC, ThrottleDirection.INPUT, now - 5_000L, now,
+                        0L, 0L, WaitReason.WRITE_IO_WAIT, EnumSet.noneOf(ThrottleDimension.class), LogPositionStatus.CRITICAL_90)
+        )));
+
+        when(taskService.count(any(Query.class))).thenReturn(2L);
+        when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(List.of(silentConsumer, ioBlockedConsumer));
+
+        LogCollectorThrottleOverviewView overview = controller.getLogCollectorOverview(lcId).getData();
+        assertNotNull(overview.getSourceCapture());
+        assertEquals(LogPositionStatus.UNKNOWN, overview.getSourceCapture().getLogPositionStatus());
+        assertEquals(2, overview.getVisibleConsumers().size());
+
+        Map<String, LogPositionStatus> statusesByName = new java.util.HashMap<>();
+        for (LogCollectorThrottleOverviewView.ConsumerThrottleSummary s : overview.getVisibleConsumers()) {
+            statusesByName.put(s.getTaskName(), s.getLogPositionStatus());
+        }
+        assertEquals(LogPositionStatus.UNKNOWN, statusesByName.get("legacy-silent-consumer"));
+        assertEquals(LogPositionStatus.CRITICAL_90, statusesByName.get("io-blocked-consumer"));
+    }
+
     private static TaskThrottleTelemetrySample telemetrySample(
             ThrottlePhase phase,
             ThrottleDirection dir,

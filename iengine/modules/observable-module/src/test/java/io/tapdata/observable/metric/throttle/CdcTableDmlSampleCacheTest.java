@@ -270,6 +270,44 @@ class CdcTableDmlSampleCacheTest {
             rotClock.advanceSeconds(6);
         }
         assertTrue(observedTags.size() >= 2, "Rotation should sample distinct positions within group");
+
+        // Regression (#5): normalizer returning "" on DDL must fall back to ddl.getTableId()
+        // and must NOT wipe out bytes baseline for other tables on the same endpoint.
+        MutableClock emptyNormClock = new MutableClock();
+        CdcTableDmlSampleCache emptyNormCache = new CdcTableDmlSampleCache(
+                "ddl-fallback", 1L, ThrottleDirection.INPUT, emptyNormClock, costMeter,
+                CdcTableDmlSampleCache.CacheConfig.builder().refreshIntervalSeconds(30).build());
+        ContinuousBatchMeter emptyNormMeter = new ContinuousBatchMeter(
+                "ddl-fallback", 1L, ThrottleDirection.INPUT, costMeter, emptyNormCache);
+        java.util.function.Function<TapEvent, String> emptyForNonRecordNormalizer =
+                ev -> (ev instanceof io.tapdata.entity.event.dml.TapRecordEvent rec) ? rec.getTableId() : "";
+
+        TapInsertRecordEvent t1Init = insertWithExactBytes("t1", 120);
+        TapInsertRecordEvent t2Init = insertWithExactBytes("t2", 140);
+        emptyNormMeter.meterCdcBatch("ep-1", List.of(t1Init, t2Init), emptyForNonRecordNormalizer, false);
+        emptyNormClock.advanceSeconds(1);
+        BatchMeteringResult warmT1 = emptyNormMeter.meterCdcBatch("ep-1", List.of(t1Init), emptyForNonRecordNormalizer, false);
+        BatchMeteringResult warmT2 = emptyNormMeter.meterCdcBatch("ep-1", List.of(t2Init), emptyForNonRecordNormalizer, false);
+        assertEquals(120L, warmT1.getEstimatedBytes());
+        assertEquals(140L, warmT2.getEstimatedBytes());
+
+        TapCreateTableEvent t1Ddl = new TapCreateTableEvent();
+        t1Ddl.setTableId("t1");
+        emptyNormMeter.meterCdcBatch("ep-1", List.of(t1Ddl), emptyForNonRecordNormalizer, false);
+
+        // t2 must still hit its warm baseline (~140B) without re-sampling
+        TapInsertRecordEvent t2ChangedSize = insertWithExactBytes("t2", 260);
+        BatchMeteringResult t2AfterT1Ddl = emptyNormMeter.meterCdcBatch(
+                "ep-1", List.of(t2ChangedSize), emptyForNonRecordNormalizer, false);
+        assertEquals(0L, t2AfterT1Ddl.getSampleCount());
+        assertEquals(140L, t2AfterT1Ddl.getEstimatedBytes());
+
+        // t1's own schema generation advanced, so it re-samples to the new row size
+        TapInsertRecordEvent t1AfterDdl = insertWithExactBytes("t1", 220);
+        BatchMeteringResult t1Resampled = emptyNormMeter.meterCdcBatch(
+                "ep-1", List.of(t1AfterDdl), emptyForNonRecordNormalizer, false);
+        assertEquals(1L, t1Resampled.getSampleCount());
+        assertEquals(220L, t1Resampled.getEstimatedBytes());
     }
 
     private TapInsertRecordEvent insertWithExactBytes(String table, int targetTotalBytes) {

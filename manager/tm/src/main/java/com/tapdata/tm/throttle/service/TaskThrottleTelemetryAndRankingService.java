@@ -1,5 +1,6 @@
 package com.tapdata.tm.throttle.service;
 
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.throttle.AgentThrottleDeltaResponse;
 import com.tapdata.tm.commons.throttle.LogPositionStatus;
@@ -34,6 +35,7 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -271,6 +273,7 @@ public class TaskThrottleTelemetryAndRankingService {
                             .taskId(taskId)
                             .agentId(agentId)
                             .receivedAtUtc(nowUtc)
+                            .expireAt(new Date(sample.getWindowEndUtc() > 0L ? sample.getWindowEndUtc() : nowUtc))
                             .runEpoch(sample.getRunEpoch())
                             .sampleSeq(sample.getSampleSeq())
                             .meterVersion(sample.getMeterVersion())
@@ -301,9 +304,9 @@ public class TaskThrottleTelemetryAndRankingService {
                     }
                 }
 
-                // Update live status ONLY when epoch >= current authorized epoch AND not stale/backfill sample.
+                // Update live status ONLY when epoch matches current authorized epoch (when known) AND not backfill.
                 long authorizedEpoch = policy == null ? 0L : policy.getCurrentRunEpoch();
-                if (authorizedEpoch > 0L && sample.getRunEpoch() < authorizedEpoch) {
+                if (authorizedEpoch > 0L && sample.getRunEpoch() != authorizedEpoch) {
                     continue;
                 }
                 boolean isHistoricalBackfill = sample.getWindowEndUtc() > 0L
@@ -312,7 +315,7 @@ public class TaskThrottleTelemetryAndRankingService {
                     continue;
                 }
                 LiveTaskTracker tracker = liveTrackers.computeIfAbsent(taskId, LiveTaskTracker::new);
-                tracker.updateFromSample(sample, nowUtc);
+                tracker.updateFromSample(sample, authorizedEpoch, nowUtc);
             }
         }
     }
@@ -406,7 +409,14 @@ public class TaskThrottleTelemetryAndRankingService {
             long windowSeconds,
             int topN) {
         ThrottleDirection resolvedDir = direction == null ? ThrottleDirection.OUTPUT : direction;
-        long resolvedWinSec = windowSeconds == 3600L ? 3600L : 300L;
+        if (windowSeconds < ThrottleConstants.MIN_RANKING_WINDOW_SECONDS
+                || windowSeconds > ThrottleConstants.MAX_RANKING_WINDOW_SECONDS) {
+            throw new BizException(
+                    ThrottleConstants.ERR_INVALID_WINDOW,
+                    "windowSeconds must be between " + ThrottleConstants.MIN_RANKING_WINDOW_SECONDS
+                            + " and " + ThrottleConstants.MAX_RANKING_WINDOW_SECONDS + ", got " + windowSeconds);
+        }
+        long resolvedWinSec = windowSeconds;
         int resolvedTop = Math.max(1, Math.min(50, topN <= 0 ? 5 : topN));
 
         long windowEndUtc = clock.millis();
@@ -592,8 +602,16 @@ public class TaskThrottleTelemetryAndRankingService {
             this.taskId = taskId;
         }
 
-        synchronized void updateFromSample(TaskThrottleTelemetrySample sample, long nowUtc) {
-            if (sample.getRunEpoch() > latestRunEpoch) {
+        synchronized void updateFromSample(TaskThrottleTelemetrySample sample, long authorizedEpoch, long nowUtc) {
+            if (authorizedEpoch > 0L) {
+                if (sample.getRunEpoch() != authorizedEpoch) {
+                    return;
+                }
+                if (latestRunEpoch != authorizedEpoch) {
+                    latestRunEpoch = authorizedEpoch;
+                    slots.clear();
+                }
+            } else if (sample.getRunEpoch() > latestRunEpoch) {
                 latestRunEpoch = sample.getRunEpoch();
                 slots.clear();
             } else if (sample.getRunEpoch() < latestRunEpoch) {
@@ -615,7 +633,7 @@ public class TaskThrottleTelemetryAndRankingService {
                     dims,
                     sample.getAppliedVersion(),
                     sample.getBufferWatermark(),
-                    sample.getLogPositionStatus() == null ? LogPositionStatus.NORMAL : sample.getLogPositionStatus(),
+                    sample.getLogPositionStatus() == null ? LogPositionStatus.UNKNOWN : sample.getLogPositionStatus(),
                     nowUtc
             ));
             lastReceivedAtUtc = Math.max(lastReceivedAtUtc, nowUtc);
@@ -629,19 +647,24 @@ public class TaskThrottleTelemetryAndRankingService {
 
             if (!unknown) {
                 for (SlotWait sw : slots.values()) {
-                    if (sw.waitReason == WaitReason.RATE_WAIT && !sw.waitingDimensions.isEmpty()) {
-                        anyRateWait = true;
+                    if (sw.waitReason != null && sw.waitReason != WaitReason.NONE) {
+                        Set<ThrottleDimension> dims = sw.waitingDimensions.isEmpty()
+                                ? Set.of()
+                                : EnumSet.copyOf(sw.waitingDimensions);
                         activeWaits.add(TaskThrottleLiveStatusView.ActiveWaitDetail.builder()
                                 .phase(sw.phase)
                                 .direction(sw.direction)
                                 .waitReason(sw.waitReason)
-                                .waitingDimensions(EnumSet.copyOf(sw.waitingDimensions))
+                                .waitingDimensions(dims)
                                 .appliedVersion(sw.appliedVersion)
                                 .bufferWatermark(sw.bufferWatermark)
                                 .logPositionStatus(sw.logPositionStatus)
                                 .build());
-                        byPhase.computeIfAbsent(sw.phase, p -> EnumSet.noneOf(ThrottleDimension.class))
-                                .addAll(sw.waitingDimensions);
+                        if (sw.waitReason == WaitReason.RATE_WAIT && !sw.waitingDimensions.isEmpty()) {
+                            anyRateWait = true;
+                            byPhase.computeIfAbsent(sw.phase, p -> EnumSet.noneOf(ThrottleDimension.class))
+                                    .addAll(sw.waitingDimensions);
+                        }
                     }
                 }
             }

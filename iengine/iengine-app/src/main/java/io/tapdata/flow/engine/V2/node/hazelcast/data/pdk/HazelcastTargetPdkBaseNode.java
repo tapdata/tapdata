@@ -2220,6 +2220,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         try {
 			SnapshotPayload snapshotPayload = createSnapshotPayload();
 			if (snapshotPayload == null) return true;
+			TaskThrottleRuntime throttleRuntime = resolveThrottleRuntime();
+			if (throttleRuntime != null && !throttleRuntime.beforeCheckpointPersist()) {
+				return false;
+			}
 			AtomicBoolean needSave = new AtomicBoolean(true);
 			snapshotPayload.flushOffsetRequests.forEach(request -> sourceConnectorNodeMap.forEach((nodeId, node) -> {
 				if (!request.nodeIds.contains(nodeId)) return;
@@ -2233,7 +2237,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}));
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
-			TaskThrottleRuntime throttleRuntime = resolveThrottleRuntime();
 			if (throttleRuntime != null) {
 				if (!throttleRuntime.beforeCheckpointPersist()) {
 					return false;

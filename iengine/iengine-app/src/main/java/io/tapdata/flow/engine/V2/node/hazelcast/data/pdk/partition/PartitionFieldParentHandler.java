@@ -6,6 +6,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.throttle.ThrottlePhase;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntime;
 import io.tapdata.flow.engine.V2.throttle.TaskThrottleRuntimeRegistry;
 import io.tapdata.aspect.BatchReadFuncAspect;
@@ -205,7 +206,7 @@ public class PartitionFieldParentHandler {
 				endpointId,
 				ThrottlePhase.FULL,
 				filtered,
-				e -> (e instanceof TapRecordEvent rec && rec.getTableId() != null) ? rec.getTableId() : "",
+				HazelcastSourcePdkDataNode::throttleTableNormalizer,
 				() -> !sourcePdkDataNode.isNodeRunning(),
 				slice -> {
 					List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(slice.events());

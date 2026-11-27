@@ -15,6 +15,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
 import java.util.Set;
 
 /**
@@ -27,6 +28,8 @@ import java.util.Set;
 @Document("TaskThrottleTelemetry")
 public class TaskThrottleTelemetryEntity {
 
+    public static final int TELEMETRY_TTL_SECONDS = 7 * 24 * 3600;
+
     @Id
     private String id;
 
@@ -36,6 +39,8 @@ public class TaskThrottleTelemetryEntity {
     private String taskId;
     private String agentId;
     private long receivedAtUtc;
+    @Indexed(name = "idx_throttle_telemetry_expire_at_ttl", expireAfterSeconds = TELEMETRY_TTL_SECONDS)
+    private Date expireAt;
 
     private long runEpoch;
     private long sampleSeq;

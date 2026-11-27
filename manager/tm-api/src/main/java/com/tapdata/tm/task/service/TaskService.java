@@ -290,9 +290,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     /**
      * Conditionally updates syncProgress only when the persisted runEpoch matches {@code runEpoch}.
      */
-    public void updateSyncProgress(ObjectId taskId, Document document, Long runEpoch) {
-        updateSyncProgress(taskId, document);
-    }
+    public abstract void updateSyncProgress(ObjectId taskId, Document document, Long runEpoch);
 
     public abstract void increaseClear(ObjectId taskId, String srcNode, String tgtNode, UserDetail user);
 

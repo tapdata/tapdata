@@ -1,5 +1,6 @@
 package com.tapdata.tm.throttle;
 
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.throttle.AgentThrottleCapabilities;
 import com.tapdata.tm.commons.throttle.AgentThrottleDeltaResponse;
@@ -25,6 +26,7 @@ import com.tapdata.tm.throttle.entity.TaskThrottleChangeLogEntity;
 import com.tapdata.tm.throttle.entity.TaskThrottlePolicyEntity;
 import com.tapdata.tm.throttle.entity.TaskThrottleTelemetryEntity;
 import com.tapdata.tm.throttle.service.TaskThrottleExecutionGuardService;
+import com.tapdata.tm.throttle.service.TaskThrottleIndexInitializer;
 import com.tapdata.tm.throttle.service.TaskThrottlePolicyService;
 import com.tapdata.tm.throttle.service.TaskThrottleSampleConfigService;
 import com.tapdata.tm.throttle.service.TaskThrottleTelemetryAndRankingService;
@@ -32,12 +34,16 @@ import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.index.IndexDefinition;
+import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +51,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TaskThrottleTelemetryAndRankingServiceTest {
@@ -403,6 +414,133 @@ class TaskThrottleTelemetryAndRankingServiceTest {
         assertEquals(canonicalKey, receiptLog.getTaskKey());
         assertEquals("daas-user-42", receiptLog.getTenantId());
         assertEquals("migrate", receiptLog.getTaskKind());
+    }
+
+    @Test
+    void indexInitializerEnsuresTtlAndHotQueryIndexesResilientlyAndIngestSetsExpireAt() {
+        registerAgent("agent-1");
+        ObjectId oid = MongoUtils.toObjectId("65f000000000000000000411");
+        String taskId = oid.toHexString();
+        policyService.updatePolicy("sync", taskId, updateReq(0L, 1_000_000L), user);
+        guardService.authorizeStartOrTakeover(buildTask(oid, "sync", "t-ttl"), "agent-1");
+
+        long endUtc = clock.millis();
+        telemetryService.ingestTelemetry("agent-1", Map.of(taskId, List.of(
+                sample(taskId, 1L, 1L, ThrottlePhase.CDC, ThrottleDirection.OUTPUT,
+                        endUtc - 5_000L, endUtc, WaitReason.NONE, EnumSet.noneOf(ThrottleDimension.class),
+                        10_000L, SampleQuality.VALID, TimeQuality.ALIGNED)
+        )));
+        List<TaskThrottleTelemetryEntity> savedDocs = mongo.ops().findAll(TaskThrottleTelemetryEntity.class);
+        assertEquals(1, savedDocs.size());
+        assertEquals(new Date(endUtc), savedDocs.get(0).getExpireAt());
+
+        MongoOperations mockMongo = mock(MongoOperations.class);
+        IndexOperations telemetryIdxOps = mock(IndexOperations.class);
+        IndexOperations policyIdxOps = mock(IndexOperations.class);
+        doReturn(telemetryIdxOps).when(mockMongo).indexOps(TaskThrottleTelemetryEntity.class);
+        doReturn(policyIdxOps).when(mockMongo).indexOps(TaskThrottlePolicyEntity.class);
+        doThrow(new RuntimeException("existing ttl options conflict"))
+                .doReturn("idx_ok")
+                .when(telemetryIdxOps).ensureIndex(any(IndexDefinition.class));
+
+        TaskThrottleIndexInitializer initializer = new TaskThrottleIndexInitializer(mockMongo);
+        assertDoesNotThrow(initializer::ensureIndexes);
+        verify(telemetryIdxOps, times(2)).ensureIndex(any(IndexDefinition.class));
+        verify(policyIdxOps, times(1)).ensureIndex(any(IndexDefinition.class));
+    }
+
+    @Test
+    void liveStatusExposesNonRateWaitsRejectsFutureEpochAndResetsWhenAuthorizedEpochDrops() {
+        registerAgent("agent-1");
+        ObjectId oid = MongoUtils.toObjectId("65f000000000000000000412");
+        String taskId = oid.toHexString();
+        policyService.updatePolicy("sync", taskId, updateReq(0L, 1_000_000L), user);
+        guardService.authorizeStartOrTakeover(buildTask(oid, "sync", "t-live-wait"), "agent-1"); // epoch=1
+
+        // 1. Future runEpoch (99 > authorized 1) must NOT hijack tracker
+        telemetryService.ingestTelemetry("agent-1", Map.of(taskId, List.of(
+                sample(taskId, 99L, 1L, ThrottlePhase.CDC, ThrottleDirection.OUTPUT,
+                        clock.millis() - 5_000L, clock.millis(), WaitReason.RATE_WAIT,
+                        EnumSet.of(ThrottleDimension.QPS), 1_000L, SampleQuality.VALID, TimeQuality.ALIGNED)
+        )));
+        TaskThrottleLiveStatusView afterFuture = telemetryService.evaluateLiveStatus(taskId);
+        assertNull(afterFuture.getLastReportedAtUtc());
+        assertEquals(0L, afterFuture.getRunEpoch());
+
+        // 2. Non-RATE_WAIT (WRITE_IO_WAIT, BUFFER_WAIT, BACKPRESSURE_WAIT) is preserved in activeWaits without faking throttlingActive
+        telemetryService.ingestTelemetry("agent-1", Map.of(taskId, List.of(
+                TaskThrottleTelemetrySample.builder()
+                        .runEpoch(1L).sampleSeq(2L).meterVersion(ThrottleConstants.METER_VERSION)
+                        .phase(ThrottlePhase.CDC).direction(ThrottleDirection.OUTPUT)
+                        .windowStartUtc(clock.millis() - 5_000L).windowEndUtc(clock.millis())
+                        .durationNanos(5_000_000_000L).timeQuality(TimeQuality.ALIGNED).appliedVersion(1L)
+                        .admittedEvents(100L).estimatedAdmittedBytes(10_000L).sampleCount(2L)
+                        .sampleQuality(SampleQuality.VALID).waitReason(WaitReason.WRITE_IO_WAIT)
+                        .waitingDimensions(EnumSet.noneOf(ThrottleDimension.class)).bufferWatermark(0.85d)
+                        .logPositionStatus(null)
+                        .build()
+        )));
+        TaskThrottleLiveStatusView liveIoWait = telemetryService.evaluateLiveStatus(taskId);
+        assertFalse(liveIoWait.isThrottlingActive());
+        assertEquals(1, liveIoWait.getActiveWaits().size());
+        assertEquals(WaitReason.WRITE_IO_WAIT, liveIoWait.getActiveWaits().get(0).getWaitReason());
+        assertEquals(LogPositionStatus.UNKNOWN, liveIoWait.getActiveWaits().get(0).getLogPositionStatus());
+
+        // 3. Policy takeover/rebuild pushes authorizedEpoch to 2, then lowers/rebuilds to 1: tracker resets cleanly
+        String taskKey = TaskThrottlePolicyEntity.buildTaskKey("tenant-1", "sync", taskId);
+        mongo.ops().updateFirst(
+                Query.query(org.springframework.data.mongodb.core.query.Criteria.where("_id").is(taskKey)),
+                new org.springframework.data.mongodb.core.query.Update().set("currentRunEpoch", 2L),
+                TaskThrottlePolicyEntity.class);
+        telemetryService.ingestTelemetry("agent-1", Map.of(taskId, List.of(
+                sample(taskId, 2L, 1L, ThrottlePhase.CDC, ThrottleDirection.INPUT,
+                        clock.millis() - 5_000L, clock.millis(), WaitReason.BUFFER_WAIT,
+                        EnumSet.noneOf(ThrottleDimension.class), 1_000L, SampleQuality.VALID, TimeQuality.ALIGNED)
+        )));
+        assertEquals(2L, telemetryService.evaluateLiveStatus(taskId).getRunEpoch());
+
+        mongo.ops().updateFirst(
+                Query.query(org.springframework.data.mongodb.core.query.Criteria.where("_id").is(taskKey)),
+                new org.springframework.data.mongodb.core.query.Update().set("currentRunEpoch", 1L),
+                TaskThrottlePolicyEntity.class);
+        clock.advanceMillis(20_000L);
+        assertTrue(telemetryService.evaluateLiveStatus(taskId).isStatusUnknown());
+        telemetryService.ingestTelemetry("agent-1", Map.of(taskId, List.of(
+                sample(taskId, 1L, 1L, ThrottlePhase.CDC, ThrottleDirection.INPUT,
+                        clock.millis() - 5_000L, clock.millis(), WaitReason.BACKPRESSURE_WAIT,
+                        EnumSet.noneOf(ThrottleDimension.class), 1_000L, SampleQuality.VALID, TimeQuality.ALIGNED)
+        )));
+        TaskThrottleLiveStatusView recovered = telemetryService.evaluateLiveStatus(taskId);
+        assertEquals(1L, recovered.getRunEpoch());
+        assertFalse(recovered.isStatusUnknown());
+        assertEquals(WaitReason.BACKPRESSURE_WAIT, recovered.getActiveWaits().get(0).getWaitReason());
+    }
+
+    @Test
+    void rankingHonorsCustomWindowSecondsInRangeAndRejectsInvalidValues() {
+        long end = clock.millis();
+        long start600 = end - 600_000L;
+        ObjectId oid = MongoUtils.toObjectId("65f000000000000000000413");
+        String taskId = oid.toHexString();
+        when(chartViewService.getViewTaskDtoByUser(user)).thenReturn(List.of(buildTask(oid, "sync", "win-600-task")));
+
+        // 560s covered out of 600s -> 93.3% >= 90%, 560MB / 560s = 1.0 MB/s
+        telemetryService.ingestTelemetry("agent-1", Map.of(taskId, List.of(
+                sample(taskId, 1L, 1L, ThrottlePhase.CDC, ThrottleDirection.OUTPUT,
+                        start600, start600 + 560_000L, WaitReason.NONE, EnumSet.noneOf(ThrottleDimension.class),
+                        560_000_000L, SampleQuality.VALID, TimeQuality.ALIGNED)
+        )));
+        TaskThrottleRankingResponse win600 =
+                telemetryService.queryEstimatedDataRateRanking(user, ThrottleDirection.OUTPUT, 600L, 5);
+        assertEquals(600L, win600.getWindowSeconds());
+        assertEquals(1, win600.getItems().size());
+        assertEquals(1.0d, win600.getItems().get(0).getEstimatedMbPerSec(), 1e-6);
+
+        for (long invalid : new long[]{-1L, 0L, 60L, 7200L}) {
+            BizException ex = assertThrows(BizException.class,
+                    () -> telemetryService.queryEstimatedDataRateRanking(user, ThrottleDirection.OUTPUT, invalid, 5));
+            assertEquals(ThrottleConstants.ERR_INVALID_WINDOW, ex.getErrorCode());
+        }
     }
 
     private void registerAgent(String agentId) {
