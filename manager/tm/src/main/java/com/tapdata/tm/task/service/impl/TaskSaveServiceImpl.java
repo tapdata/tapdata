@@ -201,11 +201,19 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_RETRY_WARN));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_EVENT));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_SAVE_FAILED));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_RECOVERY_FAILED));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_STORM_GUARD));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
         // 补充历史任务缺失的任务告警 key 时也请追加到末尾，避免破坏前端依赖的原有顺序。
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
         supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DDL_WARNING));
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_EVENT));
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_SAVE_FAILED));
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_RECOVERY_FAILED));
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_DQL_STORM_GUARD));
 
         if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));

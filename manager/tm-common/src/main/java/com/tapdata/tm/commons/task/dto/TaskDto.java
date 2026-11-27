@@ -430,6 +430,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
             Disable,
             SkipTable,
             SkipData,
+            DQL,
             SkipTableForMigrateSnapshot,
             ;
         }
@@ -450,7 +451,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         }
 
         public String getErrorMode() {
-            return errorMode;
+            return normalizeErrorMode(errorMode);
         }
 
         public ErrorMode getErrorModeEnum() {
@@ -458,7 +459,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
                 if (null == this.errorMode) {
                     return null;
                 }
-                return ErrorMode.valueOf(this.errorMode);
+                return ErrorMode.valueOf(getErrorMode());
             } catch (IllegalArgumentException e) {
                 return ErrorMode.Disable;
             }
@@ -480,7 +481,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         }
 
         public void setErrorMode(String errorMode) {
-            this.errorMode = errorMode;
+            this.errorMode = normalizeErrorMode(errorMode);
         }
 
         public void setErrorMode(ErrorMode mode) {
@@ -489,6 +490,13 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
             } else {
                 this.errorMode = mode.name();
             }
+        }
+
+        private static String normalizeErrorMode(String mode) {
+            if ("DLQ".equalsIgnoreCase(mode)) {
+                return ErrorMode.DQL.name();
+            }
+            return mode;
         }
 
         public void setLimitMode(String mode) {

@@ -213,9 +213,11 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		try {
 			result = engine.invokeFunction(FUNCTION_NAME, record, ((CustomProcessorNode) node).getForm());
 		} catch (ScriptException e) {
-			throw new RuntimeException("Execute script error, record: " + record + ", error: " + e.getMessage());
+			throw new TapCodeException(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,
+					"Execute script error, record: " + record + ", error: " + e.getMessage(), e);
 		} catch (NoSuchMethodException e) {
-			throw new RuntimeException("Execute script error, cannot found function " + FUNCTION_NAME);
+			throw new TapCodeException(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,
+					"Execute script error, cannot found function " + FUNCTION_NAME, e);
 		}
 		return result;
 	}

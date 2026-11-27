@@ -229,6 +229,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void start(ObjectId id, UserDetail user, boolean system);
 
+    public abstract void startDqlRecovery(ObjectId id, UserDetail user);
+
     public abstract void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system);
 
     public abstract void start(TaskDto taskDto, UserDetail user, String startFlag);

@@ -3,30 +3,77 @@ package io.tapdata.task.skiperrorevent;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
 import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.SkipErrorProcessAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.common.SettingService;
+import io.tapdata.dql.classifier.DlqStormGuard;
+import io.tapdata.dql.classifier.DqlBatchContext;
+import io.tapdata.dql.classifier.DqlClassificationContext;
+import io.tapdata.dql.classifier.DqlExceptionClassifier;
+import io.tapdata.dql.classifier.DqlFailedStage;
+import io.tapdata.dql.classifier.DqlNodeType;
+import io.tapdata.dql.classifier.DqlStormGuardDecision;
+import io.tapdata.dql.classifier.DqlStormGuardConfig;
+import io.tapdata.dql.classifier.DqlStormGuardContext;
+import io.tapdata.dql.classifier.DqlTaskContext;
+import io.tapdata.dql.client.DqlTmClient;
+import io.tapdata.dql.identity.DqlEventIdentityGenerator;
+import io.tapdata.dql.model.DqlEventIdentity;
+import io.tapdata.dql.model.DqlClassificationResult;
+import io.tapdata.dql.model.DqlEventReport;
+import io.tapdata.dql.model.DqlExceptionScope;
+import io.tapdata.dql.model.DqlRecordSuccessReport;
+import io.tapdata.dql.model.DqlPayloadSnapshot;
+import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlStormGuardReport;
+import io.tapdata.dql.preview.DqlPayloadPreview;
+import io.tapdata.dql.preview.DqlPayloadPreviewBuilder;
+import com.tapdata.tm.dql.config.DqlRuntimeConfig;
+import io.tapdata.dql.reporter.DqlEventReportException;
+import io.tapdata.dql.reporter.DqlEventReporter;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
+import io.tapdata.dql.serializer.DqlPayloadSerializer;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.schema.TapTableMap;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
+import io.tapdata.exception.ExceptionUtil;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.exception.TapPdkWriteLengthEx;
 import io.tapdata.exception.TapPdkWriteTypeEx;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.logging.log4j.*;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,6 +92,16 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private TaskDto.SkipErrorEvent skipErrorEvent;
     private final Map<String, Map<String, AtomicLong>> syncAndSkipMap = new ConcurrentHashMap<>();
 
+    private final DqlExceptionClassifier dqlExceptionClassifier = new DqlExceptionClassifier();
+    private DqlRuntimeConfig dqlRuntimeConfig = DqlRuntimeConfig.defaults();
+    private DlqStormGuard dlqStormGuard = new DlqStormGuard(
+            DqlStormGuardConfig.from(dqlRuntimeConfig));
+    private DqlPayloadSerializer dqlPayloadSerializer = new DqlPayloadSerializer(dqlRuntimeConfig);
+    private DqlPayloadPreviewBuilder dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder(dqlRuntimeConfig);
+    private final DqlEventIdentityGenerator dqlEventIdentityGenerator = new DqlEventIdentityGenerator();
+    private DqlEventReporter dqlEventReporter;
+    private final AtomicReference<Boolean> dqlCaptureUnavailableLogged = new AtomicReference<>(false);
+
     private Function<SkipErrorDataAspect, AspectInterceptResult> skipErrorDataNoeAspect = aspect -> null;
     private long lastSkipTimes;
     private long nextPrintTimes;
@@ -54,21 +111,45 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     public SkipErrorEventAspectTask() {
         interceptHandlers.register(SkipErrorDataAspect.class, this::skipErrorDataNoeAspectHandle);
+        interceptHandlers.register(SkipErrorProcessAspect.class, this::skipErrorProcessAspectHandle);
+        observerHandlers.register(WriteRecordFuncAspect.class, this::writeRecordFuncAspectHandle);
     }
 
     private void save2TaskAttrs() {
+        if (DqlRecoveryCaptureGuard.isRecoveryTask(getTask())) {
+            return;
+        }
         Update update = Update.update(String.format("attrs.%s", TaskDto.ATTRS_SKIP_ERROR_EVENT), syncAndSkipMap);
         clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskId)), update, ConnectorConstant.TASK_COLLECTION);
     }
 
     protected synchronized void logSkipEvent(TapRecordEvent tapRecordEvent, Throwable ex) {
-        logger.info("task-{} skip event: {}", taskId, tapRecordEvent);
-        logger.info("task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
+        logSkipEvent(tapRecordEvent, ex, null, null);
+    }
+
+    protected synchronized void logSkipEvent(TapRecordEvent tapRecordEvent,
+                                              Throwable ex,
+                                              String failedNodeId,
+                                              String failedNodeName) {
+        if (logger != null) {
+            logger.info("task-{} skip event: {}", taskId, tapRecordEvent);
+            logger.info("task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
+        }
 
         long now = System.currentTimeMillis();
         if (now > nextPrintTimes) {
             String skipInfo = JSON.toJSONString(syncAndSkipMap);
-            log.warn("Skip error event counts:{}", skipInfo);
+            TaskDto currentTask = getTask();
+            String taskName = currentTask == null || StringUtils.isBlank(currentTask.getName())
+                    ? "N/A" : currentTask.getName();
+            String tableName = tapRecordEvent == null || StringUtils.isBlank(tapRecordEvent.getTableId())
+                    ? "N/A" : tapRecordEvent.getTableId();
+            String operation = dmlOperation(tapRecordEvent);
+            String resolvedFailedNodeId = StringUtils.defaultIfBlank(failedNodeId, "N/A");
+            String resolvedFailedNodeName = StringUtils.defaultIfBlank(failedNodeName, "N/A");
+            log.warn("DLQ record isolated successfully; task continues running: taskId={}, taskName={}, table={}, operation={}, failedNodeId={}, failedNodeName={}, errorCode={}, reason={}, skipCounts={}",
+                    taskId, taskName, tableName, operation, resolvedFailedNodeId, resolvedFailedNodeName,
+                    StringUtils.defaultIfBlank(errorCode(ex), "N/A"), exceptionSummary(ex), skipInfo);
             if (ex instanceof TapPdkViolateUniqueEx && ((TapPdkViolateUniqueEx) ex).getData() != null) {
                 log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkViolateUniqueEx) ex).getData());
             }
@@ -81,6 +162,23 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             nextPrintTimes = now + 30 * 1000;
         }
         lastSkipTimes = now;
+    }
+
+    private String exceptionSummary(Throwable error) {
+        if (error == null) {
+            return "N/A";
+        }
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        String summary = null;
+        Throwable current = error;
+        while (current != null && visited.add(current)) {
+            if (StringUtils.isNotBlank(current.getMessage())) {
+                summary = current.getMessage();
+            }
+            current = current.getCause();
+        }
+        return StringUtils.abbreviate(StringUtils.defaultIfBlank(summary,
+                error.getClass().getSimpleName()), 500);
     }
 
     private Map<String, AtomicLong> getTableMetrics(String tableName) {
@@ -104,26 +202,29 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         return getTypeMetrics(tableMetrics, type);
     }
 
-    private boolean checkSkip(String tableName, TapRecordEvent tapRecordEvent, Throwable ex) {
-        if (checkSkipByThrowable(ex)) {
-            long syncCounts = getTypeMetrics(tableName, METRICS_SYNC).get();
-            long skipCounts = getTypeMetrics(tableName, METRICS_SKIP).addAndGet(1);
-            if (checkSkipByLimitMode(syncCounts, skipCounts)) {
-                logSkipEvent(tapRecordEvent, ex);
-                return true;
-            }
+    private boolean checkSkipByLimitMode(String tableName, long syncCounts, long skipCounts) {
+        // DLQ is the explicit record-isolation mode.  Its routing decision is
+        // made by the classifier and Storm Guard; legacy SkipData limits must
+        // not turn a deterministic record failure back into TASK_ERROR.
+        if (isDqlMode()) {
+            return true;
         }
-        return false;
-    }
-
-    private boolean checkSkipByLimitMode(long syncCounts, long skipCounts) {
-        switch (skipErrorEvent.getLimitModeEnum()) {
+        TaskDto.SkipErrorEvent.LimitMode limitMode = skipErrorEvent == null
+                ? TaskDto.SkipErrorEvent.LimitMode.Disable : skipErrorEvent.getLimitModeEnum();
+        if (limitMode == null) {
+            limitMode = TaskDto.SkipErrorEvent.LimitMode.Disable;
+        }
+        switch (limitMode) {
+            case Disable:
+                return true;
             case SkipByLimit:
                 if (skipErrorEvent.getLimit() >= skipCounts) {
                     return true;
                 } else {
                     String skipInfo = JSON.toJSONString(syncAndSkipMap);
-                    log.warn("Reach the skip limit: {}, status: {}", skipCounts, skipInfo);
+                    logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                            DqlRouteDecision.TASK_ERROR.name(),
+                            "skip limit reached: count=" + skipCounts + ", status=" + skipInfo);
                 }
                 break;
             case SkipByRate:
@@ -132,7 +233,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                     return true;
                 } else {
                     String skipInfo = JSON.toJSONString(syncAndSkipMap);
-                    log.warn("Reach the skip rate: {}, status: {}", String.format("%.2f", rate), skipInfo);
+                    logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                            DqlRouteDecision.TASK_ERROR.name(),
+                            "skip rate reached: rate=" + String.format("%.2f", rate)
+                                    + ", status=" + skipInfo);
                 }
                 break;
             default:
@@ -141,11 +245,16 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         return false;
     }
 
+    private boolean isDqlMode() {
+        return skipErrorEvent != null
+                && skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.DQL;
+    }
+
     private boolean checkSkipByThrowable(Throwable ex) {
-        if (ex instanceof TapCodeException) {
-            String code = ((TapCodeException) ex).getCode();
+        String code = errorCode(ex);
+        if (code != null) {
             ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
-            return errorCode.isSkippable();
+            return errorCode != null && errorCode.isSkippable();
         }
         return false;
     }
@@ -154,24 +263,88 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public void onStart(TaskStartAspect startAspect) {
         try {
             this.taskId = getTask().getId().toHexString();
-            this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-            this.logger = new SplitFileLogger(Level.INFO, taskId);
+            boolean skipErrorEventEnabled = false;
+            // Keep the routing configuration available even when an optional
+            // logging/store resource cannot be initialized. Processor errors
+            // must still be able to reach the DLQ interceptor in that case.
+            this.skipErrorEvent = getTask().getSkipErrorEvent();
+            if (this.skipErrorEvent != null) {
+                if (this.skipErrorEvent.getErrorMode() == null) {
+                    this.skipErrorEvent.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.Disable);
+                }
+                if (this.skipErrorEvent.getLimitMode() == null) {
+                    this.skipErrorEvent.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.Disable);
+                }
+                if (this.skipErrorEvent.getLimit() == null || this.skipErrorEvent.getLimit() < 0) {
+                    this.skipErrorEvent.setLimit(0L);
+                }
+                if (this.skipErrorEvent.getRate() == null || this.skipErrorEvent.getRate() < 0) {
+                    this.skipErrorEvent.setRate(0);
+                }
+                switch (this.skipErrorEvent.getErrorModeEnum()) {
+                    case SkipTable:
+                        this.skipErrorEvent.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.SkipByLimit);
+                        this.skipErrorEvent.setLimit(0L);
+                        skipErrorEventEnabled = true;
+                        break;
+                    case SkipData:
+                    case DQL:
+                        skipErrorEventEnabled = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            this.dqlRuntimeConfig = loadDqlRuntimeConfig();
+            this.dlqStormGuard = new DlqStormGuard(DqlStormGuardConfig.from(dqlRuntimeConfig));
+            this.dqlPayloadSerializer = new DqlPayloadSerializer(dqlRuntimeConfig);
+            this.dqlPayloadPreviewBuilder = new DqlPayloadPreviewBuilder(dqlRuntimeConfig);
+            // Register the processor handler before initializing optional
+            // logging/store resources. Those resources must not decide
+            // whether a processor exception can be routed to DLQ.
+            if (skipErrorEventEnabled && dqlRuntimeConfig.isEventEnabled()) {
+                this.skipErrorDataNoeAspect = this::skipErrorDataNoeAspectImpl;
+            }
 
-            synchronized (storeFuture) {
-                stopStoreFuture();
-                AtomicLong lastStoreTimes = new AtomicLong(System.currentTimeMillis());
-                storeFuture.set(EXECUTOR.scheduleWithFixedDelay(() -> {
-                    try {
-                        long nowTime = System.currentTimeMillis();
-                        if (lastStoreTimes.get() < lastSkipTimes) {
-                            Thread.currentThread().setName(String.format("%s-skipErrorEvent", taskId));
-                            save2TaskAttrs();
-                            lastStoreTimes.set(nowTime);
+            this.clientMongoOperator = resolveDqlClientMongoOperator();
+            if (this.clientMongoOperator instanceof HttpClientMongoOperator) {
+                this.dqlEventReporter = new DqlEventReporter(
+                        new DqlTmClient((HttpClientMongoOperator) this.clientMongoOperator));
+            }
+            try {
+                this.logger = new SplitFileLogger(Level.INFO, taskId);
+            } catch (RuntimeException loggerException) {
+                // File logging is supplemental to DLQ capture. For example,
+                // a test or a minimally configured worker may not initialize
+                // SplitFileLogger first.
+                this.logger = null;
+                if (log != null) {
+                    log.warn("Skip error event file logger is unavailable for task {}: {}",
+                            taskId, loggerException.getMessage());
+                }
+            }
+
+            if (!DqlRecoveryCaptureGuard.isRecoveryTask(getTask())) {
+                synchronized (storeFuture) {
+                    stopStoreFuture();
+                    AtomicLong lastStoreTimes = new AtomicLong(System.currentTimeMillis());
+                    storeFuture.set(EXECUTOR.scheduleWithFixedDelay(() -> {
+                        try {
+                            long nowTime = System.currentTimeMillis();
+                            if (lastStoreTimes.get() < lastSkipTimes) {
+                                Thread.currentThread().setName(String.format("%s-skipErrorEvent", taskId));
+                                save2TaskAttrs();
+                                lastStoreTimes.set(nowTime);
+                            }
+                        } catch (Exception e) {
+                            if (logger != null) {
+                                logger.warn("Skip error event store failed: {}", e.getMessage());
+                            } else if (log != null) {
+                                log.warn("Skip error event store failed for task {}: {}", taskId, e.getMessage());
+                            }
                         }
-                    } catch (Exception e) {
-                        logger.warn("Skip error event store failed: {}", e.getMessage());
-                    }
-                }, 0, 5, TimeUnit.SECONDS));
+                    }, 0, 5, TimeUnit.SECONDS));
+                }
             }
 
             Optional.ofNullable(getTask().getAttrs()).map(
@@ -194,34 +367,37 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                 return null;
             });
 
-            this.skipErrorEvent = getTask().getSkipErrorEvent();
-            if (Optional.ofNullable(this.skipErrorEvent).map(vo -> {
-                if (null == vo.getErrorMode()) vo.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.Disable);
-                if (null == vo.getLimitMode()) vo.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.Disable);
-                if (null == vo.getLimit() || vo.getLimit() < 0) vo.setLimit(0L);
-                if (null == vo.getRate() || vo.getRate() < 0) vo.setRate(0);
-
-                switch (vo.getErrorModeEnum()) {
-                    case SkipTable:
-                        // has one error skip table
-                        vo.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.SkipByLimit);
-                        vo.setLimit(0L);
-                        return true;
-                    case SkipData:
-                        return true;
-                    // case SkipTableForMigrateSnapshot:
-                    // 此配置将复制任务的全量同步「跳过错误表」功能配置合并
-                    // 其逻辑不在 SkipErrorEventAspectTask 中处理
-                    // 请参考: io.tapdata.task.skiperrortable.ISkipErrorTable
-                    default:
-                        return false;
-                }
-            }).orElse(false)) {
-                this.skipErrorDataNoeAspect = this::skipErrorDataNoeAspectImpl;
-            }
         } catch (Exception e) {
-            log.warn("Skip error event is not enable: {}", e.getMessage(), e);
+            if (log != null) {
+                log.warn("Skip error event is not enable: {}", e.getMessage(), e);
+            }
         }
+    }
+
+    /**
+     * The engine initializes the operator in ConnectorConstant before task
+     * aspects are started. Prefer the Spring bean when available, but retain
+     * the engine-owned instance as a fallback because task startup can race
+     * Spring context publication (and some worker modes do not publish the
+     * bean at all).
+     */
+    private ClientMongoOperator resolveDqlClientMongoOperator() {
+        ClientMongoOperator operator = null;
+        try {
+            operator = BeanUtil.getBean(ClientMongoOperator.class);
+        } catch (RuntimeException exception) {
+            if (log != null) {
+                log.warn("DLQ TM operator bean is unavailable for task {}: {}",
+                        taskId, exception.getMessage());
+            }
+        }
+        if (operator instanceof HttpClientMongoOperator) {
+            return operator;
+        }
+        if (ConnectorConstant.clientMongoOperator instanceof HttpClientMongoOperator) {
+            return ConnectorConstant.clientMongoOperator;
+        }
+        return operator;
     }
 
     @Override
@@ -244,7 +420,11 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                 if (!EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
                     EXECUTOR.shutdownNow();
                     if (!EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
-                        logger.error("shutdown executor failed");
+                        if (logger != null) {
+                            logger.error("shutdown executor failed");
+                        } else if (log != null) {
+                            log.error("shutdown executor failed for task {}", taskId);
+                        }
                     }
                 }
             } catch (InterruptedException e) {
@@ -269,14 +449,215 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         }
     }
 
+    private DqlRuntimeConfig loadDqlRuntimeConfig() {
+        SettingService settingService;
+        try {
+            settingService = BeanUtil.getBean(SettingService.class);
+        } catch (RuntimeException exception) {
+            settingService = null;
+        }
+        SettingService source = settingService;
+        return DqlRuntimeConfig.from(key -> {
+            if (source == null) {
+                return null;
+            }
+            try {
+                return source.getString(key, null);
+            } catch (RuntimeException exception) {
+                return null;
+            }
+        });
+    }
+
     public AspectInterceptResult skipErrorDataNoeAspectHandle(SkipErrorDataAspect aspect) {
+        if (aspect == null || !isSkipDataEnabled() || !isDqlEventEnabled()) {
+            return null;
+        }
         return this.skipErrorDataNoeAspect.apply(aspect);
+    }
+
+    /**
+     * Attaches a best-effort callback to normal target writes. The write
+     * result is the source of truth for distinguishing successful records
+     * from records that were rejected by a connector.
+     */
+    public Void writeRecordFuncAspectHandle(WriteRecordFuncAspect aspect) {
+        if (aspect == null || aspect.getState() != WriteRecordFuncAspect.STATE_START
+                || !isSkipDataEnabled() || !isDqlEventEnabled() || dqlEventReporter == null) {
+            return null;
+        }
+        TapTable targetTable = aspect.getTable();
+        DataProcessorContext dataProcessorContext = aspect.getDataProcessorContext();
+        aspect.consumer((events, writeResult) -> reportSuccessfulRecords(
+                targetTable, events, writeResult, dataProcessorContext));
+        return null;
+    }
+
+    private void reportSuccessfulRecords(TapTable targetTable,
+                                         List<TapRecordEvent> events,
+                                         WriteListResult<TapRecordEvent> writeResult,
+                                         DataProcessorContext dataProcessorContext) {
+        if (events == null || events.isEmpty() || writeResult == null) {
+            return;
+        }
+        Map<TapRecordEvent, Throwable> errorMap = writeResult.getErrorMap();
+        long successAt = System.currentTimeMillis();
+        for (TapRecordEvent event : events) {
+            if (event == null || DqlRecoveryCaptureGuard.isRecoveryRecord(event)
+                    || (errorMap != null && errorMap.containsKey(event))) {
+                continue;
+            }
+            try {
+                reportRecordSuccess(targetTable, event, successAt, dataProcessorContext);
+            } catch (RuntimeException exception) {
+                // The target write has already succeeded. A failure to update
+                // audit metadata must not turn it into a failed data write.
+                if (log != null) {
+                    log.warn("DLQ later-success report failed for task {}: {}", taskId, exception.getMessage());
+                }
+            }
+        }
+    }
+
+    private void reportRecordSuccess(TapTable targetTable,
+                                     TapRecordEvent event,
+                                     long successAt,
+                                     DataProcessorContext dataProcessorContext) {
+        TaskDto currentTask = getTask();
+        String taskRecordId = currentTask == null ? taskId : currentTask.getTaskRecordId();
+        if (StringUtils.isBlank(taskRecordId)) {
+            taskRecordId = taskId;
+        }
+
+        String sourceTable = event.getTableId();
+        String targetTableId = targetTableId(targetTable, sourceTable);
+        DqlRecordSuccessReport report = new DqlRecordSuccessReport();
+        report.setTaskRecordId(taskRecordId);
+        report.setSourceTable(sourceTable);
+        report.setTargetTable(targetTableId);
+        report.setTableId(targetTableId);
+        report.setDmlType(dmlType(event));
+        report.setEventTime(eventTime(event, successAt));
+        report.setSuccessAt(successAt);
+
+        Node<?> targetNode = targetNode(dataProcessorContext,
+                currentTask == null || currentTask.getDag() == null
+                        ? null : currentTask.getDag().getTargetNodes());
+        DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
+                event, targetTable, taskRecordId, null,
+                updateConditionFields(writeTargetNode(dataProcessorContext, targetNode), targetTable, event));
+        identity.applyTo(report);
+        dqlEventReporter.reportRecordSuccess(taskId, report);
+    }
+
+    private String targetTableId(TapTable targetTable, String sourceTable) {
+        if (targetTable != null) {
+            if (StringUtils.isNotBlank(targetTable.getId())) {
+                return targetTable.getId();
+            }
+            if (StringUtils.isNotBlank(targetTable.getName())) {
+                return targetTable.getName();
+            }
+        }
+        return sourceTable;
+    }
+
+    private Long eventTime(TapRecordEvent event, long captureTime) {
+        if (event.getReferenceTime() != null) {
+            return event.getReferenceTime();
+        }
+        if (event.getTime() != null) {
+            return event.getTime();
+        }
+        return captureTime;
+    }
+
+    /**
+     * Captures a single DML event failed by a processor before the node falls
+     * back to its existing task-level error handling path.
+     */
+    public AspectInterceptResult skipErrorProcessAspectHandle(SkipErrorProcessAspect aspect) {
+        if (aspect == null || aspect.getInputEvent() == null
+                || !(aspect.getInputEvent().getTapEvent() instanceof TapRecordEvent event)
+                || aspect.getError() == null) {
+            return null;
+        }
+        if (DqlRecoveryCaptureGuard.isRecoveryRecord(event)) {
+            // The replay coordinator owns the attempt result.  Do not let a
+            // replay-only processor error fall through to normal task-level
+            // error handling.
+            return DqlRecoveryCaptureGuard.notifyFailure(event, aspect.getError())
+                    ? new AspectInterceptResult().intercepted(true)
+                    : null;
+        }
+        boolean skipDataEnabled = isSkipDataEnabled();
+        boolean dqlEventEnabled = isDqlEventEnabled();
+        if (!skipDataEnabled || !dqlEventEnabled || dqlEventReporter == null) {
+            logDqlCaptureUnavailable(skipDataEnabled, dqlEventEnabled);
+            return null;
+        }
+
+        String tableId = event.getTableId();
+        DqlFailedStage failedStage = aspect.getProcessStage() == null
+                ? DqlFailedStage.PROCESSOR : aspect.getProcessStage();
+        DqlClassificationResult classification = dqlExceptionClassifier.classify(
+                aspect.getError(), new DqlClassificationContext(
+                        failedStage,
+                        DqlNodeType.PROCESSOR,
+                        event,
+                        DqlBatchContext.singleRecord(),
+                        currentDqlTaskContext()));
+        AtomicLong skipMetric;
+        DqlStormGuardDecision stormGuardDecision = null;
+        if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
+            skipMetric = reserveSkipCandidate(tableId, classification);
+            stormGuardDecision = dlqStormGuard.evaluate(classification, DqlStormGuardContext.singleRecord(
+                    taskId, aspect.getNodeId(), tableId, errorCode(aspect.getError()),
+                    aspect.getError().getMessage()));
+            classification = stormGuardDecision.getClassificationResult();
+        } else {
+            skipMetric = reserveSkipCandidate(tableId, classification);
+        }
+        boolean committed = false;
+        try {
+            if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+                reportStormGuard(stormGuardDecision);
+                logTaskLevelHandling(tableId, classification);
+                return null;
+            }
+            long syncCounts = getTypeMetrics(tableId, METRICS_SYNC).get();
+            if (!checkSkipByLimitMode(tableId, syncCounts, skipMetric.get())) {
+                return null;
+            }
+
+            ProcessorBaseContext processorBaseContext = aspect.getProcessorBaseContext();
+            DataProcessorContext dataProcessorContext = processorBaseContext instanceof DataProcessorContext context
+                    ? context : null;
+            TapTable table = resolveProcessorTable(aspect, event, tableId);
+            reportDqlEvent(table, event, tableId, aspect.getError(), classification,
+                    failedStage, aspect.getNodeId(), aspect.getNodeName(), null, dataProcessorContext);
+            logSkipEvent(event, aspect.getError(), aspect.getNodeId(), aspect.getNodeName());
+            committed = true;
+            return new AspectInterceptResult().intercepted(true);
+        } catch (DqlEventReportException exception) {
+            logTaskLevelHandling(tableId, DqlExceptionScope.RECORD.name(),
+                    DqlRouteDecision.TASK_ERROR.name(), "DLQ report failed");
+            throw exception;
+        } finally {
+            if (!committed) {
+                rollbackSkipCandidate(skipMetric);
+            }
+        }
     }
 
     public AspectInterceptResult skipErrorDataNoeAspectImpl(SkipErrorDataAspect aspect) {
         aspect.getPdkMethodInvoker().setEnableSkipErrorEvent(true);
 
-        String tableId = aspect.getTapTable().getId();
+        TapTable table = aspect.getTapTable();
+        String tableId = table.getId();
+        if (tableId == null || tableId.isBlank()) {
+            tableId = table.getName();
+        }
         AspectInterceptResult result = new AspectInterceptResult();
         result.setIntercepted(true);
 
@@ -284,25 +665,537 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             aspect.getWriteRecordFunction().apply(aspect.getTapRecordEvents());
             getTypeMetrics(tableId, METRICS_SYNC).addAndGet(aspect.getTapRecordEvents().size());
         } catch (Throwable e1) {
-            // Here the exception is thrown as is and handled by the connector and engine
-            if (checkSkipByThrowable(e1)) {
+            if (aspect.getTapRecordEvents().size() == 1) {
+                if (!checkSkip(table, tableId, aspect.getTapRecordEvents().get(0), e1,
+                        aspect.getDataProcessorContext())) {
+                    throwAsRuntime(e1);
+                }
+            } else if (shouldSplitBatch(aspect, e1)) {
                 for (TapRecordEvent tapRecordEvent : aspect.getTapRecordEvents()) {
                     try {
                         aspect.getWriteRecordFunction().apply(Collections.singletonList(tapRecordEvent));
                         getTypeMetrics(tableId, METRICS_SYNC).addAndGet(1);
                     } catch (Throwable e2) {
-                        if (!checkSkip(tableId, tapRecordEvent, e2)) {
-                            throw new RuntimeException(e2);
+                        if (!checkSkip(table, tableId, tapRecordEvent, e2,
+                                aspect.getDataProcessorContext())) {
+                            throwAsRuntime(e2);
                         }
                     }
                 }
-            } else if (e1 instanceof RuntimeException) {
-                throw (RuntimeException) e1;
             } else {
-                throw new RuntimeException(e1);
+                throwAsRuntime(e1);
             }
         }
 
         return result;
+    }
+
+    private boolean shouldSplitBatch(SkipErrorDataAspect aspect, Throwable error) {
+        DqlClassificationResult classification = classify(error, null,
+                DqlBatchContext.batchFailure(aspect.getTapRecordEvents().size(), 1));
+        String tableName = tableId(aspect.getTapTable());
+        if (classification.getExceptionScope() == DqlExceptionScope.SYSTEM
+                || isSharedFailure(classification)) {
+            logTaskLevelHandling(tableName, classification);
+            return false;
+        }
+        boolean skippable = checkSkipByThrowable(error);
+        if (!skippable) {
+            logTaskLevelHandling(tableName, classification);
+        }
+        return skippable;
+    }
+
+    private boolean isSharedFailure(DqlClassificationResult classification) {
+        String reason = classification.getClassificationReason();
+        return reason != null && reason.startsWith("shared failure");
+    }
+
+    private AtomicLong reserveSkipCandidate(String tableName, DqlClassificationResult classification) {
+        if (classification == null
+                || (classification.getExceptionScope() != DqlExceptionScope.UNKNOWN
+                && classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ)) {
+            return null;
+        }
+        AtomicLong skipMetric = getTypeMetrics(tableName, METRICS_SKIP);
+        skipMetric.incrementAndGet();
+        return skipMetric;
+    }
+
+    private void rollbackSkipCandidate(AtomicLong skipMetric) {
+        if (skipMetric != null) {
+            skipMetric.decrementAndGet();
+        }
+    }
+
+    private String tableId(TapTable table) {
+        if (table == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(table.getId())) {
+            return table.getId();
+        }
+        return table.getName();
+    }
+
+    private void logTaskLevelHandling(String tableName, DqlClassificationResult classification) {
+        if (classification == null) {
+            return;
+        }
+        logTaskLevelHandling(tableName,
+                classification.getExceptionScope() == null ? null : classification.getExceptionScope().name(),
+                classification.getRouteDecision() == null ? null : classification.getRouteDecision().name(),
+                classification.getClassificationReason());
+    }
+
+    private void logTaskLevelHandling(String tableName, String scope, String route, String reason) {
+        if (log != null) {
+            log.warn("DLQ task-level handling: task={}, table={}, scope={}, route={}, reason={}",
+                    taskId, tableName, scope, route, reason);
+        }
+    }
+
+    private void reportStormGuard(DqlStormGuardDecision decision) {
+        if (decision == null || !decision.isGuardTriggered() || dqlEventReporter == null) {
+            return;
+        }
+        TaskDto currentTask = getTask();
+        DqlStormGuardReport report = new DqlStormGuardReport();
+        report.setTaskName(currentTask == null || StringUtils.isBlank(currentTask.getName())
+                ? taskId : currentTask.getName());
+        report.setAgentId(currentTask == null ? null : currentTask.getAgentId());
+        if (decision.getGuardKey() != null) {
+            report.setGuardKey(decision.getGuardKey().getSafeIdentifier());
+        }
+        long windowMillis = decision.getWindowExpiresAtMillis() - decision.getWindowStartMillis();
+        if (windowMillis > 0L) {
+            report.setWindowSeconds(windowMillis / 1000L);
+        }
+        report.setWindowCount(decision.getWindowCount());
+        report.setGuardThreshold(decision.getMaxEvents());
+        if (decision.getBatchRatio() >= 0d) {
+            report.setBatchRatio(decision.getBatchRatio());
+        }
+        report.setMaxBatchRatio(decision.getMaxBatchRatio());
+        report.setSuppressedCountEstimate(decision.getSuppressedCount());
+        report.setRouteDecision(decision.getClassificationResult().getRouteDecision());
+        report.setSafeReason(decision.getClassificationResult().getClassificationReason());
+        report.setOccurredAt(System.currentTimeMillis());
+        try {
+            dqlEventReporter.reportStormGuard(taskId, report);
+        } catch (RuntimeException exception) {
+            // Storm Guard is a routing safety valve; an observability callback
+            // failure must not change the already selected task-level route.
+            if (log != null) {
+                log.warn("DLQ Storm Guard report failed for task {}: {}", taskId,
+                        exception.getMessage());
+            }
+        }
+    }
+
+    private boolean checkSkip(TapTable table,
+                               String tableName,
+                               TapRecordEvent tapRecordEvent,
+                               Throwable ex,
+                               DataProcessorContext dataProcessorContext) {
+        if (DqlRecoveryCaptureGuard.isRecoveryRecord(tapRecordEvent)) {
+            // A failed replay record is handled by the recovery barrier.  A
+            // true result tells the per-record splitter to consume this
+            // record instead of rethrowing and killing the temporary job.
+            return DqlRecoveryCaptureGuard.notifyFailure(tapRecordEvent, ex);
+        }
+        DqlClassificationResult classification = classify(ex, tapRecordEvent, DqlBatchContext.singleRecord());
+        AtomicLong skipMetric = reserveSkipCandidate(tableName, classification);
+        DqlStormGuardDecision stormGuardDecision = null;
+        if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
+            stormGuardDecision = dlqStormGuard.evaluate(classification, DqlStormGuardContext.singleRecord(
+                    taskId, null, tableName, errorCode(ex), ex.getMessage()));
+            classification = stormGuardDecision.getClassificationResult();
+        }
+        boolean committed = false;
+        try {
+            if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+                reportStormGuard(stormGuardDecision);
+                logTaskLevelHandling(tableName, classification);
+                return false;
+            }
+            long syncCounts = getTypeMetrics(tableName, METRICS_SYNC).get();
+            if (!checkSkipByLimitMode(tableName, syncCounts, skipMetric.get())) {
+                return false;
+            }
+            reportDqlEvent(table, tapRecordEvent, tableName, ex, classification,
+                    dataProcessorContext);
+            Node<?> failedNode = targetNode(dataProcessorContext,
+                    getTask() == null || getTask().getDag() == null
+                            ? null : getTask().getDag().getTargetNodes());
+            logSkipEvent(tapRecordEvent, ex,
+                    failedNode == null ? null : failedNode.getId(),
+                    failedNode == null ? null : failedNode.getName());
+            committed = true;
+            return true;
+        } catch (DqlEventReportException exception) {
+            logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                    DqlRouteDecision.TASK_ERROR.name(), "DLQ report failed");
+            throw exception;
+        } catch (RuntimeException exception) {
+            logTaskLevelHandling(tableName, DqlExceptionScope.RECORD.name(),
+                    DqlRouteDecision.TASK_ERROR.name(), "DLQ capture failed");
+            throw new DqlEventReportException(taskId, exception);
+        } finally {
+            if (!committed) {
+                rollbackSkipCandidate(skipMetric);
+            }
+        }
+    }
+
+    private DqlClassificationResult classify(Throwable error,
+                                              TapRecordEvent event,
+                                              DqlBatchContext batchContext) {
+        return dqlExceptionClassifier.classify(error, new DqlClassificationContext(
+                DqlFailedStage.TARGET_WRITE,
+                DqlNodeType.TARGET,
+                event,
+                batchContext,
+                currentDqlTaskContext()));
+    }
+
+    private DqlTaskContext currentDqlTaskContext() {
+        TaskDto currentTask = getTask();
+        String taskType = currentTask == null ? TaskDto.SYNC_TYPE_SYNC : currentTask.getSyncType();
+        String taskStatus = currentTask == null ? TaskDto.STATUS_RUNNING : currentTask.getStatus();
+        boolean configured = currentTask == null || currentTask.getId() != null;
+        return new DqlTaskContext(taskType, taskStatus, isSkipDataEnabled(),
+                isSkipDataEnabled(), false, configured);
+    }
+
+    private boolean isSkipDataEnabled() {
+        return skipErrorEvent != null
+                && (skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.SkipData
+                || skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.DQL);
+    }
+
+    private boolean isDqlEventEnabled() {
+        return dqlRuntimeConfig != null && dqlRuntimeConfig.isEventEnabled();
+    }
+
+    private void logDqlCaptureUnavailable(boolean skipDataEnabled, boolean dqlEventEnabled) {
+        if (log != null && dqlCaptureUnavailableLogged.compareAndSet(false, true)) {
+            log.warn("DLQ processor capture is unavailable for task {}: skipDataEnabled={}, "
+                            + "dqlEventEnabled={}, reporterAvailable={}",
+                    taskId, skipDataEnabled, dqlEventEnabled, dqlEventReporter != null);
+        }
+    }
+
+    private void reportDqlEvent(TapTable table,
+                                TapRecordEvent event,
+                                String tableId,
+                                Throwable error,
+                                DqlClassificationResult classification) {
+        reportDqlEvent(table, event, tableId, error, classification,
+                DqlFailedStage.TARGET_WRITE, null, null, tableId, null);
+    }
+
+    private void reportDqlEvent(TapTable table,
+                                TapRecordEvent event,
+                                String tableId,
+                                Throwable error,
+                                DqlClassificationResult classification,
+                                DataProcessorContext dataProcessorContext) {
+        reportDqlEvent(table, event, tableId, error, classification,
+                DqlFailedStage.TARGET_WRITE, null, null, tableId, dataProcessorContext);
+    }
+
+    private void reportDqlEvent(TapTable table,
+                                TapRecordEvent event,
+                                String tableId,
+                                Throwable error,
+                                DqlClassificationResult classification,
+                                DqlFailedStage failedStage,
+                                String failedNodeId,
+                                String failedNodeName,
+                                String targetTable,
+                                DataProcessorContext dataProcessorContext) {
+        try {
+            if (dqlEventReporter == null) {
+                throw new DqlEventReportException(taskId, "DLQ TM reporter is unavailable");
+            }
+            DqlEventReport report = buildDqlEventReport(table, event, tableId, error, classification,
+                    failedStage, failedNodeId, failedNodeName, targetTable, dataProcessorContext);
+            dqlEventReporter.report(taskId, report);
+        } catch (DqlEventReportException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new DqlEventReportException(taskId, exception);
+        }
+    }
+
+    private DqlEventReport buildDqlEventReport(TapTable table,
+                                               TapRecordEvent event,
+                                               String tableId,
+                                               Throwable error,
+                                               DqlClassificationResult classification) {
+        return buildDqlEventReport(table, event, tableId, error, classification,
+                DqlFailedStage.TARGET_WRITE, null, null, tableId, null);
+    }
+
+    private DqlEventReport buildDqlEventReport(TapTable table,
+                                               TapRecordEvent event,
+                                               String tableId,
+                                               Throwable error,
+                                               DqlClassificationResult classification,
+                                               DqlFailedStage failedStage,
+                                               String failedNodeId,
+                                               String failedNodeName,
+                                               String targetTable,
+                                               DataProcessorContext dataProcessorContext) {
+        TaskDto currentTask = getTask();
+        DqlEventReport report = new DqlEventReport();
+        if (currentTask != null) {
+            report.setTaskRecordId(currentTask.getTaskRecordId());
+            report.setTaskName(currentTask.getName());
+            report.setTaskVersion(currentTask.getVersion());
+            report.setAgentId(currentTask.getAgentId());
+        }
+        report.setTaskRecordId(report.getTaskRecordId() == null ? taskId : report.getTaskRecordId());
+        report.setFailedStage(failedStage == null ? null : failedStage.name());
+        TaskDto dagTask = currentTask;
+        if ((dagTask == null || dagTask.getDag() == null)
+                && dataProcessorContext != null && dataProcessorContext.getTaskDto() != null) {
+            dagTask = dataProcessorContext.getTaskDto();
+        }
+        Node<?> sourceNode = boundaryNode(dagTask == null || dagTask.getDag() == null
+                ? null : dagTask.getDag().getSourceNodes());
+        Node<?> targetNode = targetNode(dataProcessorContext,
+                dagTask == null || dagTask.getDag() == null
+                        ? null : dagTask.getDag().getTargetNodes());
+        setNodeMetadata(report, sourceNode, targetNode, failedNodeId, failedNodeName);
+        report.setSourceTable(event.getTableId());
+        String resolvedTargetTable = targetTable;
+        if (StringUtils.isBlank(resolvedTargetTable) && failedStage == DqlFailedStage.PROCESSOR) {
+            resolvedTargetTable = resolveProcessorTargetTable(dagTask, event.getTableId());
+        }
+        report.setTargetTable(resolvedTargetTable);
+        report.setTableId(tableId);
+        report.setDmlType(dmlType(event));
+        report.setEventTime(event.getReferenceTime() == null ? event.getTime() : event.getReferenceTime());
+        report.setErrorCode(errorCode(error));
+        report.setErrorDetails(error == null ? null : ExceptionUtil.getStackString(error));
+
+        DqlPayloadSnapshot payload = dqlPayloadSerializer.serialize(event);
+        DqlEventIdentity identity = dqlEventIdentityGenerator.generate(
+                event, table, report.getTaskRecordId(), null,
+                updateConditionFields(writeTargetNode(dataProcessorContext, targetNode), table, event));
+        DqlPayloadPreview preview = dqlPayloadPreviewBuilder.build(event, identity.getEventKey());
+        payload.setPayloadPreview(preview.getPayloadPreview());
+        payload.setPayloadPreviewTruncated(preview.isTruncated());
+        report.setPayload(payload);
+        identity.applyTo(report);
+        classification.applyTo(report);
+        return report;
+    }
+
+    private String resolveProcessorTargetTable(TaskDto task, String sourceTable) {
+        if (task == null || task.getDag() == null || StringUtils.isBlank(sourceTable)) {
+            return null;
+        }
+        List<Node> targetNodes = task.getDag().getTargetNodes();
+        if (targetNodes == null || targetNodes.isEmpty()) {
+            return null;
+        }
+
+        Node<?> targetNode = targetNodes.get(0);
+        if (targetNode instanceof TableNode tableNode) {
+            return StringUtils.defaultIfBlank(tableNode.getTableName(), null);
+        }
+        if (!(targetNode instanceof DatabaseNode databaseNode)
+                || databaseNode.getSyncObjects() == null) {
+            return null;
+        }
+
+        for (SyncObjects syncObjects : databaseNode.getSyncObjects()) {
+            if (syncObjects == null || !"table".equals(syncObjects.getType())
+                    || syncObjects.getTableNameRelation() == null) {
+                continue;
+            }
+            String targetTable = syncObjects.getTableNameRelation().get(sourceTable);
+            if (StringUtils.isNotBlank(targetTable)) {
+                return targetTable;
+            }
+        }
+        return null;
+    }
+
+    private Node<?> boundaryNode(List<Node> nodes) {
+        return nodes == null || nodes.isEmpty() ? null : nodes.get(0);
+    }
+
+    private Node<?> targetNode(DataProcessorContext dataProcessorContext, List<Node> targetNodes) {
+        // The node in the processor context is the node currently executing,
+        // not necessarily the task's final target. A processor failure must
+        // retain the downstream processing path during DLQ replay, so resolve
+        // target metadata from the DAG boundary first.
+        Node<?> boundaryTarget = boundaryNode(targetNodes);
+        if (boundaryTarget != null) {
+            return boundaryTarget;
+        }
+        if (dataProcessorContext != null && dataProcessorContext.getNode() != null) {
+            return dataProcessorContext.getNode();
+        }
+        return null;
+    }
+
+    /**
+     * The DAG boundary is the correct source for target metadata when a
+     * processor fails, but a target write's update-condition configuration is
+     * carried by the node currently executing. Keep those two concerns
+     * separate so a mocked/incomplete DAG boundary cannot erase the business
+     * key of a target write.
+     */
+    private Node<?> writeTargetNode(DataProcessorContext dataProcessorContext, Node<?> boundaryTarget) {
+        if (dataProcessorContext != null) {
+            Node<?> executionNode = dataProcessorContext.getNode();
+            if (executionNode instanceof TableNode || executionNode instanceof DatabaseNode) {
+                return executionNode;
+            }
+        }
+        return boundaryTarget;
+    }
+
+    private List<String> updateConditionFields(Node<?> targetNode,
+                                               TapTable table,
+                                               TapRecordEvent event) {
+        if (targetNode instanceof TableNode tableNode) {
+            return tableNode.getUpdateConditionFields() == null
+                    ? List.of() : tableNode.getUpdateConditionFields();
+        }
+        if (!(targetNode instanceof DatabaseNode databaseNode)
+                || databaseNode.getUpdateConditionFieldMap() == null
+                || databaseNode.getUpdateConditionFieldMap().isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<String>> fieldMap = databaseNode.getUpdateConditionFieldMap();
+        for (String tableName : tableNames(table, event)) {
+            List<String> fields = fieldMap.get(tableName);
+            if (fields != null) {
+                return fields;
+            }
+        }
+        return List.of();
+    }
+
+    private List<String> tableNames(TapTable table, TapRecordEvent event) {
+        List<String> names = new java.util.ArrayList<>();
+        if (event != null && StringUtils.isNotBlank(event.getTableId())) {
+            names.add(event.getTableId());
+        }
+        if (table != null) {
+            if (StringUtils.isNotBlank(table.getName())) {
+                names.add(table.getName());
+            }
+            if (StringUtils.isNotBlank(table.getId())) {
+                names.add(table.getId());
+            }
+        }
+        return names;
+    }
+
+    private void setNodeMetadata(DqlEventReport report,
+                                 Node<?> sourceNode,
+                                 Node<?> targetNode,
+                                 String failedNodeId,
+                                 String failedNodeName) {
+        if (sourceNode != null) {
+            report.setSourceNodeId(sourceNode.getId());
+            report.setSourceNodeName(sourceNode.getName());
+        }
+        if (targetNode != null) {
+            report.setTargetNodeId(targetNode.getId());
+            report.setTargetNodeName(targetNode.getName());
+        }
+        report.setFailedNodeId(StringUtils.isBlank(failedNodeId) && targetNode != null
+                ? targetNode.getId() : failedNodeId);
+        report.setFailedNodeName(StringUtils.isBlank(failedNodeName) && targetNode != null
+                ? targetNode.getName() : failedNodeName);
+    }
+
+    private TapTable resolveProcessorTable(SkipErrorProcessAspect aspect,
+                                           TapRecordEvent event,
+                                           String tableId) {
+        if (aspect == null || aspect.getProcessorBaseContext() == null
+                || aspect.getProcessorBaseContext().getTapTableMap() == null) {
+            return null;
+        }
+        TapTableMap<String, TapTable> tapTableMap = aspect.getProcessorBaseContext().getTapTableMap();
+        List<String> candidateKeys = new java.util.ArrayList<>();
+        addTableKey(candidateKeys, aspect.getNodeId());
+        addTableKey(candidateKeys, tableId);
+        addTableKey(candidateKeys, event == null ? null : event.getTableId());
+        try {
+            for (String candidateKey : candidateKeys) {
+                if (!tapTableMap.containsKey(candidateKey)) {
+                    continue;
+                }
+                TapTable table = tapTableMap.get(candidateKey);
+                if (table != null) {
+                    return table;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Table metadata is best effort. DLQ can still persist the event
+            // and use its full-field identity when the processor model is
+            // genuinely unavailable.
+        }
+        return null;
+    }
+
+    private void addTableKey(List<String> candidateKeys, String key) {
+        if (StringUtils.isNotBlank(key) && !candidateKeys.contains(key)) {
+            candidateKeys.add(key);
+        }
+    }
+
+    private String dmlType(TapRecordEvent event) {
+        if (event instanceof TapInsertRecordEvent) {
+            return "I";
+        }
+        if (event instanceof TapUpdateRecordEvent) {
+            return "U";
+        }
+        if (event instanceof TapDeleteRecordEvent) {
+            return "D";
+        }
+        throw new IllegalArgumentException("Unsupported DLQ event type: " + event.getClass().getName());
+    }
+
+    private String dmlOperation(TapRecordEvent event) {
+        if (event instanceof TapInsertRecordEvent) {
+            return "INSERT";
+        }
+        if (event instanceof TapUpdateRecordEvent) {
+            return "UPDATE";
+        }
+        if (event instanceof TapDeleteRecordEvent) {
+            return "DELETE";
+        }
+        return "N/A";
+    }
+
+    private String errorCode(Throwable error) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = error;
+        while (current != null && visited.add(current)) {
+            if (current instanceof TapCodeException && ((TapCodeException) current).getCode() != null) {
+                return ((TapCodeException) current).getCode();
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private void throwAsRuntime(Throwable error) {
+        if (error instanceof RuntimeException) {
+            throw (RuntimeException) error;
+        }
+        throw new RuntimeException(error);
     }
 }

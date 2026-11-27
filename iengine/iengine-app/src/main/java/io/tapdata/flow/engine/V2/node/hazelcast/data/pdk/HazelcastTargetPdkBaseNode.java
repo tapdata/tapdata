@@ -85,6 +85,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.flow.engine.V2.util.TaskAnalyze;
+import io.tapdata.dql.recovery.DqlRecoveryBarrierSignalStore;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
+import io.tapdata.dql.recovery.DqlRecoveryValueNormalizer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -239,28 +242,51 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
-		this.sourceNodeCount = TaskAnalyze.sourceNodeCount(dataProcessorContext.getTaskDto());
+		final boolean recoveryRuntime = isDqlRecoveryRuntime();
+		this.sourceNodeCount = recoveryRuntime ? 0 : TaskAnalyze.sourceNodeCount(dataProcessorContext.getTaskDto());
         syncMetricCollector = ISyncMetricCollector.init(dataProcessorContext);
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
-			initShareCdcCollectorIfNeed();
-			initOffsetCallbackEnable();
+			if (!recoveryRuntime) {
+				initShareCdcCollectorIfNeed();
+				initOffsetCallbackEnable();
+			}
 			createPdkAndInit(context);
 			everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
-			initExactlyOnceWriteIfNeed();
+			if (recoveryRuntime) {
+				checkExactlyOnceWriteEnableResult = CheckExactlyOnceWriteEnableResult.createDisable("DLQ recovery runtime");
+			} else {
+				initExactlyOnceWriteIfNeed();
+			}
 			initTargetVariable();
 			initTargetQueueConsumer();
-			initTargetConcurrentProcessorIfNeed();
+			if (!recoveryRuntime) {
+				initTargetConcurrentProcessorIfNeed();
+			}
 			initTapEventFilter();
 			initIllegalDateAcceptable();
-            initSyncProgressMap();
-			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
+			if (!recoveryRuntime) {
+                initSyncProgressMap();
+				flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
+			}
 			initCodecsFilterManager();
-			findReplicationSourceConnection();
+			if (!recoveryRuntime) {
+				findReplicationSourceConnection();
+			}
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
 		initSyncPartitionTableEnable();
+	}
+
+	/**
+	 * A DLQ replay job is a temporary write-only runtime. It may initialize the
+	 * target connector because the failed record still has to be written, but
+	 * it must not run the normal task's source, progress, or lifecycle setup.
+	 */
+	protected boolean isDqlRecoveryRuntime() {
+		return DqlRecoveryCaptureGuard.isRecoveryTask(
+				dataProcessorContext == null ? null : dataProcessorContext.getTaskDto());
 	}
 
 	protected void addDatabaseNodeTable(List<String> tables) {
@@ -821,6 +847,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     protected void initTargetConcurrentProcessorIfNeed() {
+		if (isDqlRecoveryRuntime()) {
+			initialConcurrent = false;
+			cdcConcurrent = false;
+			return;
+		}
         if (getNode() instanceof DataParentNode) {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
@@ -927,7 +958,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
             try {
                 createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-				initFlushOffsetConsumer();
+				if (!isDqlRecoveryRuntime()) {
+					initFlushOffsetConsumer();
+				}
                 connectorNodeInit(dataProcessorContext);
                 obsLogger.info("Sink connector({}) initialization completed", getNode().getName());
             } catch (Throwable e) {
@@ -1175,7 +1208,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
     private void initialProcessEvents(List<TapdataEvent> initialEvents, boolean async) {
-        skipErrorTable.setSyncStage(SyncStage.INITIAL_SYNC);
+        if (!isDqlRecoveryRuntime()) {
+            skipErrorTable.setSyncStage(SyncStage.INITIAL_SYNC);
+        }
 
         if (CollectionUtils.isNotEmpty(initialEvents)) {
             if (initialConcurrent && null != this.initialPartitionConcurrentProcessor && this.initialPartitionConcurrentProcessor.isRunning()) {
@@ -1187,9 +1222,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void cdcProcessEvents(List<TapdataEvent> cdcEvents) {
-        skipErrorTable.setSyncStage(SyncStage.CDC);
         if (CollectionUtils.isNotEmpty(cdcEvents)) {
-            if (cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
+			boolean recoveryTraffic = isDqlRecoveryRuntime()
+					|| cdcEvents.stream().anyMatch(DqlRecoveryCaptureGuard::isRecovery);
+			if (!recoveryTraffic) {
+				skipErrorTable.setSyncStage(SyncStage.CDC);
+			}
+			if (recoveryTraffic && cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
+				// The recovery barrier is the completion signal for this write. Do
+				// not release it while partition consumers are still processing the
+				// event asynchronously.
+				this.cdcPartitionConcurrentProcessor.process(cdcEvents, false);
+			} else if (!recoveryTraffic && cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
                 this.cdcPartitionConcurrentProcessor.process(cdcEvents, true);
             } else {
                 splitDDL2NewBatch(cdcEvents, this::handleTapdataEvents);
@@ -1230,11 +1274,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<TapEvent> tapEvents = new ArrayList<>();
         List<TapRecordEvent> exactlyOnceWriteCache = new ArrayList<>();
         List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
+        List<TapdataCountDownLatchEvent> deferredRecoveryBarriers = new ArrayList<>();
 
         AtomicBoolean hasExactlyOnceWriteCache = new AtomicBoolean(false);
         for (TapdataEvent tapdataEvent : tapdataEvents) {
             if (!isRunning()) {
                 return;
+            }
+            if (tapdataEvent instanceof TapdataCountDownLatchEvent barrierEvent) {
+                // The barrier is ordered after the recovery DATA event in the
+                // source queue. Do not signal it while collecting tapEvents:
+                // processTapEvents below is the point at which the target
+                // connector has actually completed the write.
+                deferredRecoveryBarriers.add(barrierEvent);
+                continue;
             }
             handleTapdataEvent(tapEvents, tapdataShareLogEvents, lastTapdataEvent, hasExactlyOnceWriteCache, exactlyOnceWriteCache, tapdataEvent);
         }
@@ -1247,7 +1300,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
 
             flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+            deferredRecoveryBarriers.forEach(this::completeDqlRecoveryBarrier);
         } catch (Throwable throwable) {
+            if (isDqlRecoveryRuntime()) {
+                tapdataEvents.stream()
+                        .filter(DqlRecoveryCaptureGuard::isRecovery)
+                        .forEach(event -> DqlRecoveryCaptureGuard.notifyFailure(event, throwable));
+                return;
+            }
             Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
             if (null != matched) {
                 throw (TapCodeException) matched;
@@ -1260,8 +1320,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
         }
 
-        if (firstStreamEvent.get()) {
+        if (!isDqlRecoveryRuntime()
+				&& tapdataEvents.stream().noneMatch(DqlRecoveryCaptureGuard::isRecovery)
+				&& firstStreamEvent.get()) {
             executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
+        }
+    }
+
+    private void completeDqlRecoveryBarrier(TapdataCountDownLatchEvent barrierEvent) {
+        Optional.ofNullable(barrierEvent.getCountDownLatch()).ifPresent(CountDownLatch::countDown);
+        String barrierId = barrierEvent.getDqlRecoveryBarrierId();
+        if (StringUtils.isNotBlank(barrierId) && jetContext != null) {
+            DqlRecoveryBarrierSignalStore.signal(jetContext.hazelcastInstance(), barrierId);
         }
     }
 
@@ -1269,7 +1339,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 									  AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache,
 									  List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
         try {
-            Optional.ofNullable(tapdataEvent.getSyncStage()).ifPresent(this::handleAspectWithSyncStage);
+            if (!DqlRecoveryCaptureGuard.isRecovery(tapdataEvent)) {
+                Optional.ofNullable(tapdataEvent.getSyncStage()).ifPresent(this::handleAspectWithSyncStage);
+            } else if (tapdataEvent.getTapEvent() instanceof TapRecordEvent tapRecordEvent) {
+                normalizeDqlRecoveryValues(tapRecordEvent);
+            }
 
             if (tapdataEvent instanceof TapdataHeartbeatEvent) {
                 handleTapdataHeartbeatEvent(tapdataEvent);
@@ -1288,12 +1362,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastTapdataEvent::set);
             } else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
                 handleTapdataCompleteTableSnapshotEvent((TapdataCompleteTableSnapshotEvent) tapdataEvent);
-            } else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
-                handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
+			} else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
+				handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
 			} else if (tapdataEvent instanceof TapdataCountDownLatchEvent) {
-				Optional.of(tapdataEvent)
-						.flatMap(event -> Optional.ofNullable(((TapdataCountDownLatchEvent) event).getCountDownLatch()))
-						.ifPresent(CountDownLatch::countDown);
+				completeDqlRecoveryBarrier((TapdataCountDownLatchEvent) tapdataEvent);
 			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
 				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
             } else if (tapdataEvent instanceof TapdataRecoveryEvent recoveryEvent) {
@@ -1307,11 +1379,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
         } catch (Throwable throwable) {
 			Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+			if (DqlRecoveryCaptureGuard.isRecovery(tapdataEvent)) {
+				DqlRecoveryCaptureGuard.notifyFailure(tapdataEvent, throwable);
+				return;
+			}
 			if (null != matchThrowable) {
 				throw (TapCodeException) matchThrowable;
 			}
             throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
         }
+    }
+
+    private void normalizeDqlRecoveryValues(TapRecordEvent tapRecordEvent) {
+        if (dataProcessorContext == null || dataProcessorContext.getTapTableMap() == null) {
+            return;
+        }
+        String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
+        TapTable targetTable = dataProcessorContext.getTapTableMap().get(targetTableName);
+        DqlRecoveryValueNormalizer.normalize(tapRecordEvent, targetTable);
     }
 
 	protected void buildSourceConnectorNodeMap(TapdataStartedCdcEvent tapdataEvent) {
@@ -1373,7 +1458,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
-        if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
+        if (checkExactlyOnceWriteEnableResult != null
+                && Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable())
+                && hasExactlyOnceWriteCache.get()) {
             processExactlyOnceWriteCache(tapdataEvents, tapEvents, checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
         } else {
             processEvents(tapEvents);
@@ -1381,6 +1468,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     protected void handleAspectWithSyncStage(SyncStage syncStage) {
+        if (isDqlRecoveryRuntime()) {
+            return;
+        }
         switch (syncStage) {
             case INITIAL_SYNC:
                 if (firstBatchEvent.compareAndSet(false, true)) {
@@ -1579,6 +1669,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
+        if (isDqlRecoveryRuntime()) {
+            return;
+        }
         if (null != lastTapdataEvent.get()) {
             SyncStage syncStage = lastTapdataEvent.get().getSyncStage();
             if (null != syncStage) {
@@ -1652,6 +1745,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
+        if (isDqlRecoveryRuntime()) {
+            return;
+        }
         flushSyncProgressMap(tapdataEvent);
         saveToSnapshot();
 		executeAspect(new SnapshotWriteFinishAspect().dataProcessorContext(dataProcessorContext));
@@ -1877,7 +1973,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     protected void flushSyncProgressMap(TapdataEvent tapdataEvent) {
-        if (null == tapdataEvent) return;
+        if (isDqlRecoveryRuntime() || null == tapdataEvent) return;
         Node<?> node = processorBaseContext.getNode();
         if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
         String progressKey = tapdataEvent.getNodeIds().get(0) + "," + node.getId();
@@ -1997,6 +2093,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     public boolean saveToSnapshot() {
+        if (isDqlRecoveryRuntime()) {
+            return true;
+        }
         try {
             if (!flushOffset.get()) return true;
             if (MapUtils.isEmpty(syncProgressMap)) return true;
@@ -2246,8 +2345,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 }
             }), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
-            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
-            CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
+            if (!isDqlRecoveryRuntime()) {
+                CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+            }
+            CommonUtils.ignoreAnyError(() -> {
+                if (syncMetricCollector != null) {
+                    syncMetricCollector.close(obsLogger);
+                }
+            }, TAG);
         } finally {
             super.doClose();
         }
@@ -2519,4 +2624,3 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 }
-

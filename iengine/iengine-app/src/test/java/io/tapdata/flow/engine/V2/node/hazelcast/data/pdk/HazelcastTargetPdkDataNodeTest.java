@@ -15,6 +15,7 @@ import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.aspect.TruncateTableFuncAspect;
 import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.dql.recovery.DqlRecoveryCaptureGuard;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
@@ -99,6 +100,19 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
         skipErrorTable = mock(ISkipErrorTable.class);
         ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "skipErrorTable", skipErrorTable);
     }
+
+	@Test
+	void recoveryRuntimeDoesNotInitializeTargetDatabase() {
+		TaskDto recoveryTask = new TaskDto();
+		recoveryTask.setAttrs(Map.of(DqlRecoveryCaptureGuard.TASK_ATTR_RECOVERY_RUNTIME, true));
+		DataProcessorContext recoveryContext = mock(DataProcessorContext.class);
+		when(recoveryContext.getTaskDto()).thenReturn(recoveryTask);
+		ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", recoveryContext);
+		doCallRealMethod().when(hazelcastTargetPdkDataNode).isDqlRecoveryRuntime();
+		doCallRealMethod().when(hazelcastTargetPdkDataNode).shouldInitializeTargetDatabase();
+
+		assertFalse(hazelcastTargetPdkDataNode.shouldInitializeTargetDatabase());
+	}
 
 	@Nested
 	@DisplayName("ProcessEvents Method Test")

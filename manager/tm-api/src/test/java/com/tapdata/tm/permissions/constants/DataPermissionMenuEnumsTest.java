@@ -60,6 +60,15 @@ class DataPermissionMenuEnumsTest {
     }
 
     @Test
+    void testExceptionEventsUsesViewOnlyPermission() {
+        Assertions.assertEquals("v2_exception_events",
+                DataPermissionMenuEnums.ExceptionEvents.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.ExceptionEvents.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.ExceptionEvents.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.ExceptionEvents.getDataType());
+    }
+
+    @Test
     void testModules() {
         Assertions.assertEquals("v2_data-server-list_all_data", DataPermissionMenuEnums.Modules.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
         Assertions.assertEquals("v2_data-server-list_all_data_Edit", DataPermissionMenuEnums.Modules.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
