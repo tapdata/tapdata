@@ -5,6 +5,8 @@ import lombok.EqualsAndHashCode;
 import com.tapdata.tm.base.entity.BaseEntity;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
+
 
 /**
  * Version of the tapdata
@@ -15,5 +17,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class VersionEntity extends BaseEntity {
     private String type;
     private String version;
+    private List<String> executedPatches;
 
 }

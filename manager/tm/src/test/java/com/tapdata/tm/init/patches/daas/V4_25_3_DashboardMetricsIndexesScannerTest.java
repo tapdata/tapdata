@@ -30,8 +30,8 @@ class V4_25_3_DashboardMetricsIndexesScannerTest {
     @Test
     void scannerSelectsPatchAfterTheCurrentIdaasVersion() {
         List<IPatch> patches = new ArrayList<>();
-        PatchVersion sourceVersion = PatchVersion.valueOf("4.25-3");
-        PatchVersion storedVersion = PatchVersion.valueOf("4.25-2");
+        PatchVersion sourceVersion = PatchVersion.valueOf("4.25-5");
+        PatchVersion storedVersion = PatchVersion.valueOf("4.25-4");
         JavaPatchScanner scanner = new JavaPatchScanner(AppType.DAAS);
 
         scanner.scanPatches(patches,

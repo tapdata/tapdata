@@ -5,7 +5,6 @@ import cn.hutool.json.JSONConfig;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.mongodb.client.ListIndexesIterable;
-import com.tapdata.tm.init.MongoIndex;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.utils.Lists;
@@ -21,10 +20,16 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -35,15 +40,24 @@ public class JsonFilePatch extends AbsPatch {
 
     private final @NonNull String fileName;
     private final @NonNull String scriptStr;
-    private final @NonNull MongoTemplate mongoTemplate;
+    private final MongoTemplate mongoTemplate;
     private final Map<String, String> allVariables;
 
     public JsonFilePatch(@NonNull PatchType type, @NonNull PatchVersion version, @NonNull String fileName, @NonNull String scriptStr, @NonNull Map<String, String> allVariables) {
+        this(type, version, fileName, scriptStr, allVariables, SpringContextHelper.getBean(MongoTemplate.class));
+    }
+
+    JsonFilePatch(@NonNull PatchType type, @NonNull PatchVersion version, @NonNull String fileName, @NonNull String scriptStr, @NonNull Map<String, String> allVariables, MongoTemplate mongoTemplate) {
         super(type, version);
         this.fileName = fileName;
         this.scriptStr = scriptStr;
-        this.mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
+        this.mongoTemplate = mongoTemplate;
         this.allVariables = allVariables;
+    }
+
+    @Override
+    public String patchId() {
+        return "script:" + fileName;
     }
 
     @Override
@@ -166,34 +180,78 @@ public class JsonFilePatch extends AbsPatch {
             }
             List<JSONObject> newCreates = new ArrayList<>();
             List<Document> needDrops = new ArrayList<>();
+            Map<String, Map<String, NormalizedIndex>> existIndexMapsByCollection = new HashMap<>();
+            Map<String, List<NormalizedIndex>> existIndexesByCollection = new HashMap<>();
+            Map<String, Set<String>> plannedDropsByCollection = new HashMap<>();
+            List<List<NormalizedIndex>> targetIndexesPerCreate = new ArrayList<>(creates.size());
 
+            // 第一遍：按集合加载现有索引快照，并跨所有 createIndexes 条目规划待 drop 索引
             for (JSONObject create : creates) {
                 String collectionName = (String) create.get("createIndexes");
-                ListIndexesIterable<Document> documents = mongoTemplate.getCollection(collectionName).listIndexes();
-                Map<String, MongoIndex> existIndexMap = new HashMap<>();
-                for (Document document : documents) {
-                    existIndexMap.put((String) document.get("name"), JSONUtil.toBean(JSONUtil.toJsonStr(document), MongoIndex.class));
+                JSONArray jsonArray = (JSONArray) create.get("indexes");
+                if (CollectionUtils.isEmpty(jsonArray)) {
+                    targetIndexesPerCreate.add(Collections.emptyList());
+                    continue;
+                }
+                Map<String, NormalizedIndex> existIndexMap = existIndexMapsByCollection.get(collectionName);
+                if (existIndexMap == null) {
+                    existIndexMap = new HashMap<>();
+                    List<NormalizedIndex> existIndexes = new ArrayList<>();
+                    ListIndexesIterable<Document> documents = mongoTemplate.getCollection(collectionName).listIndexes();
+                    for (Document document : documents) {
+                        NormalizedIndex existing = fromIndexMap(document);
+                        existIndexMap.put(existing.name(), existing);
+                        existIndexes.add(existing);
+                    }
+                    existIndexMapsByCollection.put(collectionName, existIndexMap);
+                    existIndexesByCollection.put(collectionName, existIndexes);
                 }
 
-                JSONArray jsonArray = (JSONArray) create.get("indexes");
+                Set<String> plannedDropNames = plannedDropsByCollection.computeIfAbsent(collectionName, k -> new HashSet<>());
+                List<NormalizedIndex> targetIndexes = new ArrayList<>(jsonArray.size());
+                for (Object index : jsonArray) {
+                    JSONObject jsonObject = (JSONObject) index;
+                    NormalizedIndex targetIndex = fromIndexMap(jsonObject);
+                    targetIndexes.add(targetIndex);
+                    NormalizedIndex existingByName = existIndexMap.get(targetIndex.name());
+                    if (existingByName != null && !isIndexEquivalent(targetIndex, existingByName) && !"_id_".equals(targetIndex.name())) {
+                        if (plannedDropNames.add(targetIndex.name())) {
+                            Document drop = new Document();
+                            drop.put("dropIndexes", collectionName);
+                            drop.put("index", targetIndex.name());
+                            needDrops.add(drop);
+                        }
+                    }
+                }
+                targetIndexesPerCreate.add(targetIndexes);
+            }
 
+            // 第二遍：基于完整的集合级待 drop 名单判定每个条目需创建的索引
+            for (int c = 0; c < creates.size(); c++) {
+                JSONObject create = creates.get(c);
+                JSONArray jsonArray = (JSONArray) create.get("indexes");
                 if (CollectionUtils.isEmpty(jsonArray)) {
                     continue;
                 }
-                JSONArray newJsonArray = new JSONArray();
-                for (Object index : jsonArray) {
-                    JSONObject jsonObject = (JSONObject) index;
-                    MongoIndex mongoIndex = jsonObject.toBean(MongoIndex.class);
-                    //查询索引是否存在，不存在不能删除
-                    MongoIndex mongoIndex1 = existIndexMap.get(mongoIndex.getName());
-                    if (!mongoIndex.equals(mongoIndex1)) {
-                        if (mongoIndex1 != null && mongoIndex.getName().equals(mongoIndex1.getName()) && !"_id_".equals(mongoIndex.getName())) {
-                            Document drop = new Document();
-                            drop.put("dropIndexes", collectionName);
-                            drop.put("index", mongoIndex.getName());
-                            needDrops.add(drop);
+                String collectionName = (String) create.get("createIndexes");
+                Map<String, NormalizedIndex> existIndexMap = existIndexMapsByCollection.get(collectionName);
+                List<NormalizedIndex> existIndexes = existIndexesByCollection.get(collectionName);
+                Set<String> plannedDropNames = plannedDropsByCollection.getOrDefault(collectionName, Collections.emptySet());
+                List<NormalizedIndex> targetIndexes = targetIndexesPerCreate.get(c);
 
+                JSONArray newJsonArray = new JSONArray();
+                for (int i = 0; i < jsonArray.size(); i++) {
+                    Object index = jsonArray.get(i);
+                    NormalizedIndex targetIndex = targetIndexes.get(i);
+                    // 查询同名或等价索引是否已存在；等价索引直接跳过，并排除本轮已计划 drop 的索引
+                    NormalizedIndex existingByName = existIndexMap.get(targetIndex.name());
+                    if (existingByName != null) {
+                        if (!isIndexEquivalent(targetIndex, existingByName)) {
+                            newJsonArray.add(index);
                         }
+                    } else if (existIndexes.stream()
+                            .filter(existing -> !plannedDropNames.contains(existing.name()))
+                            .noneMatch(existing -> isIndexEquivalent(targetIndex, existing))) {
                         newJsonArray.add(index);
                     }
                 }
@@ -242,5 +300,200 @@ public class JsonFilePatch extends AbsPatch {
             }
         }
         return script;
+    }
+
+    private record NormalizedIndex(
+            String name,
+            Document key,
+            boolean unique,
+            boolean sparse,
+            boolean hidden,
+            Object expireAfterSeconds,
+            Document partialFilterExpression,
+            Document weights,
+            Document wildcardProjection,
+            Document storageEngine,
+            String defaultLanguage,
+            String languageOverride,
+            Object textIndexVersion,
+            Object sphereIndexVersion,
+            Object bits,
+            Object min,
+            Object max,
+            Object bucketSize,
+            Document collation
+    ) {
+    }
+
+    static boolean isIndexEquivalent(NormalizedIndex target, NormalizedIndex existing) {
+        if (target == null || existing == null) {
+            return false;
+        }
+        return orderedDocumentEquals(target.key(), existing.key())
+                && target.unique() == existing.unique()
+                && target.sparse() == existing.sparse()
+                && target.hidden() == existing.hidden()
+                && normalizedValueEquals(target.expireAfterSeconds(), existing.expireAfterSeconds())
+                && normalizedValueEquals(target.partialFilterExpression(), existing.partialFilterExpression())
+                && normalizedValueEquals(target.weights(), existing.weights())
+                && normalizedValueEquals(target.wildcardProjection(), existing.wildcardProjection())
+                && normalizedValueEquals(target.storageEngine(), existing.storageEngine())
+                && Objects.equals(target.defaultLanguage(), existing.defaultLanguage())
+                && Objects.equals(target.languageOverride(), existing.languageOverride())
+                && normalizedValueEquals(target.textIndexVersion(), existing.textIndexVersion())
+                && normalizedValueEquals(target.sphereIndexVersion(), existing.sphereIndexVersion())
+                && normalizedValueEquals(target.bits(), existing.bits())
+                && normalizedValueEquals(target.min(), existing.min())
+                && normalizedValueEquals(target.max(), existing.max())
+                && normalizedValueEquals(target.bucketSize(), existing.bucketSize())
+                && normalizedValueEquals(target.collation(), existing.collation());
+    }
+
+    private static NormalizedIndex fromIndexMap(Map<String, Object> source) {
+        return new NormalizedIndex(
+                toStringValue(source.get("name")),
+                toOrderedDocument(source.get("key")),
+                toBooleanValue(source.get("unique")),
+                toBooleanValue(source.get("sparse")),
+                toBooleanValue(source.get("hidden")),
+                firstNonNull(source, "expireAfterSeconds"),
+                toOrderedDocument(source.get("partialFilterExpression")),
+                toOrderedDocument(source.get("weights")),
+                toOrderedDocument(source.get("wildcardProjection")),
+                toOrderedDocument(source.get("storageEngine")),
+                toStringValue(firstNonNull(source, "default_language", "defaultLanguage")),
+                toStringValue(firstNonNull(source, "language_override", "languageOverride")),
+                firstNonNull(source, "textIndexVersion", "textVersion"),
+                firstNonNull(source, "2dsphereIndexVersion", "sphereVersion"),
+                firstNonNull(source, "bits"),
+                firstNonNull(source, "min"),
+                firstNonNull(source, "max"),
+                firstNonNull(source, "bucketSize"),
+                toOrderedDocument(source.get("collation"))
+        );
+    }
+
+    private static Object firstNonNull(Map<String, Object> source, String... keys) {
+        for (String key : keys) {
+            Object value = source.get(key);
+            if (!JSONUtil.isNull(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static String toStringValue(Object value) {
+        return JSONUtil.isNull(value) ? null : String.valueOf(value);
+    }
+
+    private static boolean toBooleanValue(Object value) {
+        return Boolean.TRUE.equals(value);
+    }
+
+    private static Document toOrderedDocument(Object raw) {
+        if (JSONUtil.isNull(raw)) {
+            return null;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            Document result = new Document();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                result.put(String.valueOf(entry.getKey()), toOrderedValue(entry.getValue()));
+            }
+            return result;
+        }
+        return null;
+    }
+
+    private static Object toOrderedValue(Object value) {
+        if (JSONUtil.isNull(value)) {
+            return null;
+        }
+        if (value instanceof Map<?, ?>) {
+            return toOrderedDocument(value);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> result = new ArrayList<>(list.size());
+            for (Object item : list) {
+                result.add(toOrderedValue(item));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private static boolean orderedDocumentEquals(Document a, Document b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null || a.size() != b.size()) {
+            return false;
+        }
+        Iterator<Map.Entry<String, Object>> itA = a.entrySet().iterator();
+        Iterator<Map.Entry<String, Object>> itB = b.entrySet().iterator();
+        while (itA.hasNext() && itB.hasNext()) {
+            Map.Entry<String, Object> entryA = itA.next();
+            Map.Entry<String, Object> entryB = itB.next();
+            if (!Objects.equals(entryA.getKey(), entryB.getKey())
+                    || !normalizedValueEquals(entryA.getValue(), entryB.getValue())) {
+                return false;
+            }
+        }
+        return !itA.hasNext() && !itB.hasNext();
+    }
+
+    private static boolean normalizedValueEquals(Object a, Object b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a instanceof Number numA && b instanceof Number numB) {
+            BigDecimal bdA = toBigDecimal(numA);
+            BigDecimal bdB = toBigDecimal(numB);
+            if (bdA != null && bdB != null) {
+                return bdA.compareTo(bdB) == 0;
+            }
+            return Double.compare(numA.doubleValue(), numB.doubleValue()) == 0;
+        }
+        if (a instanceof Map<?, ?> mapA && b instanceof Map<?, ?> mapB) {
+            if (mapA.size() != mapB.size()) {
+                return false;
+            }
+            for (Map.Entry<?, ?> entry : mapA.entrySet()) {
+                Object key = entry.getKey();
+                if (!mapB.containsKey(key) || !normalizedValueEquals(entry.getValue(), mapB.get(key))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a instanceof List<?> listA && b instanceof List<?> listB) {
+            if (listA.size() != listB.size()) {
+                return false;
+            }
+            for (int i = 0; i < listA.size(); i++) {
+                if (!normalizedValueEquals(listA.get(i), listB.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return Objects.equals(a, b);
+    }
+
+    private static BigDecimal toBigDecimal(Number number) {
+        if (number instanceof BigDecimal bd) {
+            return bd;
+        }
+        if (number instanceof Integer || number instanceof Long || number instanceof Short || number instanceof Byte) {
+            return BigDecimal.valueOf(number.longValue());
+        }
+        if (number instanceof Double || number instanceof Float) {
+            double value = number.doubleValue();
+            return Double.isFinite(value) ? BigDecimal.valueOf(value) : null;
+        }
+        return null;
     }
 }

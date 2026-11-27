@@ -12,6 +12,10 @@ public interface IPatch extends Comparable<IPatch>, Runnable {
 
     PatchVersion version();
 
+    default String patchId() {
+        return "java:" + getClass().getName() + ":" + version();
+    }
+
     @Override
     default int compareTo(@NonNull IPatch o) {
         return version().compareTo(o.version());

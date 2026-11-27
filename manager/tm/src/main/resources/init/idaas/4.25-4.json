@@ -15,8 +15,6 @@
             "hot_reloading": true,
             "key": "audit.log.retention.days",
             "key_label": "Audit Log Retention Days",
-            "last_update": 0,
-            "last_update_by": "",
             "scope": "global",
             "sort": 20,
             "user_visible": true,
@@ -24,6 +22,8 @@
             "max": 3650
           },
           "$setOnInsert": {
+            "last_update": 0,
+            "last_update_by": "",
             "value": 90
           }
         },

@@ -2,6 +2,7 @@ package com.tapdata.tm.init;
 
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.io.IoUtil;
+import com.tapdata.tm.init.patches.JsonFilePatch;
 import com.tapdata.tm.init.scanners.JavaPatchScanner;
 import com.tapdata.tm.init.scanners.ScriptPatchScanner;
 import com.tapdata.tm.utils.TMStartMsgUtil;
@@ -30,9 +31,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 
 /**
@@ -44,6 +49,9 @@ import java.util.function.Predicate;
 @Order(Integer.MIN_VALUE)
 public class PatchesRunner implements ApplicationRunner {
     private static final Logger logger = LogManager.getLogger(PatchesRunner.class);
+    private static final PatchVersion DAAS_TRACKED_MIN_VERSION = new PatchVersion(4, 25, 4);
+    private static final PatchVersion DFS_TRACKED_MIN_VERSION = new PatchVersion(3, 20, 2);
+    private static final PatchVersion DRS_TRACKED_MIN_VERSION = new PatchVersion(0, 0, 1);
 
     @Autowired
     private VersionService versionService;
@@ -77,9 +85,14 @@ public class PatchesRunner implements ApplicationRunner {
 
     private void executePatchByType(AppType appType, Map<String, String> allVariables) {
         PatchType patchType = new PatchType(appType, PatchTypeEnums.Script);
-        PatchVersion appVersion = getAppVersion(patchType);
+        VersionDto appVersionDto = getAppVersionDto(patchType);
+        PatchVersion appVersion = (null != appVersionDto && null != appVersionDto.getVersion())
+                ? PatchVersion.valueOf(appVersionDto.getVersion()) : null;
+        Set<String> executedPatches = (null != appVersionDto && null != appVersionDto.getExecutedPatches())
+                ? new HashSet<>(appVersionDto.getExecutedPatches()) : new HashSet<>();
         PatchVersion currentVersion = getCurrentVersion(appType);
-        if (null != appVersion && currentVersion.compareTo(appVersion) <= 0) {
+        if (null != appVersion && (currentVersion.compareTo(appVersion) < 0
+                || (currentVersion.compareTo(appVersion) == 0 && !isTrackedVersion(appType, currentVersion)))) {
             logger.info("Not have any {} patches, current version is {}", appType, currentVersion);
             return;
         }
@@ -92,21 +105,57 @@ public class PatchesRunner implements ApplicationRunner {
 
         // execute patches
         logger.info("Found all {} patch size: {}", appType, patches.size());
+        Map<PatchVersion, List<IPatch>> groupedPatches = new TreeMap<>();
         for (IPatch patch : patches) {
-            try {
-                // process and store status
-                patch.run();
-                setAppVersion(patch.type(), patch.version());
-            } catch (Exception e) {
-                String msg = String.format("Patch %s %s error: %s", patch.type(), patch.version(), e.getMessage());
-                logger.error(msg);
-                TmStartMsg tmMsg = new TmStartMsg("fail",msg);
-                TMStartMsgUtil.writeTMStartMsg(tmMsg);
-                throw new RuntimeException(msg, e);
+            if (isTrackedVersion(appType, patch.version()) && executedPatches.contains(patch.patchId())) {
+                logger.info("Patch {} {} already recorded in executedPatches, skip.", patch.patchId(), patch.version());
+                continue;
+            }
+            groupedPatches.computeIfAbsent(patch.version(), key -> new ArrayList<>()).add(patch);
+        }
+
+        for (Map.Entry<PatchVersion, List<IPatch>> entry : groupedPatches.entrySet()) {
+            PatchVersion groupVersion = entry.getKey();
+            boolean trackedGroup = isTrackedVersion(appType, groupVersion);
+            for (IPatch patch : entry.getValue()) {
+                try {
+                    patch.run();
+                    if (trackedGroup) {
+                        versionService.recordExecutedPatch(patchType.toString(), patch.patchId());
+                        executedPatches.add(patch.patchId());
+                    } else if (null == appVersion || groupVersion.compareTo(appVersion) > 0) {
+                        setAppVersion(patchType, groupVersion);
+                        appVersion = groupVersion;
+                    }
+                } catch (Exception e) {
+                    throw failPatch(patch.type(), patch.version(), e);
+                }
+            }
+            if (trackedGroup && (null == appVersion || groupVersion.compareTo(appVersion) > 0)) {
+                advanceAppVersion(patchType, groupVersion);
+                appVersion = groupVersion;
             }
         }
-        setAppVersion(patchType, currentVersion);
+        if (null == appVersion || currentVersion.compareTo(appVersion) > 0) {
+            advanceAppVersion(patchType, currentVersion);
+        }
         logger.info("Patch {} {} completed.", patchType, currentVersion);
+    }
+
+    private void advanceAppVersion(PatchType patchType, PatchVersion targetVersion) {
+        try {
+            setAppVersion(patchType, targetVersion);
+        } catch (Exception e) {
+            throw failPatch(patchType, targetVersion, e);
+        }
+    }
+
+    private RuntimeException failPatch(Object patchContext, PatchVersion version, Exception e) {
+        String msg = String.format("Patch %s %s error: %s", patchContext, version, e.getMessage());
+        logger.error(msg);
+        TmStartMsg tmMsg = new TmStartMsg("fail", msg);
+        TMStartMsgUtil.writeTMStartMsg(tmMsg);
+        return new RuntimeException(msg, e);
     }
 
     /**
@@ -114,7 +163,7 @@ public class PatchesRunner implements ApplicationRunner {
      *
      * @return current version
      */
-    private PatchVersion getCurrentVersion(AppType appType) {
+    protected PatchVersion getCurrentVersion(AppType appType) {
         PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver = new PathMatchingResourcePatternResolver();
         String versionFilePath = String.format("%s/version", patchDir(appType));
         Resource versionRes = pathMatchingResourcePatternResolver.getResource(versionFilePath);
@@ -131,16 +180,12 @@ public class PatchesRunner implements ApplicationRunner {
     }
 
     /**
-     * Get application version
+     * Get application version record
      *
-     * @return application version
+     * @return version dto
      */
-    private PatchVersion getAppVersion(PatchType patchType) {
-        VersionDto dto = versionService.findOne(Query.query(Criteria.where("type").is(patchType.toString())));
-        if (null != dto) {
-            return PatchVersion.valueOf(dto.getVersion());
-        }
-        return null;
+    private VersionDto getAppVersionDto(PatchType patchType) {
+        return versionService.findOne(Query.query(Criteria.where("type").is(patchType.toString())));
     }
 
     /**
@@ -165,14 +210,37 @@ public class PatchesRunner implements ApplicationRunner {
     protected List<IPatch> scanPatches(AppType appType, PatchVersion appVersion, PatchVersion softVersion, IPatchScanner... scanners) {
         List<IPatch> patches = new ArrayList<>();
 
-        Predicate<PatchVersion> isVersion = getVersionChecker(appType, softVersion, appVersion);
+        Predicate<PatchVersion> versionChecker = getVersionChecker(appType, softVersion, appVersion);
+        Predicate<PatchVersion> isVersion = versionChecker.or(
+                patchVersion -> isTrackedVersion(appType, patchVersion) && patchVersion.compareTo(softVersion) <= 0
+        );
 
         for (IPatchScanner scanner : scanners) {
             scanner.scanPatches(patches, isVersion);
         }
 
-        patches.sort(null);
+        patches.sort(Comparator.comparing(IPatch::version)
+                .thenComparingInt(patch -> patch instanceof JsonFilePatch ? 0 : 1)
+                .thenComparing(IPatch::patchId));
         return patches;
+    }
+
+    public static boolean isTrackedVersion(@NonNull AppType appType, @NonNull PatchVersion version) {
+        PatchVersion trackedMinVersion = trackedMinVersion(appType);
+        return null != trackedMinVersion && version.compareTo(trackedMinVersion) >= 0;
+    }
+
+    public static PatchVersion trackedMinVersion(@NonNull AppType appType) {
+        switch (appType) {
+            case DAAS:
+                return DAAS_TRACKED_MIN_VERSION;
+            case DFS:
+                return DFS_TRACKED_MIN_VERSION;
+            case DRS:
+                return DRS_TRACKED_MIN_VERSION;
+            default:
+                return null;
+        }
     }
 
     public static String patchDir(@NonNull AppType appType) {

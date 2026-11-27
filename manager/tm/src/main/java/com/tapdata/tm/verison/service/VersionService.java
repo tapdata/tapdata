@@ -8,6 +8,9 @@ import com.tapdata.tm.config.security.UserDetail;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,6 +23,14 @@ import org.springframework.stereotype.Service;
 public class VersionService extends BaseService<VersionDto, VersionEntity, ObjectId, VersionRepository> {
     public VersionService(@NonNull VersionRepository repository) {
         super(repository, VersionDto.class, VersionEntity.class);
+    }
+
+    public void recordExecutedPatch(String type, String patchId) {
+        Query query = Query.query(Criteria.where("type").is(type));
+        Update update = new Update()
+                .setOnInsert("type", type)
+                .addToSet("executedPatches", patchId);
+        repository.upsert(query, update);
     }
 
     protected void beforeSave(VersionDto version, UserDetail user) {

@@ -52,7 +52,7 @@ class AuditRetentionIT {
 	@DisplayName("种子默认 90 天且限制 30–3650；有效修改先调整 TTL 再保存并记录前后值；越界与 TTL 调整失败均拒绝保存并记录失败；不产生清理事件")
 	void should_apply_retention_range_and_record_before_after() throws Exception {
 		JsonNode seed;
-		try (InputStream in = new ClassPathResource("init/idaas/4.25-2.json").getInputStream()) {
+		try (InputStream in = new ClassPathResource("init/idaas/4.25-4.json").getInputStream()) {
 			seed = new ObjectMapper().readTree(in);
 		}
 		JsonNode set = seed.get(0).get("updates").get(0).get("u");
@@ -60,6 +60,10 @@ class AuditRetentionIT {
 		assertThat(set.get("$set").get("min").asInt()).isEqualTo(30);
 		assertThat(set.get("$set").get("max").asInt()).isEqualTo(3650);
 		assertThat(set.get("$setOnInsert").get("value").asInt()).isEqualTo(90);
+		assertThat(set.get("$setOnInsert").get("last_update").asInt()).isZero();
+		assertThat(set.get("$setOnInsert").get("last_update_by").asText()).isEmpty();
+		assertThat(set.get("$set").has("last_update")).isFalse();
+		assertThat(set.get("$set").has("last_update_by")).isFalse();
 		assertThat(manager.currentDays()).isEqualTo(90);
 
 		fixture.put("Settings", new Document("_id", "r1").append("category", "Log").append("key", AuditRetentionManager.SETTING_KEY).append("value", 90));
