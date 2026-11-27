@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Verify setup-node's result in the same shell environment used by build steps.
-if [[ "$(node --version 2>/dev/null || true)" == v20.* ]]; then
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+node_version=$(<"$script_dir/frontend-node-version")
+if [[ "$(node --version 2>/dev/null || true)" == "v$node_version" ]]; then
   echo "Frontend Node: $(command -v node) ($(node --version))"
   exit 0
 fi
 
-node_version=20.20.2
 case "$(uname -m)" in
   x86_64) node_arch=x64 ;;
   aarch64|arm64) node_arch=arm64 ;;
@@ -33,7 +33,6 @@ tar -xJf "$install_dir/$archive" -C "$install_dir"
 node_bin="$install_dir/node-v${node_version}-linux-${node_arch}/bin"
 export PATH="$node_bin:$PATH"
 hash -r
-node --version
-[[ "$(node --version)" == v20.* ]]
+[[ "$(node --version)" == "v$node_version" ]]
 echo "$node_bin" >> "${GITHUB_PATH:?}"
 echo "Frontend Node: $(command -v node) ($(node --version))"

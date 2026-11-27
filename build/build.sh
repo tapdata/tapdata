@@ -83,7 +83,7 @@ build_java_component() {
 function switch_node_version() {
   local version=$1
   # Preserve the verified Actions runtime before nvm can change PATH.
-  if [[ "$(node --version 2>/dev/null)" == v${version}.* ]]; then
+  if [[ "$(node --version 2>/dev/null)" == "v$version" ]]; then
     return 0
   fi
   export NVM_DIR="$HOME/.nvm"
@@ -111,12 +111,20 @@ for COMPONENT in ${COMPONENTS[@]}; do
     # Keep errexit active inside the subshell; do not put it in an ||/if test.
     (
       set -eo pipefail
-      switch_node_version 20
-      if [[ "$(node --version 2>/dev/null)" != v20.* ]]; then
-        echo "Frontend build requires Node.js 20" >&2
+      frontend_node_version=$(<"$PROJECT_ROOT_DIR/build/frontend-node-version")
+      switch_node_version "$frontend_node_version"
+      if [[ "$(node --version 2>/dev/null)" != "v$frontend_node_version" ]]; then
+        echo "Frontend build requires Node.js $frontend_node_version" >&2
         exit 1
       fi
       cd "$FRONTEND_DIR"
+      # The frontend script calls pnpm before it enables its own Corepack shims.
+      pnpm_bin=$(mktemp -d "${TMPDIR:-/tmp}/tapdata-frontend-pnpm.XXXXXX")
+      trap 'rm -rf -- "$pnpm_bin"' EXIT
+      corepack enable --install-directory "$pnpm_bin" pnpm
+      export PATH="$pnpm_bin:$PATH"
+      pnpm_version=$(pnpm --version)
+      echo "Frontend pnpm: $(command -v pnpm) ($pnpm_version)"
       DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m "$FRONTEND_BUILD_MODE"
     )
     frontend_status=$?
