@@ -44,6 +44,10 @@ import java.util.*;
 @Setter
 public class ConnectionAgentConflictService {
     private static final int SCAN_SIZE = 200;
+    private static final String ACCESS_NODE_PROCESS_ID = "accessNodeProcessId";
+    private static final String ACCESS_NODE_PROCESS_ID_LIST = "accessNodeProcessIdList";
+    private static final String PRIORITY_PROCESS_ID = "priorityProcessId";
+    private static final String LAST_UPD_AT = "lastUpdAt";
     @Autowired private MongoTemplate mongoTemplate;
     @Autowired @Lazy private DataSourceService dataSourceService;
     @Autowired @Lazy private TaskService taskService;
@@ -66,7 +70,7 @@ public class ConnectionAgentConflictService {
                     Criteria.where("dag.nodes.connectionId").in(overrides.keySet()),
                     Criteria.where("dag.nodes.connectionIds").in(overrides.keySet())));
             query.fields().include("_id", "name", "syncType", "status", "dag", "accessNodeType",
-                    "accessNodeProcessId", "priorityProcessId", "user_id", "shareCache", "lastUpdAt");
+                    ACCESS_NODE_PROCESS_ID, ACCESS_NODE_PROCESS_ID_LIST, PRIORITY_PROCESS_ID, "user_id", "shareCache", LAST_UPD_AT);
             List<TaskDto> tasks = taskService.findAll(query);
             if (tasks == null || tasks.isEmpty()) break;
             for (TaskDto task : tasks) {
@@ -119,22 +123,22 @@ public class ConnectionAgentConflictService {
                 if (!Objects.equals(revision, edit.getRevision())) throw new BizException("IllegalArgument", "Task changed; refresh conflicts");
                 if (affectedConnections(task, overrides).isEmpty()) throw new BizException("IllegalArgument", "Task does not reference these connections");
                 TaskDto candidate = new TaskDto();
-                BeanUtils.copyProperties(task, candidate, "accessNodeProcessIdList");
+                BeanUtils.copyProperties(task, candidate, ACCESS_NODE_PROCESS_ID_LIST);
                 candidate.setAccessNodeType(policy.type);
                 candidate.setAccessNodeProcessId(policy.processId);
                 candidate.setPriorityProcessId(policy.priority);
                 // Tasks are persisted before the connection update. Keep the new policy
                 // valid if the user cancels or the subsequent connection write fails.
                 validateTaskAgentPolicy(candidate, user, overrides);
-                query.addCriteria(Criteria.where("status").is(task.getStatus()).and("lastUpdAt").is(task.getLastUpdAt())
+                query.addCriteria(Criteria.where("status").is(task.getStatus()).and(LAST_UPD_AT).is(task.getLastUpdAt())
                         .and("accessNodeType").is(task.getAccessNodeType())
-                        .and("accessNodeProcessId").is(task.getAccessNodeProcessId())
-                        .and("priorityProcessId").is(task.getPriorityProcessId()));
-                Update update = new Update().set("accessNodeType", policy.type).set("accessNodeProcessId", policy.processId)
-                        .set("priorityProcessId", policy.priority)
-                        .set("accessNodeProcessIdList", AccessNodeTypeEnum.isUserManually(policy.type)
+                        .and(ACCESS_NODE_PROCESS_ID).is(task.getAccessNodeProcessId())
+                        .and(PRIORITY_PROCESS_ID).is(task.getPriorityProcessId()));
+                Update update = new Update().set("accessNodeType", policy.type).set(ACCESS_NODE_PROCESS_ID, policy.processId)
+                        .set(PRIORITY_PROCESS_ID, policy.priority)
+                        .set(ACCESS_NODE_PROCESS_ID_LIST, AccessNodeTypeEnum.isUserManually(policy.type)
                                 ? Collections.singletonList(policy.processId) : Collections.emptyList())
-                        .set("lastUpdAt", new Date()).set("lastUpdBy", user.getUserId());
+                        .set(LAST_UPD_AT, new Date()).set("lastUpdBy", user.getUserId());
                 if (task.getAttrs() != null) {
                     update.set("attrs." + TaskDto.ATTRS_SOURCE_AGENT_POLICY_INHERITED, false);
                 }
@@ -235,7 +239,7 @@ public class ConnectionAgentConflictService {
 
     protected boolean automaticResolves(TaskDto task, Map<String, DataSourceConnectionDto> overrides, UserDetail user) {
         TaskDto automatic = new TaskDto();
-        BeanUtils.copyProperties(task, automatic, "accessNodeProcessIdList");
+        BeanUtils.copyProperties(task, automatic, ACCESS_NODE_PROCESS_ID_LIST);
         automatic.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
         automatic.setAccessNodeProcessId(null);
         automatic.setPriorityProcessId(null);

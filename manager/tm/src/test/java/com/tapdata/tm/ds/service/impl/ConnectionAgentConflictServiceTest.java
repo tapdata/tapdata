@@ -156,6 +156,33 @@ class ConnectionAgentConflictServiceTest {
         return request;
     }
 
+    @Test
+    void detectsPersistedManualAgentConflictInPreviewAndSaveGuard() {
+        TaskDto original = task("manual", "stop", "agent-a");
+        when(tasks.convertToDto(any(TaskEntity.class), eq(TaskDto.class))).thenCallRealMethod();
+        when(tasks.findAll(any(Query.class))).thenAnswer(invocation -> {
+            Query query = invocation.getArgument(0);
+            TaskEntity projected = new TaskEntity();
+            projected.setId(original.getId());
+            projected.setAccessNodeType(original.getAccessNodeType());
+            if (query.getFieldsObject().containsKey("accessNodeProcessIdList")) {
+                projected.setAccessNodeProcessIdList(List.of("agent-a"));
+            }
+            TaskDto reloaded = tasks.convertToDto(projected, TaskDto.class);
+            reloaded.setDag(original.getDag());
+            reloaded.setSyncType(original.getSyncType());
+            reloaded.setStatus(original.getStatus());
+            return List.of(reloaded);
+        });
+        try (MockedStatic<DataPermissionHelper> permissions = mockStatic(DataPermissionHelper.class)) {
+            Map<String, DataSourceConnectionDto> proposed = both("agent-b");
+            ConnectionAgentConflictReport report = service.findConflicts(proposed, user, 0, 20);
+            assertEquals(1, report.getTotal());
+            assertEquals("Task.AgentConflict", report.getItems().get(0).getCode());
+            assertThrows(ConnectionAgentConflictException.class, () -> service.assertNoConflicts(proposed, user));
+        }
+    }
+
     @ParameterizedTest
     @EnumSource(AccessNodeTypeEnum.class)
     void roundTripsPolicyThroughRealEntityDtoConversion(AccessNodeTypeEnum mode) {
