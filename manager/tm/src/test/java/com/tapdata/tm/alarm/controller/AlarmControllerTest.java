@@ -105,10 +105,14 @@ class AlarmControllerTest {
         ReflectionTestUtils.setField(controller, "alarmEventQueryService", queryService);
         when(queryService.visibility(user)).thenReturn(null);
 
-        controller.close(new String[]{new ObjectId().toHexString()});
+        String id = new ObjectId().toHexString();
+        List<com.tapdata.tm.base.dto.MutiResponseMessage> results = controller.close(new String[]{id}).getData();
 
         verify(alarmService, never()).query(any(Query.class));
         verify(alarmService, never()).close(any(), any());
+        assertEquals(1, results.size());
+        assertEquals(id, results.get(0).getId());
+        assertEquals("Alarm.NotFound", results.get(0).getCode());
     }
 
     @Test

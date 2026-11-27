@@ -20,6 +20,7 @@ import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
@@ -70,9 +71,12 @@ import org.apache.commons.lang3.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -127,32 +131,43 @@ public class AlarmController extends BaseController {
     @Operation(summary = "close alarm")
     @PostMapping("close")
     @Audited(value = AuditAction.ALARM_CLOSE, objectId = "#ids")
-    public ResponseMessage<Void> close(@RequestParam String[] ids) {
+    public ResponseMessage<List<MutiResponseMessage>> close(@RequestParam String[] ids) {
         UserDetail user = getLoginUser();
         // 与新接口 /api/alarms/close 一致：关闭需要告警关闭权限
         moduleAccess.require(user, DataPermissionEnumsName.V2_ALARM_EVENT_ACK_CLOSE);
-        // 只关闭并审计当前用户可见范围内真实存在的告警，非法、不存在或不可见的 ID 忽略
-        List<ObjectId> objectIds = ids == null ? Collections.emptyList() : Arrays.stream(ids).map(MongoUtils::toObjectId)
-                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
-        if (objectIds.isEmpty()) {
-            return success();
+        // 按请求顺序去重；非法、不存在或不在当前用户可见范围的 ID 不关闭
+        Map<String, ObjectId> requested = new LinkedHashMap<>();
+        if (ids != null) {
+            Arrays.stream(ids).filter(StringUtils::isNotBlank).map(String::trim)
+                    .forEach(id -> requested.putIfAbsent(id, MongoUtils.toObjectId(id)));
         }
-        Criteria scope = alarmEventQueryService.visibility(user);
-        if (scope == null) {
-            return success();
+        List<ObjectId> objectIds = requested.values().stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Criteria scope = objectIds.isEmpty() ? null : alarmEventQueryService.visibility(user);
+        Set<String> closed = Collections.emptySet();
+        if (scope != null) {
+            Query query = Query.query(new Criteria().andOperator(Criteria.where("_id").in(objectIds), scope));
+            query.fields().include("_id");
+            closed = alarmService.query(query).stream().map(a -> a.getId().toHexString()).collect(Collectors.toSet());
         }
-        Query query = Query.query(new Criteria().andOperator(Criteria.where("_id").in(objectIds), scope));
-        query.fields().include("_id");
-        String[] existing = alarmService.query(query).stream().map(a -> a.getId().toHexString()).toArray(String[]::new);
-        if (existing.length == 0) {
-            return success();
+        if (!closed.isEmpty()) {
+            alarmService.close(closed.toArray(String[]::new), user);
+            // 关闭只表示结束跟踪，不代表问题恢复；写入操作审计便于追溯
+            for (String id : closed) {
+                userLogService.addUserLog(Modular.ALARM, com.tapdata.tm.userLog.constant.Operation.CLOSE, user, id, id);
+            }
         }
-        alarmService.close(existing, user);
-        // 关闭只表示结束跟踪，不代表问题恢复；写入操作审计便于追溯
-        for (String id : existing) {
-            userLogService.addUserLog(Modular.ALARM, com.tapdata.tm.userLog.constant.Operation.CLOSE, user, id, id);
-        }
-        return success();
+        // 逐项返回实际结果：@Audited 据此只把真正关闭的告警记为成功，其余记为失败
+        Set<String> closedIds = closed;
+        List<MutiResponseMessage> results = requested.entrySet().stream().map(entry -> {
+            MutiResponseMessage item = new MutiResponseMessage();
+            item.setId(entry.getKey());
+            if (entry.getValue() == null || !closedIds.contains(entry.getValue().toHexString())) {
+                item.setCode("Alarm.NotFound");
+                item.setMessage("告警不存在或不在当前用户可见范围");
+            }
+            return item;
+        }).collect(Collectors.toList());
+        return success(results);
     }
 
     /**
