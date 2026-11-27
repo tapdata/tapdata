@@ -197,6 +197,66 @@ class JsonFilePatchTest {
         assertTrue(cmd.contains("eventId_1"));
     }
 
+    @Test
+    void shouldCreateNewIndexMatchingOldDefinitionOfPlannedDropIndexWhenListedAfter() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "UserLogs", List.of(
+                new Document("v", 2).append("key", new Document("_id", 1)).append("name", "_id_"),
+                new Document("v", 2).append("key", new Document("x", 1).append("y", 1)).append("name", "a")
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "UserLogs",
+                    "indexes": [
+                      { "name": "a", "key": { "x": 1 }, "background": true },
+                      { "name": "b", "key": { "x": 1, "y": 1 }, "background": true }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        String dropCmd = commands.getAllValues().get(0);
+        String createCmd = commands.getAllValues().get(1);
+        assertTrue(dropCmd.contains("dropIndexes") && dropCmd.contains("\"a\""));
+        assertTrue(createCmd.contains("createIndexes") && createCmd.contains("\"a\"") && createCmd.contains("\"b\""));
+    }
+
+    @Test
+    void shouldCreateNewIndexMatchingOldDefinitionOfPlannedDropIndexWhenListedBefore() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        mockCollectionIndexes(mongoTemplate, "UserLogs", List.of(
+                new Document("v", 2).append("key", new Document("_id", 1)).append("name", "_id_"),
+                new Document("v", 2).append("key", new Document("x", 1).append("y", 1)).append("name", "a")
+        ));
+
+        String script = """
+                [
+                  {
+                    "createIndexes": "UserLogs",
+                    "indexes": [
+                      { "name": "b", "key": { "x": 1, "y": 1 }, "background": true },
+                      { "name": "a", "key": { "x": 1 }, "background": true }
+                    ]
+                  }
+                ]
+                """;
+
+        newPatch(mongoTemplate, script).run();
+
+        ArgumentCaptor<String> commands = ArgumentCaptor.forClass(String.class);
+        verify(mongoTemplate, times(2)).executeCommand(commands.capture());
+        String dropCmd = commands.getAllValues().get(0);
+        String createCmd = commands.getAllValues().get(1);
+        assertTrue(dropCmd.contains("dropIndexes") && dropCmd.contains("\"a\""));
+        assertTrue(createCmd.contains("createIndexes") && createCmd.contains("\"b\"") && createCmd.contains("\"a\""));
+    }
+
     private JsonFilePatch newPatch(MongoTemplate mongoTemplate, String script) {
         return new JsonFilePatch(
                 new PatchType(AppType.DAAS, PatchTypeEnums.Script),

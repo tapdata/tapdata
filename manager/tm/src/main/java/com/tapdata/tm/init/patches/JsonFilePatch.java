@@ -24,10 +24,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -178,6 +180,7 @@ public class JsonFilePatch extends AbsPatch {
             }
             List<JSONObject> newCreates = new ArrayList<>();
             List<Document> needDrops = new ArrayList<>();
+            Map<String, Set<String>> plannedDropsByCollection = new HashMap<>();
 
             for (JSONObject create : creates) {
                 String collectionName = (String) create.get("createIndexes");
@@ -195,23 +198,36 @@ public class JsonFilePatch extends AbsPatch {
                 if (CollectionUtils.isEmpty(jsonArray)) {
                     continue;
                 }
-                JSONArray newJsonArray = new JSONArray();
+                Set<String> plannedDropNames = plannedDropsByCollection.computeIfAbsent(collectionName, k -> new HashSet<>());
+                List<MongoIndex> targetIndexes = new ArrayList<>(jsonArray.size());
                 for (Object index : jsonArray) {
                     JSONObject jsonObject = (JSONObject) index;
                     MongoIndex mongoIndex = fromIndexJson(jsonObject);
-                    // 查询同名或等价索引是否已存在；等价索引直接跳过，避免升级重跑误 drop 重建
+                    targetIndexes.add(mongoIndex);
+                    MongoIndex existingByName = existIndexMap.get(mongoIndex.getName());
+                    if (existingByName != null && !isIndexEquivalent(mongoIndex, existingByName) && !"_id_".equals(mongoIndex.getName())) {
+                        if (plannedDropNames.add(mongoIndex.getName())) {
+                            Document drop = new Document();
+                            drop.put("dropIndexes", collectionName);
+                            drop.put("index", mongoIndex.getName());
+                            needDrops.add(drop);
+                        }
+                    }
+                }
+
+                JSONArray newJsonArray = new JSONArray();
+                for (int i = 0; i < jsonArray.size(); i++) {
+                    Object index = jsonArray.get(i);
+                    MongoIndex mongoIndex = targetIndexes.get(i);
+                    // 查询同名或等价索引是否已存在；等价索引直接跳过，并排除本轮已计划 drop 的索引
                     MongoIndex existingByName = existIndexMap.get(mongoIndex.getName());
                     if (existingByName != null) {
                         if (!isIndexEquivalent(mongoIndex, existingByName)) {
-                            if (!"_id_".equals(mongoIndex.getName())) {
-                                Document drop = new Document();
-                                drop.put("dropIndexes", collectionName);
-                                drop.put("index", mongoIndex.getName());
-                                needDrops.add(drop);
-                            }
                             newJsonArray.add(index);
                         }
-                    } else if (existIndexes.stream().noneMatch(existing -> isIndexEquivalent(mongoIndex, existing))) {
+                    } else if (existIndexes.stream()
+                            .filter(existing -> !plannedDropNames.contains(existing.getName()))
+                            .noneMatch(existing -> isIndexEquivalent(mongoIndex, existing))) {
                         newJsonArray.add(index);
                     }
                 }
