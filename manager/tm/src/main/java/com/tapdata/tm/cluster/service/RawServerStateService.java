@@ -2,11 +2,13 @@ package com.tapdata.tm.cluster.service;
 
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.RawServerStateDto;
 import com.tapdata.tm.cluster.entity.RawServerStateEntity;
 import com.tapdata.tm.cluster.repository.RawServerStateRepository;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.proxyprocess.constant.AgentProcessType;
 import com.tapdata.tm.utils.QueryUtil;
 import lombok.NonNull;
 import lombok.Setter;
@@ -24,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.*;
 
@@ -34,6 +37,8 @@ public class RawServerStateService extends BaseService<RawServerStateDto, RawSer
     public static final String SERVICE_ID = "serviceId";
     public static final String TIMESTAMP = "timestamp";
     public static final String DELETE = "delete";
+    public static final Set<String> ORACLE_LOG_PARSER_DATA_SOURCES = Set.of(
+            AgentProcessType.ORACLE_LOG_PARSER.getValue(), "nineBridge");
     public RawServerStateService(@NonNull RawServerStateRepository repository) {
         super(repository, RawServerStateDto.class, RawServerStateEntity.class);
     }
@@ -64,6 +69,21 @@ public class RawServerStateService extends BaseService<RawServerStateDto, RawSer
                 .thenComparing(RawServerStateDto::getServiceId,
                         Comparator.nullsLast(Comparator.naturalOrder())));
         return new Page<>(results.size(), results);
+    }
+
+    public List<RawServerStateDto> getLatestOracleLogParserStates() {
+        Filter filter = new Filter();
+        filter.setWhere(new Where());
+        filter.getWhere().put("dataSource", new Document().append("$in", ORACLE_LOG_PARSER_DATA_SOURCES));
+        return getAllLatest(filter).getItems();
+    }
+
+    public List<RawServerStateDto> getLatestOracleLogParserState(String serviceId) {
+        Filter filter = new Filter();
+        filter.setWhere(new Where());
+        filter.getWhere().put("dataSource", new Document().append("$in", ORACLE_LOG_PARSER_DATA_SOURCES));
+        filter.getWhere().put(SERVICE_ID, new Document().append("$eq", serviceId));
+        return getAllLatest(filter).getItems();
     }
 
     public void deleteAll(String serviceId) {

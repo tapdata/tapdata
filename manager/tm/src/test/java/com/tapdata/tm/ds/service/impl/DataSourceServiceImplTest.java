@@ -1470,6 +1470,7 @@ class DataSourceServiceImplTest {
             assertTrue(connection.getDatabase_uri().startsWith("mongodb://"));
             assertTrue(connection.getDatabase_uri().contains("127.0.0.1:27017"));
         }
+
     }
 
     private static DataSourceConnectionDto maskedMongoConnection() {
